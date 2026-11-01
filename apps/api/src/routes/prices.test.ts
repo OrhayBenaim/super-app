@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { fileURLToPath } from "node:url";
 import type { app as App } from "../app.js";
 
 let app: typeof App;
@@ -14,7 +15,7 @@ beforeAll(async () => {
   ({ app } = await import("../app.js"));
   const { db } = await import("../db/index.js");
   const { ingestPrices, ingestStores, readXml } = await import("../ingest/ingest.js");
-  const fx = (f: string) => readXml(new URL(`../ingest/__fixtures__/${f}`, import.meta.url).pathname);
+  const fx = (f: string) => readXml(fileURLToPath(new URL(`../ingest/__fixtures__/${f}`, import.meta.url)));
   ingestStores("osher-ad", fx("Stores7290103152017-000-20261021-080500.xml"));
   ingestPrices("osher-ad", fx("PriceFull7290103152017-001-001-20261021-051600.gz"));
   ingestPrices("osher-ad", fx("PriceFull7290103152017-001-002-20261021-051600.xml"));
