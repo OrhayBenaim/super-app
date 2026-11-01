@@ -1,0 +1,146 @@
+{
+ "aaData": [
+  {
+   "DT_RowId": "Price7290058140886-001-001-20261101-070019.gz",
+   "fname": "Price7290058140886-001-001-20261101-070019.gz",
+   "ftime": "11/01/2026 07:10",
+   "icon": "compress.png",
+   "name": "Price7290058140886-001-001-20261101-070019.gz",
+   "size": 25164,
+   "time": "2026-11-01T05:10:08Z",
+   "type": "file",
+   "typeLabel": "file",
+   "value": "Price7290058140886-001-001-20261101-070019.gz"
+  },
+  {
+   "DT_RowId": "PriceFull7290058140886-001-001-20261101-001003.gz",
+   "fname": "PriceFull7290058140886-001-001-20261101-001003.gz",
+   "ftime": "11/01/2026 00:20",
+   "icon": "compress.png",
+   "name": "PriceFull7290058140886-001-001-20261101-001003.gz",
+   "size": 994898,
+   "time": "2026-10-31T22:20:04Z",
+   "type": "file",
+   "typeLabel": "file",
+   "value": "PriceFull7290058140886-001-001-20261101-001003.gz"
+  },
+  {
+   "DT_RowId": "PriceFull7290058140886-001-003-20261101-001015.gz",
+   "fname": "PriceFull7290058140886-001-003-20261101-001015.gz",
+   "ftime": "11/01/2026 00:09",
+   "icon": "compress.png",
+   "name": "PriceFull7290058140886-001-003-20261101-001015.gz",
+   "size": 545115,
+   "time": "2026-10-31T22:09:37Z",
+   "type": "file",
+   "typeLabel": "file",
+   "value": "PriceFull7290058140886-001-003-20261101-001015.gz"
+  },
+  {
+   "DT_RowId": "PriceFull7290058140886-001-003-20261101-060015.gz",
+   "fname": "PriceFull7290058140886-001-003-20261101-060015.gz",
+   "ftime": "11/01/2026 05:59",
+   "icon": "compress.png",
+   "name": "PriceFull7290058140886-001-003-20261101-060015.gz",
+   "size": 539969,
+   "time": "2026-11-01T03:59:40Z",
+   "type": "file",
+   "typeLabel": "file",
+   "value": "PriceFull7290058140886-001-003-20261101-060015.gz"
+  },
+  {
+   "DT_RowId": "pricefull7290058140886-039-202610300516.gz",
+   "fname": "pricefull7290058140886-039-202610300516.gz",
+   "ftime": "10/30/2026 05:35",
+   "icon": "compress.png",
+   "name": "pricefull7290058140886-039-202610300516.gz",
+   "size": 633877,
+   "time": "2026-10-30T03:35:06Z",
+   "type": "file",
+   "typeLabel": "file",
+   "value": "pricefull7290058140886-039-202610300516.gz"
+  },
+  {
+   "DT_RowId": "pricefull7290058140886-039-202611010514.gz",
+   "fname": "pricefull7290058140886-039-202611010514.gz",
+   "ftime": "11/01/2026 05:35",
+   "icon": "compress.png",
+   "name": "pricefull7290058140886-039-202611010514.gz",
+   "size": 635635,
+   "time": "2026-11-01T03:35:02Z",
+   "type": "file",
+   "typeLabel": "file",
+   "value": "pricefull7290058140886-039-202611010514.gz"
+  },
+  {
+   "DT_RowId": "PromoFull7290058140886-001-001-20261101-001100.gz",
+   "fname": "PromoFull7290058140886-001-001-20261101-001100.gz",
+   "ftime": "11/01/2026 00:20",
+   "icon": "compress.png",
+   "name": "PromoFull7290058140886-001-001-20261101-001100.gz",
+   "size": 218997,
+   "time": "2026-10-31T22:20:44Z",
+   "type": "file",
+   "typeLabel": "file",
+   "value": "PromoFull7290058140886-001-001-20261101-001100.gz"
+  },
+  {
+   "DT_RowId": "Stores7290058140886-000-20261030-050500.xml",
+   "fname": "Stores7290058140886-000-20261030-050500.xml",
+   "ftime": "10/30/2026 05:04",
+   "icon": "xml.png",
+   "name": "Stores7290058140886-000-20261030-050500.xml",
+   "size": 38638,
+   "time": "2026-10-30T03:04:19Z",
+   "type": "file",
+   "typeLabel": "file",
+   "value": "Stores7290058140886-000-20261030-050500.xml"
+  },
+  {
+   "DT_RowId": "Stores7290058140886-000-20261031-050500.xml",
+   "fname": "Stores7290058140886-000-20261031-050500.xml",
+   "ftime": "10/31/2026 05:04",
+   "icon": "xml.png",
+   "name": "Stores7290058140886-000-20261031-050500.xml",
+   "size": 38638,
+   "time": "2026-10-31T03:04:17Z",
+   "type": "file",
+   "typeLabel": "file",
+   "value": "Stores7290058140886-000-20261031-050500.xml"
+  },
+  {
+   "DT_RowId": "Stores7290058140886-000-20261101-050500.xml",
+   "fname": "Stores7290058140886-000-20261101-050500.xml",
+   "ftime": "11/01/2026 05:04",
+   "icon": "xml.png",
+   "name": "Stores7290058140886-000-20261101-050500.xml",
+   "size": 38638,
+   "time": "2026-11-01T03:04:15Z",
+   "type": "file",
+   "typeLabel": "file",
+   "value": "Stores7290058140886-000-20261101-050500.xml"
+  },
+  {
+   "DT_RowId": "PriceFull7290055700007-0820-202403281445.gz",
+   "fname": "PriceFull7290055700007-0820-202403281445.gz",
+   "ftime": "11/01/2026 07:10",
+   "icon": "compress.png",
+   "name": "PriceFull7290055700007-0820-202403281445.gz",
+   "size": 25164,
+   "time": "2026-11-01T05:10:08Z",
+   "type": "file",
+   "typeLabel": "file",
+   "value": "PriceFull7290055700007-0820-202403281445.gz"
+  },
+  {
+   "DT_RowId": "sub",
+   "fname": "sub",
+   "name": "sub",
+   "type": "folder",
+   "value": "sub"
+  }
+ ],
+ "iTotalDisplayRecords": 12,
+ "iTotalRecords": 12,
+ "sEcho": 1
+}
