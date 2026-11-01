@@ -16,6 +16,8 @@ const schema = z.object({
   APPLE_CLIENT_ID: optional,
   APPLE_CLIENT_SECRET: optional,
   APPLE_APP_BUNDLE_IDENTIFIER: z.string().default("com.grocer.app"),
+  RESEND_API_KEY: z.string(),
+  EMAIL_FROM: z.string().default("Grocer <no-reply@example.com>"),
   NOMINATIM_URL: z.url().default("https://nominatim.openstreetmap.org"),
   // Scheduled sync times, read as Asia/Jerusalem wall-clock time whatever the server timezone.
   SYNC_TIMES: z

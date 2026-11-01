@@ -2,4 +2,4 @@
 import { buildDeps } from "#/deps.ts";
 import { loadConfig } from "#/services/config.ts";
 
-export const auth = buildDeps(loadConfig({ ...process.env, DATABASE_URL: ":memory:" })).auth;
+export const auth = buildDeps(loadConfig({ ...process.env, RESEND_API_KEY: process.env.RESEND_API_KEY || "unused", DATABASE_URL: ":memory:" })).auth;

@@ -4,8 +4,10 @@ import { expo } from "@better-auth/expo";
 import type { Db } from "#/db/index.ts";
 import * as schema from "#/db/schema.ts";
 import type { Config } from "#/services/config.ts";
+import type { Mailer } from "#/services/mailer.ts";
 
-export function createAuth(db: Db, config: Config) {
+// mailer: sends Password reset emails (#11).
+export function createAuth(db: Db, config: Config, mailer: Mailer) {
   return betterAuth({
     baseURL: config.BETTER_AUTH_URL,
     secret: config.BETTER_AUTH_SECRET,
