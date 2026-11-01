@@ -41,6 +41,16 @@ describe("priceSyncJob", () => {
     expect(results.find((r) => r.chain_id === chainSeeds[0]!.ids[0])).toMatchObject({ status: "failed", error: expect.stringMatching(/no Stores file/) });
   });
 
+  it("loads a PriceFull into the store its file name names, not the StoreID inside (Carrefour)", async () => {
+    const renamed = {
+      [`Stores${OSHER}-000-20261021-080500.xml`]: osherFiles[`Stores${OSHER}-000-20261021-080500.xml`]!,
+      [`PriceFull${OSHER}-001-004-20261021-051600.gz`]: osherFiles[`PriceFull${OSHER}-001-001-20261021-051600.gz`]!,
+    };
+    const deps = setup({ pricePortal: fakePricePortal(renamed) });
+    await priceSyncJob(deps)({});
+    expect(rows(deps, "SELECT DISTINCT store_id FROM prices")).toEqual([{ store_id: `${OSHER}-4` }]);
+  });
+
   it("refuses to start while a Price sync is running or a request is waiting, and records nothing", async () => {
     const deps = setup();
     deps.db.$client.prepare("INSERT INTO sync_runs (trigger, status, requested_at) VALUES ('scheduled', 'running', 0)").run();

@@ -54,7 +54,7 @@ export async function syncChain(deps: Deps, chain: ChainSeed, maxStores: number,
     const xml = decodeXml(Buffer.from(await download(f)));
     counts.filesDownloaded++;
     if (i === 0) counts.storesLoaded = ingestStores(deps, chain.key, xml);
-    else counts.pricesLoaded += ingestPrices(deps, chain.key, xml);
+    else counts.pricesLoaded += ingestPrices(deps, chain.key, xml, f.name);
   }
   counts.storesGeocoded = await geocodeStores(deps, chain.ids[0]!);
 }

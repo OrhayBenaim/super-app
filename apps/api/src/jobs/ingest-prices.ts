@@ -18,7 +18,7 @@ export function ingestPricesJob(deps: Deps) {
     if (stores) console.log(`${stores}: ${ingestStores(deps, chain, readXml(stores))} stores`);
     for (const f of prices) {
       const t = performance.now();
-      console.log(`${f}: ${ingestPrices(deps, chain, readXml(f))} prices in ${Math.round(performance.now() - t)} ms`);
+      console.log(`${f}: ${ingestPrices(deps, chain, readXml(f), f)} prices in ${Math.round(performance.now() - t)} ms`);
     }
   };
 }
