@@ -8,7 +8,9 @@ compares what the list costs at nearby supermarkets. This file is for AI agents 
 ```
 apps/api/                 Node 22 + TypeScript (strict, ESM, NodeNext) API
   src/index.ts            starts the HTTP server (PORT, default 3000)
-  src/app.ts              Hono app: CORS, /api/auth/*, /health, requireUser; register routes here
+  src/app.ts              Hono app: CORS, /api/auth/*, /health; register routes here
+  src/middleware.ts       AppEnv type + requireUser
+  src/ingest/             price-file parser (parse.ts), chain seed (chains.ts), ingest/geocode CLIs
   src/auth.ts             better-auth config (email+password, optional Google/Apple, expo plugin)
   src/db/index.ts         better-sqlite3 + Drizzle; WAL; runs migrations on import
   src/db/schema.ts        better-auth tables (generated) + re-export of appSchema.ts
@@ -35,6 +37,8 @@ npm run typecheck                 # tsc --noEmit in both apps
 npm test                          # vitest run in both apps
 npm run db:generate -w apps/api   # drizzle-kit generate after schema changes
 npm run db:migrate -w apps/api    # apply migrations manually (the API also does it on startup)
+npm run ingest -w apps/api -- --chain <key> --stores <file> --prices <file...>   # load price-transparency XML
+npm run geocode -w apps/api       # fill stores.lat/lng via Nominatim (NOMINATIM_URL), 1 req/s
 npx auth@latest generate --config src/auth.ts --output src/db/schema.ts   # (in apps/api) only after adding better-auth plugins; re-append the appSchema re-export
 ```
 
@@ -51,7 +55,7 @@ General
 API (`apps/api`)
 - One Hono route module per feature: `src/routes/<feature>.ts` exports a `new Hono<AppEnv>()`.
   Register it in `src/app.ts` with `app.route("/api/<feature>", <feature>Routes)`.
-- Protect routes with `requireUser`; read the user with `c.get("user")`.
+- Protect routes with `requireUser` (from `src/middleware.ts`); read the user with `c.get("user")`.
 - Validate every request body, query and param with zod at the HTTP boundary. Return 400 on failure.
 - Tables live in `src/db/appSchema.ts`. Never hand-edit the better-auth tables in `schema.ts`.
 - Schema change: edit `appSchema.ts`, run `npm run db:generate -w apps/api`, and commit the new `drizzle/` files.

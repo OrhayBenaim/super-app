@@ -15,6 +15,20 @@
       "when": 1793491333021,
       "tag": "0001_little_hannibal_king",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793491556254,
+      "tag": "0002_dazzling_sprite",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793491557246,
+      "tag": "0003_products_fts",
+      "breakpoints": true
     }
   ]
 }

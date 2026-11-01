@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import { requireUser, type AppEnv } from "../app.js";
+import { requireUser, type AppEnv } from "../middleware.js";
 import { db } from "../db/index.js";
 import { items, listMembers, lists, user } from "../db/schema.js";
 
@@ -61,8 +61,7 @@ function createList(ownerId: string, name: string) {
 }
 
 export const listsRoutes = new Hono<AppEnv>();
-// Wrapped: app.ts imports this module, so requireUser is not initialized yet at module evaluation.
-listsRoutes.use("*", (c, next) => requireUser(c, next));
+listsRoutes.use("*", requireUser);
 
 listsRoutes.get("/", (c) => {
   const userId = c.get("user").id;
