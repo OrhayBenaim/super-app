@@ -2,13 +2,13 @@
 
 Grocery list + cheapest-supermarket finder for Israel. npm-workspaces monorepo:
 
-- `apps/api` — Node 22.18+ (runs TypeScript natively) + TypeScript, Hono, Drizzle ORM on SQLite (better-sqlite3), better-auth.
+- `apps/api` — Node 24.14+ (runs TypeScript natively) + TypeScript, Hono, Drizzle ORM on SQLite (better-sqlite3), better-auth.
 - `apps/mobile` — Expo SDK 58 + expo-router app (iOS/Android).
 
 ## Run
 
 ```bash
-nvm use                       # Node 22
+nvm use                       # Node 24
 npm install                   # installs both apps
 cp apps/api/.env.example apps/api/.env
 cp apps/mobile/.env.example apps/mobile/.env

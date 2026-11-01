@@ -6,7 +6,7 @@ compares what the list costs at nearby supermarkets. This file is for AI agents 
 ## Repo layout
 
 ```
-apps/api/                 Node 22.18+ running TypeScript natively (strict, ESM, no build). Structure: apps/api/ARCHITECTURE.md
+apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, no build). Structure: apps/api/ARCHITECTURE.md
   src/api.ts              entry point: loadConfig() -> buildDeps() -> serve createApp(deps) (PORT, default 3000),
                           and createInternalApp(deps) on INTERNAL_HOST:INTERNAL_PORT when SYNC_TOKEN is set
   src/internal-app.ts     private trigger app: POST /sync records a Manual sync request (never on the public port)
