@@ -260,7 +260,7 @@ A gray-and-white iOS system ground with one saturated ultramarine and three sing
 
 Single-column iOS layout at 393pt width, designed RTL first. Screen gutters and inset-group margins are 16pt (`spacing.4`); rows are 52pt minimum (`size/row`) and every target is at least 44pt (`size/target`). Groups are separated by a section header; all spacing comes from the 4pt-based scale (4 / 8 / 12 / 16 / 20 / 24 / 32). Top-level screens open with a large title and one summary line in Secondary Label; tabs carry their own title. Sheets are content-sized, with a grabber. Containers use minimum heights, never fixed heights, so Dynamic Type can grow them.
 
-Screen anatomy, as drawn: **List** = "cheapest now" row → category groups of check rows → "Recently bought" row. **My items** = search field → category groups of item rows (switch at the trailing end) → footer. **Compare** = radius pull-down in the nav bar → large title + summary → segmented (price / distance / coverage) → Best store group → "Other branches" group of store rows. **Settings** = alerts group with footer → account group ending in a destructive row.
+Screen anatomy, as drawn: **List** = "cheapest now" row → category groups of check rows → "Recently bought" row. **My items** = search field → category groups of item rows (add-to-list button at the trailing end) → footer. **Compare** = radius pull-down in the nav bar → large title + summary → segmented (price / distance / coverage) → Best store group → "Other branches" group of store rows. **Settings** = alerts group with footer → account group ending in a destructive row.
 
 ## Elevation & Depth
 
@@ -299,12 +299,12 @@ All components are iOS standard in structure; Grocer's expression is color assig
 - **Inset group:** Group White, 12pt radius, 16pt margins, no border, no shadow.
 - **Section header:** Section Header text in Secondary Label with a trailing tabular count.
 - **Check row:** leading check circle (Control Outline when open; tint fill with a Tint On check when checked). Checked: strike-through and Secondary Label. Tap the circle or use the leading swipe action to tick.
-- **Item row:** name + optional detail "from ₪x · in N branches" in Subhead Secondary Label; the switch sits at the trailing end. No category chip.
+- **Item row:** name + optional detail "from ₪x · in N branches" in Subhead Secondary Label. At the trailing end, an add-to-list button in a 44pt target: a 30pt Tint Soft circle with a Tint "+" when the item is not on the list, a Tint Soft pill reading "ברשימה" (On the list) when it is. Tapping the row or the button toggles it. A list action, not a setting, so it is never a switch; and never a check circle, which on the List means "bought". No category chip.
 - **Form row:** label, trailing value in Secondary Label, disclosure chevron in Control Outline.
 - **Store row:** chain (Body), "branch · distance" detail, amber missing count when partial, trailing Price Row. No disclosure.
 
 ### Switch
-- One switch app-wide (iOS style, mirrored for RTL): tint track when on, Control Fill when off. Used on My items ("on the list") and in Settings (alerts).
+- One switch app-wide (iOS style, mirrored for RTL): tint track when on, Control Fill when off. Used for settings only (nearby alerts). Never for list membership: My items uses the add-to-list button.
 
 ### Navigation
 - **Tab bar:** standard iOS, 4 tabs (List, My items, Compare, Settings), Lucide icons with Caption labels; selected = tint, unselected = Secondary Label; 85% surface with blur and a top hairline.
@@ -321,11 +321,11 @@ The first group on Compare and the app's whole answer: chain in Title 3, "branch
 - **Springs:** `snappy` (damping ratio 1.0, 0.30s) for press feedback, swipe return, segmented thumb, list reorder on Compare; `gentle` (1.0, 0.45s) for the sign-in / sign-up form reflow; `bouncy` (0.75, 0.40s) only for the swipe action icon arming; `sheet` (0.85, 0.35s) for sheets. No bounce elsewhere.
 - **Durations:** fast 150ms (check-circle fill, fades), base 200ms (row exit and layout, chevron rotation); a 450ms hold between a check and the row leaving so the strike-through registers. All UI timing at or under 280ms; ease-out `cubic-bezier(.23,1,.32,1)` for enter / exit, no ease-in.
 - **Swipe to tick:** the iOS leading swipe action (in Hebrew, the action appears at the right edge as the row moves left). Gesture hysteresis 10pt horizontal to activate, fail on 8pt vertical; commit on distance (35% of width, "armed") or a flick over 800pt/s; rubber-band past 60%. Every swipe has an accessibility action that does the same thing. Note: v1 code swipes toward start; the v2 direction is a migration change.
-- **Haptics** (on the causal frame, always paired with a visual): item checked → success notification; put back → selection; switch flip → selection; tab change → selection; segment change → selection; long-press to edit → light impact; delete confirmed → medium impact; sign-in validation failed → error notification; invite link copied → success notification. Buttons do not fire a blanket haptic.
+- **Haptics** (on the causal frame, always paired with a visual): item checked → success notification; put back → selection; add to list / remove from list → selection; switch flip → selection; tab change → selection; segment change → selection; long-press to edit → light impact; delete confirmed → medium impact; sign-in validation failed → error notification; invite link copied → success notification. Buttons do not fire a blanket haptic.
 - **Reduced motion:** fewer and gentler, not zero. Press scale off, segmented thumb and switch jump, chevron rotation instant, check pulse off, swipe arming keeps opacity but drops scale, skeletons static. Open item: the sheet spring does not yet honor reduced motion in code.
 
 ### Accessibility
-- Check circle is a checkbox with `checked`; tabs are a tab list with `selected`; the segmented control is a tab list; switches are switches with `checked`; titles are headers.
+- Check circle is a checkbox with `checked`; tabs are a tab list with `selected`; the segmented control is a tab list; switches are switches with `checked`; the My items add-to-list button is a button labelled "Add <item> to the list" / "Remove <item> from the list" with `selected` when on the list; titles are headers.
 - Every touchable has a role and label; every target at least 44pt.
 - Dynamic Type: text scales, containers use minimum heights, long Hebrew strings cap at 2 lines in rows and 1 in titles.
 - Skeletons and decorative fragments are hidden from assistive tech.
