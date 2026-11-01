@@ -1,15 +1,13 @@
 // The private trigger: a separate Hono app on INTERNAL_HOST:INTERNAL_PORT, never on the public port.
 // It only records Manual sync requests; the worker's check runs them.
 import { createHash, timingSafeEqual } from "node:crypto";
-import { inArray } from "drizzle-orm";
 import { Hono } from "hono";
-import { syncRuns } from "#/db/appSchema.ts";
 import type { Deps } from "#/deps.ts";
+import { requestManualSync } from "#/jobs/price-sync.ts";
 
 export function createInternalApp(deps: Deps) {
   const token = deps.config.SYNC_TOKEN;
   if (!token) throw new Error("SYNC_TOKEN is not set");
-  const { db, clock } = deps;
   // Hashing first gives equal lengths, so the comparison takes the same time for any wrong header.
   const sha = (s: string) => createHash("sha256").update(s).digest();
   const expected = sha(`Bearer ${token}`);
@@ -21,18 +19,8 @@ export function createInternalApp(deps: Deps) {
       await next();
     })
     .post("/sync", (c) => {
-      const busy = db
-        .select({ id: syncRuns.id })
-        .from(syncRuns)
-        .where(inArray(syncRuns.status, ["requested", "running"]))
-        .get();
-      if (busy) return c.json({ error: "sync_running" }, 409);
-      const { id } = db
-        .insert(syncRuns)
-        .values({ trigger: "manual", status: "requested", requestedAt: clock.now() })
-        .returning({ id: syncRuns.id })
-        .get();
-      return c.json({ id }, 202);
+      const id = requestManualSync(deps);
+      return id === null ? c.json({ error: "busy" }, 409) : c.json({ id }, 202);
     })
     .onError((error, c) => {
       console.error(error);

@@ -16,7 +16,7 @@ apps/api/                 Node 22.18+ running TypeScript natively (strict, ESM, 
   src/middleware.ts       AppEnv type (c.var.deps, c.var.user) + requireUser
   src/services/           vendor-neutral services (config, error-handler, geocoder, price-portal)
   src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, price-portals, fake-error-handler)
-  src/jobs/               fetch-prices, ingest-prices, geocode-stores, price-sync (sync job, worker check, sync-worker loop)
+  src/jobs/               fetch-prices, ingest-prices, geocode-stores, price-sync (one Price sync), sync-worker (once-a-minute check)
   src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts)
   src/auth.ts             createAuth(db, config): better-auth (email+password, optional Google/Apple, expo plugin)
   src/db/index.ts         openDb(path): better-sqlite3 + Drizzle; WAL; runs migrations, seeds chains

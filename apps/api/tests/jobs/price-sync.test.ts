@@ -41,6 +41,14 @@ describe("priceSyncJob", () => {
     expect(results.find((r) => r.chain_id === chainSeeds[0]!.ids[0])).toMatchObject({ status: "failed", error: expect.stringMatching(/no Stores file/) });
   });
 
+  it("refuses to start while a Price sync is running or a request is waiting, and records nothing", async () => {
+    const deps = setup();
+    deps.db.$client.prepare("INSERT INTO sync_runs (trigger, status, requested_at) VALUES ('scheduled', 'running', 0)").run();
+    await expect(priceSyncJob(deps)({})).rejects.toThrow(/already running or requested/);
+    expect(one(deps, "SELECT count(*) AS n FROM sync_runs").n).toBe(1);
+    expect(one(deps, "SELECT count(*) AS n FROM sync_chain_results").n).toBe(0);
+  });
+
   it("a Chain whose portal throws is recorded as failed and keeps its previous prices; later Chains still load", async () => {
     const deps = setup();
     await priceSyncJob(deps)({});
