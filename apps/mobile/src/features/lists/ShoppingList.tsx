@@ -18,7 +18,6 @@ import { useCompare, useRadius } from "@/features/compare/api";
 import { fmt, shekels } from "@/features/compare/format";
 import { sortStores } from "@/features/compare/sort";
 import { AddField } from "@/features/items/AddField";
-import { ItemSheet } from "@/features/items/ItemSheet";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
 import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
@@ -45,7 +44,6 @@ export function ShoppingList() {
   const cheapest = useCheapestNow(missingCodes(data));
   const [refreshing, setRefreshing] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<{ open: boolean; item: Item | null }>({ open: false, item: null });
 
   const missing = missingItems(data);
   const groups = groupByCategory(missing, categories);
@@ -112,7 +110,7 @@ export function ShoppingList() {
                   <Group title={g.category} count={g.count} inset={CHECK_INSET + space[5]}>
                     {g.items.map((item) => (
                       <Animated.View key={item.id} layout={LAYOUT} entering={ENTER} exiting={EXIT}>
-                        <CheckRow item={item} onBought={bought} onEdit={() => setEditing({ open: true, item })} />
+                        <CheckRow item={item} onBought={bought} onEdit={() => router.push({ pathname: "/item/[id]", params: { id: item.id } })} />
                       </Animated.View>
                     ))}
                   </Group>
@@ -132,7 +130,6 @@ export function ShoppingList() {
       </Animated.ScrollView>
 
       {adding && <AddField from="list" listId={listId} items={data.items} onClose={() => setAdding(false)} />}
-      <ItemSheet open={editing.open} item={editing.item} listId={listId} onDelete={deleteItem} onClose={() => setEditing((s) => ({ ...s, open: false }))} />
       {toast}
     </Screen>
   );

@@ -1,47 +1,15 @@
-import { BottomSheetBackdrop, BottomSheetModal, BottomSheetTextInput, BottomSheetView, type BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
-import { useEffect, useRef, type ReactNode, type Ref } from "react";
-import { I18nManager, View, type TextInputInstance, type TextInputProps } from "react-native";
-import { Easing, useReducedMotion } from "react-native-reanimated";
+import type { ReactNode, Ref } from "react";
+import { I18nManager, TextInput, View, type TextInputInstance, type TextInputProps } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { springs, text, useTheme } from "@/theme";
+import { text, useTheme } from "@/theme";
 import { Tap } from "./Tap";
 import { Text } from "./Text";
 
-export type SheetProps = { open: boolean; onClose: () => void; children: ReactNode };
-
-const Backdrop = (p: BottomSheetBackdropProps) => <BottomSheetBackdrop {...p} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.4} />;
-
-/** Content-sized modal bottom sheet (gorhom, needs BottomSheetModalProvider in app/_layout) driven by `open`; covers the tab bar. */
-export function Sheet({ open, onClose, children }: SheetProps) {
-  const { colors, space, radius, motion, shadow } = useTheme();
-  const reduced = useReducedMotion();
-  const [x1, y1, x2, y2] = motion.easing.sheet;
+/** Body of a sheet route (a Stack screen with `presentation: "formSheet"`, see app/_layout): gutters and the bottom inset. */
+export function Sheet({ children }: { children: ReactNode }) {
+  const { space } = useTheme();
   const insets = useSafeAreaInsets();
-  const ref = useRef<BottomSheetModal>(null);
-  useEffect(() => {
-    if (open) ref.current?.present();
-    else ref.current?.dismiss();
-  }, [open]);
-
-  return (
-    <BottomSheetModal
-      ref={ref}
-      enableDynamicSizing
-      enablePanDownToClose
-      animationConfigs={reduced ? { duration: motion.duration.base, easing: Easing.bezier(x1, y1, x2, y2) } : springs.sheet}
-      onDismiss={onClose}
-      backdropComponent={Backdrop}
-      keyboardBehavior="interactive"
-      keyboardBlurBehavior="restore"
-      android_keyboardInputMode="adjustResize"
-      // Grouped background so the white inset groups inside read as groups, as on screens.
-      backgroundStyle={{ backgroundColor: colors.groupedBg, borderRadius: radius.sheet }}
-      style={shadow.sheet}
-      handleIndicatorStyle={{ backgroundColor: colors.controlOutline }}
-    >
-      <BottomSheetView style={{ paddingHorizontal: space[5], paddingBottom: insets.bottom + space[5], gap: space[4] }}>{children}</BottomSheetView>
-    </BottomSheetModal>
-  );
+  return <View style={{ paddingTop: space[3], paddingHorizontal: space[5], paddingBottom: insets.bottom + space[5], gap: space[4] }}>{children}</View>;
 }
 
 type NavAction = { title: string; onPress: () => void; disabled?: boolean };
@@ -70,15 +38,14 @@ export function SheetHeader({ title, start, end }: { title: string; start?: NavA
 
 export type SheetTextFieldProps = TextInputProps & { label: string; ref?: Ref<TextInputInstance> };
 
-/** Form row inside a Sheet group: label at the leading end, the input fills the rest. Follows the keyboard. */
+/** Form row inside a Sheet group: label at the leading end, the input fills the rest. */
 export function SheetTextField({ label, style, ref, ...rest }: SheetTextFieldProps) {
   const { colors, space, size } = useTheme();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: space[4], minHeight: size.row, paddingHorizontal: space[5] }}>
       <Text>{label}</Text>
-      <BottomSheetTextInput
-        // gorhom types the ref as the TextInput class; RN 0.88 refs are TextInputInstance at runtime.
-        ref={ref as never}
+      <TextInput
+        ref={ref}
         accessibilityLabel={label}
         placeholderTextColor={colors.labelSecondary}
         selectionColor={colors.tint}

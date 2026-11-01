@@ -1,4 +1,4 @@
-import { useIsFocused } from "expo-router";
+import { useIsFocused, useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Alert } from "react-native";
@@ -10,7 +10,6 @@ import { useTheme } from "@/theme";
 import { EmptyState, Group, IconButton, LargeTitle, Screen, SearchField, SwipeRow, Text } from "@/ui";
 import { AddField } from "./AddField";
 import { ItemRow } from "./ItemRow";
-import { ItemSheet } from "./ItemSheet";
 import { useDeleteWithUndo } from "./useDeleteWithUndo";
 
 const LAYOUT = LinearTransition.duration(200);
@@ -26,7 +25,7 @@ export function MyItems() {
   const { deleteItem, toast } = useDeleteWithUndo(listId);
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<{ open: boolean; item: Item | null }>({ open: false, item: null });
+  const router = useRouter();
 
   const q = query.trim().toLocaleLowerCase();
   const items = data?.items ?? [];
@@ -59,7 +58,7 @@ export function MyItems() {
                   {g.items.map((item) => (
                     <Animated.View key={item.id} layout={LAYOUT} entering={ENTER} exiting={EXIT}>
                       <SwipeRow label={t("common.delete")} onDelete={() => deleteItem(item)}>
-                        <ItemRow item={item} onToggle={(missing) => toggle(item, missing)} onEdit={() => setEditing({ open: true, item })} />
+                        <ItemRow item={item} onToggle={(missing) => toggle(item, missing)} onEdit={() => router.push({ pathname: "/item/[id]", params: { id: item.id } })} />
                       </SwipeRow>
                     </Animated.View>
                   ))}
@@ -71,7 +70,6 @@ export function MyItems() {
       )}
 
       {adding && <AddField from="items" listId={listId} items={items} onClose={() => setAdding(false)} />}
-      <ItemSheet open={editing.open} item={editing.item} listId={listId} onDelete={deleteItem} onClose={() => setEditing((s) => ({ ...s, open: false }))} />
       {toast}
     </Screen>
   );

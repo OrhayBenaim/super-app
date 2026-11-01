@@ -1,4 +1,3 @@
-import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { useRef } from "react";
@@ -13,7 +12,7 @@ const queryClient = new QueryClient();
 
 export default function RootLayout() {
   const { data: session, isPending } = authClient.useSession();
-  const { colors } = useTheme();
+  const { colors, radius, shadow } = useTheme();
   // Gate only the first load: a signed-out refetch (sign-in, app focus) sets isPending again,
   // and returning null then would unmount the whole navigator mid-form.
   const loaded = useRef(false);
@@ -22,28 +21,38 @@ export default function RootLayout() {
   useNearbyNotificationTap(loaded.current && !!session);
   if (!loaded.current) return null; // session is cached in SecureStore, so this is brief
 
+  // Native content-sized sheet; grouped background so the white inset groups inside read as groups, as on screens.
+  const sheet = {
+    presentation: "formSheet",
+    sheetAllowedDetents: "fitToContents",
+    sheetGrabberVisible: true,
+    sheetCornerRadius: radius.sheet,
+    sheetElevation: shadow.sheet.elevation,
+    contentStyle: { backgroundColor: colors.groupedBg },
+  } as const;
+
   // Protected groups: without a session expo-router redirects to (auth) (onboarding first), else (tabs).
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
-        <BottomSheetModalProvider>
-          <StatusBar style="auto" />
-          <Stack screenOptions={{ headerShown: false }}>
-            {/* shortcut: a signed-out join/share deep link lands on onboarding and the invite code is lost after sign-in; stash it if users complain. */}
-            <Stack.Protected guard={!!session}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen
-                name="recent"
-                options={{ headerShown: true, title: "", headerTintColor: colors.tint, headerShadowVisible: false, headerStyle: { backgroundColor: colors.groupedBg } }}
-              />
-              <Stack.Screen name="share" options={{ presentation: "modal" }} />
-              <Stack.Screen name="join/[code]" />
-            </Stack.Protected>
-            <Stack.Protected guard={!session}>
-              <Stack.Screen name="(auth)" />
-            </Stack.Protected>
-          </Stack>
-        </BottomSheetModalProvider>
+        <StatusBar style="auto" />
+        <Stack screenOptions={{ headerShown: false }}>
+          {/* shortcut: a signed-out join/share deep link lands on onboarding and the invite code is lost after sign-in; stash it if users complain. */}
+          <Stack.Protected guard={!!session}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="recent"
+              options={{ headerShown: true, title: "", headerTintColor: colors.tint, headerShadowVisible: false, headerStyle: { backgroundColor: colors.groupedBg } }}
+            />
+            <Stack.Screen name="share" options={{ presentation: "modal" }} />
+            <Stack.Screen name="item/[id]" options={sheet} />
+            <Stack.Screen name="missing" options={sheet} />
+            <Stack.Screen name="join/[code]" />
+          </Stack.Protected>
+          <Stack.Protected guard={!session}>
+            <Stack.Screen name="(auth)" />
+          </Stack.Protected>
+        </Stack>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

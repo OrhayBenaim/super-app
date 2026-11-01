@@ -1,4 +1,3 @@
-import { BottomSheetTextInput } from "@gorhom/bottom-sheet";
 import type { LucideIcon } from "lucide-react-native";
 import { Search } from "lucide-react-native";
 import type { Ref } from "react";
@@ -9,23 +8,19 @@ export type SearchFieldProps = TextInputProps & {
   label: string;
   ref?: Ref<TextInputInstance>;
   icon?: LucideIcon;
-  /** Inside a Sheet: uses BottomSheetTextInput so the sheet follows the keyboard. */
-  inSheet?: boolean;
   containerStyle?: ViewStyle;
 };
 
 /** Control Fill field, 10pt radius, leading icon in Secondary Label. `label` is the placeholder and the accessibility label. */
-export function SearchField({ label, ref, icon: Icon = Search, inSheet, containerStyle, style, ...rest }: SearchFieldProps) {
+export function SearchField({ label, ref, icon: Icon = Search, containerStyle, style, ...rest }: SearchFieldProps) {
   const { colors, radius, space } = useTheme();
-  const Input = inSheet ? BottomSheetTextInput : TextInput;
   return (
     <View
       style={[{ flexDirection: "row", alignItems: "center", gap: space[3], minHeight: 36, paddingHorizontal: space[4], borderRadius: radius.control, backgroundColor: colors.fillControl }, containerStyle]}
     >
       <Icon size={18} color={colors.labelSecondary} strokeWidth={1.75} />
-      <Input
-        // gorhom types the ref as the TextInput class; RN 0.88 refs are TextInputInstance at runtime.
-        ref={ref as never}
+      <TextInput
+        ref={ref}
         accessibilityLabel={label}
         placeholder={label}
         placeholderTextColor={colors.labelSecondary}

@@ -1,32 +1,30 @@
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Barcode, Check } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert } from "react-native";
 import { fmt, shekels } from "@/features/compare/format";
-import { useCategories, useItemMutations, type Item } from "@/features/lists/api";
+import { useCategories, useCurrentListId, useItemMutations, useList } from "@/features/lists/api";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Group, Row, SearchField, Sheet, SheetHeader, SheetTextField } from "@/ui";
+import { requestDelete } from "./pendingDelete";
 import { useProductSearch } from "./products";
 
 export type ItemPage = "form" | "category" | "product";
 
-export type ItemSheetProps = {
-  open: boolean;
-  onClose: () => void;
-  listId: string | null;
-  item: Item | null;
-  /** Open straight on a pushed page, e.g. product match from Compare's what's-missing sheet. */
-  page?: ItemPage;
-  /** Delete with an Undo toast; owned by the screen so the toast outlives the sheet. */
-  onDelete: (item: Item) => void;
-};
-
-/** Edit item: name, category (picker pushes inside), product match (pushes inside), delete. */
-export function ItemSheet({ open, onClose, listId, item, page: initialPage = "form", onDelete }: ItemSheetProps) {
+/**
+ * Sheet route app/item/[id]: edit name, category (picker pushes inside), product match (pushes inside), delete.
+ * `page` opens straight on a pushed page, e.g. product match from Compare's what's-missing sheet.
+ */
+export function ItemSheet() {
+  const { id, page: initialPage = "form" } = useLocalSearchParams<{ id: string; page?: ItemPage }>();
+  const router = useRouter();
   const { colors } = useTheme();
+  const listId = useCurrentListId();
+  const item = useList(listId, { poll: false }).data?.items.find((i) => i.id === id) ?? null;
   const { update } = useItemMutations(listId);
   const categories = useCategories(listId).data ?? [];
-  const [page, setPage] = useState<ItemPage>("form");
+  const [page, setPage] = useState<ItemPage>(initialPage);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [newCategory, setNewCategory] = useState<string | null>(null);
@@ -35,19 +33,17 @@ export function ItemSheet({ open, onClose, listId, item, page: initialPage = "fo
   const [query, setQuery] = useState("");
   const products = useProductSearch(page === "product" ? query : "");
 
-  // Reset per opening; keyed on the id because polling hands us a fresh `item` object every few seconds.
+  // Seed the form once the item is known; keyed on the id because refetches hand us a fresh `item` object.
   useEffect(() => {
-    if (!open || !item) return;
-    setPage(initialPage);
+    if (!item) return;
     setName(item.name);
     setCategory(item.category);
-    setNewCategory(null);
     setProductCode(item.productCode);
-    setProductName(null);
     setQuery(item.name);
-  }, [open, item?.id, initialPage]);
+  }, [item?.id]);
 
-  if (!item) return <Sheet open={false} onClose={onClose}>{null}</Sheet>;
+  if (!item) return null;
+  const onClose = () => router.back();
   const valid = !!name.trim() && !!category.trim();
   const back = { title: t("common.back"), onPress: () => setPage("form") };
   const save = () => {
@@ -62,7 +58,7 @@ export function ItemSheet({ open, onClose, listId, item, page: initialPage = "fo
   };
 
   return (
-    <Sheet open={open} onClose={onClose}>
+    <Sheet>
       {page === "form" && (
         <>
           <SheetHeader title={t("items.edit")} start={{ title: t("common.cancel"), onPress: onClose }} end={{ title: t("common.save"), onPress: save, disabled: !valid }} />
@@ -81,8 +77,8 @@ export function ItemSheet({ open, onClose, listId, item, page: initialPage = "fo
               title={t("items.delete")}
               titleColor="danger"
               onPress={() => {
+                requestDelete(item);
                 onClose();
-                onDelete(item);
               }}
             />
           </Group>
@@ -121,7 +117,7 @@ export function ItemSheet({ open, onClose, listId, item, page: initialPage = "fo
       {page === "product" && (
         <>
           <SheetHeader title={t("items.product")} start={back} />
-          <SearchField inSheet label={t("items.product.placeholder")} value={query} onChangeText={setQuery} returnKeyType="search" />
+          <SearchField label={t("items.product.placeholder")} value={query} onChangeText={setQuery} returnKeyType="search" />
           {products.isFetching && <ActivityIndicator color={colors.labelSecondary} />}
           {!!products.data?.length && (
             <Group title={t("items.product.results")}>

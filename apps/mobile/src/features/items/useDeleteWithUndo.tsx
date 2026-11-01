@@ -1,12 +1,17 @@
 import * as Haptics from "expo-haptics";
-import { useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import { Alert } from "react-native";
 import { fmt } from "@/features/compare/format";
 import { useItemMutations, type Item } from "@/features/lists/api";
 import { t } from "@/lib/strings";
 import { Toast } from "@/ui";
+import { takePendingDelete } from "./pendingDelete";
 
-/** Delete at once (no confirm) and offer Undo, which re-creates the item with the same fields. Render `toast` last in the screen. */
+/**
+ * Delete at once (no confirm) and offer Undo, which re-creates the item with the same fields. Render `toast` last in the screen.
+ * Also runs a delete requested from the item sheet route when this screen regains focus.
+ */
 export function useDeleteWithUndo(listId: string | null) {
   const { add, remove } = useItemMutations(listId);
   const [deleted, setDeleted] = useState<Item | null>(null);
@@ -17,6 +22,13 @@ export function useDeleteWithUndo(listId: string | null) {
     remove.mutate(item.id, { onError: fail });
     setDeleted(item);
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      const item = takePendingDelete();
+      if (item) deleteItem(item);
+    }, [listId]),
+  );
 
   const toast = (
     <Toast

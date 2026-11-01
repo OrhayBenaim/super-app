@@ -1,10 +1,10 @@
+import { useRouter } from "expo-router";
 import { MapPin, SearchX, ShoppingBasket, TriangleAlert } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshControl, ScrollView } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
-import { ItemSheet } from "@/features/items/ItemSheet";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
-import { missingCodes, missingItems, useCurrentListId, useList, type Item } from "@/features/lists/api";
+import { missingCodes, missingItems, useCurrentListId, useList } from "@/features/lists/api";
 import { syncGeofences, useNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
 import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
@@ -13,7 +13,7 @@ import { EmptyState, Group, LargeTitle, Screen } from "@/ui";
 import { RADII, useCompare, useRadius } from "./api";
 import { BestStore, StoreRow } from "./BestStore";
 import { fmt } from "./format";
-import { MissingSheet } from "./MissingSheet";
+import type { MissingStore } from "./MissingSheet";
 import { RadiusMenu } from "./RadiusMenu";
 import { CompareSkeleton } from "./Skeleton";
 import { saving, sortStores, type Sort } from "./sort";
@@ -23,12 +23,11 @@ import { SortControl } from "./SortControl";
 const reorder = LinearTransition.springify().damping(springs.snappy.damping).stiffness(springs.snappy.stiffness).mass(springs.snappy.mass);
 
 export function CompareScreen() {
+  const router = useRouter();
   const { space, colors } = useTheme();
   const [sort, setSort] = useState<Sort>("price");
   const { km: radiusKm, set: setRadiusKm } = useRadius();
   const [pulling, setPulling] = useState(false);
-  const [missingOpen, setMissingOpen] = useState(false);
-  const [matching, setMatching] = useState<{ open: boolean; item: Item | null }>({ open: false, item: null });
 
   const listId = useCurrentListId();
   const list = useList(listId, { poll: false });
@@ -37,7 +36,8 @@ export function CompareScreen() {
   const location = useLocation();
   const compare = useCompare(location.coords, radiusKm, codes);
   const { enabled: alertsOn } = useNearbyAlerts();
-  const { deleteItem, toast } = useDeleteWithUndo(listId);
+  // Owns the Undo toast for a delete made in the item sheet opened from the missing sheet.
+  const { toast } = useDeleteWithUndo(listId);
 
   const byPrice = useMemo(() => sortStores(compare.data?.stores ?? [], "price"), [compare.data]);
   const best = byPrice[0];
@@ -101,7 +101,12 @@ export function CompareScreen() {
         {location.status !== "denied" && codes.length > 0 && <SortControl value={sort} onChange={setSort} />}
         {body ?? (
           <>
-            <BestStore store={best} basketSize={items.length} saving={saving(byPrice)} listText={listText} onShowMissing={() => setMissingOpen(true)} />
+            <BestStore store={best} basketSize={items.length} saving={saving(byPrice)} listText={listText} onShowMissing={() => {
+                const { chainName, total, matched, missingCodes: codesHere } = best;
+                const store: MissingStore = { chainName, total, matched, missingCodes: codesHere };
+                router.push({ pathname: "/missing", params: { store: JSON.stringify(store) } });
+              }}
+            />
             {others.length > 0 && (
               <Group title={t("compare.others")} count={others.length}>
                 {others.map((s) => (
@@ -115,17 +120,6 @@ export function CompareScreen() {
         )}
       </ScrollView>
 
-      <MissingSheet
-        open={missingOpen}
-        onClose={() => setMissingOpen(false)}
-        store={best ?? null}
-        items={items}
-        onMatch={(item) => {
-          setMissingOpen(false);
-          setMatching({ open: true, item });
-        }}
-      />
-      <ItemSheet open={matching.open} item={matching.item} page="product" listId={listId} onDelete={deleteItem} onClose={() => setMatching((s) => ({ ...s, open: false }))} />
       {toast}
     </Screen>
   );

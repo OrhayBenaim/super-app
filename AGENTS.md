@@ -18,7 +18,8 @@ apps/api/                 Node 22 + TypeScript (strict, ESM, NodeNext) API
   src/routes/*.ts         feature route modules (lists.ts, prices.ts)
   drizzle/                generated SQL migrations (committed)
 apps/mobile/              Expo SDK 58 + expo-router app
-  app/                    file routes: (auth)/onboarding|sign-in, (tabs)/index|items|compare|settings, recent, share (modal), join/[code]
+  app/                    file routes: (auth)/onboarding|sign-in, (tabs)/index|items|compare|settings, recent, share (modal),
+                          item/[id] and missing (form sheets), join/[code]
   src/lib/auth-client.ts  better-auth Expo client (SecureStore)
   src/lib/api.ts          api<T>(path, init): fetch wrapper with base URL + auth cookie
   src/lib/strings.ts      en + he strings; t("key") picks the device language (expo-localization)
@@ -26,7 +27,7 @@ apps/mobile/              Expo SDK 58 + expo-router app
                           shekels, formatDistance), share, geofence (task.ts = background task, imported by _layout), tabs
   src/ui/                 UI kit: Button, Text, TextField, Screen, Tap, Divider, IconButton, Group/SectionHeader, Row,
                           LargeTitle, SearchField, EmptyState, SwipeRow, Toast, Sheet/SheetHeader/SheetTextField
-                          (BottomSheetModal) (import from "@/ui")
+                          (sheet route body) (import from "@/ui")
   src/theme/              useTheme(), springs, text() (imports docs/design/tokens.json directly; import from "@/theme")
 docs/                     research and design notes (docs/research/, docs/design/)
 ```
@@ -75,7 +76,9 @@ Mobile (`apps/mobile`)
 - Auth uses `authClient` (`authClient.useSession()`, `signIn.*`, `signOut()`). The root layout switches
   between the `(auth)` and signed-in (`(tabs)`, `share`, `join/[code]`) groups with `Stack.Protected`.
 - Tabs have `headerShown: false`; each screen renders its own `largeTitle` inside `<Screen edges={["top"]}>`.
-- Sheets use `<Sheet open onClose>` (gorhom `BottomSheetModal`; `BottomSheetModalProvider` is in `app/_layout.tsx`).
+- Sheets are routes: a Stack screen in `app/_layout.tsx` with the shared `sheet` options (native `formSheet`,
+  `fitToContents`) whose component renders `<Sheet>`. Open with `router.push`, close with `router.back()`;
+  pass small data as params and read the rest from the TanStack Query cache.
 - Optimistic mutations snapshot in `onMutate` and roll back in `onError`; polling screens pass `poll: useIsFocused()`.
 - Motion uses Reanimated 4. babel-preset-expo adds the `react-native-worklets/plugin` automatically,
   so there is no babel.config.js. Gestures use react-native-gesture-handler 3.
