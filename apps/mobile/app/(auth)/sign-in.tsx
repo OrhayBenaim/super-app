@@ -1,5 +1,6 @@
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import { useRef, useState } from "react";
 import { Platform, type TextInputInstance } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
@@ -172,6 +173,15 @@ export default function SignIn() {
         onPress={submit}
         style={{ marginTop: space[2] }}
       />
+      {mode === "signIn" && (
+        <Button
+          layout={layout}
+          variant="plain"
+          title={t("auth.forgot")}
+          disabled={!!busy}
+          onPress={() => router.push({ pathname: "/forgot-password", params: { email: fields.email.trim() } })}
+        />
+      )}
       <Button
         layout={layout}
         variant="plain"

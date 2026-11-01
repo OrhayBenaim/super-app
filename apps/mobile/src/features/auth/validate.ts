@@ -18,5 +18,8 @@ export function validate({ name, email, password }: Fields, mode: "signIn" | "si
 export function authErrorKey(code?: string): StringKey {
   if (code === "INVALID_EMAIL_OR_PASSWORD") return "auth.error.invalid";
   if (code?.startsWith("USER_ALREADY_EXISTS")) return "auth.error.exists";
+  if (code === "INVALID_OTP") return "auth.reset.wrongCode";
+  if (code === "OTP_EXPIRED") return "auth.reset.expired";
+  if (code === "TOO_MANY_ATTEMPTS") return "auth.reset.tooManyTries";
   return "auth.error.generic";
 }
