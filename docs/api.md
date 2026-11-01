@@ -25,7 +25,7 @@ type List = { id; name; ownerId; role: "owner"|"member"; memberCount: number; up
 type Member = { userId; name; email; role }
 type Item = { id; listId; name; category; productCode: string|null; missing: boolean; createdAt; updatedAt }
 ```
-Any item/list mutation bumps `list.updatedAt`. Realtime: the mobile app polls `GET /lists/:id` (refetchInterval ~5s while focused). `shortcut: polling instead of websockets, upgrade when >2 members per list is common`.
+Any member may rotate the invite code. "My list" is auto-created only when the user has no lists. Categories are case-sensitive (client autocomplete mitigates). Any item/list mutation bumps `list.updatedAt`. Realtime: the mobile app polls `GET /lists/:id` (refetchInterval ~5s while focused). `shortcut: polling instead of websockets, upgrade when >2 members per list is common`.
 
 ## Products, stores, compare (`routes/prices.ts`)
 
@@ -33,7 +33,7 @@ Price data comes from the Israeli Price Transparency files (see `docs/research/p
 
 | Method | Path | Body / query | Returns |
 |---|---|---|---|
-| GET | `/products/search` | `?q=<text>&limit=20` | `Product[]` |
+| GET | `/products/search` | `?q=<text>&limit=20` | `Product[]` (public, no user data; a digits-only `q` of 8+ chars is a barcode lookup: exact code, then code prefix) |
 | POST | `/compare` | `{ lat, lng, radiusKm?=10, codes: string[], sort?: "price"\|"distance"\|"coverage", limit?=20 }` | `{ stores: StoreResult[], unmatched: string[] }` |
 | GET | `/chains` | (public) | `Chain[]` |
 
@@ -51,4 +51,4 @@ type StoreResult = {
 ```
 Sort semantics: `price` → fewest missing first, then lowest total; `distance` → nearest; `coverage` → most matched, then price. Stores without coordinates are excluded. `unmatched` = codes no store in radius carries.
 
-Ingestion (CLI, not HTTP): `npm run ingest -- --chain <chainKey> [--stores <file>] [--prices <file...>]` parses Stores + PriceFull XML (gz/zip/plain, UTF-8 or UTF-16) into `stores`, `products`, `prices`. Geocoding: `npm run geocode` fills `stores.lat/lng` via Nominatim from `address + city` (cached, 1 req/s).
+Ingestion (CLI, not HTTP): `npm run ingest -- --chain <chainKey> [--stores <file>] [--prices <file...>]` parses Stores + PriceFull XML (gz/zip/plain, UTF-8 or UTF-16) into `stores`, `products`, `prices`. Each prices file is a full snapshot: it replaces that store's prices (items no longer listed are dropped), and items with `ItemPrice` <= 0 or NaN are skipped (count logged). Geocoding: `npm run geocode` fills `stores.lat/lng` via Nominatim from `address + city` (cached, 1 req/s).

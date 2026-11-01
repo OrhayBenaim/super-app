@@ -30,7 +30,13 @@ const likeSearch = sqlite.prepare(
    WHERE p.name LIKE ? ESCAPE '\\' OR p.code = ? GROUP BY p.code ORDER BY storeCount DESC LIMIT ?`,
 );
 
+const codeSearch = sqlite.prepare(
+  `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
+   WHERE p.code = ? OR p.code LIKE ? GROUP BY p.code ORDER BY p.code = ? DESC, storeCount DESC LIMIT ?`,
+);
+
 const R = 6371;
+const KM_PER_DEG = 111; // below R*pi/180 = 111.195 so the bounding box always contains the circle
 const rad = (d: number) => (d * Math.PI) / 180;
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2;
@@ -52,10 +58,12 @@ pricesRoutes.get("/products/search", (c) => {
   if (!p.success) return bad(c, p.error);
   const { q, limit } = p.data;
   const tokens = q.split(/\s+/);
-  // Letters/digits only go to FTS as prefix terms; anything else (quotes, %, -) would be FTS syntax, so use LIKE.
-  const rows = tokens.every((t) => /^[\p{L}\p{N}]+$/u.test(t))
-    ? ftsSearch.all(tokens.map((t) => `${t}*`).join(" "), limit)
-    : likeSearch.all(`%${q.replace(/[\\%_]/g, "\\$&")}%`, q, limit);
+  // Letters/digits only go to FTS as quoted prefix terms (quotes keep AND/OR/NOT/NEAR literal); anything else (quotes, %, -) would be FTS syntax, so use LIKE.
+  const rows = /^\d{8,}$/.test(q)
+    ? codeSearch.all(q, `${q}%`, q, limit) // barcode: exact code first, then code prefix
+    : tokens.every((t) => /^[\p{L}\p{N}]+$/u.test(t))
+      ? ftsSearch.all(tokens.map((t) => `"${t}"*`).join(" "), limit)
+      : likeSearch.all(`%${q.replace(/[\\%_]/g, "\\$&")}%`, q, limit);
   return c.json(rows);
 });
 
@@ -64,8 +72,8 @@ pricesRoutes.post("/compare", requireUser, async (c) => {
   if (!p.success) return bad(c, p.error);
   const { lat, lng, radiusKm, sort, limit } = p.data;
   const codes = [...new Set(p.data.codes)];
-  const dLat = radiusKm / 111.32;
-  const dLng = radiusKm / (111.32 * Math.max(Math.cos(rad(lat)), 0.01));
+  const dLat = radiusKm / KM_PER_DEG;
+  const dLng = radiusKm / (KM_PER_DEG * Math.max(Math.cos(rad(lat)), 0.01));
   const rows = sqlite
     .prepare(
       `SELECT s.id AS storeId, s.chain_id AS chainId, ch.name AS chainName, ch.order_url AS orderUrl, s.name AS storeName,

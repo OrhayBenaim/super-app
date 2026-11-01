@@ -29,6 +29,7 @@ const upsertPrice = sqlite.prepare(
   `INSERT INTO prices (store_id, code, price, unit_price, updated_at) VALUES (?, ?, ?, ?, ?)
    ON CONFLICT(store_id, code) DO UPDATE SET price = excluded.price, unit_price = excluded.unit_price, updated_at = excluded.updated_at`,
 );
+const clearPrices = sqlite.prepare("DELETE FROM prices WHERE store_id = ?");
 const storeExists = sqlite.prepare("SELECT 1 FROM stores WHERE id = ?");
 
 /** Upserts a Stores file. Clears lat/lng of a store whose address changed so geocode picks it up again. */
@@ -42,19 +43,25 @@ export function ingestStores(chainKey: string, xml: string) {
   return parsed.stores.length;
 }
 
-/** Upserts a Price/PriceFull file. The store must already exist (ingest its Stores file first). */
+/**
+ * Replaces the store's prices with this PriceFull snapshot (items no longer listed are dropped) and skips items priced <= 0.
+ * The store must already exist (ingest its Stores file first). shortcut: assumes every file is a full snapshot, not a delta.
+ */
 export function ingestPrices(chainKey: string, xml: string) {
   const parsed = parsePrices(xml);
   const storeId = `${chainFor(chainKey, parsed.chainId)}-${parsed.storeId}`;
   if (!storeExists.get(storeId)) throw new Error(`store ${storeId} is unknown; ingest the chain's Stores file first`);
   const now = Date.now();
+  const items = parsed.items.filter((it) => it.price > 0); // also drops NaN
+  if (items.length < parsed.items.length) console.warn(`${storeId}: skipped ${parsed.items.length - items.length} items with price <= 0`);
   sqlite.transaction(() => {
-    for (const it of parsed.items) {
+    clearPrices.run(storeId);
+    for (const it of items) {
       upsertProduct.run(it.code, it.name, it.manufacturer, it.unitQty, it.isWeighted ? 1 : 0);
       upsertPrice.run(storeId, it.code, it.price, it.unitPrice, now);
     }
   })();
-  return parsed.items.length;
+  return items.length;
 }
 
 export const readXml = (file: string) => decodeXml(readFileSync(file));
