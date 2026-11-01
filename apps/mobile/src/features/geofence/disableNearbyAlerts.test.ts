@@ -68,6 +68,14 @@ describe("disableNearbyAlerts", () => {
     expect(m.setItem).toHaveBeenCalledWith("nearbyAlertsEnabled", "0");
   });
 
+  it("still clears stored stores and the setting when stopping geofencing fails, and reports the failure", async () => {
+    m.stop.mockRejectedValue(new Error("os refused"));
+    const { disableNearbyAlerts } = await load();
+    await expect(disableNearbyAlerts()).rejects.toThrow("os refused");
+    expect(m.deleteItem).toHaveBeenCalledWith("nearbyStores");
+    expect(m.setItem).toHaveBeenCalledWith("nearbyAlertsEnabled", "0");
+  });
+
   it("makes later syncGeofences a no-op", async () => {
     const { disableNearbyAlerts, syncGeofences } = await load();
     await disableNearbyAlerts();

@@ -15,7 +15,7 @@ export default function Settings() {
   const [deleting, setDeleting] = useState(false);
   const queryClient = useQueryClient();
   // "deleted": the root Stack.Protected swaps to (auth) when better-auth's session signal clears the session.
-  const remove = async () => {
+  const runDelete = async () => {
     setDeleting(true);
     const result = await deleteAccount(queryClient).finally(() => setDeleting(false));
     if (result === "reauth")
@@ -36,7 +36,7 @@ export default function Settings() {
             title={t("settings.signOut")}
             titleColor="danger"
             accessibilityState={{ busy }}
-            disabled={busy}
+            disabled={busy || deleting}
             // The root Stack.Protected swaps back to (auth) once the session clears.
             onPress={async () => {
               setBusy(true);
@@ -51,7 +51,7 @@ export default function Settings() {
             onPress={() =>
               Alert.alert(t("settings.deleteTitle"), t("settings.deleteBody"), [
                 { text: t("common.cancel"), style: "cancel" },
-                { text: t("common.delete"), style: "destructive", onPress: remove },
+                { text: t("common.delete"), style: "destructive", onPress: runDelete },
               ])
             }
           />

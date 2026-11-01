@@ -31,10 +31,14 @@ export async function syncGeofences(coords: Coords, codes: string[]) {
 
 /** Turns nearby alerts off and leaves nothing of them on the phone. Safe when geofencing never started. */
 export async function disableNearbyAlerts() {
-  await stop();
-  await SecureStore.deleteItemAsync(STORES_KEY);
-  await SecureStore.setItemAsync(ENABLED_KEY, "0");
-  useEnabled.setState({ enabled: false });
+  try {
+    await stop();
+  } finally {
+    // the stored data and setting go even if the OS refuses to stop geofencing
+    useEnabled.setState({ enabled: false });
+    await SecureStore.deleteItemAsync(STORES_KEY);
+    await SecureStore.setItemAsync(ENABLED_KEY, "0");
+  }
 }
 
 export function useNearbyAlerts() {
