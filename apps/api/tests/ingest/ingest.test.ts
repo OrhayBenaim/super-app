@@ -185,14 +185,33 @@ describe("chain validation", () => {
     expect(() => ing.ingestStores(deps, "nope", storesXml(OSHER, [{ id: "1" }]))).toThrow(/unknown chain "nope".*osher-ad/);
   });
 
-  it("rejects prices for a store that was never ingested", () => {
-    expect(() => ing.ingestPrices(deps, "osher-ad", pricesXml(OSHER, "9999", [{ code: "X" }]))).toThrow(/unknown/);
+  it("skips, without throwing, prices for a store missing from the Stores file (Shufersal lists closed stores' old files)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(ing.ingestPrices(deps, "osher-ad", pricesXml(OSHER, "9999", [{ code: "X" }]))).toBe(0);
     expect(price(`${OSHER}-9999`, "X")).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/9999 is not in the chain's Stores file/));
+    warn.mockRestore();
   });
 
-  it("rejects prices for a store ingested under another chain", () => {
+  it("skips prices for a store ingested under another chain", () => {
     ing.ingestStores(deps, "rami-levy", storesXml(RAMI, [{ id: "5" }]));
-    expect(() => ing.ingestPrices(deps, "osher-ad", pricesXml(OSHER, "5", [{ code: "X" }]))).toThrow(/unknown/);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(ing.ingestPrices(deps, "osher-ad", pricesXml(OSHER, "5", [{ code: "X" }]))).toBe(0);
+    warn.mockRestore();
+  });
+
+  it("the file name's store wins over the StoreID inside (Carrefour file 407 says 117, another live store)", () => {
+    const CARREFOUR = "7290055700007";
+    ing.ingestStores(deps, "carrefour", storesXml(CARREFOUR, [{ id: "117" }, { id: "407" }]));
+    ing.ingestPrices(deps, "carrefour", pricesXml(CARREFOUR, "117", [{ code: "C1", price: 5 }]), `/tmp/PriceFull${CARREFOUR}-001-117-20261101-051000.gz`);
+    expect(ing.ingestPrices(deps, "carrefour", pricesXml(CARREFOUR, "117", [{ code: "C1", price: 7 }]), `PriceFull${CARREFOUR}-001-407-20261101-051000.gz`)).toBe(1);
+    expect(price(`${CARREFOUR}-117`, "C1")).toBe(5);
+    expect(price(`${CARREFOUR}-407`, "C1")).toBe(7);
+    // 3-segment names work too; a name without a store segment falls back to the StoreID inside.
+    expect(ing.ingestPrices(deps, "carrefour", pricesXml(CARREFOUR, "1", [{ code: "C2" }]), `pricefull${CARREFOUR}-0407-202611010514.gz`)).toBe(1);
+    expect(price(`${CARREFOUR}-407`, "C2")).toBe(1);
+    expect(ing.ingestPrices(deps, "carrefour", pricesXml(CARREFOUR, "117", [{ code: "C3" }]), "prices.gz")).toBe(1);
+    expect(price(`${CARREFOUR}-117`, "C3")).toBe(1);
   });
 
   it("a chain with several ChainIds stores everything under the first one", () => {
@@ -207,7 +226,9 @@ describe("chain validation", () => {
     const before = snapshot();
     expect(() => ing.ingestStores(deps, "osher-ad", "not xml at all")).toThrow();
     expect(() => ing.ingestPrices(deps, "osher-ad", "")).toThrow();
-    expect(() => ing.ingestPrices(deps, "osher-ad", `<Root><ChainId>${OSHER}</ChainId></Root>`)).toThrow(/unknown/); // no StoreId
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(ing.ingestPrices(deps, "osher-ad", `<Root><ChainId>${OSHER}</ChainId></Root>`)).toBe(0); // no StoreId
+    warn.mockRestore();
     expect(snapshot()).toEqual(before);
   });
 

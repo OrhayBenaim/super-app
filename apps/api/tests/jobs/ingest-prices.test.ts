@@ -1,3 +1,6 @@
+import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { buildDeps } from "#/deps.ts";
@@ -18,6 +21,24 @@ describe("ingestPricesJob", () => {
     });
     expect(count(deps, "stores")).toBeGreaterThan(0);
     expect(count(deps, "prices")).toBeGreaterThan(0);
+  });
+
+  it("loads each PriceFull into the store its file name names (Carrefour's files carry an old StoreID inside)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "grocer-ingest-"));
+    const renamed = join(dir, "PriceFull7290103152017-001-004-20261021-051600.gz");
+    copyFileSync(fx("PriceFull7290103152017-001-001-20261021-051600.gz"), renamed);
+    const deps = buildDeps(loadConfig());
+    try {
+      await ingestPricesJob(deps)({ chain: "osher-ad", stores: fx("Stores7290103152017-000-20261021-080500.xml"), prices: [renamed] });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    expect(deps.db.$client.prepare("SELECT DISTINCT store_id FROM prices").all()).toEqual([{ store_id: "7290103152017-4" }]);
+  });
+
+  it("fails when every price file is skipped (no Stores file loaded for its store)", async () => {
+    const run = ingestPricesJob(buildDeps(loadConfig()))({ chain: "osher-ad", prices: [fx("PriceFull7290103152017-001-001-20261021-051600.gz")] });
+    await expect(run).rejects.toThrow(/no prices loaded from any of 1 --prices files/);
   });
 
   it("rejects data with neither stores nor prices", async () => {

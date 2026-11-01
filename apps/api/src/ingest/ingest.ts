@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { Deps } from "#/deps.ts";
 import { chainByKey } from "#/ingest/chains.ts";
+import { storeOfFileName } from "#/ingest/files.ts";
 import { decodeXml, isGtin, parsePrices, parseStores } from "#/ingest/parse.ts";
 
 type IngestDeps = Pick<Deps, "db" | "clock">;
@@ -32,15 +33,21 @@ export function ingestStores({ db }: IngestDeps, chainKey: string, xml: string) 
 
 /**
  * Replaces the store's prices with this PriceFull snapshot (items no longer listed are dropped) and skips items priced <= 0.
- * The store must already exist (ingest its Stores file first). shortcut: assumes every file is a full snapshot, not a delta.
+ * Pass the file's name: its store wins over the StoreID inside. A store missing from the Stores file is skipped (returns 0).
+ * shortcut: assumes every file is a full snapshot, not a delta.
  */
-export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: string) {
+export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: string, fileName?: string) {
   const sqlite = db.$client;
   const parsed = parsePrices(xml);
   const chainId = chainFor(chainKey, parsed.chainId);
-  const storeId = `${chainId}-${parsed.storeId}`;
-  if (!sqlite.prepare("SELECT 1 FROM stores WHERE id = ?").get(storeId))
-    throw new Error(`store ${storeId} is unknown; ingest the chain's Stores file first`);
+  // Carrefour's former Yeinot Bitan stores (files 400-473) carry their old StoreID inside, and 26 of those are other live
+  // stores (file 407 says 117); the name matches the Stores file (2026-11-01).
+  const storeId = `${chainId}-${(fileName ? storeOfFileName(fileName) : null) ?? parsed.storeId}`;
+  // Shufersal still lists months-old PriceFull files of closed stores; they must not abort the rest of the chain.
+  if (!sqlite.prepare("SELECT 1 FROM stores WHERE id = ?").get(storeId)) {
+    console.warn(`store ${storeId} is not in the chain's Stores file; skipped its prices`);
+    return 0;
+  }
   const now = clock.now().getTime();
   const valid = parsed.items.filter((it) => it.price > 0); // also drops NaN
   if (valid.length < parsed.items.length) console.warn(`${storeId}: skipped ${parsed.items.length - valid.length} items with price <= 0`);
