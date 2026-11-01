@@ -1,5 +1,5 @@
-// Israeli price-transparency portals: Cerberus (publishedprices.co.il, most chains) and Shufersal's own site.
-// docs/research/price-data.md section 1.
+// Israeli price-transparency portals: Cerberus (publishedprices.co.il, most chains), Shufersal's and Carrefour's own
+// sites, and laibcatalog.co.il (Victory, Machsanei Hashuk). docs/research/price-data.md section 1. Each lists every store.
 import type { ChainSeed } from "#/ingest/chains.ts";
 import type { PriceFile, PricePortal } from "#/services/price-portal.ts";
 
@@ -60,13 +60,51 @@ async function cerberusList(user: string, jar: Jar): Promise<PriceFile[]> {
   return (json.aaData ?? []).filter((f) => f.type === "file").map((f) => ({ name: f.name, url: `${base}/file/d/${encodeURIComponent(f.name)}` }));
 }
 
+/** Last page number the Shufersal pager links to (its "&gt;&gt;" link); 1 when there is no pager. */
+export const shufersalLastPage = (html: string) =>
+  Math.max(1, ...[...html.matchAll(/[?&](?:amp;)?page=(\d+)/g)].map((m) => Number(m[1])));
+
 async function shufersalList(jar: Jar): Promise<PriceFile[]> {
-  const page = async (cat: number) => {
-    const res = await http(`https://prices.shufersal.co.il/FileObject/UpdateCategory?catID=${cat}&storeId=0`, jar);
-    if (!res.ok) throw new Error(`shufersal catID=${cat}: HTTP ${res.status}`);
-    return shufersalLinks(await res.text());
+  const page = async (cat: number, n: number) => {
+    const res = await http(`https://prices.shufersal.co.il/FileObject/UpdateCategory?catID=${cat}&storeId=0&page=${n}`, jar);
+    if (!res.ok) throw new Error(`shufersal catID=${cat} page=${n}: HTTP ${res.status}`);
+    return res.text();
   };
-  return [...(await page(5)), ...(await page(2))]; // 5 Stores, 2 PriceFull (page 1 = first 20 stores)
+  const files: PriceFile[] = [];
+  for (const cat of [5, 2]) {
+    // 5 Stores, 2 PriceFull (20 rows a page). Every page takes 15-20 s however short, so fetch the rest 6 at a time.
+    const pages = [await page(cat, 1)];
+    for (let n = 2, last = shufersalLastPage(pages[0]!); n <= last; n += 6)
+      pages.push(...(await Promise.all(Array.from({ length: Math.min(6, last - n + 1) }, (_, i) => page(cat, n + i)))));
+    files.push(...pages.flatMap(shufersalLinks));
+  }
+  return files;
+}
+
+// laibcatalog.co.il/<chain>/index.html is a JS page over a JSON API that lists every file of the chain in one response.
+const LAIB = "https://laibcatalog.co.il/webapi";
+
+export const laibFiles = (rows: { fileName: string }[], chainId: string): PriceFile[] =>
+  rows.map((r) => ({ name: r.fileName, url: `${LAIB}/${chainId}/${encodeURIComponent(r.fileName)}` }));
+
+async function laibList(chainId: string, jar: Jar): Promise<PriceFile[]> {
+  const res = await http(`${LAIB}/api/getfiles?edi=${chainId}`, jar);
+  if (!res.ok) throw new Error(`laibcatalog getfiles?edi=${chainId}: HTTP ${res.status}`);
+  return laibFiles((await res.json()) as { fileName: string }[], chainId);
+}
+
+/** Carrefour's page inlines today's folder and all its files: `const path = '20261101';` and `const files = [{name,..}];`. */
+export function carrefourFiles(html: string, base: string): PriceFile[] {
+  const path = /const path = '(\d+)'/.exec(html)?.[1];
+  const list = /const files = (\[.*\]);/.exec(html)?.[1];
+  if (!path || !list) throw new Error("carrefour: no `path` or `files` in the page");
+  return (JSON.parse(list) as { name: string }[]).map((f) => ({ name: f.name, url: `${base}${path}/${encodeURIComponent(f.name)}` }));
+}
+
+async function carrefourList(base: string, jar: Jar): Promise<PriceFile[]> {
+  const res = await http(base, jar);
+  if (!res.ok) throw new Error(`${base}: HTTP ${res.status}`);
+  return carrefourFiles(await res.text(), base);
 }
 
 export function pricePortals(): PricePortal {
@@ -76,9 +114,11 @@ export function pricePortals(): PricePortal {
       const src = chain.source;
       let files: PriceFile[];
       if ("cerberus" in src) files = await cerberusList(src.cerberus, jar);
-      else if (chain.key === "shufersal") files = await shufersalList(jar);
+      else if (src.url.startsWith("https://prices.shufersal.co.il/")) files = await shufersalList(jar);
+      else if (src.url.startsWith("https://laibcatalog.co.il/")) files = await laibList(chain.ids[0]!, jar);
+      else if (src.url.startsWith("https://prices.carrefour.co.il/")) files = await carrefourList(src.url, jar);
       else {
-        // shortcut: listing formats of the other portals are not implemented; they were unreachable from here on 2026-11-01.
+        // shortcut: Hazi Hinam's listing is not implemented (403 from a US IP, untested from Israel); add it once seen live.
         const res = await http(src.url, jar, {}, 20_000);
         throw new Error(`no downloader for ${chain.key} yet (portal answered HTTP ${res.status})`);
       }
