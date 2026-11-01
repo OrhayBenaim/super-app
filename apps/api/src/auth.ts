@@ -4,22 +4,14 @@ import { expo } from "@better-auth/expo";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP } from "better-auth/plugins";
 import { RESET_CODE } from "@grocer/shared/reset-code";
-import { and, eq } from "drizzle-orm";
 import type { Db } from "#/db/index.ts";
 import * as schema from "#/db/schema.ts";
+import { hasPassword } from "#/db/users.ts";
 import { resetCodeEmail } from "#/emails/reset-code.ts";
 import type { Config } from "#/services/config.ts";
 import type { MailerService } from "#/services/mailer.ts";
 
 export function createAuth(db: Db, config: Config, mailer: MailerService) {
-  const hasPassword = (email: string) =>
-    !!db
-      .select({ id: schema.account.id })
-      .from(schema.account)
-      .innerJoin(schema.user, eq(schema.user.id, schema.account.userId))
-      .where(and(eq(schema.user.email, email), eq(schema.account.providerId, "credential")))
-      .get();
-
   return betterAuth({
     baseURL: config.BETTER_AUTH_URL,
     secret: config.BETTER_AUTH_SECRET,
@@ -31,10 +23,12 @@ export function createAuth(db: Db, config: Config, mailer: MailerService) {
     // and can't use a code to gain a password.
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        const request = ctx.path === "/email-otp/request-password-reset";
+        if (!request && ctx.path !== "/email-otp/reset-password") return;
         const email = ctx.body?.email;
-        if (typeof email !== "string" || hasPassword(email.toLowerCase())) return;
-        if (ctx.path === "/email-otp/request-password-reset") return ctx.json({ success: true });
-        if (ctx.path === "/email-otp/reset-password") throw APIError.from("BAD_REQUEST", { code: "INVALID_OTP", message: "Invalid OTP" });
+        if (typeof email !== "string" || hasPassword(db, email.toLowerCase())) return;
+        if (request) return ctx.json({ success: true });
+        throw APIError.from("BAD_REQUEST", { code: "INVALID_OTP", message: "Invalid OTP" });
       }),
     },
     // Account deletion: schema cascades remove owned Lists and memberships; sessions older than freshAge get SESSION_EXPIRED.

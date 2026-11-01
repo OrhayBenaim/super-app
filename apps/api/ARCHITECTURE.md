@@ -19,7 +19,7 @@ How the code inside `apps/api` is organised.
 | `src/services/` | One file per vendor-neutral service (see [Services and providers](#services-and-providers)). |
 | `src/providers/<vendor>/` | Each vendor's implementation of a service, and its fake. |
 | `src/ingest/` | Price-file rules: chain seeds, file names, XML parsing, writing stores and prices. |
-| `src/db/` | Drizzle schema and `openDb()`. Migrations are in `drizzle/`. |
+| `src/db/` | Drizzle schema and `openDb()`. Migrations are in `drizzle/`. Queries that belong to no single route take `db` first and live by what they ask about (e.g. `users.ts`: `hasPassword(db, email)`). |
 | `src/utils/` | Small stateless helpers (e.g. `clock.ts`). |
 | `tests/` | All tests (see [Tests](#tests)). |
 
