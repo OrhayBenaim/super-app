@@ -13,7 +13,7 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/worker.ts           entry point: runs one job from src/jobs/ by name (npm run fetch|ingest|geocode|sync|worker)
   src/app.ts              createApp(deps): deps on the context, CORS, /api/auth/*, /health, onError; mounts routers
   src/deps.ts             Deps + buildDeps(config, overrides): the composition root
-  src/middleware.ts       AppEnv type (c.var.deps, c.var.user) + requireUser
+  src/middleware.ts       AppEnv type (c.var.deps, c.var.user), requireUser, rateLimit (per-IP, mounted for every route in app.ts)
   src/services/           vendor-neutral services (config, error-handler, geocoder, price-portal)
   src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, price-portals, fake-error-handler)
   src/jobs/               fetch-prices, ingest-prices, geocode-stores, price-sync (one Price sync), sync-worker (once-a-minute check)
@@ -84,6 +84,8 @@ API (`apps/api`): follow `apps/api/ARCHITECTURE.md`
 - Read dependencies from `c.var.deps` (db, auth, clock, services). Never import `db` or a provider into a route or job.
 - Vendors sit behind a service in `src/services/` with a provider and a fake in `src/providers/<vendor>/`; `deps.ts` wires them.
 - Protect routes with `requireUser` (from `src/middleware.ts`); read the user with `c.var.user`.
+- Every route is rate limited per client IP by `rateLimit` in `createApp`; add a stricter `.use(path, rateLimit(...))` there
+  for anything guessable (sign-in, sign-up and Reset codes have one). better-auth's own limiter is off.
 - Validate every request body, query and param with zod at the HTTP boundary. Return 400 on failure.
 - Tables live in `src/db/appSchema.ts`. Never hand-edit the better-auth tables in `schema.ts`.
 - Schema change: edit `appSchema.ts`, run `npm run db:generate -w apps/api`, and commit the new `drizzle/` files.

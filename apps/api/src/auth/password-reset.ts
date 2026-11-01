@@ -5,6 +5,7 @@ import { RESET_CODE } from "@grocer/shared/reset-code";
 import type { Db } from "#/db/index.ts";
 import { hasPassword } from "#/db/users.ts";
 import { resetCodeEmail } from "#/emails/reset-code.ts";
+import type { ErrorHandler } from "#/services/error-handler.ts";
 import type { MailerService } from "#/services/mailer.ts";
 
 const REQUEST_PATH = "/email-otp/request-password-reset";
@@ -17,7 +18,7 @@ export const unusedOtpPaths = ["/sign-in/email-otp", "/email-otp/send-verificati
  * Password reset with an emailed Reset code, as better-auth plugins. Only Users with a password take part:
  * others get the same answer as a real request but no code, and can't use a code to gain a password.
  */
-export function passwordReset(db: Db, mailer: MailerService) {
+export function passwordReset(db: Db, mailer: MailerService, errorHandler: ErrorHandler) {
   const withoutPassword = (email: unknown) => typeof email === "string" && !hasPassword(db, email.toLowerCase());
   const policy = {
     id: "password-reset",
@@ -43,9 +44,13 @@ export function passwordReset(db: Db, mailer: MailerService) {
     otpLength: RESET_CODE.length,
     expiresIn: RESET_CODE.minutes * 60,
     allowedAttempts: RESET_CODE.maxTries,
-    // The policy hook has already turned away Users without a password.
+    // The policy hook has already turned away Users without a password. Not awaited, so a real account answers as fast
+    // as any other email, and a failed send can't turn into an error only real accounts see.
     async sendVerificationOTP({ email, otp }) {
-      await mailer.send(resetCodeEmail(email, otp));
+      mailer.send(resetCodeEmail(email, otp)).catch((error: unknown) => {
+        console.error("password reset: Reset code email not sent", error);
+        errorHandler.report(error);
+      });
     },
   });
 

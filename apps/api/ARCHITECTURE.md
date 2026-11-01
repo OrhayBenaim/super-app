@@ -11,7 +11,7 @@ How the code inside `apps/api` is organised.
 | `src/jobs/<job>.ts` | One handler per job. |
 | `src/app.ts` | `createApp(deps)`: app-wide middleware and error handling, and mounts the routers. No route logic. |
 | `src/internal-app.ts` | `createInternalApp(deps)`: the private trigger (`POST /sync`), served by `api.ts` on its own internal port. |
-| `src/middleware.ts` | `AppEnv` (the context variables) and `requireUser`. |
+| `src/middleware.ts` | `AppEnv` (the context variables), `requireUser`, and `rateLimit({ max, windowMs })`: per client IP, in memory. `createApp` mounts it for every route, with stricter limits on sign-in, sign-up and `/api/auth/email-otp/*`. |
 | `src/routes/<resource>.ts` | One router per resource. |
 | `src/deps.ts` | Composition root: `buildDeps(config, overrides)` builds every dependency once. |
 | `src/auth.ts` | `createAuth(db, config, mailer)`: the better-auth instance. It wires features; each feature's own rules live in `src/auth/`. |

@@ -5,15 +5,17 @@ import { passwordReset, unusedOtpPaths } from "#/auth/password-reset.ts";
 import type { Db } from "#/db/index.ts";
 import * as schema from "#/db/schema.ts";
 import type { Config } from "#/services/config.ts";
+import type { ErrorHandler } from "#/services/error-handler.ts";
 import type { MailerService } from "#/services/mailer.ts";
 
-export function createAuth(db: Db, config: Config, mailer: MailerService) {
+export function createAuth(db: Db, config: Config, mailer: MailerService, errorHandler: ErrorHandler) {
   return betterAuth({
     baseURL: config.BETTER_AUTH_URL,
     secret: config.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: "sqlite", schema }),
     emailAndPassword: { enabled: true, revokeSessionsOnPasswordReset: true },
     disabledPaths: unusedOtpPaths,
+    rateLimit: { enabled: false }, // the API's rateLimit middleware covers every route, auth included
     // Account deletion: schema cascades remove owned Lists and memberships; sessions older than freshAge get SESSION_EXPIRED.
     user: { deleteUser: { enabled: true } },
     socialProviders: {
@@ -38,7 +40,7 @@ export function createAuth(db: Db, config: Config, mailer: MailerService) {
     ],
     plugins: [
       expo(),
-      ...passwordReset(db, mailer),
+      ...passwordReset(db, mailer, errorHandler),
     ],
   });
 }

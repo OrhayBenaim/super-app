@@ -25,14 +25,15 @@ export type Deps = {
 /** Composition root: builds every dependency once. Tests swap one by passing an override. */
 export function buildDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
   const db = overrides.db ?? openDb(config.DATABASE_URL);
-  // Before auth, which sends email through it.
+  // Before auth, which sends email through the mailer and reports failed sends.
   const mailer = overrides.mailer ?? new MailerService(new ResendProvider(config.RESEND_API_KEY, config.EMAIL_FROM));
+  const errorHandler = overrides.errorHandler ?? fakeErrorHandler();
   return {
     config,
     db,
-    auth: createAuth(db, config, mailer),
+    auth: createAuth(db, config, mailer, errorHandler),
     clock: systemClock,
-    errorHandler: fakeErrorHandler(),
+    errorHandler,
     geocoder: nominatimGeocoder(config.NOMINATIM_URL),
     mailer,
     pricePortal: pricePortals(),

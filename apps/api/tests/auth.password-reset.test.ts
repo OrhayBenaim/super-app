@@ -3,6 +3,7 @@ import { createApp } from "#/app.ts";
 import { eq } from "drizzle-orm";
 import { account, user, verification } from "#/db/schema.ts";
 import { buildDeps } from "#/deps.ts";
+import { fakeErrorHandler } from "#/providers/fake-error-handler/fake.ts";
 import { FakeMailerProvider } from "#/providers/resend/fake.ts";
 import { loadConfig } from "#/services/config.ts";
 import { MailerService } from "#/services/mailer.ts";
@@ -16,7 +17,10 @@ beforeEach(() => {
   deps = buildDeps(loadConfig(), { mailer: new MailerService(mail) });
   app = createApp(deps);
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 const post = (path: string, body: unknown, cookie?: string) =>
   app.request(`/api/auth${path}`, {
@@ -76,11 +80,14 @@ describe("Password reset", () => {
       .insert(account)
       .values({ id: "ga2", accountId: "google-sub-2", providerId: "google", userId: "g2", createdAt: new Date(), updatedAt: new Date() })
       .run();
-    await requestReset("g2@reset.test");
-    const stored = deps.db.select().from(verification).where(eq(verification.identifier, "forget-password-otp-g2@reset.test")).get();
-    const code = stored?.value.split(":")[0] ?? "123456";
+    // No code is ever stored for this User; seed a valid one (better-auth stores "<code>:<wrong tries>") so only the guard can refuse it.
+    const now = new Date();
+    deps.db
+      .insert(verification)
+      .values({ id: "v-g2", identifier: "forget-password-otp-g2@reset.test", value: "123456:0", expiresAt: new Date(now.getTime() + 60_000), createdAt: now, updatedAt: now })
+      .run();
 
-    const res = await reset("g2@reset.test", code);
+    const res = await reset("g2@reset.test", "123456");
     expect(res.status).toBe(400);
     expect((await res.json()).code).toBe("INVALID_OTP");
     expect((await signIn("g2@reset.test", "new-password")).status).toBe(401);
@@ -122,6 +129,33 @@ describe("Password reset", () => {
     // better-auth hides expired rows, so this reads INVALID_OTP rather than OTP_EXPIRED.
     expect((await reset("d@reset.test", codeFrom())).status).toBe(400);
     expect((await signIn("d@reset.test", "new-password")).status).toBe(401);
+  });
+
+  it("answers without waiting for the email, and reports a failed send", async () => {
+    let fail!: (error: Error) => void;
+    const errorHandler = fakeErrorHandler();
+    const stuck = buildDeps(loadConfig(), {
+      errorHandler,
+      mailer: new MailerService({ send: () => new Promise<void>((_, reject) => (fail = reject)) }),
+    });
+    const stuckApp = createApp(stuck);
+    await stuckApp.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "f@reset.test", password: "old-password", name: "F" }),
+    });
+
+    const res = await stuckApp.request("/api/auth/email-otp/request-password-reset", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "f@reset.test" }),
+    });
+    expect(res.status).toBe(200);
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fail(new Error("resend: HTTP 500"));
+    await vi.waitFor(() => expect(errorHandler.reported).toHaveLength(1));
+    expect(String(errorHandler.reported[0])).toContain("resend: HTTP 500");
   });
 
   it("rejects an invalid request body with 400", async () => {

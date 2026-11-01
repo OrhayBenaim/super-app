@@ -46,7 +46,9 @@ export function PasswordResetScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
   }
 
+  // Keyboard submits bypass the buttons' disabled state, so guard here too.
   async function run(kind: Exclude<Busy, null>, action: () => Promise<StringKey | null>) {
+    if (busy) return;
     setBusy(kind);
     setError(null);
     try {
@@ -76,6 +78,7 @@ export function PasswordResetScreen() {
 
   // On sign-in the session refetches and the root Stack.Protected swaps to (tabs); nothing to navigate here.
   function submit() {
+    if (status?.lock) return;
     if (code.length !== RESET_CODE.length) return fail("auth.reset.codeFormat");
     const invalid = passwordError(password);
     if (invalid) return fail(invalid);
