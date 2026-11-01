@@ -18,14 +18,15 @@ apps/api/                 Node 22 + TypeScript (strict, ESM, NodeNext) API
   src/routes/*.ts         feature route modules (lists.ts, prices.ts)
   drizzle/                generated SQL migrations (committed)
 apps/mobile/              Expo SDK 58 + expo-router app
-  app/                    file routes: (auth)/onboarding|sign-in, (tabs)/index|items|compare|settings, share (modal), join/[code]
+  app/                    file routes: (auth)/onboarding|sign-in, (tabs)/index|items|compare|settings, recent, share (modal), join/[code]
   src/lib/auth-client.ts  better-auth Expo client (SecureStore)
   src/lib/api.ts          api<T>(path, init): fetch wrapper with base URL + auth cookie
   src/lib/strings.ts      en + he strings; t("key") picks the device language (expo-localization)
   src/features/<feature>/ auth, onboarding, lists (data layer + shopping list), items, compare (+ format.ts: fmt,
                           shekels, formatDistance), share, geofence (task.ts = background task, imported by _layout), tabs
-  src/ui/                 UI kit: Button, Text, TextField, Screen, Tap, Divider, IconButton, Chip, CategoryHeader,
-                          EmptyState, SwipeRow, Sheet/SheetTextField (BottomSheetModal) (import from "@/ui")
+  src/ui/                 UI kit: Button, Text, TextField, Screen, Tap, Divider, IconButton, Group/SectionHeader, Row,
+                          LargeTitle, SearchField, EmptyState, SwipeRow, Toast, Sheet/SheetHeader/SheetTextField
+                          (BottomSheetModal) (import from "@/ui")
   src/theme/              useTheme(), springs, text() (imports docs/design/tokens.json directly; import from "@/theme")
 docs/                     research and design notes (docs/research/, docs/design/)
 ```
