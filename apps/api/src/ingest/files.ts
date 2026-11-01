@@ -3,9 +3,12 @@ import type { PriceFile } from "#/services/price-portal.ts";
 
 export type ParsedName = { type: string; key: string; ts: string };
 
-/** "PriceFull7290058140886-001-039-20261101-001003.gz" and "pricefull7290058140886-039-202611010514.gz" -> type, store key, timestamp. */
+/**
+ * "PriceFull7290058140886-001-039-20261101-001003.gz", "pricefull7290058140886-039-202611010514.gz" and laibcatalog's
+ * "Stores7290696200003-000-20261101060100-060100.gz" (time repeated after a dash) -> type, store key, timestamp.
+ */
 export function parseFileName(name: string): ParsedName | null {
-  const m = /^([a-z]+)(\d[\d-]*?)-(\d{8})-?(\d{3,6})(?:\.|$)/i.exec(name);
+  const m = /^([a-z]+)(\d[\d-]*?)-(\d{8})-?(\d{3,6})(?:-\d+)?(?:\.|$)/i.exec(name);
   return m ? { type: m[1]!.toLowerCase(), key: m[2]!, ts: m[3]! + m[4]!.padEnd(6, "0") } : null;
 }
 

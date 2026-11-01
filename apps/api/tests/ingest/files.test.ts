@@ -12,6 +12,12 @@ describe("file names", () => {
     expect(parseFileName("Stores7290027600007-000-20261101-020")).toEqual({ type: "stores", key: "7290027600007-000", ts: "20261101020000" });
     expect(parseFileName("sub")).toBeNull();
   });
+
+  it("parses laibcatalog's Stores name, whose time follows the date and repeats after a dash (live, 2026-11-01)", () => {
+    expect(parseFileName("Stores7290696200003-000-20261101060100-060100.gz")).toEqual({ type: "stores", key: "7290696200003-000", ts: "20261101060100" });
+    const mshuk = ["060059", "060100"].map((t) => ({ name: `Stores7290661400001-000-20261101${t}-${t}.gz`, url: t }));
+    expect(pickFiles(mshuk, 0, ["7290661400001"]).stores?.url).toBe("060100");
+  });
 });
 
 describe("pickFiles on a captured Rami Levy listing", () => {
