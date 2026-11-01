@@ -6,16 +6,23 @@ compares what the list costs at nearby supermarkets. This file is for AI agents 
 ## Repo layout
 
 ```
-apps/api/                 Node 22 + TypeScript (strict, ESM, NodeNext) API
-  src/index.ts            starts the HTTP server (PORT, default 3000)
-  src/app.ts              Hono app: CORS, /api/auth/*, /health; register routes here
-  src/middleware.ts       AppEnv type + requireUser
-  src/ingest/             price-file downloader (download.ts), parser (parse.ts), chain seed (chains.ts), ingest/geocode CLIs
-  src/auth.ts             better-auth config (email+password, optional Google/Apple, expo plugin)
-  src/db/index.ts         better-sqlite3 + Drizzle; WAL; runs migrations on import
+apps/api/                 Node 22.18+ running TypeScript natively (strict, ESM, no build). Structure: apps/api/ARCHITECTURE.md
+  src/api.ts              entry point: loadConfig() -> buildDeps() -> serve createApp(deps) (PORT, default 3000)
+  src/worker.ts           entry point: runs one job from src/jobs/ by name (npm run fetch|ingest|geocode)
+  src/app.ts              createApp(deps): deps on the context, CORS, /api/auth/*, /health, onError; mounts routers
+  src/deps.ts             Deps + buildDeps(config, overrides): the composition root
+  src/middleware.ts       AppEnv type (c.var.deps, c.var.user) + requireUser
+  src/services/           vendor-neutral services (config, error-handler, geocoder, price-portal)
+  src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, price-portals, fake-error-handler)
+  src/jobs/               fetch-prices, ingest-prices, geocode-stores
+  src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts)
+  src/auth.ts             createAuth(db, config): better-auth (email+password, optional Google/Apple, expo plugin)
+  src/db/index.ts         openDb(path): better-sqlite3 + Drizzle; WAL; runs migrations, seeds chains
   src/db/schema.ts        better-auth tables (generated) + re-export of appSchema.ts
   src/db/appSchema.ts     app tables (lists, items, stores, prices...)
-  src/routes/*.ts         feature route modules (lists.ts, prices.ts)
+  src/routes/*.ts         feature routers (lists.ts, prices.ts)
+  src/utils/clock.ts      Clock, systemClock, fakeClock
+  tests/                  all API tests, mirroring src/; fixtures in tests/__fixtures__/
   drizzle/                generated SQL migrations (committed)
 apps/mobile/              Expo SDK 58 + expo-router app
   app/                    file routes: (auth)/onboarding|sign-in, (tabs)/index|items|compare|settings, recent, share (modal),
@@ -36,7 +43,7 @@ docs/                     research and design notes (docs/research/, docs/design
 
 ```bash
 npm install                       # all workspaces
-npm run dev:api                   # tsx watch, http://localhost:3000
+npm run dev:api                   # node --watch, http://localhost:3000
 npm run dev:mobile                # expo start for the dev build (expo-dev-client); no Expo Go
 npm run ios|android -w apps/mobile   # expo run:ios|android: build + install the dev build locally
 npm run typecheck                 # tsc --noEmit in both apps
@@ -46,7 +53,7 @@ npm run db:migrate -w apps/api    # apply migrations manually (the API also does
 npm run fetch -w apps/api -- --chain <key> --out <dir> [--max-stores N] [--stores-only]   # download Stores + PriceFull (outside the repo)
 npm run ingest -w apps/api -- --chain <key> --stores <file> --prices <file...>   # load price-transparency XML
 npm run geocode -w apps/api -- [--chain <key>]   # fill stores.lat/lng via Nominatim (NOMINATIM_URL), 1 req/s
-npx auth@latest generate --config src/auth.ts --output src/db/schema.ts   # (in apps/api) only after adding better-auth plugins; re-append the appSchema re-export
+npx auth@latest generate --config auth.config.ts --output src/db/schema.ts   # (in apps/api) only after adding better-auth plugins; re-append the appSchema re-export
 ```
 
 Install Expo packages with `npx expo install <pkg>` inside `apps/mobile` so SDK-pinned versions win.
@@ -55,14 +62,16 @@ If api.expo.dev is unreachable, prefix it with `EXPO_OFFLINE=1`.
 ## Conventions
 
 General
-- TypeScript strict everywhere. ESM. In `apps/api`, relative imports end in `.js` (NodeNext).
+- TypeScript strict everywhere. ESM. In `apps/api`, import through `#/` with the `.ts` extension, never relative (`#/deps.ts`).
 - Smallest change that works. No new dependency for a few lines.
 - Secrets come from env only. List every new env var in the app's `.env.example` and in README.md.
 
-API (`apps/api`)
-- One Hono route module per feature: `src/routes/<feature>.ts` exports a `new Hono<AppEnv>()`.
-  Register it in `src/app.ts` with `app.route("/api/<feature>", <feature>Routes)`.
-- Protect routes with `requireUser` (from `src/middleware.ts`); read the user with `c.get("user")`.
+API (`apps/api`): follow `apps/api/ARCHITECTURE.md`
+- One Hono router per feature: `src/routes/<feature>.ts` exports a chained `new Hono<AppEnv>()`.
+  Mount it in `createApp` (`src/app.ts`) with `.route("/api/<feature>", <feature>Routes)`.
+- Read dependencies from `c.var.deps` (db, auth, clock, services). Never import `db` or a provider into a route or job.
+- Vendors sit behind a service in `src/services/` with a provider and a fake in `src/providers/<vendor>/`; `deps.ts` wires them.
+- Protect routes with `requireUser` (from `src/middleware.ts`); read the user with `c.var.user`.
 - Validate every request body, query and param with zod at the HTTP boundary. Return 400 on failure.
 - Tables live in `src/db/appSchema.ts`. Never hand-edit the better-auth tables in `schema.ts`.
 - Schema change: edit `appSchema.ts`, run `npm run db:generate -w apps/api`, and commit the new `drizzle/` files.
@@ -93,10 +102,12 @@ Mobile (`apps/mobile`)
 
 ## Testing
 
-- Both apps use vitest (`npm test`). Test files sit next to the code as `*.test.ts`.
-- API tests call `app.request()` on the exported app with a temp DB. Set `DATABASE_URL=:memory:`
-  before importing `./app.js` (see `apps/api/src/app.test.ts`). Sign up through
-  `/api/auth/sign-up/email` and reuse the returned cookie to test protected routes.
+- Both apps use vitest (`npm test`). Mobile test files sit next to the code as `*.test.ts`.
+  API tests live in `apps/api/tests/`, mirroring `src/` (`src/routes/lists.ts` -> `tests/routes/lists.test.ts`).
+- API tests call `createApp(deps).request()` with `deps = buildDeps(loadConfig())`: `vitest.config.ts` sets
+  `DATABASE_URL=:memory:`, so each `buildDeps` opens a fresh DB (see `apps/api/tests/app.test.ts`). Swap a dependency
+  with an override (`buildDeps(config, { geocoder: fakeGeocoder() })`). Sign up through
+  `/api/auth/sign-up/email` and reuse the returned cookie to test protected routes. Jobs: call the handler with fakes.
 - Mobile tests cover plain TS logic (`src/lib`, `src/features/*`) and mock `./auth-client` and `fetch`.
   vitest runs in Node, so don't import React Native in tests.
 - Sonnet agents write the tests for features built by other agents.
@@ -109,7 +120,7 @@ Mobile (`apps/mobile`)
 ## Definition of done
 
 - [ ] `npm run typecheck` and `npm test` pass at the root.
-- [ ] New logic has tests. New endpoints have an `app.request()` test that includes the 401 case.
+- [ ] New logic has tests. New endpoints have a `createApp(deps).request()` test that includes the 401 case.
 - [ ] No TODOs, commented-out code or console noise left behind.
 - [ ] Every touchable has `accessibilityRole` and `accessibilityLabel`.
 - [ ] Screens render correctly in RTL (Hebrew) and LTR.
@@ -121,9 +132,9 @@ Mobile (`apps/mobile`)
 | --- | --- |
 | research | `docs/research/*.md` (stack facts, price-data sources) |
 | design | `docs/design/` (tokens.json, screen specs). `apps/mobile/src/theme/tokens.ts` imports tokens.json directly |
-| api | `apps/api/src/routes/`, `apps/api/src/db/appSchema.ts`, `apps/api/drizzle/`, `apps/api/src/app.ts` (route registration only) |
+| api | `apps/api/src/` (routes, jobs, services, providers, ingest, db/appSchema.ts), `apps/api/drizzle/`, `apps/api/src/app.ts` (router mounting only) |
 | mobile | `apps/mobile/app/`, `apps/mobile/src/features/`, `apps/mobile/src/ui/`, `apps/mobile/src/theme/` |
-| test | `*.test.ts` next to the code in either app. Changes no production code except to fix a bug it found, flagged in the commit |
+| test | `apps/api/tests/`, and `*.test.ts` next to the code in `apps/mobile`. Changes no production code except to fix a bug it found, flagged in the commit |
 
 Agents working in parallel stay inside their own paths. Ask before changing a shared file such as
 `app.ts`, `_layout.tsx`, `package.json` or this file.

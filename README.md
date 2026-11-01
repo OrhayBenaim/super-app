@@ -2,7 +2,7 @@
 
 Grocery list + cheapest-supermarket finder for Israel. npm-workspaces monorepo:
 
-- `apps/api` — Node 22 + TypeScript, Hono, Drizzle ORM on SQLite (better-sqlite3), better-auth.
+- `apps/api` — Node 22.18+ (runs TypeScript natively) + TypeScript, Hono, Drizzle ORM on SQLite (better-sqlite3), better-auth.
 - `apps/mobile` — Expo SDK 58 + expo-router app (iOS/Android).
 
 ## Run

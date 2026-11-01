@@ -183,7 +183,7 @@ If "no login, plain listing" is the only criterion: Carrefour, Hazi Hinam, Shufe
 
 ## Verified live on 2026-11-01
 
-Run from this container (US egress via an HTTPS proxy, Node's `fetch` needs `NODE_USE_ENV_PROXY=1`) with `npm run fetch` (`apps/api/src/ingest/download.ts`), then `npm run ingest` into a scratch DB. This supersedes the **UNVERIFIED** marks above where they conflict.
+Run from this container (US egress via an HTTPS proxy, Node's `fetch` needs `NODE_USE_ENV_PROXY=1`) with `npm run fetch` (`apps/api/src/jobs/fetch-prices.ts`, portals in `apps/api/src/providers/price-portals/`), then `npm run ingest` into a scratch DB. This supersedes the **UNVERIFIED** marks above where they conflict.
 
 **Cerberus (`url.publishedprices.co.il`)**, confirmed step by step: `GET /login` sets cookie `cftpSID` and has `<meta name="csrftoken">`; the form posts to `/login/user` with `r`, `username`, `password` (empty), `csrftoken`; success = `302 Location: /file` plus a new `cftpSID`. `GET /file` carries a fresh csrftoken. `GET /file/json/dir` answers 200 `{"aaData":[],"error":"Invalid request method used for this operation."}`; `POST /file/json/dir` with `sEcho=1&iDisplayStart=0&iDisplayLength=100000&cd=/&csrftoken=<token>` returns every file (Rami Levy: 1089) as `{name, size, time, type:"file"}`. `GET /file/d/<name>` returns the bytes (`Content-Type: text/xml` for Stores).
 - Users that log in with an empty password: `RamiLevi`, `yohananof`, `osherad`, `TivTaam`, `Keshet`, `doralon`, `Stop_Market`, `freshmarket`, `politzer`, `SalachD`.
