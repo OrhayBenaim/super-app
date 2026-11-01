@@ -143,7 +143,12 @@ async function main() {
     process.exit(1);
   }
   const out = values.out ?? join(tmpdir(), "grocer-prices", chain.key);
-  await fetchChain(chain, out, { storesOnly: values["stores-only"], maxStores: Number(values["max-stores"] ?? 3) });
+  const maxStores = Number(values["max-stores"] ?? 3);
+  if (!Number.isInteger(maxStores) || maxStores < 1) {
+    console.error(`--max-stores must be a whole number >= 1, got "${values["max-stores"]}"`);
+    process.exit(1);
+  }
+  await fetchChain(chain, out, { storesOnly: values["stores-only"], maxStores });
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) await main();

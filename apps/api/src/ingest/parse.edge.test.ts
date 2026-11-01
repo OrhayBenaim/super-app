@@ -164,7 +164,7 @@ describe("CBS city decoding", () => {
     expect(cityOf(" 0 ")).toBe("");
     expect(cityOf("")).toBe("");
     expect(cityOf("99999")).toBe("99999");
-    expect(cityOf("2630")).toBe("2630"); // Kiryat Gat is not in the shortcut table
+    for (const [code, name] of [["2630", "קריית גת"], ["6700", "טבריה"], ["7200", "נס ציונה"], ["7600", "עכו"], ["9100", "נהריה"]]) expect(cityOf(code), code).toBe(name);
     expect(cityOf("חיפה")).toBe("חיפה"); // a real name passes through
     expect(cityOf("00")).toBe("00"); // not the unknown marker "0": stays numeric (geocode treats it as empty)
   });

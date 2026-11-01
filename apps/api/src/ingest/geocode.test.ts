@@ -26,9 +26,9 @@ describe("nominatimUrl", () => {
   });
 
   it("a CBS code that stayed numeric counts as no city, for any digit string (incl. '0' and '00')", () => {
-    for (const code of ["0", "00", "874", "2630", "99999"]) expect(q("האומן 5", code, "תלפיות"), code).toBe("האומן 5, תלפיות, Israel");
-    expect(q("", "2630", "קרית גת")).toBe("קרית גת, Israel");
-    expect(q("", "2630")).toBeNull();
+    for (const code of ["0", "00", "874", "99999"]) expect(q("האומן 5", code, "תלפיות"), code).toBe("האומן 5, תלפיות, Israel");
+    expect(q("", "874", "מגדל העמק")).toBe("מגדל העמק, Israel");
+    expect(q("", "874")).toBeNull();
   });
 
   it("a city that merely contains digits is a name, not a code", () => {
