@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const rn = vi.hoisted(() => ({ Platform: { OS: "ios" }, Linking: { canOpenURL: vi.fn(), openURL: vi.fn() } }));
 vi.mock("react-native", () => rn);
 
-import { openWaze, wazeUrls } from "./waze";
+import { openWaze, wazeUrls } from "@/lib/waze";
 
 beforeEach(() => {
   vi.resetAllMocks();

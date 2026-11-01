@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { suggestCategories } from "./autocomplete";
+import { suggestCategories } from "@/features/items/autocomplete";
 
 describe("suggestCategories edge cases", () => {
   const cats = ["Dairy", "Bakery", "Dairy Free", "Pantry"];

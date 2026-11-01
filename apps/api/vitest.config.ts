@@ -7,6 +7,7 @@ export default defineConfig({
       DATABASE_URL: ":memory:",
       BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret",
       BETTER_AUTH_URL: "http://localhost:3000",
+      RESEND_API_KEY: "re_test_placeholder",
     },
   },
 });

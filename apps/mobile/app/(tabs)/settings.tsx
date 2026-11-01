@@ -1,34 +1,19 @@
 import { useState } from "react";
 import { Linking, ScrollView, Switch, View } from "react-native";
+import { AccountGroup } from "@/features/account/AccountGroup";
 import { useNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
-import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
-import { Button, Group, LargeTitle, Row, Screen, Text } from "@/ui";
+import { Button, Group, LargeTitle, Screen, Text } from "@/ui";
 
 export default function Settings() {
   const { space } = useTheme();
-  const user = authClient.useSession().data?.user;
-  const [busy, setBusy] = useState(false);
   return (
     <Screen edges={["top"]} style={{ paddingHorizontal: 0 }}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: space[5], paddingBottom: space[9] }}>
         <LargeTitle title={t("tabs.settings")} />
         <NearbyAlerts />
-        <Group title={t("settings.account")}>
-          {user && <Row title={t("auth.email")} value={user.email} />}
-          <Row
-            title={t("settings.signOut")}
-            titleColor="danger"
-            accessibilityState={{ busy }}
-            disabled={busy}
-            // The root Stack.Protected swaps back to (auth) once the session clears.
-            onPress={async () => {
-              setBusy(true);
-              await authClient.signOut().finally(() => setBusy(false));
-            }}
-          />
-        </Group>
+        <AccountGroup />
       </ScrollView>
     </Screen>
   );

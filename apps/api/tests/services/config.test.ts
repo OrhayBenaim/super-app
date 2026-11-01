@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { loadConfig } from "#/services/config.ts";
+import { loadConfig as load } from "#/services/config.ts";
+
+const loadConfig = (env: Record<string, string | undefined>) => load({ RESEND_API_KEY: "re_test", ...env });
 
 describe("loadConfig", () => {
   it("applies defaults for an empty env", () => {
@@ -37,5 +39,15 @@ describe("loadConfig", () => {
 
   it("throws on an invalid PORT", () => {
     for (const PORT of ["abc", "0", "70000", "3.5"]) expect(() => loadConfig({ PORT }), PORT).toThrow();
+  });
+
+  it("requires RESEND_API_KEY", () => {
+    expect(() => load({})).toThrow();
+    expect(() => load({ RESEND_API_KEY: "" })).toThrow();
+  });
+
+  it("defaults EMAIL_FROM to the placeholder sender", () => {
+    expect(loadConfig({}).EMAIL_FROM).toBe("Grocer <no-reply@example.com>");
+    expect(loadConfig({ EMAIL_FROM: "Me <me@test.dev>" }).EMAIL_FROM).toBe("Me <me@test.dev>");
   });
 });

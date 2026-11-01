@@ -38,6 +38,7 @@ apps/mobile/              Expo SDK 58 + expo-router app
                           LargeTitle, SearchField, EmptyState, SwipeRow, Toast, Sheet/SheetHeader/SheetTextField
                           (sheet route body) (import from "@/ui")
   src/theme/              useTheme(), springs, text() (imports docs/design/tokens.json directly; import from "@/theme")
+  tests/                  all mobile tests, mirroring src/ (vitest.config.ts maps "@/" to src/)
 docs/                     research and design notes (docs/research/, docs/design/)
 ```
 
@@ -106,13 +107,13 @@ Mobile (`apps/mobile`)
 
 ## Testing
 
-- Both apps use vitest (`npm test`). Mobile test files sit next to the code as `*.test.ts`.
-  API tests live in `apps/api/tests/`, mirroring `src/` (`src/routes/lists.ts` -> `tests/routes/lists.test.ts`).
+- Both apps use vitest (`npm test`). Tests live in each app's `tests/` folder, mirroring `src/`
+  (`src/routes/lists.ts` -> `tests/routes/lists.test.ts`), and import the code through `#/` (api) or `@/` (mobile).
 - API tests call `createApp(deps).request()` with `deps = buildDeps(loadConfig())`: `vitest.config.ts` sets
   `DATABASE_URL=:memory:`, so each `buildDeps` opens a fresh DB (see `apps/api/tests/app.test.ts`). Swap a dependency
   with an override (`buildDeps(config, { geocoder: fakeGeocoder() })`). Sign up through
   `/api/auth/sign-up/email` and reuse the returned cookie to test protected routes. Jobs: call the handler with fakes.
-- Mobile tests cover plain TS logic (`src/lib`, `src/features/*`) and mock `./auth-client` and `fetch`.
+- Mobile tests cover plain TS logic (`src/lib`, `src/features/*`) and mock `@/lib/auth-client` and `fetch`.
   vitest runs in Node, so don't import React Native in tests.
 - Sonnet agents write the tests for features built by other agents.
 
@@ -138,7 +139,7 @@ Mobile (`apps/mobile`)
 | design | `docs/design/` (tokens.json, screen specs). `apps/mobile/src/theme/tokens.ts` imports tokens.json directly |
 | api | `apps/api/src/` (routes, jobs, services, providers, ingest, db/appSchema.ts), `apps/api/drizzle/`, `apps/api/src/app.ts` (router mounting only) |
 | mobile | `apps/mobile/app/`, `apps/mobile/src/features/`, `apps/mobile/src/ui/`, `apps/mobile/src/theme/` |
-| test | `apps/api/tests/`, and `*.test.ts` next to the code in `apps/mobile`. Changes no production code except to fix a bug it found, flagged in the commit |
+| test | `apps/api/tests/` and `apps/mobile/tests/`. Changes no production code except to fix a bug it found, flagged in the commit |
 
 Agents working in parallel stay inside their own paths. Ask before changing a shared file such as
 `app.ts`, `_layout.tsx`, `package.json` or this file.

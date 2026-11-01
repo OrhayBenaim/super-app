@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { fmt, shekels } from "./format";
-import { sortStores, type Sort, type StoreResult } from "./sort";
+import { fmt, shekels } from "@/features/compare/format";
+import { sortStores, type Sort, type StoreResult } from "@/features/compare/sort";
 
 type Opts = { total?: number; distanceKm?: number; missing?: number; matched?: number };
 const store = (storeId: string, o: Opts = {}): StoreResult => {

@@ -48,6 +48,7 @@ src/providers/<vendor>/fake.ts     its fake
 | `config.ts` | `Config` | none: env vars, validated with Zod |
 | `error-handler.ts` | `ErrorHandler` | `fake-error-handler/` (Sentry not added yet) |
 | `geocoder.ts` | `Geocoder` | `nominatim/` |
+| `mailer.ts` | `MailerService` (facade over `MailerProvider`) | `resend/` |
 | `price-portal.ts` | `PricePortal` | `price-portals/` (the chains' price-transparency portals) |
 
 ## Routers

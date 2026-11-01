@@ -163,6 +163,11 @@ export const en = {
   "settings.alerts": "Alerts",
   "settings.account": "Account",
   "settings.openSettings": "Open Settings",
+  "settings.deleteAccount": "Delete account",
+  "settings.deleteTitle": "Delete your account?",
+  "settings.deleteBody": "Lists you own will be deleted for everyone you shared them with. This can't be undone.",
+  "settings.deleteReauth": "For your security, sign in again to delete your account.",
+  "settings.deleteFailed": "Your account wasn't deleted. Check your connection and try again.",
 };
 
 export type StringKey = keyof typeof en;
@@ -330,6 +335,11 @@ export const he: Record<StringKey, string> = {
   "settings.alerts": "התראות",
   "settings.account": "חשבון",
   "settings.openSettings": "פתיחת הגדרות",
+  "settings.deleteAccount": "מחיקת החשבון",
+  "settings.deleteTitle": "למחוק את החשבון?",
+  "settings.deleteBody": "רשימות שבבעלותכם יימחקו לכל מי ששיתפתם איתם. אי אפשר לבטל את הפעולה.",
+  "settings.deleteReauth": "מטעמי אבטחה, התחברו שוב כדי למחוק את החשבון.",
+  "settings.deleteFailed": "החשבון לא נמחק. בדקו את החיבור ונסו שוב.",
 };
 
 // Read once: changing the device language restarts the app on both platforms.

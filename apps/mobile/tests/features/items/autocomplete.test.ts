@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { suggestCategories, suggestItems } from "./autocomplete";
+import { suggestCategories, suggestItems } from "@/features/items/autocomplete";
 
 const cats = ["Dairy", "Drinks", "Bakery", "dessert", "Vegetables"];
 
