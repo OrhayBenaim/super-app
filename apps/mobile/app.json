@@ -1,13 +1,19 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Grocer",
+    "slug": "grocer",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.grocer.app",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "waze"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -16,10 +22,21 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.grocer.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
+    "scheme": "grocer",
+    "newArchEnabled": true,
+    "experiments": {
+      "typedRoutes": true
     }
   }
 }
