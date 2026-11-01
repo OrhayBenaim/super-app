@@ -6,7 +6,7 @@ const m = vi.hoisted(() => ({ deleteUser: vi.fn(), disable: vi.fn() }));
 vi.mock("@/lib/auth-client", () => ({ authClient: { deleteUser: m.deleteUser } }));
 vi.mock("@/features/geofence/useNearbyAlerts", () => ({ disableNearbyAlerts: m.disable }));
 
-import { deleteAccount } from "./deleteAccount";
+import { deleteAccount } from "@/features/account/deleteAccount";
 
 const clear = vi.fn();
 const qc = { clear } as unknown as QueryClient;

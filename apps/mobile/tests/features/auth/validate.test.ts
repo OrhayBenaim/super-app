@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { authErrorKey, validate } from "./validate";
+import { authErrorKey, validate } from "@/features/auth/validate";
 
 const ok = { name: "Dana", email: "dana@example.co.il", password: "12345678" };
 

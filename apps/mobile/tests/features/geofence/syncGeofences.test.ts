@@ -29,7 +29,7 @@ const store = (id: string, total: number) => ({ storeId: id, chainName: "Chain",
 async function load(enabled: string | null = "1") {
   vi.resetModules();
   m.enabled = enabled;
-  return import("./useNearbyAlerts");
+  return import("@/features/geofence/useNearbyAlerts");
 }
 
 beforeEach(() => {

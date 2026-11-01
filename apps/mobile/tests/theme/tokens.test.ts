@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { springs, text, tokens } from "./tokens";
+import { springs, text, tokens } from "@/theme/tokens";
 
 it("derives every spring from motion.spring tokens", () => {
   for (const [name, s] of Object.entries(tokens.motion.spring)) {

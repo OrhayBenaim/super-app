@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { MAX_REGIONS, toRegions } from "./regions";
+import { MAX_REGIONS, toRegions } from "@/features/geofence/regions";
 
 const stores = Array.from({ length: 25 }, (_, i) => ({ storeId: `s${i}`, lat: 32 + i / 100, lng: 34.8 }));
 

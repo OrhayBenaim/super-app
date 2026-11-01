@@ -8,7 +8,7 @@ const allowSame = /^(Apple|Google|Waze|Grocer|₪)$/;
 async function load(languageCode?: string) {
   vi.resetModules();
   vi.doMock("expo-localization", () => ({ getLocales: () => (languageCode ? [{ languageCode }] : []) }));
-  return import("./strings");
+  return import("@/lib/strings");
 }
 afterEach(() => vi.doUnmock("expo-localization"));
 
