@@ -19,10 +19,13 @@ export function groupByCategory<T extends { name: string; category: string }>(it
     });
 }
 
-/** The last `n` items taken off the list (not missing), newest first. */
-export function recentlyBought<T extends { missing: boolean; updatedAt: string }>(items: T[], n = 5): T[] {
+/** "Recently bought" window on the List. */
+export const RECENT_MS = 24 * 60 * 60 * 1000;
+
+/** The last `n` items taken off the list (not missing), newest first; with `sinceMs`, only those updated since then. */
+export function recentlyBought<T extends { missing: boolean; updatedAt: string }>(items: T[], n = 5, sinceMs?: number): T[] {
   return items
-    .filter((i) => !i.missing)
+    .filter((i) => !i.missing && (sinceMs === undefined || Date.parse(i.updatedAt) >= sinceMs))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .slice(0, n);
 }

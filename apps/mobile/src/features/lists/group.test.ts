@@ -39,3 +39,12 @@ it("initials", () => {
   expect(initials("dana cohen levi")).toBe("DC");
   expect(initials("  נועה ")).toBe("נ");
 });
+
+it("recentlyBought keeps only items updated since the cutoff", () => {
+  const items = [
+    { id: 1, missing: false, updatedAt: "2026-11-01T10:00:00.000Z" },
+    { id: 2, missing: false, updatedAt: "2026-10-30T10:00:00.000Z" },
+    { id: 3, missing: true, updatedAt: "2026-11-01T11:00:00.000Z" },
+  ];
+  expect(recentlyBought(items, 10, Date.parse("2026-10-31T10:00:00.000Z")).map((i) => i.id)).toEqual([1]);
+});

@@ -3,7 +3,7 @@ import { text, useTheme, type ColorName, type TextVariant } from "@/theme";
 
 export type TextProps = RNTextProps & { variant?: TextVariant; color?: ColorName; tabular?: boolean };
 
-export function Text({ variant = "body", color = "text", tabular, style, ...rest }: TextProps) {
+export function Text({ variant = "body", color = "label", tabular, style, ...rest }: TextProps) {
   const { colors } = useTheme();
   return (
     <RNText

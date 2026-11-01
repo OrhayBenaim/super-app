@@ -1,215 +1,160 @@
-import { Barcode, Plus, Trash2 } from "lucide-react-native";
-import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, View, type TextInputInstance } from "react-native";
-import Animated, { FadeIn } from "react-native-reanimated";
+import { Barcode, Check } from "lucide-react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert } from "react-native";
 import { fmt, shekels } from "@/features/compare/format";
 import { useCategories, useItemMutations, type Item } from "@/features/lists/api";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
-import { Button, Chip, Divider, IconButton, Sheet, SheetTextField, Tap, Text } from "@/ui";
-import { suggestCategories } from "./autocomplete";
+import { Group, Row, SearchField, Sheet, SheetHeader, SheetTextField } from "@/ui";
 import { useProductSearch } from "./products";
 
-const CHIP_IN = FadeIn.duration(200);
+export type ItemPage = "form" | "category" | "product";
 
-export type ItemSheetProps = { open: boolean; onClose: () => void; listId: string | null; item: Item | null };
+export type ItemSheetProps = {
+  open: boolean;
+  onClose: () => void;
+  listId: string | null;
+  item: Item | null;
+  /** Open straight on a pushed page, e.g. product match from Compare's what's-missing sheet. */
+  page?: ItemPage;
+  /** Delete with an Undo toast; owned by the screen so the toast outlives the sheet. */
+  onDelete: (item: Item) => void;
+};
 
-/** Add (rapid entry: stays open, clears) or edit (`item` set) an item. */
-export function ItemSheet({ open, onClose, listId, item }: ItemSheetProps) {
-  const { colors, space, radius } = useTheme();
-  const { add, update, remove } = useItemMutations(listId);
+/** Edit item: name, category (picker pushes inside), product match (pushes inside), delete. */
+export function ItemSheet({ open, onClose, listId, item, page: initialPage = "form", onDelete }: ItemSheetProps) {
+  const { colors } = useTheme();
+  const { update } = useItemMutations(listId);
   const categories = useCategories(listId).data ?? [];
+  const [page, setPage] = useState<ItemPage>("form");
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
+  const [newCategory, setNewCategory] = useState<string | null>(null);
   const [productCode, setProductCode] = useState<string | null>(null);
-  const [productQuery, setProductQuery] = useState("");
-  const [categoryFocused, setCategoryFocused] = useState(false);
-  const [added, setAdded] = useState<Item[]>([]);
-  const nameRef = useRef<TextInputInstance>(null);
-  const categoryRef = useRef<TextInputInstance>(null);
-  const products = useProductSearch(productCode ? "" : productQuery);
+  const [productName, setProductName] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const products = useProductSearch(page === "product" ? query : "");
 
   // Reset per opening; keyed on the id because polling hands us a fresh `item` object every few seconds.
   useEffect(() => {
-    if (!open) return;
-    setName(item?.name ?? "");
-    setCategory(item?.category ?? "");
-    setProductCode(item?.productCode ?? null);
-    setProductQuery("");
-    setAdded([]);
-  }, [open, item?.id]);
+    if (!open || !item) return;
+    setPage(initialPage);
+    setName(item.name);
+    setCategory(item.category);
+    setNewCategory(null);
+    setProductCode(item.productCode);
+    setProductName(null);
+    setQuery(item.name);
+  }, [open, item?.id, initialPage]);
 
+  if (!item) return <Sheet open={false} onClose={onClose}>{null}</Sheet>;
   const valid = !!name.trim() && !!category.trim();
-  const body = { name: name.trim(), category: category.trim(), productCode };
-  const fail = () => Alert.alert(t("common.error"));
-
-  const submitAdd = () => {
-    if (!valid || add.isPending) return;
-    add.mutate(body, {
-      onSuccess: (created) => {
-        setAdded((a) => [...a, created]);
-        setName("");
-        setCategory("");
-        setProductCode(null);
-        setProductQuery("");
-        nameRef.current?.focus();
-      },
-      onError: fail,
-    });
-  };
+  const back = { title: t("common.back"), onPress: () => setPage("form") };
   const save = () => {
-    if (!item || !valid) return;
-    update.mutate({ id: item.id, ...body }, { onError: fail });
+    if (!valid) return;
+    update.mutate({ id: item.id, name: name.trim(), category: category.trim(), productCode }, { onError: () => Alert.alert(t("common.error")) });
     onClose();
   };
-  const confirmDelete = () => {
-    if (!item) return;
-    Alert.alert(t("items.delete.title").replace("{name}", item.name), undefined, [
-      { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t("common.delete"),
-        style: "destructive",
-        onPress: () => {
-          remove.mutate(item.id, { onError: fail });
-          onClose();
-        },
-      },
-    ]);
-  };
-
-  const suggestions = categoryFocused ? suggestCategories(category, categories) : null;
   const pickCategory = (c: string) => {
     setCategory(c);
-    setCategoryFocused(false);
+    setNewCategory(null);
+    setPage("form");
   };
 
   return (
     <Sheet open={open} onClose={onClose}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 }}>
-        <Text variant="title3" accessibilityRole="header">
-          {t(item ? "items.edit" : "items.add")}
-        </Text>
-        {item && <IconButton icon={Trash2} color="danger" accessibilityLabel={t("common.delete")} onPress={confirmDelete} />}
-      </View>
-
-      <SheetTextField
-        ref={nameRef}
-        label={t("items.name")}
-        placeholder={t("items.name.placeholder")}
-        value={name}
-        onChangeText={setName}
-        returnKeyType="next"
-        submitBehavior="submit"
-        onSubmitEditing={() => categoryRef.current?.focus()}
-      />
-
-      <View style={{ gap: space[2] }}>
-        <SheetTextField
-          ref={categoryRef}
-          label={t("items.category")}
-          placeholder={t("items.category.placeholder")}
-          value={category}
-          onChangeText={(v) => {
-            setCategory(v);
-            setCategoryFocused(true);
-          }}
-          onFocus={() => setCategoryFocused(true)}
-          onBlur={() => setCategoryFocused(false)}
-          returnKeyType={item ? "done" : "send"}
-          onSubmitEditing={item ? save : submitAdd}
-          submitBehavior={item ? "blurAndSubmit" : "submit"}
-        />
-        {suggestions && (suggestions.matches.length > 0 || suggestions.create) && (
-          <View accessibilityRole="menu" style={{ borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
-            {suggestions.matches.map((c, i) => (
-              <View key={c}>
-                {i > 0 && <Divider />}
-                <SuggestionRow label={c} onPress={() => pickCategory(c)} />
-              </View>
-            ))}
-            {suggestions.create && (
-              <>
-                {suggestions.matches.length > 0 && <Divider />}
-                <SuggestionRow label={t("items.category.create").replace("{name}", suggestions.create)} create onPress={() => pickCategory(suggestions.create!)} />
-              </>
-            )}
-          </View>
-        )}
-      </View>
-
-      <View style={{ gap: space[3] }}>
-        {productCode ? (
-          <View style={{ gap: space[3] }}>
-            <Text variant="subhead" color="textSecondary">
-              {t("items.product")}
-            </Text>
-            <Chip label={productCode} icon={Barcode} tone="primary" onClear={() => setProductCode(null)} />
-          </View>
-        ) : (
-          <SheetTextField
-            label={t("items.product")}
-            placeholder={t("items.product.placeholder")}
-            value={productQuery}
-            onChangeText={setProductQuery}
-            returnKeyType="search"
-          />
-        )}
-        {!productCode && products.isFetching && <ActivityIndicator color={colors.textSecondary} />}
-        {!productCode &&
-          products.data?.slice(0, 4).map((p) => (
-            <Tap
-              key={p.code}
-              accessibilityLabel={p.name}
+      {page === "form" && (
+        <>
+          <SheetHeader title={t("items.edit")} start={{ title: t("common.cancel"), onPress: onClose }} end={{ title: t("common.save"), onPress: save, disabled: !valid }} />
+          <Group footer={t("items.product.why")}>
+            <SheetTextField label={t("items.name")} value={name} onChangeText={setName} returnKeyType="done" onSubmitEditing={save} />
+            <Row title={t("items.category")} value={category} chevron onPress={() => setPage("category")} />
+            <Row
+              title={t("items.product")}
+              value={productCode ? (productName ?? t("items.matched")) : t("items.product.optional")}
+              chevron
+              onPress={() => setPage("product")}
+            />
+          </Group>
+          <Group>
+            <Row
+              title={t("items.delete")}
+              titleColor="danger"
               onPress={() => {
-                setProductCode(p.code);
-                if (!name.trim()) setName(p.name);
+                onClose();
+                onDelete(item);
               }}
-              style={{ paddingVertical: space[3] }}
-            >
-              <Text variant="callout" numberOfLines={1}>
-                {p.name}
-              </Text>
-              <Text variant="footnote" color="textSecondary" tabular numberOfLines={1}>
-                {[p.manufacturer, shekels(p.minPrice), fmt(t("items.product.stores"), { n: p.storeCount })].filter(Boolean).join(" · ")}
-              </Text>
-            </Tap>
-          ))}
-        {!productCode && products.data?.length === 0 && (
-          <Text variant="footnote" color="textTertiary">
-            {t("items.product.none")}
-          </Text>
-        )}
-      </View>
-
-      {added.length > 0 && (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }} accessibilityLiveRegion="polite">
-          {added.map((a) => (
-            <Animated.View key={a.id} entering={CHIP_IN}>
-              <Chip label={a.name} tone="primary" />
-            </Animated.View>
-          ))}
-        </View>
+            />
+          </Group>
+        </>
       )}
 
-      {item ? (
-        <Button title={t("common.save")} disabled={!valid} onPress={save} />
-      ) : (
-        <View style={{ flexDirection: "row", gap: space[3] }}>
-          <Button title={t("common.done")} variant="secondary" onPress={onClose} style={{ flex: 1 }} />
-          <Button title={t("items.addButton")} haptic icon={Plus} disabled={!valid} loading={add.isPending} onPress={submitAdd} style={{ flex: 2 }} />
-        </View>
+      {page === "category" && (
+        <>
+          <SheetHeader title={t("items.category")} start={back} />
+          <Group footer={t("items.category.why")}>
+            {categories.map((c) => (
+              <Row
+                key={c}
+                title={c}
+                accessibilityState={{ selected: c === category }}
+                trailing={c === category ? <Check size={20} color={colors.tint} strokeWidth={2} /> : undefined}
+                onPress={() => pickCategory(c)}
+              />
+            ))}
+            {newCategory === null ? (
+              <Row title={t("items.category.new")} titleColor="tint" onPress={() => setNewCategory("")} />
+            ) : (
+              <SheetTextField
+                label={t("items.category.new")}
+                autoFocus
+                value={newCategory}
+                onChangeText={setNewCategory}
+                returnKeyType="done"
+                onSubmitEditing={() => newCategory.trim() && pickCategory(newCategory.trim())}
+              />
+            )}
+          </Group>
+        </>
+      )}
+
+      {page === "product" && (
+        <>
+          <SheetHeader title={t("items.product")} start={back} />
+          <SearchField inSheet label={t("items.product.placeholder")} value={query} onChangeText={setQuery} returnKeyType="search" />
+          {products.isFetching && <ActivityIndicator color={colors.labelSecondary} />}
+          {!!products.data?.length && (
+            <Group title={t("items.product.results")}>
+              {products.data.slice(0, 5).map((p) => (
+                <Row
+                  key={p.code}
+                  title={p.name}
+                  detail={[p.manufacturer, fmt(t("items.product.from"), { price: shekels(p.minPrice) }), fmt(t("items.product.stores"), { n: p.storeCount })].filter(Boolean).join(" · ")}
+                  accessibilityState={{ selected: p.code === productCode }}
+                  trailing={<Barcode size={20} color={colors.labelSecondary} strokeWidth={1.75} />}
+                  onPress={() => {
+                    setProductCode(p.code);
+                    setProductName(p.name);
+                    setPage("form");
+                  }}
+                />
+              ))}
+            </Group>
+          )}
+          {products.data?.length === 0 && <Row title={t("items.product.none")} />}
+          <Group>
+            <Row
+              title={t("items.product.noMatch")}
+              detail={t("items.product.noMatch.detail")}
+              onPress={() => {
+                setProductCode(null);
+                setProductName(null);
+                setPage("form");
+              }}
+            />
+          </Group>
+        </>
       )}
     </Sheet>
-  );
-}
-
-function SuggestionRow({ label, create, onPress }: { label: string; create?: boolean; onPress: () => void }) {
-  const { space } = useTheme();
-  return (
-    <Tap accessibilityRole="menuitem" accessibilityLabel={label} onPress={onPress} scaleTo={1} style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: space[5] }}>
-      <Text variant="callout" color={create ? "primary" : "text"} numberOfLines={1}>
-        {label}
-      </Text>
-    </Tap>
   );
 }

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { sortStores, type StoreResult } from "./sort";
+import { saving, sortStores, type StoreResult } from "./sort";
 
 const store = (storeId: string, total: number, distanceKm: number, missing: number): StoreResult => ({
   storeId, chainId: "c", chainName: "C", storeName: storeId, address: "", city: "", lat: 0, lng: 0,
@@ -26,4 +26,12 @@ it("does not mutate the input", () => {
   const copy = [...stores];
   sortStores(stores, "distance");
   expect(stores).toEqual(copy);
+});
+
+it("saving compares the cheapest store against the next one with the same coverage", () => {
+  // Price order: d (40, near), c (40, far), b (50); a is cheaper but prices a smaller basket.
+  expect(saving(stores)).toBeNull(); // d and c tie
+  expect(saving([store("x", 21.7, 1, 1), store("y", 20, 1, 2), store("z", 22.9, 1, 1)])).toEqual({ amount: 1.2, chainName: "C" });
+  expect(saving([store("x", 10, 1, 0)])).toBeNull();
+  expect(saving([])).toBeNull();
 });

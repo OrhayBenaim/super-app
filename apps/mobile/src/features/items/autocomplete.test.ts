@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { suggestCategories } from "./autocomplete";
+import { suggestCategories, suggestItems } from "./autocomplete";
 
 const cats = ["Dairy", "Drinks", "Bakery", "dessert", "Vegetables"];
 
@@ -29,5 +29,27 @@ describe("suggestCategories", () => {
     expect(suggestCategories("י", he).matches).toEqual(["ירקות", "יין"]);
     expect(suggestCategories("מוצרי", he)).toEqual({ matches: ["מוצרי חלב"], create: "מוצרי" });
     expect(suggestCategories("יין", he).create).toBeNull();
+  });
+});
+
+describe("suggestItems", () => {
+  const items = [
+    { id: 1, name: "Milk 3%" },
+    { id: 2, name: "milk 1%" },
+    { id: 3, name: "Bread" },
+    { id: 4, name: "Milk 3%" },
+  ];
+
+  it("returns prefix matches as items, first item per name", () => {
+    expect(suggestItems("mil", items).matches.map((i) => i.id)).toEqual([1, 2]);
+  });
+
+  it("offers create unless an item has exactly that name", () => {
+    expect(suggestItems("Milk", items).create).toBe("Milk");
+    expect(suggestItems("bread", items)).toEqual({ matches: [items[2]], create: null });
+  });
+
+  it("suggests nothing for empty input", () => {
+    expect(suggestItems("  ", items)).toEqual({ matches: [], create: null });
   });
 });

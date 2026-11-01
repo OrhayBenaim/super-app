@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { useIsFocused, useRouter } from "expo-router";
-import { Check, RotateCcw, Share2 } from "lucide-react-native";
+import { Check, Plus, Share, ShoppingBasket } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, RefreshControl, View } from "react-native";
 import Animated, {
@@ -14,29 +14,42 @@ import Animated, {
   withSequence,
   withSpring,
 } from "react-native-reanimated";
+import { useCompare, useRadius } from "@/features/compare/api";
+import { fmt, shekels } from "@/features/compare/format";
+import { sortStores } from "@/features/compare/sort";
+import { AddField } from "@/features/items/AddField";
+import { ItemSheet } from "@/features/items/ItemSheet";
+import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
+import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
-import { CategoryHeader, Divider, EmptyState, Screen, SwipeRow, Tap, Text } from "@/ui";
-import { missingItems, useCategories, useCurrentListId, useItemMutations, useList, type Item } from "./api";
+import { EmptyState, Group, IconButton, LargeTitle, Row, Screen, Tap, Text } from "@/ui";
+import { missingCodes, missingItems, useCategories, useCurrentListId, useItemMutations, useList, type Item } from "./api";
 import { Avatars } from "./Avatars";
-import { groupByCategory, recentlyBought } from "./group";
+import { groupByCategory, RECENT_MS, recentlyBought } from "./group";
 
 const LAYOUT = LinearTransition.duration(200);
 const ENTER = FadeIn.duration(200);
 const EXIT = FadeOut.duration(200);
+// Check row: 16 gutter + 24 circle + 12 gap, so hairlines start at the text.
+const CHECK_INSET = 52;
 
 export function ShoppingList() {
   const router = useRouter();
-  const { colors, space, radius } = useTheme();
+  const { colors, space } = useTheme();
   const listId = useCurrentListId();
   const { data, refetch } = useList(listId, { poll: useIsFocused() });
   const categories = useCategories(listId).data ?? [];
   const { update } = useItemMutations(listId);
+  const { deleteItem, toast } = useDeleteWithUndo(listId);
+  const cheapest = useCheapestNow(missingCodes(data));
   const [refreshing, setRefreshing] = useState(false);
-  const [recentOpen, setRecentOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<{ open: boolean; item: Item | null }>({ open: false, item: null });
 
-  const groups = groupByCategory(missingItems(data), categories);
-  const recent = recentlyBought(data?.items ?? []);
+  const missing = missingItems(data);
+  const groups = groupByCategory(missing, categories);
+  const recent = recentlyBought(data?.items ?? [], 50, Date.now() - RECENT_MS);
   const bought = (id: string) => update.mutate({ id, missing: false });
   // Own flag, not isRefetching: the 5s poll would flash the spinner.
   const onRefresh = async () => {
@@ -48,93 +61,94 @@ export function ShoppingList() {
   if (!data) {
     return (
       <Screen edges={["top"]}>
-        <ActivityIndicator style={{ flex: 1 }} color={colors.textSecondary} />
+        <ActivityIndicator style={{ flex: 1 }} color={colors.labelSecondary} />
       </Screen>
     );
   }
+
+  const nav = (
+    <>
+      <Tap accessibilityLabel={t("share.title")} onPress={() => router.push("/share")} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: space[3], minHeight: 44 }}>
+        <Avatars names={data.members.map((m) => m.name)} size={24} />
+        <Share size={22} color={colors.tint} strokeWidth={1.75} />
+      </Tap>
+      <IconButton icon={Plus} accessibilityLabel={t("items.add")} onPress={() => setAdding(true)} />
+    </>
+  );
 
   return (
     <Screen edges={["top"]} style={{ paddingHorizontal: 0 }}>
       <Animated.ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: space[5], paddingBottom: space[9] }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textSecondary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.labelSecondary} />}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space[3], paddingTop: space[5], paddingBottom: space[2] }}>
-          <Text variant="largeTitle" accessibilityRole="header" numberOfLines={1} style={{ flex: 1 }}>
-            {data.list.name}
-          </Text>
-          <Tap
-            accessibilityLabel={t("share.title")}
-            onPress={() => router.push("/share")}
-            hitSlop={8}
-            style={{ flexDirection: "row", alignItems: "center", gap: space[3], minHeight: 44 }}
-          >
-            <Avatars names={data.members.map((m) => m.name)} />
-            <Share2 size={22} color={colors.primary} />
-          </Tap>
-        </View>
+        <LargeTitle title={data.list.name} subtitle={missing.length ? fmt(t("list.summary"), { n: missing.length }) : undefined} nav={nav} />
 
         <LayoutAnimationConfig skipEntering>
           {groups.length === 0 ? (
             <Animated.View entering={ENTER} style={{ flex: 1 }}>
               <EmptyState
-                title={t(data.items.length ? "list.done.title" : "list.empty.title")}
-                body={t(data.items.length ? "list.done.body" : "list.empty.body")}
+                icon={ShoppingBasket}
+                title={t("list.empty.title")}
+                body={t("list.empty.body")}
                 action={{ title: t("list.toItems"), onPress: () => router.navigate("/items") }}
               />
             </Animated.View>
           ) : (
-            groups.map((g) => (
-              <Animated.View key={g.category} layout={LAYOUT} entering={ENTER} exiting={EXIT}>
-                <CategoryHeader title={g.category} count={g.count} />
-                <View style={{ borderRadius: radius.lg, overflow: "hidden", backgroundColor: colors.surface }}>
-                  {g.items.map((item, i) => (
-                    <Animated.View key={item.id} layout={LAYOUT} entering={ENTER} exiting={EXIT}>
-                      {i > 0 && <Divider style={{ marginStart: 56 }} />}
-                      <ShoppingRow item={item} onBought={bought} />
-                    </Animated.View>
-                  ))}
-                </View>
-              </Animated.View>
-            ))
+            <>
+              {cheapest && (
+                <Group style={{ marginTop: space[3] }}>
+                  <Row
+                    title={t("list.cheapest")}
+                    value={`${cheapest.chainName} · ${shekels(cheapest.total)}`}
+                    valueColor="tint"
+                    accessibilityRole="link"
+                    onPress={() => router.navigate("/compare")}
+                  />
+                </Group>
+              )}
+              {groups.map((g) => (
+                <Animated.View key={g.category} layout={LAYOUT} entering={ENTER} exiting={EXIT}>
+                  <Group title={g.category} count={g.count} inset={CHECK_INSET + space[5]}>
+                    {g.items.map((item) => (
+                      <Animated.View key={item.id} layout={LAYOUT} entering={ENTER} exiting={EXIT}>
+                        <CheckRow item={item} onBought={bought} onEdit={() => setEditing({ open: true, item })} />
+                      </Animated.View>
+                    ))}
+                  </Group>
+                </Animated.View>
+              ))}
+            </>
           )}
 
           {recent.length > 0 && (
-            <Animated.View layout={LAYOUT}>
-              <CategoryHeader title={t("list.recent")} count={recent.length} open={recentOpen} onToggle={() => setRecentOpen((o) => !o)} />
-              {recentOpen && (
-                <Animated.View entering={ENTER} exiting={EXIT} style={{ borderRadius: radius.lg, overflow: "hidden", backgroundColor: colors.surface }}>
-                  {recent.map((item, i) => (
-                    <View key={item.id}>
-                      {i > 0 && <Divider style={{ marginStart: space[5] }} />}
-                      <Tap
-                        accessibilityLabel={`${t("list.putBack")}: ${item.name}`}
-                        scaleTo={0.98}
-                        onPress={() => {
-                          Haptics.selectionAsync();
-                          update.mutate({ id: item.id, missing: true });
-                        }}
-                        style={{ flexDirection: "row", alignItems: "center", gap: space[4], minHeight: 52, paddingHorizontal: space[5] }}
-                      >
-                        <Text variant="body" color="textSecondary" numberOfLines={1} style={{ flex: 1 }}>
-                          {item.name}
-                        </Text>
-                        <RotateCcw size={18} color={colors.primary} />
-                      </Tap>
-                    </View>
-                  ))}
-                </Animated.View>
-              )}
+            <Animated.View layout={LAYOUT} style={{ marginTop: space[6] }}>
+              <Group>
+                <Row title={t("list.recent")} value={String(recent.length)} chevron onPress={() => router.push("/recent")} />
+              </Group>
             </Animated.View>
           )}
         </LayoutAnimationConfig>
       </Animated.ScrollView>
+
+      {adding && <AddField from="list" listId={listId} items={data.items} onClose={() => setAdding(false)} />}
+      <ItemSheet open={editing.open} item={editing.item} listId={listId} onDelete={deleteItem} onClose={() => setEditing((s) => ({ ...s, open: false }))} />
+      {toast}
     </Screen>
   );
 }
 
-function ShoppingRow({ item, onBought }: { item: Item; onBought: (id: string) => void }) {
-  const { colors, space, motion } = useTheme();
+/** Cheapest nearby store for the basket, from the same query Compare uses; null until location and prices are in. Never asks for location. */
+function useCheapestNow(codes: string[]) {
+  const location = useLocation();
+  const radius = useRadius((s) => s.km);
+  const compare = useCompare(location.coords, radius, codes);
+  return sortStores(compare.data?.stores ?? [], "price")[0] ?? null;
+}
+
+/** Leading check circle (the only way to tick), name; long-press edits. Checked: strike-through, then the row leaves. */
+function CheckRow({ item, onBought, onEdit }: { item: Item; onBought: (id: string) => void; onEdit: () => void }) {
+  const { colors, space, size, motion } = useTheme();
   const reduced = useReducedMotion();
   const [done, setDone] = useState(false);
   const scale = useSharedValue(1);
@@ -150,42 +164,46 @@ function ShoppingRow({ item, onBought }: { item: Item; onBought: (id: string) =>
   };
 
   return (
-    <SwipeRow to="start" color="swipeCheckBg" icon={Check} actionLabel={t("list.check")} onCommit={check}>
-      <Animated.View style={[{ flexDirection: "row", alignItems: "center", minHeight: 56, paddingEnd: space[5] }, pulse]}>
-        <Tap
-          accessibilityRole="checkbox"
-          accessibilityLabel={item.name}
-          accessibilityState={{ checked: done }}
-          onPress={check}
-          scaleTo={0.9}
-          style={{ width: 56, minHeight: 56, alignItems: "center", justifyContent: "center" }}
+    // Checkbox and label are siblings, not nested, so VoiceOver can reach both.
+    <Animated.View style={[{ flexDirection: "row", alignItems: "center", minHeight: size.row }, pulse]}>
+      <Tap
+        accessibilityRole="checkbox"
+        accessibilityLabel={`${t("list.check")}: ${item.name}`}
+        accessibilityState={{ checked: done }}
+        onPress={check}
+        scaleTo={0.9}
+        // 44pt+ target around the 24pt circle; the row's text starts at CHECK_INSET + gutter.
+        style={{ width: CHECK_INSET + space[3], minHeight: size.row, paddingStart: space[5], justifyContent: "center" }}
+      >
+        <View
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 12,
+            borderWidth: done ? 0 : 1.5,
+            alignItems: "center",
+            justifyContent: "center",
+            borderColor: colors.controlOutline,
+            backgroundColor: done ? colors.tint : "transparent",
+          }}
         >
-          <Animated.View
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: 13,
-              borderWidth: 2,
-              alignItems: "center",
-              justifyContent: "center",
-              borderColor: done ? colors.primary : colors.borderControl,
-              backgroundColor: done ? colors.primary : "transparent",
-              transitionProperty: ["backgroundColor", "borderColor"],
-              transitionDuration: motion.duration.fast,
-            }}
-          >
-            {done && <Check size={16} color={colors.onPrimary} strokeWidth={3} />}
-          </Animated.View>
-        </Tap>
-        <Text
-          variant="body"
-          color={done ? "textChecked" : "text"}
-          numberOfLines={2}
-          style={{ flex: 1, paddingVertical: space[3], textDecorationLine: done ? "line-through" : "none" }}
-        >
+          {done && <Check size={15} color={colors.tintOn} strokeWidth={3} />}
+        </View>
+      </Tap>
+      <Tap
+        accessibilityLabel={item.name}
+        accessibilityHint={t("items.editHint")}
+        scaleTo={1}
+        onLongPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          onEdit();
+        }}
+        style={{ flex: 1, alignSelf: "stretch", justifyContent: "center", paddingEnd: space[5] }}
+      >
+        <Text color={done ? "labelSecondary" : "label"} numberOfLines={2} style={{ paddingVertical: space[4], textDecorationLine: done ? "line-through" : "none" }}>
           {item.name}
         </Text>
-      </Animated.View>
-    </SwipeRow>
+      </Tap>
+    </Animated.View>
   );
 }

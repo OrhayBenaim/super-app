@@ -1,9 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
+import { create } from "zustand";
 import { api } from "@/lib/api";
 import type { Coords } from "@/lib/location";
 import type { CompareResponse, Sort } from "./sort";
 
 export const RADII = [5, 10, 20] as const;
+
+/** Search radius, shared by Compare and the List's "cheapest now" row so both read the same query. */
+export const useRadius = create<{ km: number; set: (km: number) => void }>((set) => ({ km: 10, set: (km) => set({ km }) }));
 
 export const fetchCompare = (body: Coords & { radiusKm: number; codes: string[]; sort: Sort; limit: number }) =>
   api<CompareResponse>("api/compare", { method: "POST", body: JSON.stringify(body) });

@@ -1,52 +1,33 @@
 import * as Haptics from "expo-haptics";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
 import { ChartColumn, ListChecks, Settings, ShoppingBasket, type LucideIcon } from "lucide-react-native";
-import { useEffect, useState } from "react";
-import { I18nManager, Pressable, StyleSheet, View } from "react-native";
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from "react-native-reanimated";
-import { springs, useTheme } from "@/theme";
+import { Pressable, StyleSheet, View } from "react-native";
+import { useTheme } from "@/theme";
 import { Text } from "@/ui";
 
 const ICONS: Record<string, LucideIcon> = { index: ListChecks, items: ShoppingBasket, compare: ChartColumn, settings: Settings };
-const PILL_W = 56;
-const PILL_H = 32;
 
+/** Standard iOS tab bar: Lucide icon over a Caption label; selected = tint, others Secondary Label; top hairline. */
 export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: BottomTabBarProps) {
-  const { colors, space } = useTheme();
-  const reduced = useReducedMotion();
-  const [tabWidth, setTabWidth] = useState(0);
-  const x = useSharedValue(0);
-
-  useEffect(() => {
-    if (!tabWidth) return;
-    // Absolute pill anchored at `start`; RTL flips the row, so flip the travel direction too.
-    const target = (I18nManager.isRTL ? -1 : 1) * (state.index * tabWidth + (tabWidth - PILL_W) / 2);
-    x.set(reduced || x.get() === 0 ? target : withSpring(target, springs.snappy));
-  }, [state.index, tabWidth, reduced, x]);
-
-  const pill = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
-
+  const { colors, space, size } = useTheme();
   return (
     <View
       accessibilityRole="tablist"
-      onLayout={(e) => setTabWidth(e.nativeEvent.layout.width / state.routes.length)}
       style={{
         flexDirection: "row",
+        // shortcut: solid surface; iOS draws it at 85% with a blur, which needs expo-blur. Add it if the flat bar looks off on device.
         backgroundColor: colors.surface,
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: colors.border,
-        paddingTop: space[3],
+        borderTopColor: colors.separator,
+        paddingTop: space[2],
         paddingBottom: Math.max(insets.bottom, space[3]),
       }}
     >
-      {tabWidth > 0 && (
-        <Animated.View
-          style={[{ position: "absolute", top: space[3], start: 0, width: PILL_W, height: PILL_H, borderRadius: PILL_H / 2, backgroundColor: colors.primarySoft }, pill]}
-        />
-      )}
       {state.routes.map((route, i) => {
         const focused = state.index === i;
         const label = descriptors[route.key].options.title ?? route.name;
+        const Icon = ICONS[route.name] ?? ListChecks;
+        const color = focused ? colors.tint : colors.labelSecondary;
         const onPress = () => {
           const event = emitter.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
           if (focused || event.defaultPrevented) return;
@@ -61,30 +42,15 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
             accessibilityState={{ selected: focused }}
             onPress={onPress}
             onLongPress={() => emitter.emit({ type: "tabLongPress", target: route.key })}
-            style={{ flex: 1, alignItems: "center", gap: space[2], minHeight: 44 }}
+            style={{ flex: 1, alignItems: "center", gap: space[1], minHeight: size.target }}
           >
-            <TabIcon icon={ICONS[route.name] ?? ListChecks} focused={focused} />
-            <Text variant="caption" color={focused ? "onPrimarySoft" : "textSecondary"} numberOfLines={1}>
+            <Icon size={24} color={color} strokeWidth={1.75} />
+            <Text variant="caption" style={{ color }} numberOfLines={1}>
               {label}
             </Text>
           </Pressable>
         );
       })}
     </View>
-  );
-}
-
-function TabIcon({ icon: Icon, focused }: { icon: LucideIcon; focused: boolean }) {
-  const { colors } = useTheme();
-  const reduced = useReducedMotion();
-  const scale = useSharedValue(1);
-  useEffect(() => {
-    scale.set(reduced ? 1 : withSpring(focused ? 1.1 : 1, springs.snappy));
-  }, [focused, reduced, scale]);
-  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
-  return (
-    <Animated.View style={[{ height: PILL_H, justifyContent: "center" }, style]}>
-      <Icon size={22} color={focused ? colors.onPrimarySoft : colors.textSecondary} />
-    </Animated.View>
   );
 }

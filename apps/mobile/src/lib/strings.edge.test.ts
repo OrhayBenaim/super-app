@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const hebrew = /[֐-׿]/;
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 // Brand / proper nouns / symbols that legitimately stay identical across languages.
-const allowSame = /^(Apple|Google|Waze|₪)$/;
+const allowSame = /^(Apple|Google|Waze|Grocer|₪)$/;
 
 async function load(languageCode?: string) {
   vi.resetModules();
@@ -26,7 +26,7 @@ describe("string tables", () => {
     const { en, he } = await load("en");
     for (const k of Object.keys(en) as (keyof typeof en)[]) expect(placeholders(he[k]), k).toEqual(placeholders(en[k]));
     // sanity: the parity check is not vacuous
-    expect(placeholders(en["compare.has"])).toEqual(["m", "n"]);
+    expect(placeholders(en["compare.coverage.partial"])).toEqual(["m", "missing", "n"]);
   });
 
   it("no unbalanced braces", async () => {

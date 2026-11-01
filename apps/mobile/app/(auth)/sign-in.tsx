@@ -1,14 +1,14 @@
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Haptics from "expo-haptics";
 import { useRef, useState } from "react";
-import { Platform, View, type TextInputInstance } from "react-native";
+import { Platform, type TextInputInstance } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { signInWithApple, signInWithBrowser } from "@/features/auth/social";
 import { authErrorKey, validate, type FieldErrors, type Fields } from "@/features/auth/validate";
 import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
-import { Button, Divider, Screen, Text, TextField } from "@/ui";
+import { Button, Group, Screen, Text, TextField } from "@/ui";
 
 type Mode = "signIn" | "signUp";
 type Busy = "email" | "apple" | "google" | null;
@@ -17,7 +17,7 @@ const s = springs.gentle;
 const layout = LinearTransition.springify().damping(s.damping).stiffness(s.stiffness).mass(s.mass);
 
 export default function SignIn() {
-  const { colors, space, radius, isDark } = useTheme();
+  const { space, radius, size, isDark } = useTheme();
   const [mode, setMode] = useState<Mode>("signIn");
   const [fields, setFields] = useState<Fields>({ name: "", email: "", password: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -60,7 +60,7 @@ export default function SignIn() {
   const google = (
     <Button
       title={t("auth.google")}
-      variant={ios ? "ghost" : "secondary"}
+      variant="neutral"
       loading={busy === "google"}
       disabled={!!busy}
       onPress={() => run("google", () => signInWithBrowser("google"))}
@@ -70,27 +70,30 @@ export default function SignIn() {
     <AppleAuthentication.AppleAuthenticationButton
       buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
       buttonStyle={isDark ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-      cornerRadius={radius.md}
-      style={{ height: 52, opacity: busy ? 0.5 : 1 }}
+      cornerRadius={radius.button}
+      style={{ height: size.button, opacity: busy ? 0.5 : 1 }}
       onPress={() => !busy && run("apple", signInWithApple)}
     />
   ) : (
     <Button
       title={t("auth.apple")}
-      variant="ghost"
+      variant="neutral"
       loading={busy === "apple"}
       disabled={!!busy}
       onPress={() => run("apple", () => signInWithBrowser("apple"))}
     />
   );
 
+  const fieldError = errors.name ?? errors.email ?? errors.password;
   return (
-    <Screen scroll keyboard style={{ paddingVertical: space[8], gap: space[6] }}>
-      <Animated.View layout={layout} style={{ gap: space[3] }}>
+    <Screen scroll keyboard style={{ paddingTop: space[10], paddingBottom: space[8], gap: space[4] }}>
+      <Animated.View layout={layout} style={{ gap: space[1], paddingBottom: space[4] }}>
         <Text variant="largeTitle" accessibilityRole="header">
-          {t(mode === "signUp" ? "auth.signUp.title" : "auth.signIn.title")}
+          {t("auth.title")}
         </Text>
-        <Text color="textSecondary">{t("auth.subtitle")}</Text>
+        <Text variant="subhead" color="labelSecondary">
+          {t("auth.subtitle")}
+        </Text>
       </Animated.View>
 
       <Animated.View layout={layout} style={{ gap: space[3] }}>
@@ -98,30 +101,28 @@ export default function SignIn() {
         {ios ? google : apple}
       </Animated.View>
 
-      <Animated.View layout={layout} style={{ flexDirection: "row", alignItems: "center", gap: space[4] }}>
-        <Divider style={{ flex: 1 }} />
-        <Text variant="footnote" color="textTertiary">
+      <Animated.View layout={layout}>
+        <Text variant="footnote" color="labelSecondary" style={{ textAlign: "center", paddingVertical: space[2] }}>
           {t("auth.or")}
         </Text>
-        <Divider style={{ flex: 1 }} />
       </Animated.View>
 
-      <View style={{ gap: space[5] }}>
-        {mode === "signUp" && (
-          <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} layout={layout}>
-            <TextField
-              label={t("auth.name")}
-              value={fields.name}
-              onChangeText={set("name")}
-              error={errors.name && t(errors.name)}
-              autoComplete="name"
-              textContentType="name"
-              returnKeyType="next"
-              onSubmitEditing={() => emailRef.current?.focus()}
-            />
-          </Animated.View>
-        )}
-        <Animated.View layout={layout}>
+      <Animated.View layout={layout}>
+        <Group>
+          {mode === "signUp" && (
+            <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)}>
+              <TextField
+                label={t("auth.name")}
+                value={fields.name}
+                onChangeText={set("name")}
+                error={errors.name && t(errors.name)}
+                autoComplete="name"
+                textContentType="name"
+                returnKeyType="next"
+                onSubmitEditing={() => emailRef.current?.focus()}
+              />
+            </Animated.View>
+          )}
           <TextField
             ref={emailRef}
             label={t("auth.email")}
@@ -135,8 +136,6 @@ export default function SignIn() {
             returnKeyType="next"
             onSubmitEditing={() => passwordRef.current?.focus()}
           />
-        </Animated.View>
-        <Animated.View layout={layout}>
           <TextField
             ref={passwordRef}
             label={t("auth.password")}
@@ -149,33 +148,40 @@ export default function SignIn() {
             returnKeyType="go"
             onSubmitEditing={submit}
           />
-        </Animated.View>
-        {formError && (
-          <Animated.View entering={FadeIn.duration(150)} layout={layout} style={{ backgroundColor: colors.accentSoft, borderRadius: radius.sm, padding: space[4] }}>
-            <Text variant="subhead" color="danger" accessibilityLiveRegion="polite" accessibilityRole="alert">
-              {formError}
+        </Group>
+        {(fieldError || formError || mode === "signUp") && (
+          <Animated.View entering={FadeIn.duration(150)} style={{ paddingHorizontal: space[5], paddingTop: space[3] }}>
+            <Text
+              variant="footnote"
+              color={fieldError || formError ? "danger" : "labelSecondary"}
+              accessibilityLiveRegion="polite"
+              accessibilityRole={fieldError || formError ? "alert" : undefined}
+            >
+              {fieldError ? t(fieldError) : (formError ?? t("auth.passwordHint"))}
             </Text>
           </Animated.View>
         )}
-        <Button
-          layout={layout}
-          title={t(mode === "signUp" ? "auth.signUp" : "auth.signIn")}
-          haptic
-          loading={busy === "email"}
-          disabled={!!busy && busy !== "email"}
-          onPress={submit}
-        />
-        <Button
-          layout={layout}
-          variant="ghost"
-          title={t(mode === "signUp" ? "auth.toSignIn" : "auth.toSignUp")}
-          onPress={() => {
-            setMode((m) => (m === "signUp" ? "signIn" : "signUp"));
-            setErrors({});
-            setFormError(null);
-          }}
-        />
-      </View>
+      </Animated.View>
+
+      <Button
+        layout={layout}
+        title={t(mode === "signUp" ? "auth.signUp" : "auth.signIn")}
+        haptic
+        loading={busy === "email"}
+        disabled={!!busy && busy !== "email"}
+        onPress={submit}
+        style={{ marginTop: space[2] }}
+      />
+      <Button
+        layout={layout}
+        variant="plain"
+        title={t(mode === "signUp" ? "auth.toSignIn" : "auth.toSignUp")}
+        onPress={() => {
+          setMode((m) => (m === "signUp" ? "signIn" : "signUp"));
+          setErrors({});
+          setFormError(null);
+        }}
+      />
     </Screen>
   );
 }

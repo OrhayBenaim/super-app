@@ -2,10 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { I18nManager, useWindowDimensions, View } from "react-native";
 import Animated, {
-  Extrapolation,
-  interpolate,
   interpolateColor,
-  LinearTransition,
   useAnimatedRef,
   useAnimatedScrollHandler,
   useAnimatedStyle,
@@ -16,14 +13,12 @@ import Animated, {
 import { scheduleOnRN } from "react-native-worklets";
 import { Illustration } from "@/features/onboarding/Illustration";
 import { t, type StringKey } from "@/lib/strings";
-import { springs, useTheme } from "@/theme";
+import { useTheme } from "@/theme";
 import { Button, Screen, Text } from "@/ui";
 
 const SLIDES = [1, 2, 3].map((n) => ({ title: `onboarding.${n}.title` as StringKey, body: `onboarding.${n}.body` as StringKey }));
 const N = SLIDES.length;
 const RTL = I18nManager.isRTL;
-const s = springs.snappy;
-const ctaLayout = LinearTransition.springify().damping(s.damping).stiffness(s.stiffness).mass(s.mass);
 
 // The pager is forced LTR so offsets mean the same on iOS and Android; in RTL the slides are
 // laid out reversed and we start at the far end, which reads right-to-left.
@@ -33,7 +28,7 @@ export default function Onboarding() {
   const { width, height } = useWindowDimensions();
   const { space, motion } = useTheme();
   const reduced = useReducedMotion();
-  const stage = Math.min(height * 0.48, 420);
+  const stage = Math.min(height * 0.5, 440);
   const scrollX = useSharedValue(physical(0) * width);
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const [index, setIndex] = useState(0);
@@ -56,14 +51,14 @@ export default function Onboarding() {
 
   return (
     <Screen style={{ paddingHorizontal: 0 }}>
-      <View style={{ alignItems: "flex-end", paddingHorizontal: space[4], minHeight: 52 }}>
+      <View style={{ alignItems: "flex-end", paddingHorizontal: space[3], minHeight: 50 }}>
         <Animated.View
           pointerEvents={last ? "none" : "auto"}
           accessibilityElementsHidden={last}
           importantForAccessibility={last ? "no-hide-descendants" : "auto"}
           style={{ opacity: last ? 0 : 1, transitionProperty: "opacity", transitionDuration: motion.duration.fast }}
         >
-          <Button variant="ghost" title={t("common.skip")} onPress={finish} />
+          <Button variant="plain" title={t("common.skip")} onPress={finish} style={{ paddingHorizontal: space[3] }} />
         </Animated.View>
       </View>
 
@@ -80,11 +75,11 @@ export default function Onboarding() {
           style={{ direction: "ltr" }}
         >
           {(RTL ? [...SLIDES].reverse() : SLIDES).map((slide) => (
-            <View key={slide.title} style={{ width, paddingTop: stage, paddingHorizontal: space[7], gap: space[4] }}>
-              <Text variant="title1" accessibilityRole="header" style={{ textAlign: "center" }}>
+            <View key={slide.title} style={{ width, paddingTop: stage, paddingHorizontal: space[7], gap: space[3] }}>
+              <Text variant="title2" accessibilityRole="header" style={{ textAlign: "center" }}>
                 {t(slide.title)}
               </Text>
-              <Text color="textSecondary" style={{ textAlign: "center" }}>
+              <Text variant="callout" color="labelSecondary" style={{ textAlign: "center" }}>
                 {t(slide.body)}
               </Text>
             </View>
@@ -93,13 +88,13 @@ export default function Onboarding() {
         <Illustration scrollX={scrollX} width={width} height={stage} pages={N} rtl={RTL} />
       </View>
 
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: space[5] }}>
+      <View style={{ alignItems: "center", gap: space[6], padding: space[5] }}>
         <View style={{ flexDirection: "row", gap: space[3] }} accessibilityLabel={`${index + 1} / ${N}`} accessible>
           {SLIDES.map((slide, i) => (
             <Dot key={slide.title} i={i} scrollX={scrollX} width={width} />
           ))}
         </View>
-        <Button layout={ctaLayout} style={{ minWidth: 120 }} title={t(last ? "common.getStarted" : "common.next")} haptic={last} onPress={next} />
+        <Button style={{ alignSelf: "stretch" }} title={t(last ? "common.getStarted" : "common.next")} haptic={last} onPress={next} />
       </View>
     </Screen>
   );
@@ -112,9 +107,8 @@ function Dot({ i, scrollX, width }: { i: number; scrollX: SharedValue<number>; w
     const page = RTL ? N - 1 - p : p;
     const range = [i - 1, i, i + 1];
     return {
-      width: interpolate(page, range, [8, 24, 8], Extrapolation.CLAMP),
-      backgroundColor: interpolateColor(page, range, [colors.borderControl, colors.primary, colors.borderControl]),
+      backgroundColor: interpolateColor(page, range, [colors.controlOutline, colors.tint, colors.controlOutline]),
     };
   });
-  return <Animated.View style={[{ height: 8, borderRadius: 4 }, style]} />;
+  return <Animated.View style={[{ width: 7, height: 7, borderRadius: 3.5 }, style]} />;
 }

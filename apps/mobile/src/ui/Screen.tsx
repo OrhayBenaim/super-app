@@ -24,7 +24,7 @@ export function Screen({ children, scroll, keyboard, edges = ["top", "bottom"], 
     <View style={pad}>{children}</View>
   );
   return (
-    <SafeAreaView edges={edges} style={{ flex: 1, backgroundColor: colors.bg }}>
+    <SafeAreaView edges={edges} style={{ flex: 1, backgroundColor: colors.groupedBg }}>
       {keyboard ? (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           {body}

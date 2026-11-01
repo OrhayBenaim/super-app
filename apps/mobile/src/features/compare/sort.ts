@@ -19,3 +19,15 @@ const order: Record<Sort, (a: StoreResult, b: StoreResult) => number> = {
 
 export const sortStores = (stores: StoreResult[], sort: Sort) =>
   [...stores].sort((a, b) => order[sort](a, b) || diff(a.distanceKm, b.distanceKm));
+
+/**
+ * The green "₪x less than <chain>" line for the cheapest store: only against the next store with the same
+ * coverage (otherwise the totals price different baskets), and only when it is actually cheaper.
+ */
+export function saving(stores: StoreResult[]): { amount: number; chainName: string } | null {
+  const [best, ...rest] = sortStores(stores, "price");
+  const next = best && rest.find((s) => s.matched === best.matched && Number.isFinite(s.total));
+  if (!next || !Number.isFinite(best.total)) return null;
+  const amount = Math.round((next.total - best.total) * 100) / 100;
+  return amount > 0 ? { amount, chainName: next.chainName } : null;
+}
