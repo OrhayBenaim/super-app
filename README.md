@@ -13,9 +13,13 @@ npm install                   # installs both apps
 cp apps/api/.env.example apps/api/.env
 cp apps/mobile/.env.example apps/mobile/.env
 npm run dev:api               # http://localhost:3000 (GET /health)
-npm run dev:mobile            # Expo dev server; press i / a, or scan with a dev build
+npm run dev:mobile            # Metro for the dev build (expo-dev-client); Expo Go is not supported
 npm run typecheck && npm test # both apps
 ```
+
+The app runs in a development build, not Expo Go. Build and install it once (and again after adding a native module):
+`npm run ios -w apps/mobile` / `npm run android -w apps/mobile` locally (Xcode / Android Studio), or in the cloud with
+`npx eas-cli@latest build --profile development` (`development-simulator` for the iOS simulator). Then `npm run dev:mobile` serves JS to it.
 
 The API applies migrations from `apps/api/drizzle/` on startup. After changing the schema:
 `npm run db:generate -w apps/api`.
@@ -49,7 +53,6 @@ Behind an HTTPS proxy, prefix `fetch`/`geocode` with `NODE_USE_ENV_PROXY=1`. The
 - Built and checked with typecheck, vitest and `expo export` only; nothing has run on a real device or simulator yet.
 - Gesture feel (SwipeRow thresholds, velocity handoff, haptic timing) and the bottom sheet with the keyboard are unverified.
 - Hebrew/RTL layouts are reasoned from `start`/`end` styles and `I18nManager.isRTL`, not seen on screen.
-- Nearby alerts (background geofencing + notifications) need a dev build; they do nothing in Expo Go.
 - A signed-out `grocer://join/<code>` link lands on onboarding and the code is lost after sign-in.
 - Shared lists sync by 5 s polling (paused on hidden screens), not push.
 - "Order online" only copies the list and opens the chain's site; no chain exposes add-to-cart links.
