@@ -27,8 +27,6 @@ export const auth = betterAuth({
     "grocer://",
     "grocer://*",
     "https://appleid.apple.com", // Apple posts its callback from this origin
-    // Expo Go dev URLs (exp://<lan-ip>:8081/...); never trusted in production.
-    ...(env.NODE_ENV !== "production" ? ["exp://", "exp://**"] : []),
     ...(env.TRUSTED_ORIGINS?.split(",").map((o) => o.trim()).filter(Boolean) ?? []),
   ],
   plugins: [expo()],

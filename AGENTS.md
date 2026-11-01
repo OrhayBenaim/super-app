@@ -36,7 +36,8 @@ docs/                     research and design notes (docs/research/, docs/design
 ```bash
 npm install                       # all workspaces
 npm run dev:api                   # tsx watch, http://localhost:3000
-npm run dev:mobile                # expo start
+npm run dev:mobile                # expo start for the dev build (expo-dev-client); no Expo Go
+npm run ios|android -w apps/mobile   # expo run:ios|android: build + install the dev build locally
 npm run typecheck                 # tsc --noEmit in both apps
 npm test                          # vitest run in both apps
 npm run db:generate -w apps/api   # drizzle-kit generate after schema changes
