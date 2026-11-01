@@ -18,3 +18,8 @@ expo-env.d.ts
 
 .DS_Store
 npm-debug.*
+
+# Impeccable working files (sketches, review captures)
+apps/mobile/.impeccable/mocks/
+apps/mobile/.impeccable/review/
+apps/mobile/.impeccable/questions/
