@@ -2,9 +2,9 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { View, type TextInputInstance } from "react-native";
-import { codeStatus, RESET_CODE, type SentCode } from "@grocer/shared/reset-code";
-import { formatCountdown, lockMessage } from "@/features/auth/resetCode";
-import { authErrorKey, validate } from "@/features/auth/validate";
+import { codeStatus, RESET_CODE, type CodeLock, type SentCode } from "@grocer/shared/reset-code";
+import { formatCountdown } from "@/features/auth/countdown";
+import { authErrorKey, emailError, passwordError } from "@/features/auth/validate";
 import { fmt } from "@/features/compare/format";
 import { authClient } from "@/lib/auth-client";
 import { t, type StringKey } from "@/lib/strings";
@@ -12,6 +12,11 @@ import { useTheme } from "@/theme";
 import { Button, Group, Screen, Text, TextField } from "@/ui";
 
 type Busy = "send" | "reset" | null;
+
+// Strings that mention the code fill {length} from the shared rule.
+const say = (key: StringKey) => fmt(t(key), { length: RESET_CODE.length });
+
+const lockMessage: Record<CodeLock, StringKey> = { expired: "auth.reset.expired", tooManyTries: "auth.reset.tooManyTries" };
 
 /** Password reset: the email step requests a Reset code, the code step sets the new password and signs in. */
 export function PasswordResetScreen() {
@@ -56,7 +61,7 @@ export function PasswordResetScreen() {
 
   // The answer is the same whether or not the email has an account, so every success moves on to the code step.
   function send() {
-    const invalid = validate({ name: "", email: target, password }, "signIn").email;
+    const invalid = emailError(target);
     if (invalid) return fail(invalid);
     run("send", async () => {
       const { error } = await authClient.emailOtp.requestPasswordReset({ email: target });
@@ -72,7 +77,7 @@ export function PasswordResetScreen() {
   // On sign-in the session refetches and the root Stack.Protected swaps to (tabs); nothing to navigate here.
   function submit() {
     if (code.length !== RESET_CODE.length) return fail("auth.reset.codeFormat");
-    const invalid = validate({ name: "", email: target, password }, "signIn").password;
+    const invalid = passwordError(password);
     if (invalid) return fail(invalid);
     run("reset", async () => {
       // The code is spent once the reset succeeds, so a retry after a failed sign-in only signs in.
@@ -99,7 +104,7 @@ export function PasswordResetScreen() {
           {t("auth.reset.title")}
         </Text>
         <Text variant="subhead" color="labelSecondary">
-          {sent ? fmt(t("auth.reset.sent"), { email: target }) : t("auth.reset.intro")}
+          {sent ? fmt(t("auth.reset.sent"), { email: target }) : say("auth.reset.intro")}
         </Text>
       </View>
 
@@ -110,7 +115,7 @@ export function PasswordResetScreen() {
               label={t("auth.email")}
               value={email}
               onChangeText={setEmail}
-              error={error ? t(error) : undefined}
+              error={error ? say(error) : undefined}
               autoCapitalize="none"
               autoComplete="email"
               keyboardType="email-address"
@@ -121,10 +126,10 @@ export function PasswordResetScreen() {
           )}
           {sent && (
             <TextField
-              label={t("auth.reset.code")}
+              label={say("auth.reset.code")}
               value={code}
               onChangeText={(v) => setCode(v.replace(/\D/g, ""))}
-              error={message ? t(message) : undefined}
+              error={message ? say(message) : undefined}
               editable={!status?.lock}
               keyboardType="number-pad"
               autoComplete="one-time-code"
@@ -156,7 +161,7 @@ export function PasswordResetScreen() {
             accessibilityRole={message ? "alert" : undefined}
             style={{ paddingHorizontal: space[5], paddingTop: space[3] }}
           >
-            {t(footnote)}
+            {say(footnote)}
           </Text>
         )}
         {/* Not a live region: screen readers read it on focus instead of every second. */}

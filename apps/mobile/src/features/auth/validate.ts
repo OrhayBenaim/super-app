@@ -5,12 +5,17 @@ export type FieldErrors = Partial<Record<keyof Fields, StringKey>>;
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+export const emailError = (email: string): StringKey | undefined => (EMAIL.test(email.trim()) ? undefined : "auth.error.email");
+export const passwordError = (password: string): StringKey | undefined => (password.length < 8 ? "auth.error.password" : undefined);
+
 /** Returns string keys for t(); empty object means valid. `name` is only checked on sign-up. */
 export function validate({ name, email, password }: Fields, mode: "signIn" | "signUp"): FieldErrors {
   const errors: FieldErrors = {};
   if (mode === "signUp" && !name.trim()) errors.name = "auth.error.name";
-  if (!EMAIL.test(email.trim())) errors.email = "auth.error.email";
-  if (password.length < 8) errors.password = "auth.error.password";
+  const e = emailError(email);
+  if (e) errors.email = e;
+  const p = passwordError(password);
+  if (p) errors.password = p;
   return errors;
 }
 

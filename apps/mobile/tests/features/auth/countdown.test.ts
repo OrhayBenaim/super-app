@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { formatCountdown } from "@/features/auth/resetCode";
+import { formatCountdown } from "@/features/auth/countdown";
 
 it("shows m:ss, rounding up so 0:00 means time is up", () => {
   expect(formatCountdown(300_000)).toBe("5:00");

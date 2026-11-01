@@ -14,8 +14,9 @@ How the code inside `apps/api` is organised.
 | `src/middleware.ts` | `AppEnv` (the context variables) and `requireUser`. |
 | `src/routes/<resource>.ts` | One router per resource. |
 | `src/deps.ts` | Composition root: `buildDeps(config, overrides)` builds every dependency once. |
-| `src/auth.ts` | `createAuth(db, config, mailer)`: the better-auth instance. |
-| `src/emails/<email>.ts` | One function per email that builds it from its data (e.g. `resetCodeEmail(to, code)`). `emails/layout.ts` turns Hebrew and English paragraphs into the text and HTML every email shares. Send with `deps.mailer`. |
+| `src/auth.ts` | `createAuth(db, config, mailer)`: the better-auth instance. It wires features; each feature's own rules live in `src/auth/`. |
+| `src/auth/<feature>.ts` | One auth feature as better-auth plugins, e.g. `password-reset.ts`: `passwordReset(db, mailer)` (emailOTP plus the hook that lets only Users with a password in) and `unusedOtpPaths`. |
+| `src/emails/<email>.ts` | One function per email that builds it from its data (e.g. `resetCodeEmail(to, code)`). `emails/layout.ts` turns Hebrew and English paragraphs into the text and HTML every email shares. Send through the `MailerService` (`deps.mailer`, or the `mailer` that `createAuth` receives). |
 | `src/services/` | One file per vendor-neutral service (see [Services and providers](#services-and-providers)). |
 | `src/providers/<vendor>/` | Each vendor's implementation of a service, and its fake. |
 | `src/ingest/` | Price-file rules: chain seeds, file names, XML parsing, writing stores and prices. |
