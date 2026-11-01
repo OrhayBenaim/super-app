@@ -23,3 +23,6 @@ npm-debug.*
 apps/mobile/.impeccable/mocks/
 apps/mobile/.impeccable/review/
 apps/mobile/.impeccable/questions/
+
+# Local git worktrees
+.worktree/

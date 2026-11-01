@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { saving, sortStores, type StoreResult } from "./sort";
+import { saving, sortStores, type StoreResult } from "@/features/compare/sort";
 
 const store = (storeId: string, total: number, distanceKm: number, missing: number): StoreResult => ({
   storeId, chainId: "c", chainName: "C", storeName: storeId, address: "", city: "", lat: 0, lng: 0,

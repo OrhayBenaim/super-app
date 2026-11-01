@@ -7,7 +7,7 @@ const loc = vi.hoisted(() => ({
 vi.mock("expo-location", () => loc);
 vi.mock("react-native", () => ({ Linking: { openSettings: vi.fn() } }));
 
-import { requestBackgroundPermission } from "./location";
+import { requestBackgroundPermission } from "@/lib/location";
 
 beforeEach(() => vi.resetAllMocks());
 

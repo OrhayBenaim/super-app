@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupByCategory, initials, recentlyBought } from "./group";
+import { groupByCategory, initials, recentlyBought } from "@/features/lists/group";
 
 const item = (name: string, category: string) => ({ name, category });
 

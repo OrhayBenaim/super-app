@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GEOFENCE_TASK, MAX_REGIONS, REGION_RADIUS_M, toRegions } from "./regions";
+import { GEOFENCE_TASK, MAX_REGIONS, REGION_RADIUS_M, toRegions } from "@/features/geofence/regions";
 
 const mk = (n: number) => Array.from({ length: n }, (_, i) => ({ storeId: `s${i}`, lat: 32 + i / 1000, lng: 34 + i / 1000 }));
 

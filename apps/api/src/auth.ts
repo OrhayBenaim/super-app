@@ -11,6 +11,8 @@ export function createAuth(db: Db, config: Config) {
     secret: config.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: "sqlite", schema }),
     emailAndPassword: { enabled: true },
+    // Account deletion: schema cascades remove owned Lists and memberships; sessions older than freshAge get SESSION_EXPIRED.
+    user: { deleteUser: { enabled: true } },
     socialProviders: {
       ...(config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
         ? { google: { clientId: config.GOOGLE_CLIENT_ID, clientSecret: config.GOOGLE_CLIENT_SECRET } }

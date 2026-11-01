@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({ cookie: "grocer.session=abc" as string | null }));
-vi.mock("./auth-client", () => ({ authClient: { getCookie: async () => auth.cookie } }));
+vi.mock("@/lib/auth-client", () => ({ authClient: { getCookie: async () => auth.cookie } }));
 
 const fetchMock = vi.fn();
 type Call = [string, RequestInit & { headers: Headers }];
@@ -11,7 +11,7 @@ async function load(baseUrl?: string) {
   vi.resetModules();
   if (baseUrl === undefined) vi.stubEnv("EXPO_PUBLIC_API_URL", undefined as unknown as string);
   else vi.stubEnv("EXPO_PUBLIC_API_URL", baseUrl);
-  return (await import("./api")).api;
+  return (await import("@/lib/api")).api;
 }
 
 beforeEach(() => {

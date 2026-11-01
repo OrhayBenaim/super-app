@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Item } from "@/features/lists/api";
-import { requestDelete, takePendingDelete } from "./pendingDelete";
+import { requestDelete, takePendingDelete } from "@/features/items/pendingDelete";
 
 const item = { id: "1", name: "חלב" } as Item;
 
