@@ -17,6 +17,15 @@ const schema = z.object({
   APPLE_CLIENT_SECRET: optional,
   APPLE_APP_BUNDLE_IDENTIFIER: z.string().default("com.grocer.app"),
   NOMINATIM_URL: z.url().default("https://nominatim.openstreetmap.org"),
+  // Scheduled sync times, read as Asia/Jerusalem wall-clock time whatever the server timezone.
+  SYNC_TIMES: z
+    .string()
+    .default("05:00,12:00,23:30")
+    .transform((s) => s.split(",").map((t) => t.trim()).filter(Boolean))
+    .pipe(z.array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "HH:MM, 00:00-23:59")).min(1)),
+  SYNC_TOKEN: optional, // the private trigger port starts only when set
+  INTERNAL_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
+  INTERNAL_HOST: z.string().default("127.0.0.1"),
 });
 
 export type Config = z.infer<typeof schema>;

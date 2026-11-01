@@ -1,0 +1,70 @@
+import { eq, inArray } from "drizzle-orm";
+import { z } from "zod";
+import { syncChainResults, syncRuns } from "#/db/appSchema.ts";
+import type { Deps } from "#/deps.ts";
+import { syncChain, type ChainCounts } from "#/ingest/chain-sync.ts";
+import { chainSeeds } from "#/ingest/chains.ts";
+
+export const priceSyncData = z.object({ maxStores: z.coerce.number().int().min(1).optional() });
+export type PriceSyncData = z.input<typeof priceSyncData>;
+
+/**
+ * Runs the recorded Price sync `runId` over every Chain, one after another, recording each Chain's result. A Chain failure
+ * is logged, reported and recorded, and the next Chain still runs. `signal` is checked between Chains, never inside one:
+ * once it fires the sync stops and is recorded as interrupted. Marks the run `running` before its first await.
+ */
+export async function runPriceSync(deps: Deps, runId: number, { signal, maxStores = Infinity }: { signal?: AbortSignal; maxStores?: number }) {
+  const { db, clock } = deps;
+  db.update(syncRuns).set({ status: "running", startedAt: clock.now() }).where(eq(syncRuns.id, runId)).run();
+  let interrupted = false;
+  for (const chain of chainSeeds) {
+    if (signal?.aborted) {
+      interrupted = true;
+      break;
+    }
+    const counts: ChainCounts = { filesDownloaded: 0, storesLoaded: 0, pricesLoaded: 0, storesGeocoded: 0 };
+    const start = performance.now();
+    let error: string | null = null;
+    try {
+      await syncChain(deps, chain, maxStores, counts);
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+      console.error(`price sync ${runId}: ${chain.key} failed`, e);
+      deps.errorHandler.report(e);
+    }
+    const durationMs = Math.round(performance.now() - start);
+    db.insert(syncChainResults)
+      .values({ syncRunId: runId, chainId: chain.ids[0]!, status: error ? "failed" : "ok", durationMs, error, ...counts })
+      .run();
+    console.log(`price sync ${runId}: ${chain.key} ${error ? "failed" : "ok"} in ${durationMs} ms`, counts);
+  }
+  db.update(syncRuns)
+    .set({ status: interrupted ? "interrupted" : "finished", finishedAt: clock.now() })
+    .where(eq(syncRuns.id, runId))
+    .run();
+}
+
+/**
+ * Records a Manual sync request, unless a Price sync is running or a request is already waiting: then records nothing and
+ * returns null. Only one Price sync runs at a time.
+ */
+export function requestManualSync({ db, clock }: Pick<Deps, "db" | "clock">) {
+  const busy = db.select({ id: syncRuns.id }).from(syncRuns).where(inArray(syncRuns.status, ["requested", "running"])).get();
+  if (busy) return null;
+  return db
+    .insert(syncRuns)
+    .values({ trigger: "manual", status: "requested", requestedAt: clock.now() })
+    .returning({ id: syncRuns.id })
+    .get().id;
+}
+
+/** `npm run sync`: records a Manual sync and runs it now. Returns the sync run id. */
+export function priceSyncJob(deps: Deps) {
+  return async (data: PriceSyncData, signal?: AbortSignal) => {
+    const { maxStores } = priceSyncData.parse(data);
+    const id = requestManualSync(deps);
+    if (id === null) throw new Error("a Price sync is already running or requested; not starting another");
+    await runPriceSync(deps, id, { signal, maxStores });
+    return id;
+  };
+}

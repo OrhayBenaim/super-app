@@ -6,15 +6,17 @@ compares what the list costs at nearby supermarkets. This file is for AI agents 
 ## Repo layout
 
 ```
-apps/api/                 Node 22.18+ running TypeScript natively (strict, ESM, no build). Structure: apps/api/ARCHITECTURE.md
-  src/api.ts              entry point: loadConfig() -> buildDeps() -> serve createApp(deps) (PORT, default 3000)
-  src/worker.ts           entry point: runs one job from src/jobs/ by name (npm run fetch|ingest|geocode)
+apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, no build). Structure: apps/api/ARCHITECTURE.md
+  src/api.ts              entry point: loadConfig() -> buildDeps() -> serve createApp(deps) (PORT, default 3000),
+                          and createInternalApp(deps) on INTERNAL_HOST:INTERNAL_PORT when SYNC_TOKEN is set
+  src/internal-app.ts     private trigger app: POST /sync records a Manual sync request (never on the public port)
+  src/worker.ts           entry point: runs one job from src/jobs/ by name (npm run fetch|ingest|geocode|sync|worker)
   src/app.ts              createApp(deps): deps on the context, CORS, /api/auth/*, /health, onError; mounts routers
   src/deps.ts             Deps + buildDeps(config, overrides): the composition root
   src/middleware.ts       AppEnv type (c.var.deps, c.var.user) + requireUser
   src/services/           vendor-neutral services (config, error-handler, geocoder, price-portal)
   src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, price-portals, fake-error-handler)
-  src/jobs/               fetch-prices, ingest-prices, geocode-stores
+  src/jobs/               fetch-prices, ingest-prices, geocode-stores, price-sync (one Price sync), sync-worker (once-a-minute check)
   src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts)
   src/auth.ts             createAuth(db, config): better-auth (email+password, optional Google/Apple, expo plugin)
   src/db/index.ts         openDb(path): better-sqlite3 + Drizzle; WAL; runs migrations, seeds chains
@@ -53,6 +55,8 @@ npm run db:migrate -w apps/api    # apply migrations manually (the API also does
 npm run fetch -w apps/api -- --chain <key> --out <dir> [--max-stores N] [--stores-only]   # download Stores + PriceFull (outside the repo)
 npm run ingest -w apps/api -- --chain <key> --stores <file> --prices <file...>   # load price-transparency XML
 npm run geocode -w apps/api -- [--chain <key>]   # fill stores.lat/lng via Nominatim (NOMINATIM_URL), 1 req/s
+npm run sync -w apps/api -- [--max-stores N]     # one Price sync now: every chain, every store, recorded in sync_runs
+npm run worker -w apps/api                       # long-running worker: Scheduled syncs (SYNC_TIMES) + Manual sync requests
 npx auth@latest generate --config auth.config.ts --output src/db/schema.ts   # (in apps/api) only after adding better-auth plugins; re-append the appSchema re-export
 ```
 
