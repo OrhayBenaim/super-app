@@ -181,7 +181,7 @@ components:
 
 # Design System: Grocer
 
-> **Status.** This file records the v2 visual world as built in Figma: https://www.figma.com/design/YncE254fQ7DyfktwvCsqR0/ (pages Foundations, Components, Screens; the previous look is kept there as "v1 · Tokens / Components / Screens"). **The code has not been migrated.** `apps/mobile/src/theme`, which loads `docs/design/tokens.json`, still implements the v1 look (green primary, burnt-orange Best-price accent, card stacks, coverage bars, custom tab bar and MissingToggle). Until a migration lands, `tokens.json` describes the running app and this file describes the target. Do not mix the two on one screen.
+> **Status.** This file records the v2 visual world as built in Figma: https://www.figma.com/design/YncE254fQ7DyfktwvCsqR0/ (pages Foundations, Components, Screens; the v1 pages were deleted, the old look lives only in git history of this file). The Screens page is grouped into flow sections (Onboarding & sign in, List, My items, Compare, Settings & nearby alert); every frame carries a "How you get here" caption. **The code has not been migrated.** `apps/mobile/src/theme`, which loads `docs/design/tokens.json`, still implements the v1 look (green primary, burnt-orange Best-price accent, card stacks, coverage bars, custom tab bar and MissingToggle). Until a migration lands, `tokens.json` describes the running app and this file describes the target. Do not mix the two on one screen.
 >
 > Figma uses **Heebo** as a stand-in for SF Pro / SF Hebrew; the app uses the system font. Color and size values live as Figma variables (collections "Grocer color" with Light / Dark modes, and "Grocer size"); text styles are `v2/*`.
 
@@ -260,7 +260,7 @@ A gray-and-white iOS system ground with one saturated ultramarine and three sing
 
 Single-column iOS layout at 393pt width, designed RTL first. Screen gutters and inset-group margins are 16pt (`spacing.4`); rows are 52pt minimum (`size/row`) and every target is at least 44pt (`size/target`). Groups are separated by a section header; all spacing comes from the 4pt-based scale (4 / 8 / 12 / 16 / 20 / 24 / 32). Top-level screens open with a large title and one summary line in Secondary Label; tabs carry their own title. Sheets are content-sized, with a grabber. Containers use minimum heights, never fixed heights, so Dynamic Type can grow them.
 
-Screen anatomy, as drawn: **List** = "cheapest now" row → category groups of check rows → "Recently bought" row, with the add bar pinned above the tab bar. **My items** = search field → category groups of item rows (add-to-list button at the trailing end) → footer. **Compare** = radius pull-down in the nav bar → large title + summary → segmented (price / distance / coverage) → Best store group → "Other branches" group of store rows. **Settings** = alerts group with footer → account group ending in a destructive row.
+Screen anatomy, as drawn: **List** = "cheapest now" row → category groups of check rows → "Recently bought" row (pushes the Recently bought screen, back button "הבית"), with the add bar pinned above the tab bar. **My items** = search field → category groups of item rows (add-to-list button at the trailing end) → footer. **Compare** = radius pull-down in the nav bar → large title + summary → segmented (price / distance / coverage) → Best store group → "Other branches" group of store rows. **Settings** = alerts group with footer → account group ending in a destructive row.
 
 ## Elevation & Depth
 
@@ -310,7 +310,7 @@ All components are iOS standard in structure; Grocer's expression is color assig
 ### Navigation
 - **Tab bar:** standard iOS, 4 tabs (List, My items, Compare, Settings), Lucide icons with Caption labels; selected = tint, unselected = Secondary Label; 85% surface with blur and a top hairline.
 - **Nav bar:** large titles on top-level screens; trailing / leading nav items in tint (share, add, radius pull-down).
-- **Sheets:** standard iOS sheets on Sheet Surface, 16pt top radius, grabber in Control Outline, over the Scrim. Used for add item, category picker, product match, what's missing, share, join a list.
+- **Sheets:** standard iOS sheets on Sheet Surface, 16pt top radius, grabber in Control Outline, over the Scrim. Used for add item, what's missing and share. Category picker and product match push inside the add-item sheet; join a list pushes inside the share sheet (back = "חזרה"). Pull-down menus (the Compare radius) are iOS menus, not sheets.
 
 ### Icons
 - Lucide at 1.75 stroke on a 24 grid (matches `lucide-react-native`). Color always from a token. Directional icons flip in RTL.
