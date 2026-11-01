@@ -1,14 +1,14 @@
 import { expect, it } from "vitest";
-import { clock, codeStatus } from "@/features/auth/resetCode";
+import { formatCountdown, codeStatus } from "@/features/auth/resetCode";
 
 const sentAt = 1_000_000;
 const at = (s: number) => sentAt + s * 1000;
 
 it("counts down from 5 minutes and reaches 0:00 at 5 minutes", () => {
-  expect(clock(codeStatus({ sentAt, wrongTries: 0 }, at(0)).msLeft)).toBe("5:00");
-  expect(clock(codeStatus({ sentAt, wrongTries: 0 }, at(0.4)).msLeft)).toBe("5:00");
-  expect(clock(codeStatus({ sentAt, wrongTries: 0 }, at(61)).msLeft)).toBe("3:59");
-  expect(clock(codeStatus({ sentAt, wrongTries: 0 }, at(300)).msLeft)).toBe("0:00");
+  expect(formatCountdown(codeStatus({ sentAt, wrongTries: 0 }, at(0)).msLeft)).toBe("5:00");
+  expect(formatCountdown(codeStatus({ sentAt, wrongTries: 0 }, at(0.4)).msLeft)).toBe("5:00");
+  expect(formatCountdown(codeStatus({ sentAt, wrongTries: 0 }, at(61)).msLeft)).toBe("3:59");
+  expect(formatCountdown(codeStatus({ sentAt, wrongTries: 0 }, at(300)).msLeft)).toBe("0:00");
   expect(codeStatus({ sentAt, wrongTries: 0 }, at(999)).msLeft).toBe(0);
 });
 

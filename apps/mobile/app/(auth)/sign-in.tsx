@@ -179,7 +179,7 @@ export default function SignIn() {
           variant="plain"
           title={t("auth.forgot")}
           disabled={!!busy}
-          onPress={() => router.push({ pathname: "/forgot-password", params: { email: fields.email.trim() } })}
+          onPress={() => router.push({ pathname: "/password-reset", params: { email: fields.email.trim() } })}
         />
       )}
       <Button

@@ -2,7 +2,7 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { View, type TextInputInstance } from "react-native";
-import { clock, codeStatus, MAX_TRIES } from "@/features/auth/resetCode";
+import { formatCountdown, codeStatus, MAX_TRIES } from "@/features/auth/resetCode";
 import { authErrorKey, validate } from "@/features/auth/validate";
 import { fmt } from "@/features/compare/format";
 import { authClient } from "@/lib/auth-client";
@@ -13,7 +13,7 @@ import { Button, Group, Screen, Text, TextField } from "@/ui";
 type Busy = "send" | "reset" | null;
 
 /** Password reset: the email step requests a Reset code, the code step sets the new password and signs in. */
-export function ForgotPasswordScreen() {
+export function PasswordResetScreen() {
   const { space } = useTheme();
   const params = useLocalSearchParams<{ email?: string }>();
   const [email, setEmail] = useState(params.email ?? "");
@@ -24,6 +24,7 @@ export function ForgotPasswordScreen() {
   const [error, setError] = useState<StringKey | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
   const passwordRef = useRef<TextInputInstance>(null);
+  const passwordSet = useRef<string | null>(null);
 
   useEffect(() => {
     if (!sent) return;
@@ -73,11 +74,15 @@ export function ForgotPasswordScreen() {
     const invalid = validate({ name: "", email: target, password }, "signIn").password;
     if (invalid) return fail(invalid);
     run("reset", async () => {
-      const { error } = await authClient.emailOtp.resetPassword({ email: target, otp: code, password });
-      if (error) {
-        if (error.code === "INVALID_OTP") setSent((s) => s && { ...s, wrongTries: s.wrongTries + 1 });
-        if (error.code === "TOO_MANY_ATTEMPTS") setSent((s) => s && { ...s, wrongTries: MAX_TRIES });
-        return authErrorKey(error.code);
+      // The code is spent once the reset succeeds, so a retry after a failed sign-in only signs in.
+      if (passwordSet.current !== password) {
+        const { error } = await authClient.emailOtp.resetPassword({ email: target, otp: code, password });
+        if (error) {
+          if (error.code === "INVALID_OTP") setSent((s) => s && { ...s, wrongTries: s.wrongTries + 1 });
+          if (error.code === "TOO_MANY_ATTEMPTS") setSent((s) => s && { ...s, wrongTries: MAX_TRIES });
+          return authErrorKey(error.code);
+        }
+        passwordSet.current = password;
       }
       const signIn = await authClient.signIn.email({ email: target, password });
       return signIn.error ? authErrorKey(signIn.error.code) : null;
@@ -157,7 +162,7 @@ export function ForgotPasswordScreen() {
         {/* Not a live region: screen readers read it on focus instead of every second. */}
         {status && !status.lock && (
           <Text variant="footnote" color="labelSecondary" tabular style={{ paddingHorizontal: space[5], paddingTop: space[1] }}>
-            {fmt(t("auth.reset.expiresIn"), { time: clock(status.msLeft) })}
+            {fmt(t("auth.reset.expiresIn"), { time: formatCountdown(status.msLeft) })}
           </Text>
         )}
       </View>
@@ -174,7 +179,7 @@ export function ForgotPasswordScreen() {
           />
           <Button
             variant="plain"
-            title={status?.resendInMs ? fmt(t("auth.reset.resendIn"), { time: clock(status.resendInMs) }) : t("auth.reset.resend")}
+            title={status?.resendInMs ? fmt(t("auth.reset.resendIn"), { time: formatCountdown(status.resendInMs) }) : t("auth.reset.resend")}
             accessibilityLabel={t("auth.reset.resend")}
             loading={busy === "send"}
             disabled={!!status?.resendInMs || busy === "reset"}

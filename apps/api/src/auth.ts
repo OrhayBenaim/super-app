@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { expo } from "@better-auth/expo";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "#/db/index.ts";
@@ -41,6 +42,14 @@ export function createAuth(db: Db, config: Config, mailer: MailerService) {
     emailAndPassword: { enabled: true, revokeSessionsOnPasswordReset: true },
     // emailOTP is only for Password reset: no OTP sign-in, no email verification.
     disabledPaths: ["/sign-in/email-otp", "/email-otp/send-verification-otp", "/email-otp/verify-email", "/forget-password/email-otp"],
+    // A code is stored for every existing User, so refuse it for Users without a password; else a guessed code adds one.
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        const email = ctx.body?.email;
+        if (ctx.path === "/email-otp/reset-password" && typeof email === "string" && !hasPassword(email.toLowerCase()))
+          throw APIError.from("BAD_REQUEST", { code: "INVALID_OTP", message: "Invalid OTP" });
+      }),
+    },
     // Account deletion: schema cascades remove owned Lists and memberships; sessions older than freshAge get SESSION_EXPIRED.
     user: { deleteUser: { enabled: true } },
     socialProviders: {

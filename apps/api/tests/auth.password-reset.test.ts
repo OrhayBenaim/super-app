@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "#/app.ts";
-import { account, user } from "#/db/schema.ts";
+import { eq } from "drizzle-orm";
+import { account, user, verification } from "#/db/schema.ts";
 import { buildDeps } from "#/deps.ts";
 import { FakeMailerProvider } from "#/providers/resend/fake.ts";
 import { loadConfig } from "#/services/config.ts";
@@ -71,6 +72,23 @@ describe("Password reset", () => {
       expect(await res.json()).toEqual(await real.clone().json());
     }
     expect(mail.sent).toHaveLength(0);
+  });
+
+  it("a Google-only User can't gain a password, even with the stored code", async () => {
+    deps.db.insert(user).values({ id: "g2", name: "G", email: "g2@reset.test" }).run();
+    deps.db
+      .insert(account)
+      .values({ id: "ga2", accountId: "google-sub-2", providerId: "google", userId: "g2", createdAt: new Date(), updatedAt: new Date() })
+      .run();
+    await requestReset("g2@reset.test");
+    const stored = deps.db.select().from(verification).where(eq(verification.identifier, "forget-password-otp-g2@reset.test")).get();
+    const code = stored?.value.split(":")[0] ?? "123456";
+
+    const res = await reset("g2@reset.test", code);
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("INVALID_OTP");
+    expect((await signIn("g2@reset.test", "new-password")).status).toBe(401);
+    expect(deps.db.select().from(account).where(eq(account.userId, "g2")).all()).toHaveLength(1);
   });
 
   it("the right code sets the new password, and signs out sessions from before the reset", async () => {
