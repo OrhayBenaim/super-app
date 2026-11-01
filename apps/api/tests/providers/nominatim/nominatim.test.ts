@@ -1,6 +1,6 @@
 // QA edge cases for the pure parts of nominatim.ts (no network).
-import { describe, expect, it } from "vitest";
-import { nominatimUrl, parseNominatim } from "#/providers/nominatim/nominatim.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { nominatimGeocoder, nominatimUrl, parseNominatim } from "#/providers/nominatim/nominatim.ts";
 
 const BASE = "https://nominatim.openstreetmap.org";
 
@@ -20,7 +20,7 @@ describe("nominatimUrl", () => {
   });
 
   it("city empty: address + store name; no address -> name; neither -> null (skipped)", () => {
-    expect(q("רחוב המפוח 11", "", "יוחננוף מפוח")).toBe("רחוב המפוח 11, יוחננוף מפוח, Israel");
+    expect(q("רחוב המפוח 11", "", "יוחננוף מפוח")).toBe("המפוח 11, יוחננוף מפוח, Israel");
     expect(q("", "", "יוחננוף בילו")).toBe("יוחננוף בילו, Israel");
     expect(q("", "")).toBeNull();
     expect(q("", "", "")).toBeNull();
@@ -39,7 +39,7 @@ describe("nominatimUrl", () => {
 
   it("cleans the comma in 'האומן,15' only when a digit follows, keeping ', ' separators", () => {
     expect(q("האומן,15", "ירושלים")).toBe("האומן 15, ירושלים, Israel");
-    expect(q("רחוב א,12 ,ב", "חיפה")).toBe("רחוב א 12 ,ב, חיפה, Israel");
+    expect(q("הגפן א,12 ,ב", "חיפה")).toBe("הגפן א 12 ,ב, חיפה, Israel");
     expect(q("אזור התעשיה, 11", "חיפה")).toBe("אזור התעשיה, 11, חיפה, Israel");
     expect(q("1,2,3", "חיפה")).toBe("1 2 3, חיפה, Israel");
   });
@@ -53,7 +53,21 @@ describe("nominatimUrl", () => {
 
   it("a short city is not mistaken for part of the address by accident of substring (documented limit)", () => {
     // street.includes(town) is a plain substring test: city "יפו" inside "רחוב יפו 5" drops the city, which is what the cleanup intends.
-    expect(q("רחוב יפו 5", "יפו")).toBe("רחוב יפו 5, Israel");
+    expect(q("רחוב יפו 5", "יפו")).toBe("יפו 5, Israel");
+  });
+
+  it("drops a leading street type, which Nominatim cannot match (live Stop Market misses, 2026-11-01)", () => {
+    expect(q("רחוב הנגר 24", "הוד השרון")).toBe("הנגר 24, הוד השרון, Israel");
+    expect(q("דרך משה פלימן 8", "חיפה")).toBe("משה פלימן 8, חיפה, Israel");
+    expect(q("שדרות לנטוס 10", "נתניה")).toBe("לנטוס 10, נתניה, Israel");
+    expect(q("רח' הרצל 3", "חולון")).toBe("הרצל 3, חולון, Israel");
+    expect(q("שד׳ ירושלים 1", "יפו")).toBe("ירושלים 1, יפו, Israel");
+    expect(q("שד רוטשילד 40", "חדרה")).toBe("רוטשילד 40, חדרה, Israel"); // Victory
+    expect(q("שד` רוטשילד 14", "תל-אביב")).toBe("רוטשילד 14, תל-אביב, Israel");
+    expect(q("2 שד.הארזים", "תל אביב")).toBe("2 שד.הארזים, תל אביב, Israel"); // only at the start
+    expect(q("שד.הארזים 2", "תל אביב")).toBe("הארזים 2, תל אביב, Israel");
+    expect(q("שדה בוקר 3", "ירוחם")).toBe("שדה בוקר 3, ירוחם, Israel"); // a word that starts with שד stays
+    expect(q("הדרך 5", "חיפה")).toBe("הדרך 5, חיפה, Israel"); // only a whole leading word
   });
 });
 
@@ -79,5 +93,18 @@ describe("parseNominatim", () => {
   it("null for an empty array, a missing lat or lon, non-numeric, null or empty values, and non-array payloads", () => {
     for (const bad of [[], [{ lon: "34.6" }], [{ lat: "31.8" }], [{ lat: "x", lon: "y" }], [{ lat: null, lon: "34.6" }], [{ lat: "31.8", lon: "" }], [{ lat: "", lon: "" }], [{ lat: "NaN", lon: "1" }], [{ lat: "Infinity", lon: "1" }], [null], [{}], null, undefined, {}, "x", 5, { lat: "1", lon: "2" }])
       expect(parseNominatim(bad), JSON.stringify(bad)).toBeNull();
+  });
+});
+
+describe("nominatimGeocoder", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("identifies itself with a real project URL: public Nominatim answers 403 to a placeholder contact", async () => {
+    const fetch = vi.fn(async () => Response.json([{ lat: "32.1", lon: "34.8" }]));
+    vi.stubGlobal("fetch", fetch);
+    expect(await nominatimGeocoder(BASE).geocode({ address: "הנגר 24", city: "הוד השרון", name: "" })).toEqual({ lat: 32.1, lng: 34.8 });
+    const headers = (fetch.mock.calls[0] as unknown as [string, RequestInit])[1].headers as Record<string, string>;
+    expect(headers["User-Agent"]).toMatch(/^Grocer\/\S+ \(\+https:\/\/github\.com\//);
+    expect(headers["User-Agent"]).not.toContain("example.com");
   });
 });
