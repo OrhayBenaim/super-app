@@ -1,4 +1,5 @@
 import * as Haptics from "expo-haptics";
+import { useIsFocused } from "expo-router";
 import { Barcode, Plus, Trash2 } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Alert, View } from "react-native";
@@ -18,7 +19,7 @@ const EXIT = FadeOut.duration(150);
 export function MyItems() {
   const { colors, space, radius, shadow } = useTheme();
   const listId = useCurrentListId();
-  const { data } = useList(listId);
+  const { data } = useList(listId, { poll: useIsFocused() });
   const categories = useCategories(listId).data ?? [];
   const { update, remove } = useItemMutations(listId);
   const [query, setQuery] = useState("");

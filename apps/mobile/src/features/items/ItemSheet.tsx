@@ -2,6 +2,7 @@ import { Barcode, Plus, Trash2 } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, View, type TextInputInstance } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
+import { fmt, shekels } from "@/features/compare/format";
 import { useCategories, useItemMutations, type Item } from "@/features/lists/api";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
@@ -169,7 +170,7 @@ export function ItemSheet({ open, onClose, listId, item }: ItemSheetProps) {
                 {p.name}
               </Text>
               <Text variant="footnote" color="textSecondary" tabular numberOfLines={1}>
-                {[p.manufacturer, `₪${p.minPrice.toFixed(2)}`, t("items.product.stores").replace("{n}", String(p.storeCount))].filter(Boolean).join(" · ")}
+                {[p.manufacturer, shekels(p.minPrice), fmt(t("items.product.stores"), { n: p.storeCount })].filter(Boolean).join(" · ")}
               </Text>
             </Tap>
           ))}

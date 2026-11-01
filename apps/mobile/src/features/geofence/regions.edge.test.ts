@@ -39,7 +39,7 @@ describe("toRegions", () => {
     toRegions(s);
     expect(s).toHaveLength(25);
   });
-  it.skip("LOW regions.ts:10 stores with missing/non-finite lat/lng are not skipped (they become NaN/undefined regions that native startGeofencingAsync rejects, failing the whole batch); API already excludes them, so this is defence-in-depth; fix: .filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng)) BEFORE .slice(0, MAX_REGIONS)", () => {
+  it("LOW regions.ts:10 stores with missing/non-finite lat/lng are not skipped (they become NaN/undefined regions that native startGeofencingAsync rejects, failing the whole batch); API already excludes them, so this is defence-in-depth; fix: .filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng)) BEFORE .slice(0, MAX_REGIONS)", () => {
     const stores = [
       { storeId: "bad1", lat: undefined as unknown as number, lng: 34 },
       { storeId: "bad2", lat: NaN, lng: 34 },
@@ -48,7 +48,7 @@ describe("toRegions", () => {
     const r = toRegions(stores);
     expect(r.map((x) => x.identifier)).toEqual(mk(20).map((s) => s.storeId));
   });
-  it.skip("LOW regions.ts:10 duplicate storeIds are not de-duplicated, wasting a slot (same identifier replaces the earlier region natively); fix: dedupe by storeId before slice", () => {
+  it("LOW regions.ts:10 duplicate storeIds are not de-duplicated, wasting a slot (same identifier replaces the earlier region natively); fix: dedupe by storeId before slice", () => {
     const r = toRegions([{ storeId: "a", lat: 1, lng: 1 }, { storeId: "a", lat: 1, lng: 1 }]);
     expect(new Set(r.map((x) => x.identifier)).size).toBe(r.length);
   });

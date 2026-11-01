@@ -37,7 +37,7 @@ export function Chip({ label, tone = "neutral", icon: Icon, onClear }: ChipProps
         {label}
       </Text>
       {onClear && (
-        <Tap accessibilityLabel={`${t("common.remove")} ${label}`} onPress={onClear} hitSlop={14} scaleTo={0.85}>
+        <Tap accessibilityLabel={`${t("common.remove")} ${label}`} onPress={onClear} hitSlop={15} scaleTo={0.85}>
           <X size={14} color={colors[fg]} />
         </Tap>
       )}

@@ -17,7 +17,7 @@ import { t } from "@/lib/strings";
 import { openWaze } from "@/lib/waze";
 import { springs, tokens, useTheme } from "@/theme";
 import { Button, Tap, Text } from "@/ui";
-import { fmt, shekels } from "./format";
+import { fmt, formatDistance, shekels } from "./format";
 import type { StoreResult } from "./sort";
 
 const EASE_OUT = Easing.bezier(...(tokens.motion.easing.out as [number, number, number, number]));
@@ -81,7 +81,7 @@ export function StoreCard({ store, basketSize, best, names, listText }: Props) {
             {store.chainName}
           </Text>
           <Text variant="subhead" color="textSecondary" numberOfLines={1}>
-            {store.storeName} · <Text variant="subhead" color="textSecondary" tabular>{fmt(t("compare.km"), { km: store.distanceKm.toFixed(1) })}</Text>
+            {store.storeName} · <Text variant="subhead" color="textSecondary" tabular>{formatDistance(store.distanceKm, t)}</Text>
           </Text>
         </View>
         <Text variant="title1" style={{ fontVariant: font.variant.price as ["tabular-nums"] }}>
@@ -95,7 +95,7 @@ export function StoreCard({ store, basketSize, best, names, listText }: Props) {
         </Text>
         <Coverage ratio={basketSize ? store.matched / basketSize : 0} />
         {missing > 0 && (
-          <Tap accessibilityLabel={open ? t("compare.hideMissing") : fmt(t("compare.showMissing"), { n: missing })} accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} hitSlop={8} style={{ alignSelf: "flex-start" }}>
+          <Tap accessibilityLabel={open ? t("compare.hideMissing") : fmt(t("compare.showMissing"), { n: missing })} accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={{ alignSelf: "flex-start", minHeight: 44, justifyContent: "center" }}>
             <Text variant="footnote" color="primary" style={{ fontWeight: "600" }}>
               {open ? t("compare.hideMissing") : fmt(t("compare.showMissing"), { n: missing })}
             </Text>

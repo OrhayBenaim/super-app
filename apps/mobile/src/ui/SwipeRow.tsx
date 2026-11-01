@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { I18nManager, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { interpolate, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated, { interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { springs, useTheme, type ColorName } from "@/theme";
 
@@ -29,6 +29,7 @@ export function SwipeRow({ children, to, onCommit, color, icon: Icon, actionLabe
   const { commitFraction, commitVelocity, activeOffsetX, failOffsetY, maxFraction } = motion.swipe;
   // Transforms are not mirrored in RTL, so map start/end to a screen sign.
   const sign = (to === "end" ? 1 : -1) * (I18nManager.isRTL ? -1 : 1);
+  const reduced = useReducedMotion();
   const x = useSharedValue(0);
   const origin = useSharedValue(0);
   const width = useSharedValue(1);
@@ -63,7 +64,8 @@ export function SwipeRow({ children, to, onCommit, color, icon: Icon, actionLabe
   const bgStyle = useAnimatedStyle(() => ({ opacity: interpolate(Math.abs(x.get()), [0, 24], [0, 1], "clamp") }));
   const iconStyle = useAnimatedStyle(() => ({
     opacity: armed.get() ? 1 : 0.6,
-    transform: [{ scale: withSpring(armed.get() ? 1 : 0.6, springs.bouncy) }],
+    // Reduced motion: the opacity step still shows "armed"; drop the bouncy scale.
+    transform: [{ scale: reduced ? 1 : withSpring(armed.get() ? 1 : 0.6, springs.bouncy) }],
   }));
 
   return (

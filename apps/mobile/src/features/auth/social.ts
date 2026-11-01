@@ -1,6 +1,7 @@
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { authClient } from "@/lib/auth-client";
+import { t } from "@/lib/strings";
 
 /** Native Sign in with Apple (iOS). Returns an error message, or null on success or user cancel. */
 export async function signInWithApple(): Promise<string | null> {
@@ -17,7 +18,7 @@ export async function signInWithApple(): Promise<string | null> {
     if ((e as { code?: string }).code === "ERR_REQUEST_CANCELED") return null;
     throw e;
   }
-  if (!cred.identityToken) return "No identity token from Apple";
+  if (!cred.identityToken) return t("auth.error.generic");
   const { error } = await authClient.signIn.social({
     provider: "apple",
     // Apple sends the name only on the first sign-in.
@@ -27,11 +28,11 @@ export async function signInWithApple(): Promise<string | null> {
       user: cred.fullName ? { name: { firstName: cred.fullName.givenName ?? "", lastName: cred.fullName.familyName ?? "" } } : undefined,
     },
   });
-  return error ? (error.message ?? "Apple sign-in failed") : null;
+  return error ? (error.message ?? t("auth.error.generic")) : null;
 }
 
 /** Browser OAuth (expo-web-browser); used for Google everywhere and Apple on Android. */
 export async function signInWithBrowser(provider: "google" | "apple"): Promise<string | null> {
   const { error } = await authClient.signIn.social({ provider, callbackURL: "/" });
-  return error ? (error.message ?? "Sign-in failed") : null;
+  return error ? (error.message ?? t("auth.error.generic")) : null;
 }

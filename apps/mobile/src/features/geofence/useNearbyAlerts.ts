@@ -45,5 +45,5 @@ export function useNearbyAlerts() {
     return true;
   };
 
-  return { enabled, setEnabled, syncGeofences, supported: nearbyAlertsSupported };
+  return { enabled, setEnabled, supported: nearbyAlertsSupported };
 }

@@ -93,7 +93,7 @@ describe("sortStores", () => {
     expect(ids(sortStores([store("inf", { distanceKm: Infinity }), store("near", { distanceKm: 1 })], "distance"))).toEqual(["near", "inf"]);
   });
 
-  it.skip("BUG sort.ts:13,18 NaN/undefined distanceKm makes the comparator return NaN (treated as 'equal'), so the whole sort becomes input-order dependent and valid stores end up unsorted; fix: normalise `const d = (s) => Number.isFinite(s.distanceKm) ? s.distanceKm : Infinity` and use it in both the distance order and the tie-break", () => {
+  it("BUG sort.ts:13,18 NaN/undefined distanceKm makes the comparator return NaN (treated as 'equal'), so the whole sort becomes input-order dependent and valid stores end up unsorted; fix: normalise `const d = (s) => Number.isFinite(s.distanceKm) ? s.distanceKm : Infinity` and use it in both the distance order and the tie-break", () => {
     const bad = store("nan", { distanceKm: NaN });
     const undef = { ...store("undef"), distanceKm: undefined as unknown as number };
     const input = [store("far", { distanceKm: 9 }), bad, store("near", { distanceKm: 1 }), undef, store("mid", { distanceKm: 4 })];
@@ -101,7 +101,7 @@ describe("sortStores", () => {
     expect(ids(sortStores(input, "price")).slice(0, 3)).toEqual(["near", "mid", "far"]);
   });
 
-  it.skip("BUG sort.ts:12 NaN total (e.g. price data glitch) breaks the price/coverage order the same way; fix: treat non-finite total as Infinity", () => {
+  it("BUG sort.ts:12 NaN total (e.g. price data glitch) breaks the price/coverage order the same way; fix: treat non-finite total as Infinity", () => {
     const input = [store("b", { total: 20 }), store("nan", { total: NaN }), store("a", { total: 10 })];
     expect(ids(sortStores(input, "price"))).toEqual(["a", "b", "nan"]);
   });

@@ -48,6 +48,9 @@ export function CompareScreen() {
   const header = (
     <View style={{ gap: space[5], paddingBottom: space[5] }}>
       <View style={{ gap: space[2] }}>
+        <Text variant="largeTitle" accessibilityRole="header">
+          {t("tabs.compare")}
+        </Text>
         <Text variant="subhead" color="textSecondary" tabular>
           {fmt(t("compare.summary"), { items: items.length, matched: codes.length })}
         </Text>
@@ -56,7 +59,7 @@ export function CompareScreen() {
             accessibilityLabel={fmt(t("compare.unmatchedHint"), { n: items.length - codes.length })}
             accessibilityRole="link"
             onPress={() => router.navigate("/(tabs)/items")}
-            style={{ flexDirection: "row", alignItems: "center", gap: space[2] }}
+            style={{ flexDirection: "row", alignItems: "center", gap: space[2], minHeight: 44 }}
           >
             <Text variant="footnote" color="primary" style={{ flexShrink: 1 }}>
               {fmt(t("compare.unmatchedHint"), { n: items.length - codes.length })}
@@ -104,7 +107,7 @@ export function CompareScreen() {
   })();
 
   return (
-    <Screen edges={[]} style={{ paddingHorizontal: 0 }}>
+    <Screen edges={["top"]} style={{ paddingHorizontal: 0 }}>
       <Animated.FlatList
         data={body ? [] : stores}
         keyExtractor={(s: StoreResult) => s.storeId}

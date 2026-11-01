@@ -4,7 +4,7 @@ import { t } from "@/lib/strings";
 
 export default function TabsLayout() {
   return (
-    <Tabs tabBar={(props) => <TabBar {...props} />}>
+    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: t("tabs.list") }} />
       <Tabs.Screen name="items" options={{ title: t("tabs.items") }} />
       <Tabs.Screen name="compare" options={{ title: t("tabs.compare") }} />

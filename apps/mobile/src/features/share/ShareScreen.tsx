@@ -1,6 +1,6 @@
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
-import { Stack, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { Copy, LogOut, Share as ShareIcon, Trash2, UserPlus, X } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Share, View } from "react-native";
@@ -47,7 +47,6 @@ export function ShareScreen() {
 
   return (
     <Screen scroll keyboard edges={["top", "bottom"]}>
-      <Stack.Screen options={{ presentation: "modal" }} />
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: space[3] }}>
         <Text variant="title1" accessibilityRole="header" numberOfLines={1} style={{ flex: 1 }}>
           {data?.list.name ?? t("share.title")}

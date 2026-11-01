@@ -42,3 +42,13 @@ Prices come from the Israeli Price Transparency files (`docs/research/price-data
 PriceFull files (gz, zip or plain XML; the portals block non-Israeli IPs), then, in `apps/api`:
 `npm run ingest -- --chain osher-ad --stores Stores*.xml --prices PriceFull*.gz` (chain keys: `src/ingest/chains.ts`)
 and `npm run geocode` to fill store coordinates from Nominatim at 1 req/s. Stores without coordinates are left out of `/api/compare`.
+
+## Known limitations / not verified on device
+
+- Built and checked with typecheck, vitest and `expo export` only; nothing has run on a real device or simulator yet.
+- Gesture feel (SwipeRow thresholds, velocity handoff, haptic timing) and the bottom sheet with the keyboard are unverified.
+- Hebrew/RTL layouts are reasoned from `start`/`end` styles and `I18nManager.isRTL`, not seen on screen.
+- Nearby alerts (background geofencing + notifications) need a dev build; they do nothing in Expo Go.
+- A signed-out `grocer://join/<code>` link lands on onboarding and the code is lost after sign-in.
+- Shared lists sync by 5 s polling (paused on hidden screens), not push.
+- "Order online" only copies the list and opens the chain's site; no chain exposes add-to-cart links.

@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
+import { useIsFocused, useRouter } from "expo-router";
 import { Check, RotateCcw, Share2 } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, RefreshControl, View } from "react-native";
@@ -29,7 +29,7 @@ export function ShoppingList() {
   const router = useRouter();
   const { colors, space, radius } = useTheme();
   const listId = useCurrentListId();
-  const { data, refetch } = useList(listId);
+  const { data, refetch } = useList(listId, { poll: useIsFocused() });
   const categories = useCategories(listId).data ?? [];
   const { update } = useItemMutations(listId);
   const [refreshing, setRefreshing] = useState(false);

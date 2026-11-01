@@ -18,12 +18,14 @@ apps/api/                 Node 22 + TypeScript (strict, ESM, NodeNext) API
   src/routes/*.ts         feature route modules (create the folder with the first one)
   drizzle/                generated SQL migrations (committed)
 apps/mobile/              Expo SDK 58 + expo-router app
-  app/                    file routes: (auth)/onboarding, (auth)/sign-in, (tabs)/index|items|compare|settings
+  app/                    file routes: (auth)/onboarding|sign-in, (tabs)/index|items|compare|settings, share (modal), join/[code]
   src/lib/auth-client.ts  better-auth Expo client (SecureStore)
   src/lib/api.ts          api<T>(path, init): fetch wrapper with base URL + auth cookie
   src/lib/strings.ts      en + he strings; t("key") picks the device language (expo-localization)
-  src/features/<feature>/ feature code (hooks, components, queries)
-  src/ui/                 UI kit: Button, Text, TextField, Screen, Tap, Divider, IconButton (import from "@/ui")
+  src/features/<feature>/ auth, onboarding, lists (data layer + shopping list), items, compare (+ format.ts: fmt,
+                          shekels, formatDistance), share, geofence (task.ts = background task, imported by _layout), tabs
+  src/ui/                 UI kit: Button, Text, TextField, Screen, Tap, Divider, IconButton, Chip, CategoryHeader,
+                          EmptyState, SwipeRow, Sheet/SheetTextField (BottomSheetModal) (import from "@/ui")
   src/theme/              useTheme(), springs, text() (imports docs/design/tokens.json directly; import from "@/theme")
 docs/                     research and design notes (docs/research/, docs/design/)
 ```
@@ -68,15 +70,19 @@ Mobile (`apps/mobile`)
 - Server state uses TanStack Query (`QueryClientProvider` is set up in `app/_layout.tsx`) and calls `api()`.
   Use zustand only for local UI state.
 - Auth uses `authClient` (`authClient.useSession()`, `signIn.*`, `signOut()`). The root layout switches
-  between the `(auth)` and `(tabs)` groups with `Stack.Protected`.
+  between the `(auth)` and signed-in (`(tabs)`, `share`, `join/[code]`) groups with `Stack.Protected`.
+- Tabs have `headerShown: false`; each screen renders its own `largeTitle` inside `<Screen edges={["top"]}>`.
+- Sheets use `<Sheet open onClose>` (gorhom `BottomSheetModal`; `BottomSheetModalProvider` is in `app/_layout.tsx`).
+- Optimistic mutations snapshot in `onMutate` and roll back in `onError`; polling screens pass `poll: useIsFocused()`.
 - Motion uses Reanimated 4. babel-preset-expo adds the `react-native-worklets/plugin` automatically,
   so there is no babel.config.js. Gestures use react-native-gesture-handler 3.
 - Colors, spacing and type come from `useTheme()` (`colors`, `space`, `radius`, `font`, `motion`, `shadow`, `isDark`);
   `space` is the token array by index (`space[5]` = 16).
-  Never write color literals inline. Use `<Text variant>` or `text(variant)` for type.
+  Never write color literals (hex/rgb) outside `src/theme`. Use `<Text variant>` or `text(variant)` for type.
 - Motion goes through `springs` (`withSpring(v, springs.snappy)`) and respects `useReducedMotion()`.
 - Every touchable has an `accessibilityLabel` (`Tap`/`IconButton` require it). Build pressables on `Tap`.
-- Every user-facing string goes through `t()`. Add the key to both `en` and `he` in `src/lib/strings.ts`.
+- Every user-facing string goes through `t()` (fill `{name}` with `fmt`). Add the key to both `en` and `he`
+  in `src/lib/strings.ts`; typecheck fails if `he` misses one.
 - The app is Hebrew-first. Layouts must work in RTL: use `start`/`end`, not `left`/`right`.
 
 ## Testing

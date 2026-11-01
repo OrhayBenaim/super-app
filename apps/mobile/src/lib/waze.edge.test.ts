@@ -68,7 +68,7 @@ describe("openWaze", () => {
     rn.Linking.openURL.mockRejectedValue(new Error("no handler"));
     await expect(openWaze(1, 2)).rejects.toThrow("no handler");
   });
-  it.skip("BUG waze.ts:13 if openURL(waze://) throws on iOS (canOpenURL true but app removed/blocked) the error propagates and the tap does nothing; fix: `try { await Linking.openURL(useApp ? app : web) } catch (e) { if (!useApp) throw e; await Linking.openURL(web) }`", async () => {
+  it("BUG waze.ts:13 if openURL(waze://) throws on iOS (canOpenURL true but app removed/blocked) the error propagates and the tap does nothing; fix: `try { await Linking.openURL(useApp ? app : web) } catch (e) { if (!useApp) throw e; await Linking.openURL(web) }`", async () => {
     rn.Linking.canOpenURL.mockResolvedValue(true);
     rn.Linking.openURL.mockRejectedValueOnce(new Error("scheme fail")).mockResolvedValueOnce(true);
     await openWaze(1, 2);

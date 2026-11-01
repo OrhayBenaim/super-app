@@ -63,7 +63,7 @@ describe("suggestCategories edge cases", () => {
     expect(suggestCategories("  מים ", ["מים"])).toEqual({ matches: ["מים"], create: null });
   });
 
-  it.skip("LOW autocomplete.ts:1 final letter forms are not folded (ם/מ, ן/נ, ך/כ, ף/פ, ץ/צ): typing the non-final form at word end neither matches nor counts as exact, so a duplicate category 'לחמ' is offered; fix: map finals to base letters in norm()", () => {
+  it("LOW autocomplete.ts:1 final letter forms are not folded (ם/מ, ן/נ, ך/כ, ף/פ, ץ/צ): typing the non-final form at word end neither matches nor counts as exact, so a duplicate category 'לחמ' is offered; fix: map finals to base letters in norm()", () => {
     expect(suggestCategories("לחמ", ["לחם"]).create).toBeNull();
   });
 });

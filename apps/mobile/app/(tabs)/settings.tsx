@@ -11,7 +11,10 @@ export default function Settings() {
   const { space } = useTheme();
   const [busy, setBusy] = useState(false);
   return (
-    <Screen edges={[]} style={{ paddingVertical: space[6], gap: space[8] }}>
+    <Screen edges={["top"]} style={{ paddingVertical: space[5], gap: space[8] }}>
+      <Text variant="largeTitle" accessibilityRole="header">
+        {t("tabs.settings")}
+      </Text>
       <NearbyAlerts />
       <Button
         variant="secondary"

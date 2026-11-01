@@ -110,7 +110,7 @@ describe("initials edge cases", () => {
   it("tabs/newlines count as separators", () => {
     expect(initials("a\tb\nc")).toBe("AB");
   });
-  it.skip("BUG group.ts:36 w[0] splits surrogate pairs (emoji/astral first letters become a lone surrogate); fix: use [...w][0]", () => {
+  it("BUG group.ts:36 w[0] splits surrogate pairs (emoji/astral first letters become a lone surrogate); fix: use [...w][0]", () => {
     expect(initials("😀 smile")).toBe("😀S");
   });
 });

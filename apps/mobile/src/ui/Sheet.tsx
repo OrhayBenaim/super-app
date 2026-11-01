@@ -1,4 +1,4 @@
-import BottomSheet, { BottomSheetBackdrop, BottomSheetTextInput, BottomSheetView, type BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
+import { BottomSheetBackdrop, BottomSheetModal, BottomSheetTextInput, BottomSheetView, type BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { I18nManager, View, type TextInputInstance, type TextInputProps } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,24 +9,23 @@ export type SheetProps = { open: boolean; onClose: () => void; children: ReactNo
 
 const Backdrop = (p: BottomSheetBackdropProps) => <BottomSheetBackdrop {...p} appearsOnIndex={0} disappearsOnIndex={-1} />;
 
-/** Content-sized bottom sheet (gorhom) driven by `open`; springs.sheet; drag or backdrop tap closes. */
+/** Content-sized modal bottom sheet (gorhom, needs BottomSheetModalProvider in app/_layout) driven by `open`; covers the tab bar. */
 export function Sheet({ open, onClose, children }: SheetProps) {
   const { colors, space, radius } = useTheme();
   const insets = useSafeAreaInsets();
-  const ref = useRef<BottomSheet>(null);
+  const ref = useRef<BottomSheetModal>(null);
   useEffect(() => {
-    if (open) ref.current?.expand();
-    else ref.current?.close();
+    if (open) ref.current?.present();
+    else ref.current?.dismiss();
   }, [open]);
 
   return (
-    <BottomSheet
+    <BottomSheetModal
       ref={ref}
-      index={-1}
       enableDynamicSizing
       enablePanDownToClose
       animationConfigs={springs.sheet}
-      onClose={onClose}
+      onDismiss={onClose}
       backdropComponent={Backdrop}
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
@@ -37,7 +36,7 @@ export function Sheet({ open, onClose, children }: SheetProps) {
       <BottomSheetView style={{ paddingHorizontal: space[5], paddingTop: space[3], paddingBottom: insets.bottom + space[5], gap: space[5] }}>
         {children}
       </BottomSheetView>
-    </BottomSheet>
+    </BottomSheetModal>
   );
 }
 

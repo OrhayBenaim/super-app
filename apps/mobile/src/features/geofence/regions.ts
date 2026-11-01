@@ -7,7 +7,10 @@ export const MAX_REGIONS = 20; // iOS monitors at most 20 regions per app
 export const REGION_RADIUS_M = 250;
 
 export const toRegions = (stores: Pick<StoreResult, "storeId" | "lat" | "lng">[]): LocationRegion[] =>
-  stores.slice(0, MAX_REGIONS).map((s) => ({
+  stores
+    .filter((s, i) => Number.isFinite(s.lat) && Number.isFinite(s.lng) && stores.findIndex((o) => o.storeId === s.storeId) === i)
+    .slice(0, MAX_REGIONS)
+    .map((s) => ({
     identifier: s.storeId,
     latitude: s.lat,
     longitude: s.lng,
