@@ -1,12 +1,10 @@
-import type { Email, Mailer } from "#/services/mailer.ts";
+import type { Email, MailerProvider } from "#/services/mailer.ts";
 
-export function fakeMailer() {
-  const sent: Email[] = [];
-  const fake = {
-    sent,
-    async send(email: Email) {
-      sent.push(email);
-    },
-  };
-  return fake satisfies Mailer;
+/** Keeps sent emails in memory for tests. */
+export class FakeMailerProvider implements MailerProvider {
+  sent: Email[] = [];
+
+  async send(email: Email): Promise<void> {
+    this.sent.push(email);
+  }
 }

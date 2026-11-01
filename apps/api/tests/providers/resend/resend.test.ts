@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resendMailer } from "#/providers/resend/resend.ts";
+import { ResendProvider } from "#/providers/resend/resend.ts";
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("resendMailer", () => {
+describe("ResendProvider", () => {
   it("POSTs the email to Resend with the bearer key and the JSON body", async () => {
     const fetch = vi.fn(async () => new Response("{}", { status: 200 }));
     vi.stubGlobal("fetch", fetch);
-    await resendMailer("re_key", "Grocer <no-reply@example.com>").send({
+    await new ResendProvider("re_key", "Grocer <no-reply@example.com>").send({
       to: "a@test.dev",
       subject: "Hi",
       text: "plain",
@@ -30,6 +30,6 @@ describe("resendMailer", () => {
 
   it("throws when the response isn't OK", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("bad", { status: 422 })));
-    await expect(resendMailer("k", "f@test.dev").send({ to: "a@test.dev", subject: "s", text: "t" })).rejects.toThrow(/422/);
+    await expect(new ResendProvider("k", "f@test.dev").send({ to: "a@test.dev", subject: "s", text: "t" })).rejects.toThrow(/422/);
   });
 });

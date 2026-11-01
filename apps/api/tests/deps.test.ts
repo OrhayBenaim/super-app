@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { buildDeps } from "#/deps.ts";
-import { fakeMailer } from "#/providers/resend/fake.ts";
+import { FakeMailerProvider } from "#/providers/resend/fake.ts";
 import { loadConfig } from "#/services/config.ts";
+import { MailerService } from "#/services/mailer.ts";
 
 describe("buildDeps", () => {
-  it("takes a mailer override, and the fake keeps sent emails", async () => {
-    const mailer = fakeMailer();
+  it("builds a MailerService by default", () => {
+    expect(buildDeps(loadConfig()).mailer).toBeInstanceOf(MailerService);
+  });
+
+  it("takes a mailer override backed by the fake provider", async () => {
+    const provider = new FakeMailerProvider();
+    const mailer = new MailerService(provider);
     const deps = buildDeps(loadConfig(), { mailer });
     expect(deps.mailer).toBe(mailer);
     await deps.mailer.send({ to: "a@test.dev", subject: "s", text: "t" });
-    expect(mailer.sent).toEqual([{ to: "a@test.dev", subject: "s", text: "t" }]);
+    expect(provider.sent).toEqual([{ to: "a@test.dev", subject: "s", text: "t" }]);
   });
 });
