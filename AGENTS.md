@@ -15,7 +15,7 @@ apps/api/                 Node 22 + TypeScript (strict, ESM, NodeNext) API
   src/db/index.ts         better-sqlite3 + Drizzle; WAL; runs migrations on import
   src/db/schema.ts        better-auth tables (generated) + re-export of appSchema.ts
   src/db/appSchema.ts     app tables (lists, items, stores, prices...)
-  src/routes/*.ts         feature route modules (create the folder with the first one)
+  src/routes/*.ts         feature route modules (lists.ts, prices.ts)
   drizzle/                generated SQL migrations (committed)
 apps/mobile/              Expo SDK 58 + expo-router app
   app/                    file routes: (auth)/onboarding|sign-in, (tabs)/index|items|compare|settings, share (modal), join/[code]
@@ -114,7 +114,7 @@ Mobile (`apps/mobile`)
 | Role | Writes to |
 | --- | --- |
 | research | `docs/research/*.md` (stack facts, price-data sources) |
-| design | `docs/design/` (tokens.json, screen specs). Mobile mirrors the tokens in `apps/mobile/src/theme/` |
+| design | `docs/design/` (tokens.json, screen specs). `apps/mobile/src/theme/tokens.ts` imports tokens.json directly |
 | api | `apps/api/src/routes/`, `apps/api/src/db/appSchema.ts`, `apps/api/drizzle/`, `apps/api/src/app.ts` (route registration only) |
 | mobile | `apps/mobile/app/`, `apps/mobile/src/features/`, `apps/mobile/src/ui/`, `apps/mobile/src/theme/` |
 | test | `*.test.ts` next to the code in either app. Changes no production code except to fix a bug it found, flagged in the commit |
