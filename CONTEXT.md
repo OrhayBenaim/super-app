@@ -26,6 +26,32 @@ _Avoid_: Collaborator, guest
 A List that has at least one Member besides its Owner.
 _Avoid_: Group list, joint list
 
+### Prices
+
+**Price sync**:
+One run that brings every Chain's prices up to date: download each Chain's newest Stores and PriceFull files for all its stores, load them, and geocode every store that has no location yet (new, moved, or not found before). A Chain that fails does not stop the others. Only one Price sync runs at a time.
+_Avoid_: Fetch, scrape, import (each names only one part of it)
+
+**Scheduled sync**:
+A Price sync started by the schedule, three times a day outside rush hours: early morning, midday and late night.
+_Avoid_: Cron, nightly job
+
+**Manual sync**:
+A Price sync started by hand from the internal dashboard. It is ignored if a Price sync is already running. When it finishes, even with Chain failures, the next Scheduled sync is skipped; when it is interrupted, nothing is skipped.
+_Avoid_: Force sync, refresh
+
+**Interrupted sync**:
+A Price sync that stopped before every Chain was done, because the worker was shut down or crashed. Chains it already finished keep their new prices. It never causes a Skipped sync.
+_Avoid_: Failed sync, aborted sync
+
+**Skipped sync**:
+A Scheduled sync that does not run, because a Price sync was running at its time or because a Manual sync finished since the previous scheduled time.
+_Avoid_: Cancelled sync
+
+**Chain failure**:
+A Chain whose files could not be downloaded or loaded during a Price sync, including one whose price files all name stores missing from its Stores file. It is logged and recorded. Stores it loaded before failing keep their new prices; the rest keep their previous prices until a later Price sync succeeds for that Chain.
+_Avoid_: Sync failure (the Price sync itself still finishes)
+
 ### Account lifecycle
 
 **Account deletion**:
