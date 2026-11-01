@@ -1,0 +1,79 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# PRs cancel stale runs; each push to main keeps its own run so its diff is always checked.
+concurrency:
+  group: ci-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - package.json
+              - package-lock.json
+              - .nvmrc
+              - .github/workflows/ci.yml
+            api:
+              - *shared
+              - apps/api/**
+            mobile:
+              - *shared
+              - apps/mobile/**
+              - docs/design/tokens.json
+
+  api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck -w apps/api
+      - run: npm test -w apps/api
+
+  mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # expo-env.d.ts is gitignored; expo start normally generates it
+      - run: echo '/// <reference types="expo/types" />' > apps/mobile/expo-env.d.ts
+      - run: npm run typecheck -w apps/mobile
+      - run: npm test -w apps/mobile
+
+  # The one required check: skipped jobs pass, failed or cancelled ones don't.
+  ci:
+    needs: [changes, api, mobile]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 1
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')

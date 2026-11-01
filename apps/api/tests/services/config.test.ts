@@ -25,6 +25,12 @@ describe("loadConfig", () => {
     expect(loadConfig({ TRUSTED_ORIGINS: " http://a.test , http://b.test,, " }).TRUSTED_ORIGINS).toEqual(["http://a.test", "http://b.test"]);
   });
 
+  it("splits SYNC_TIMES into HH:MM times and rejects anything else", () => {
+    expect(loadConfig({}).SYNC_TIMES).toEqual(["05:00", "12:00", "23:30"]);
+    expect(loadConfig({ SYNC_TIMES: " 06:15, 00:00 " }).SYNC_TIMES).toEqual(["06:15", "00:00"]);
+    for (const bad of ["5:00", "24:00", "12:60", ","]) expect(() => loadConfig({ SYNC_TIMES: bad })).toThrow();
+  });
+
   it("coerces PORT to a number", () => {
     expect(loadConfig({ PORT: "8080" }).PORT).toBe(8080);
   });

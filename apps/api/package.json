@@ -15,7 +15,9 @@
     "db:migrate": "drizzle-kit migrate",
     "ingest": "node src/worker.ts ingest-prices",
     "fetch": "node src/worker.ts fetch-prices",
-    "geocode": "node src/worker.ts geocode-stores"
+    "geocode": "node src/worker.ts geocode-stores",
+    "sync": "node src/worker.ts price-sync",
+    "worker": "node src/worker.ts sync-worker"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.14",

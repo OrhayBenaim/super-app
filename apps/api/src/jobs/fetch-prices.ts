@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import type { Deps } from "#/deps.ts";
+import { openChainFiles } from "#/ingest/chain-sync.ts";
 import { chainByKey } from "#/ingest/chains.ts";
-import { looksLikePriceFile, pickFiles } from "#/ingest/files.ts";
 
 export const fetchPricesData = z.object({
   chain: z.string().min(1),
@@ -20,14 +20,11 @@ export function fetchPricesJob(deps: Deps) {
     const { chain: key, out, storesOnly, maxStores } = fetchPricesData.parse(data);
     const chain = chainByKey(key);
     const outDir = out ?? join(tmpdir(), "grocer-prices", chain.key);
-    const portal = await deps.pricePortal.open(chain);
-    const { stores, prices } = pickFiles(portal.files, storesOnly ? 0 : maxStores, chain.ids);
-    if (!stores) throw new Error(`${chain.key}: no Stores file among ${portal.files.length} listed files`);
+    const { files, download } = await openChainFiles(deps, chain, storesOnly ? 0 : maxStores);
     mkdirSync(outDir, { recursive: true });
     const saved: string[] = [];
-    for (const f of [stores, ...prices]) {
-      const buf = await portal.download(f);
-      if (!looksLikePriceFile(buf)) throw new Error(`${f.name}: not a price file`);
+    for (const f of files) {
+      const buf = await download(f);
       const path = join(outDir, f.name.replace(/[^\w.-]/g, "_"));
       writeFileSync(path, buf);
       saved.push(path);

@@ -106,3 +106,35 @@ export const prices = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.storeId, t.code] }), index("prices_code_idx").on(t.code)],
 );
+
+// Price syncs (CONTEXT.md "Prices"). One row per Price sync, Skipped sync or Manual sync request.
+export const syncRuns = sqliteTable("sync_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  trigger: text("trigger", { enum: ["scheduled", "manual"] }).notNull(),
+  status: text("status", { enum: ["requested", "running", "finished", "interrupted", "skipped", "ignored"] }).notNull(),
+  skipReason: text("skip_reason", { enum: ["manual_sync", "sync_running"] }),
+  scheduledAt: integer("scheduled_at", { mode: "timestamp_ms" }),
+  requestedAt: integer("requested_at", { mode: "timestamp_ms" }).notNull(),
+  startedAt: integer("started_at", { mode: "timestamp_ms" }),
+  finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+});
+
+export const syncChainResults = sqliteTable(
+  "sync_chain_results",
+  {
+    syncRunId: integer("sync_run_id")
+      .notNull()
+      .references(() => syncRuns.id, { onDelete: "cascade" }),
+    chainId: text("chain_id")
+      .notNull()
+      .references(() => chains.id),
+    status: text("status", { enum: ["ok", "failed"] }).notNull(),
+    filesDownloaded: integer("files_downloaded").notNull(),
+    storesLoaded: integer("stores_loaded").notNull(),
+    pricesLoaded: integer("prices_loaded").notNull(),
+    storesGeocoded: integer("stores_geocoded").notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    error: text("error"),
+  },
+  (t) => [primaryKey({ columns: [t.syncRunId, t.chainId] })],
+);
