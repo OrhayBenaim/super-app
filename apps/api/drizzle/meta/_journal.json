@@ -29,6 +29,13 @@
       "when": 1793491557246,
       "tag": "0003_products_fts",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793524120901,
+      "tag": "0004_giant_sabra",
+      "breakpoints": true
     }
   ]
 }

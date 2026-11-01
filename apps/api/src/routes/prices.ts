@@ -32,7 +32,7 @@ const likeSearch = sqlite.prepare(
 
 const codeSearch = sqlite.prepare(
   `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
-   WHERE p.code = ? OR p.code LIKE ? GROUP BY p.code ORDER BY p.code = ? DESC, storeCount DESC LIMIT ?`,
+   WHERE p.code = ? OR (p.code LIKE ? AND instr(p.code, ':') = 0) GROUP BY p.code ORDER BY p.code = ? DESC, storeCount DESC LIMIT ?`,
 );
 
 const R = 6371;

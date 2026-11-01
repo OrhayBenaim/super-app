@@ -56,7 +56,13 @@ describe("parse", () => {
     expect(nominatimUrl("הרצל 11", "אשדוד")).toBe(
       `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent("הרצל 11, אשדוד, Israel")}`,
     );
-    expect(nominatimUrl("האומן 5", "3000")).toContain(encodeURIComponent("האומן 5, Israel"));
+    const q = (address: string, city: string, name?: string) => decodeURIComponent(nominatimUrl(address, city, name)?.split("&q=")[1] ?? "") || null;
+    expect(q("האומן,15", "ירושלים")).toBe("האומן 15, ירושלים, Israel");
+    expect(q("הנדיב 71 הרצליה", "הרצליה", "פרשמרקט הנדיב")).toBe("הנדיב 71 הרצליה, Israel"); // city already in the address
+    expect(q("רחוב המפוח 11, אזור התעשיה", "", "יוחננוף מפוח")).toBe("רחוב המפוח 11, אזור התעשיה, יוחננוף מפוח, Israel");
+    expect(q("האומן 5", "1015", "תלפיות")).toBe("האומן 5, תלפיות, Israel"); // undecoded CBS code counts as no city
+    expect(q("", "", "יוחננוף בילו")).toBe("יוחננוף בילו, Israel");
+    expect(q("", "", "")).toBeNull();
     expect(parseNominatim([{ lat: "31.80", lon: "34.65" }])).toEqual({ lat: 31.8, lng: 34.65 });
     expect(parseNominatim([])).toBeNull();
   });

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { zipSync } from "fflate";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Database } from "better-sqlite3";
+import { isGtin } from "./parse.js";
 
 let sqlite: Database;
 let ing: typeof import("./ingest.js");
@@ -39,8 +40,10 @@ const snapshot = () => ({
   fts: count("products_fts"),
   rows: sqlite.prepare("SELECT store_id, code, price, unit_price FROM prices ORDER BY store_id, code").all(),
 });
+// Looks a raw ItemCode up the way ingest keys it: GTINs as-is, other codes scoped to the store's chain.
+const key = (store: string, code: string) => (isGtin(code) ? code : `${store.split("-")[0]}:${code}`);
 const price = (store: string, code: string) =>
-  (sqlite.prepare("SELECT price FROM prices WHERE store_id = ? AND code = ?").get(store, code) as { price: number } | undefined)?.price;
+  (sqlite.prepare("SELECT price FROM prices WHERE store_id = ? AND code = ?").get(store, key(store, code)) as { price: number } | undefined)?.price;
 const store = (id: string) => sqlite.prepare("SELECT * FROM stores WHERE id = ?").get(id) as Record<string, any> | undefined;
 const ftsHits = (term: string) => (sqlite.prepare("SELECT count(*) AS n FROM products_fts WHERE products_fts MATCH ?").get(`"${term}"`) as { n: number }).n;
 
@@ -73,9 +76,9 @@ describe("idempotency", () => {
 
   it("the same ItemCode twice in one file leaves one row, last value wins", () => {
     ing.ingestStores("osher-ad", storesXml(OSHER, [{ id: "20" }]));
-    expect(ing.ingestPrices("osher-ad", pricesXml(OSHER, "20", [{ code: "DUP", price: 1 }, { code: "DUP", price: 2 }]))).toBe(2);
+    expect(ing.ingestPrices("osher-ad", pricesXml(OSHER, "20", [{ code: "DUP", price: 1 }, { code: "DUP", price: 2 }]))).toBe(1);
     expect(price(`${OSHER}-20`, "DUP")).toBe(2);
-    expect(sqlite.prepare("SELECT count(*) AS n FROM prices WHERE code = 'DUP'").get()).toEqual({ n: 1 });
+    expect(sqlite.prepare("SELECT count(*) AS n FROM prices p JOIN products USING (code) WHERE item_code = 'DUP'").get()).toEqual({ n: 1 });
   });
 });
 
@@ -86,7 +89,7 @@ describe("price updates", () => {
     ing.ingestPrices("osher-ad", pricesXml(OSHER, "31", [{ code: "UPD", price: 10 }]));
     ing.ingestPrices("osher-ad", pricesXml(OSHER, "30", [{ code: "UPD", price: 12.5, unitPrice: 1.25 }]));
     expect(price(`${OSHER}-30`, "UPD")).toBe(12.5);
-    expect(sqlite.prepare("SELECT unit_price FROM prices WHERE store_id = ? AND code = 'UPD'").get(`${OSHER}-30`)).toEqual({ unit_price: 1.25 });
+    expect(sqlite.prepare("SELECT unit_price FROM prices WHERE store_id = ? AND code = ?").get(`${OSHER}-30`, `${OSHER}:UPD`)).toEqual({ unit_price: 1.25 });
     expect(price(`${OSHER}-31`, "UPD")).toBe(10);
   });
 
@@ -94,7 +97,7 @@ describe("price updates", () => {
     ing.ingestStores("osher-ad", storesXml(OSHER, [{ id: "40" }, { id: "41" }]));
     ing.ingestPrices("osher-ad", pricesXml(OSHER, "40", [{ code: "NAMED", name: "firstname", manufacturer: "" }]));
     ing.ingestPrices("osher-ad", pricesXml(OSHER, "41", [{ code: "NAMED", name: "secondname", manufacturer: "acme" }]));
-    expect(sqlite.prepare("SELECT name, manufacturer FROM products WHERE code = 'NAMED'").get()).toEqual({ name: "firstname", manufacturer: "acme" });
+    expect(sqlite.prepare("SELECT name, manufacturer FROM products WHERE code = ?").get(`${OSHER}:NAMED`)).toEqual({ name: "firstname", manufacturer: "acme" });
     expect(ftsHits("firstname")).toBe(1);
     expect(ftsHits("secondname")).toBe(0);
     expect(ftsHits("acme")).toBe(1);
@@ -119,7 +122,7 @@ describe("price updates", () => {
     expect(ing.ingestPrices("osher-ad", pricesXml(OSHER, "51", [{ code: "SN1", price: 1 }, { code: "SN2", price: 2 }, { code: "SN3", price: 3 }]))).toBe(3);
     expect(sqlite.prepare("SELECT count(*) AS n FROM prices WHERE store_id = ?").get(id)).toEqual({ n: 3 });
     ing.ingestPrices("osher-ad", pricesXml(OSHER, "51", [{ code: "SN1", price: 1.5 }, { code: "SN2", price: 0 }]));
-    expect(sqlite.prepare("SELECT code, price FROM prices WHERE store_id = ? ORDER BY code").all(id)).toEqual([{ code: "SN1", price: 1.5 }]);
+    expect(sqlite.prepare("SELECT code, price FROM prices WHERE store_id = ? ORDER BY code").all(id)).toEqual([{ code: `${OSHER}:SN1`, price: 1.5 }]);
     expect(price(`${OSHER}-52`, "SN1")).toBe(1); // other stores untouched
   });
 
@@ -297,3 +300,36 @@ describe("cli", () => {
     expect(good.stdout).toContain("2 prices"); // second --prices file arrives as a positional
   }, 30_000);
 });
+
+describe("product keys", () => {
+  const COLA = "4000417025005"; // real EAN-13 seen at five chains
+
+  it("isGtin checks digits, length and the GS1 check digit", () => {
+    for (const c of [COLA, "3161911229199", "96385074", "036000291452", "10900302814", "10012345678902"]) expect(isGtin(c)).toBe(true);
+    for (const c of ["4000417025006", "7290000000001", "102", "1022788", "123456789", "4000417O25005", "", "400041702500500"]) expect(isGtin(c)).toBe(false);
+  });
+
+  it("keeps a GTIN global across chains and scopes an internal code to its chain", () => {
+    ing.ingestStores("osher-ad", storesXml(OSHER, [{ id: "70" }]));
+    ing.ingestStores("rami-levy", storesXml(RAMI, [{ id: "70" }]));
+    ing.ingestPrices("osher-ad", pricesXml(OSHER, "70", [{ code: COLA, price: 12 }, { code: "102", price: 7, name: "בטטה" }]));
+    ing.ingestPrices("rami-levy", pricesXml(RAMI, "70", [{ code: COLA, price: 11 }, { code: "102", price: 9, name: "עגבניות" }]));
+    const rows = sqlite.prepare("SELECT code, item_code AS itemCode, name FROM products WHERE item_code IN (?, '102') ORDER BY code").all(COLA);
+    expect(rows).toEqual([
+      { code: COLA, itemCode: COLA, name: `item ${COLA}` },
+      { code: `${RAMI}:102`, itemCode: "102", name: "עגבניות" },
+      { code: `${OSHER}:102`, itemCode: "102", name: "בטטה" },
+    ].sort((a, b) => (a.code < b.code ? -1 : 1)));
+    expect(sqlite.prepare("SELECT count(*) AS n FROM prices WHERE code = ?").get(COLA)).toEqual({ n: 2 });
+    expect(sqlite.prepare("SELECT count(*) AS n FROM prices WHERE code = ?").get(`${OSHER}:102`)).toEqual({ n: 1 });
+  });
+
+  it("re-ingesting a file with scoped and global codes changes nothing", () => {
+    const xml = pricesXml(OSHER, "70", [{ code: COLA, price: 12 }, { code: "102", price: 7, name: "בטטה" }]);
+    const before = snapshot();
+    ing.ingestPrices("osher-ad", xml);
+    ing.ingestPrices("osher-ad", xml);
+    expect(snapshot()).toEqual(before);
+  });
+});
+

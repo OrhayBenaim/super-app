@@ -3,7 +3,8 @@ import type { app as App } from "../app.js";
 
 let app: typeof App;
 let cookie: string;
-const [A, B, C, D, E] = ["7290000000001", "7290000000002", "7290000000003", "7290000000004", "7290000000099"];
+// The fixture codes fail the GS1 check digit, so ingest scopes them to Osher Ad.
+const [A, B, C, D, E] = ["7290000000001", "7290000000002", "7290000000003", "7290000000004", "7290000000099"].map((c) => `7290103152017:${c}`);
 const here = { lat: 32.0853, lng: 34.7818 };
 
 beforeAll(async () => {
@@ -40,6 +41,13 @@ const compare = (body: unknown, auth = true) =>
 const ids = (r: { stores: { storeId: string }[] }) => r.stores.map((s) => s.storeId.split("-")[1]);
 
 describe("prices", () => {
+  it("finds chain-scoped codes by name (storeCount within the chain), never through the barcode prefix", async () => {
+    const q = async (text: string) => (await (await app.request(`/api/products/search?q=${encodeURIComponent(text)}`)).json()) as { code: string; storeCount: number }[];
+    const milk = (await q("חלב תנובה")).find((p) => p.code === A);
+    expect(milk?.storeCount).toBe(3); // Osher Ad stores 1-3 in the fixtures, no other chain can share a scoped code
+    expect(await q("7290103152017")).toEqual([]); // the ChainId prefix of every scoped code is not a barcode match
+  });
+
   it("searches by Hebrew prefix with storeCount and minPrice", async () => {
     const res = await app.request(`/api/products/search?q=${encodeURIComponent("חל תנו")}`);
     expect(res.status).toBe(200);
@@ -56,7 +64,7 @@ describe("prices", () => {
 
   it("lists chains publicly", async () => {
     const chains = await (await app.request("/api/chains")).json();
-    expect(chains).toContainEqual({ id: "7290103152017", name: "Osher Ad", nameHe: "אושר עד", orderUrl: "https://osherad.co.il/" });
+    expect(chains).toContainEqual({ id: "7290103152017", name: "Osher Ad", nameHe: "אושר עד", orderUrl: "https://www.osherad.co.il/" });
   });
 
   it("401 without a session, 400 on a bad body", async () => {
@@ -75,7 +83,7 @@ describe("prices", () => {
       total: 25,
       matched: 3,
       missingCodes: [D, E],
-      orderUrl: "https://osherad.co.il/",
+      orderUrl: "https://www.osherad.co.il/",
     });
     expect(r.stores[0].distanceKm).toBeCloseTo(1, 1);
     expect(r.stores[1]).toMatchObject({ total: 16.5, matched: 2, missingCodes: [B, D, E] });

@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type { app as App } from "../app.js";
+import { isGtin } from "../ingest/parse.js";
 
 let app: typeof App;
 let cookie: string;
@@ -8,9 +9,12 @@ const here = { lat: 32.0853, lng: 34.7818 };
 const KM_PER_DEG = 111.195; // 2*pi*6371/360, matches the server's haversine radius
 const north = (km: number, east = 0) => ({ lat: here.lat + km / KM_PER_DEG, lng: here.lng + east / (KM_PER_DEG * Math.cos((here.lat * Math.PI) / 180)) });
 
+// Valid EAN-13s (check digit computed) so the codes stay global across chains.
+const ean = (body12: string) => body12 + [..."0123456789"].find((d) => isGtin(body12 + d))!;
+const [P1, P2, P3, P4, Z1, Q1, R1, R2, R3, R4, T1, T2, S1, S2, S3, S4, S5, S6, S7, S8, S9] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21].map((n) => ean(`7290001${String(n).padStart(5, "0")}`));
 const OSHER = "7290103152017";
 const RAMI = "7290058140886";
-const TIV = "7290873255550";
+const KESHET = "7290785400000"; // a chain without an order URL
 
 const storesXml = (chain: string, stores: { id: string; name: string }[]) =>
   `<Root><ChainId>${chain}</ChainId><Stores>${stores
@@ -32,20 +36,20 @@ beforeAll(async () => {
   const setPos = db.$client.prepare("UPDATE stores SET lat = ?, lng = ? WHERE id = ?");
 
   const osher = [
-    { id: "1", name: "sA", at: north(1), prices: [["P1", 50], ["P2", 50]] },
-    { id: "2", name: "sB", at: north(2), prices: [["P1", 1]] },
-    { id: "3", name: "sC", at: north(3), prices: [["P1", 60], ["P2", 60]] },
-    { id: "4", name: "sD", at: north(0.5), prices: [["P1", 60], ["P2", 60]] },
-    { id: "5", name: "sZero", at: north(1.5), prices: [["Z1", 5]] }, // in range but carries none of P1/P2
-    { id: "6", name: "sF", at: north(4), prices: [["P3", 0.1], ["P4", 0.2]] }, // float sum
-    { id: "7", name: "sNoCoords", at: null, prices: [["P1", 0.5], ["P2", 0.5]] },
-    { id: "8", name: "sFar", at: north(30), prices: [["Q1", 9]] },
-    { id: "9", name: "sEdgeIn", at: north(9.99), prices: [["R1", 3]] },
-    { id: "10", name: "sEdgeOut", at: north(10.01), prices: [["R2", 3]] },
-    { id: "11", name: "sCorner", at: north(8, 8), prices: [["R3", 3]] }, // inside the 10 km box, 11.3 km away
-    { id: "12", name: "sOneIn", at: north(0.99), prices: [["T1", 3]] },
-    { id: "13", name: "sOneOut", at: north(1.01), prices: [["T2", 3]] },
-    { id: "14", name: "sSouthWest", at: north(-5, -5), prices: [["R4", 4]] },
+    { id: "1", name: "sA", at: north(1), prices: [[P1, 50], [P2, 50]] },
+    { id: "2", name: "sB", at: north(2), prices: [[P1, 1]] },
+    { id: "3", name: "sC", at: north(3), prices: [[P1, 60], [P2, 60]] },
+    { id: "4", name: "sD", at: north(0.5), prices: [[P1, 60], [P2, 60]] },
+    { id: "5", name: "sZero", at: north(1.5), prices: [[Z1, 5]] }, // in range but carries none of P1/P2
+    { id: "6", name: "sF", at: north(4), prices: [[P3, 0.1], [P4, 0.2]] }, // float sum
+    { id: "7", name: "sNoCoords", at: null, prices: [[P1, 0.5], [P2, 0.5]] },
+    { id: "8", name: "sFar", at: north(30), prices: [[Q1, 9]] },
+    { id: "9", name: "sEdgeIn", at: north(9.99), prices: [[R1, 3]] },
+    { id: "10", name: "sEdgeOut", at: north(10.01), prices: [[R2, 3]] },
+    { id: "11", name: "sCorner", at: north(8, 8), prices: [[R3, 3]] }, // inside the 10 km box, 11.3 km away
+    { id: "12", name: "sOneIn", at: north(0.99), prices: [[T1, 3]] },
+    { id: "13", name: "sOneOut", at: north(1.01), prices: [[T2, 3]] },
+    { id: "14", name: "sSouthWest", at: north(-5, -5), prices: [[R4, 4]] },
     { id: "15", name: "sSearchA", at: null, prices: [] }, // search products live here and in 16 (a store's file replaces its prices)
     { id: "16", name: "sSearchB", at: null, prices: [] },
   ] as const;
@@ -55,30 +59,30 @@ beforeAll(async () => {
     if (s.at) setPos.run(s.at.lat, s.at.lng, `${OSHER}-${s.id}`);
   }
   // A second chain with no order URL.
-  ingestStores("tiv-taam", storesXml(TIV, [{ id: "1", name: "sT" }]));
-  ingestPrices("tiv-taam", pricesXml(TIV, "1", [["P1", 70], ["P2", 70]]));
-  setPos.run(north(2.5).lat, north(2.5).lng, `${TIV}-1`);
+  ingestStores("keshet", storesXml(KESHET, [{ id: "1", name: "sT" }]));
+  ingestPrices("keshet", pricesXml(KESHET, "1", [[P1, 70], [P2, 70]]));
+  setPos.run(north(2.5).lat, north(2.5).lng, `${KESHET}-1`);
   ingestStores("rami-levy", storesXml(RAMI, [{ id: "1", name: "sR" }]));
-  ingestPrices("rami-levy", pricesXml(RAMI, "1", [["P1", 55], ["P2", 55]]));
+  ingestPrices("rami-levy", pricesXml(RAMI, "1", [[P1, 55], [P2, 55]]));
   setPos.run(north(3.5).lat, north(3.5).lng, `${RAMI}-1`);
 
   // Products for search.
   ingestPrices(
     "osher-ad",
     pricesXml(OSHER, "15", [
-      ["S1", 6, "חלב תנובה 3%"],
-      ["S2", 7, "חלב שקד"],
-      ["S3", 8, "COLA ZERO 330ml"],
-      ["S4", 9, "Coca-Cola Zero"],
-      ["S5", 1, "AND OR NOT"],
-      ["S6", 2, "NEAR the end"],
-      ["S7", 3, "100% juice"],
-      ["S8", 4, "snack_bar"],
-      ["S9", 5, 'say "hello" (world) *'],
-      ["7290000012345", 5, "שוקולד פרה"],
+      [S1, 6, "חלב תנובה 3%"],
+      [S2, 7, "חלב שקד"],
+      [S3, 8, "COLA ZERO 330ml"],
+      [S4, 9, "Coca-Cola Zero"],
+      [S5, 1, "AND OR NOT"],
+      [S6, 2, "NEAR the end"],
+      [S7, 3, "100% juice"],
+      [S8, 4, "snack_bar"],
+      [S9, 5, 'say "hello" (world) *'],
+      ["7290000012346", 5, "שוקולד פרה"],
     ]),
   );
-  ingestPrices("osher-ad", pricesXml(OSHER, "16", [["S1", 5, "חלב תנובה 3%"]]));
+  ingestPrices("osher-ad", pricesXml(OSHER, "16", [[S1, 5, "חלב תנובה 3%"]]));
   db.$client.prepare("INSERT INTO products (code, name) VALUES ('NOPRICE', 'חלב ללא מחיר')").run(); // never priced
 
   const res = await app.request("/api/auth/sign-up/email", {
@@ -110,7 +114,7 @@ const searchCodes = async (q: string) => {
 
 describe("compare validation", () => {
   it("401 without a cookie, even for an otherwise valid body", async () => {
-    expect((await post({ ...here, codes: ["P1"] }, { auth: false })).status).toBe(401);
+    expect((await post({ ...here, codes: [P1] }, { auth: false })).status).toBe(401);
   });
 
   it.each([
@@ -130,42 +134,42 @@ describe("compare validation", () => {
     ["limit 101", { limit: 101 }],
     ["limit fractional", { limit: 1.5 }],
     ["codes empty", { codes: [] }],
-    ["codes not an array", { codes: "P1" }],
+    ["codes not an array", { codes: P1 }],
     ["codes with number", { codes: [123] }],
     ["codes with empty string", { codes: [""] }],
     ["codes with blank string", { codes: ["   "] }],
     ["code of 65 chars", { codes: ["9".repeat(65)] }],
     ["201 codes", { codes: Array.from({ length: 201 }, (_, i) => `C${i}`) }],
   ])("400: %s", async (_label, patch) => {
-    const res = await post({ ...here, codes: ["P1"], ...patch });
+    const res = await post({ ...here, codes: [P1], ...patch });
     expect(res.status).toBe(400);
     expect(typeof ((await res.json()) as { error: string }).error).toBe("string");
   });
 
   it("400 for malformed, empty, null and array bodies; missing lat/lng/codes", async () => {
     for (const raw of ["{nope", "", "null", "[]", "42"]) expect((await post(null, { raw })).status, raw).toBe(400);
-    expect((await post({ lng: 34, codes: ["P1"] })).status).toBe(400);
-    expect((await post({ lat: 32, codes: ["P1"] })).status).toBe(400);
+    expect((await post({ lng: 34, codes: [P1] })).status).toBe(400);
+    expect((await post({ lat: 32, codes: [P1] })).status).toBe(400);
     expect((await post({ lat: 32, lng: 34 })).status).toBe(400);
   });
 
   it("accepts the boundary values: 200 codes, radius 1 and 50, limit 1 and 100, lat/lng extremes", async () => {
     const two = Array.from({ length: 200 }, (_, i) => `NOPE${i}`);
     expect((await post({ ...here, codes: two })).status).toBe(200);
-    for (const radiusKm of [1, 50]) expect((await post({ ...here, codes: ["P1"], radiusKm })).status).toBe(200);
-    for (const limit of [1, 100]) expect((await post({ ...here, codes: ["P1"], limit })).status).toBe(200);
+    for (const radiusKm of [1, 50]) expect((await post({ ...here, codes: [P1], radiusKm })).status).toBe(200);
+    for (const limit of [1, 100]) expect((await post({ ...here, codes: [P1], limit })).status).toBe(200);
     for (const pos of [{ lat: 90, lng: 180 }, { lat: -90, lng: -180 }, { lat: 0, lng: 0 }])
-      expect((await post({ ...pos, codes: ["P1"] })).status, JSON.stringify(pos)).toBe(200);
+      expect((await post({ ...pos, codes: [P1] })).status, JSON.stringify(pos)).toBe(200);
   });
 
   it("ignores unknown body keys", async () => {
-    expect((await post({ ...here, codes: ["P1"], extra: true })).status).toBe(200);
+    expect((await post({ ...here, codes: [P1], extra: true })).status).toBe(200);
   });
 });
 
 describe("compare semantics", () => {
   it("price: fewest missing first, then lowest total, then nearest", async () => {
-    const r = await compare({ codes: ["P1", "P2"] });
+    const r = await compare({ codes: [P1, P2] });
     // sA 100 (1km), sR 110 (3.5km), sD 120 (0.5km), sC 120 (3km), sT 140, then sB (1 missing, total 1)
     expect(names(r)).toEqual(["sA", "sR", "sD", "sC", "sT", "sB"]);
     expect(r.stores.map((s) => s.total)).toEqual([100, 110, 120, 120, 140, 1]);
@@ -173,96 +177,96 @@ describe("compare semantics", () => {
   });
 
   it("price ties on missing and total fall back to distance (sD before sC)", async () => {
-    const r = await compare({ codes: ["P1", "P2"] });
+    const r = await compare({ codes: [P1, P2] });
     expect(names(r).indexOf("sD")).toBeLessThan(names(r).indexOf("sC"));
   });
 
   it("coverage: most matched first, then lowest total", async () => {
-    const r = await compare({ codes: ["P1", "P2"], sort: "coverage" });
+    const r = await compare({ codes: [P1, P2], sort: "coverage" });
     expect(names(r)).toEqual(["sA", "sR", "sD", "sC", "sT", "sB"]);
     expect(r.stores.map((s) => s.matched)).toEqual([2, 2, 2, 2, 2, 1]);
   });
 
   it("distance: nearest first regardless of price or coverage", async () => {
-    const r = await compare({ codes: ["P1", "P2"], sort: "distance" });
+    const r = await compare({ codes: [P1, P2], sort: "distance" });
     expect(names(r)).toEqual(["sD", "sA", "sB", "sT", "sC", "sR"]);
     const d = r.stores.map((s) => s.distanceKm);
     expect(d).toEqual([...d].sort((a, b) => a - b));
   });
 
   it("defaults: sort=price, radius 10, limit 20", async () => {
-    const withDefaults = await compare({ codes: ["P1", "P2"] });
-    const explicit = await compare({ codes: ["P1", "P2"], sort: "price", radiusKm: 10, limit: 20 });
+    const withDefaults = await compare({ codes: [P1, P2] });
+    const explicit = await compare({ codes: [P1, P2], sort: "price", radiusKm: 10, limit: 20 });
     expect(withDefaults).toEqual(explicit);
   });
 
   it("excludes a store in range that carries none of the codes, and a store without coordinates", async () => {
-    const r = await compare({ codes: ["P1", "P2"], radiusKm: 50 });
+    const r = await compare({ codes: [P1, P2], radiusKm: 50 });
     expect(names(r)).not.toContain("sZero");
     expect(names(r)).not.toContain("sNoCoords");
-    expect((await compare({ codes: ["Z1"] })).stores.map((s) => s.storeName)).toEqual(["sZero"]);
+    expect((await compare({ codes: [Z1] })).stores.map((s) => s.storeName)).toEqual(["sZero"]);
   });
 
   it("limit slices after sorting, and does not change unmatched", async () => {
-    const all = await compare({ codes: ["P1", "P2", "P3", "NOPE"] });
-    const limited = await compare({ codes: ["P1", "P2", "P3", "NOPE"], limit: 2 });
+    const all = await compare({ codes: [P1, P2, P3, "NOPE"] });
+    const limited = await compare({ codes: [P1, P2, P3, "NOPE"], limit: 2 });
     expect(limited.stores).toEqual(all.stores.slice(0, 2));
     expect(limited.unmatched).toEqual(["NOPE"]); // P3 is carried by sF, which the limit cut off
     expect(all.unmatched).toEqual(["NOPE"]);
   });
 
   it("totals are rounded to cents (0.1 + 0.2)", async () => {
-    const r = await compare({ codes: ["P3", "P4"] });
+    const r = await compare({ codes: [P3, P4] });
     expect(r.stores).toHaveLength(1);
     expect(r.stores[0]).toMatchObject({ storeName: "sF", total: 0.3, matched: 2 });
   });
 
   it("deduplicates and trims codes; missingCodes keeps request order", async () => {
-    const r = await compare({ codes: [" P1 ", "P1", "P2", "NOPE2", "NOPE1", "NOPE2"] });
+    const r = await compare({ codes: [` ${P1} `, P1, P2, "NOPE2", "NOPE1", "NOPE2"] });
     expect(r.stores[0]).toMatchObject({ storeName: "sA", matched: 2, total: 100, missingCodes: ["NOPE2", "NOPE1"] });
     expect(r.unmatched).toEqual(["NOPE2", "NOPE1"]);
-    expect(r.stores[0].items.map((i: any) => i.code).sort()).toEqual(["P1", "P2"]);
+    expect(r.stores[0].items.map((i: any) => i.code).sort()).toEqual([P1, P2]);
   });
 
   it("unmatched is empty when every code is carried, and lists everything when nothing is", async () => {
-    expect((await compare({ codes: ["P1", "P2"] })).unmatched).toEqual([]);
+    expect((await compare({ codes: [P1, P2] })).unmatched).toEqual([]);
     const none = await compare({ codes: ["X1", "X2"] });
     expect(none).toEqual({ stores: [], unmatched: ["X1", "X2"] });
   });
 
   it("a code only carried outside the radius is unmatched, and matched once the radius grows", async () => {
-    const small = await compare({ codes: ["Q1"] });
-    expect(small).toEqual({ stores: [], unmatched: ["Q1"] });
-    const big = await compare({ codes: ["Q1"], radiusKm: 50 });
+    const small = await compare({ codes: [Q1] });
+    expect(small).toEqual({ stores: [], unmatched: [Q1] });
+    const big = await compare({ codes: [Q1], radiusKm: 50 });
     expect(big.unmatched).toEqual([]);
     expect(big.stores[0]).toMatchObject({ storeName: "sFar", total: 9 });
     expect(big.stores[0].distanceKm).toBeCloseTo(30, 1);
   });
 
   it("radius edge: 9.99 km is inside a 10 km radius, 10.01 km is outside", async () => {
-    expect(names(await compare({ codes: ["R1"] }))).toEqual(["sEdgeIn"]);
-    expect(names(await compare({ codes: ["R2"] }))).toEqual([]);
-    expect(names(await compare({ codes: ["R2"], radiusKm: 11 }))).toEqual(["sEdgeOut"]);
+    expect(names(await compare({ codes: [R1] }))).toEqual(["sEdgeIn"]);
+    expect(names(await compare({ codes: [R2] }))).toEqual([]);
+    expect(names(await compare({ codes: [R2], radiusKm: 11 }))).toEqual(["sEdgeOut"]);
   });
 
   it("radius edge at the minimum (1 km)", async () => {
-    expect(names(await compare({ codes: ["T1"], radiusKm: 1 }))).toEqual(["sOneIn"]);
-    expect(names(await compare({ codes: ["T2"], radiusKm: 1 }))).toEqual([]);
+    expect(names(await compare({ codes: [T1], radiusKm: 1 }))).toEqual(["sOneIn"]);
+    expect(names(await compare({ codes: [T2], radiusKm: 1 }))).toEqual([]);
   });
 
   it("a store inside the bounding box but outside the circle is excluded", async () => {
-    expect(names(await compare({ codes: ["R3"] }))).toEqual([]);
-    expect(names(await compare({ codes: ["R3"], radiusKm: 12 }))).toEqual(["sCorner"]);
+    expect(names(await compare({ codes: [R3] }))).toEqual([]);
+    expect(names(await compare({ codes: [R3], radiusKm: 12 }))).toEqual(["sCorner"]);
   });
 
   it("finds stores south-west of the origin too", async () => {
-    const r = await compare({ codes: ["R4"] });
+    const r = await compare({ codes: [R4] });
     expect(names(r)).toEqual(["sSouthWest"]);
     expect(r.stores[0].distanceKm).toBeCloseTo(7.07, 1);
   });
 
   it("returns the full StoreResult shape, and orderUrl is null for a chain without one", async () => {
-    const r = await compare({ codes: ["P1", "P2"] });
+    const r = await compare({ codes: [P1, P2] });
     const a = r.stores.find((s) => s.storeName === "sA");
     expect(a).toEqual({
       storeId: `${OSHER}-1`,
@@ -277,25 +281,25 @@ describe("compare semantics", () => {
       total: 100,
       matched: 2,
       missingCodes: [],
-      items: expect.arrayContaining([{ code: "P1", price: 50 }, { code: "P2", price: 50 }]),
-      orderUrl: "https://osherad.co.il/",
+      items: expect.arrayContaining([{ code: P1, price: 50 }, { code: P2, price: 50 }]),
+      orderUrl: "https://www.osherad.co.il/",
     });
-    expect(r.stores.find((s) => s.storeName === "sT")).toMatchObject({ chainName: "Tiv Taam", orderUrl: null });
+    expect(r.stores.find((s) => s.storeName === "sT")).toMatchObject({ chainName: "Keshet Taamim", orderUrl: null });
     expect(r.stores.find((s) => s.storeName === "sR")).toMatchObject({ chainName: "Rami Levy" });
   });
 });
 
 describe("products search", () => {
   it("matches a Hebrew prefix and several Hebrew prefix tokens (AND)", async () => {
-    expect(await searchCodes("חל")).toEqual(["S1", "S2"]);
-    expect(await searchCodes("חלב תנ")).toEqual(["S1"]);
-    expect(await searchCodes("תנובה חלב")).toEqual(["S1"]); // token order does not matter
-    expect(await searchCodes("חלב  שקד")).toEqual(["S2"]); // repeated whitespace
+    expect(await searchCodes("חל")).toEqual([S1, S2]);
+    expect(await searchCodes("חלב תנ")).toEqual([S1]);
+    expect(await searchCodes("תנובה חלב")).toEqual([S1]); // token order does not matter
+    expect(await searchCodes("חלב  שקד")).toEqual([S2]); // repeated whitespace
   });
 
   it("is case-insensitive for Latin text", async () => {
-    expect(await searchCodes("cola")).toEqual(["S3", "S4"]); // unicode61 splits "Coca-Cola" into coca + cola
-    expect(await searchCodes("COLA 330")).toEqual(["S3"]);
+    expect(await searchCodes("cola")).toEqual([S3, S4]); // unicode61 splits "Coca-Cola" into coca + cola
+    expect(await searchCodes("COLA 330")).toEqual([S3]);
   });
 
   it("only returns products that have a price", async () => {
@@ -304,7 +308,7 @@ describe("products search", () => {
 
   it("reports storeCount and the minimum price", async () => {
     const rows = (await (await search("חלב תנובה")).json()) as any[];
-    expect(rows).toEqual([{ code: "S1", name: "חלב תנובה 3%", manufacturer: null, unitQty: null, storeCount: 2, minPrice: 5 }]);
+    expect(rows).toEqual([{ code: S1, name: "חלב תנובה 3%", manufacturer: null, unitQty: null, storeCount: 2, minPrice: 5 }]);
   });
 
   it("FTS-special characters fall back to LIKE without a 500", async () => {
@@ -320,20 +324,20 @@ describe("products search", () => {
       const res = await search(q);
       expect(res.status, `q=${q}`).toBe(200);
     }
-    expect(await searchCodes("AND OR NOT")).toEqual(["S5"]);
-    expect(await searchCodes("NEAR the")).toEqual(["S6"]);
+    expect(await searchCodes("AND OR NOT")).toEqual([S5]);
+    expect(await searchCodes("NEAR the")).toEqual([S6]);
   });
 
   it("LIKE fallback matches the special character literally", async () => {
-    expect(await searchCodes("100%")).toEqual(["S7"]);
-    expect(await searchCodes("snack_bar")).toEqual(["S8"]);
-    expect(await searchCodes("Coca-Cola")).toEqual(["S4"]);
-    expect(await searchCodes('"hello"')).toEqual(["S9"]);
+    expect(await searchCodes("100%")).toEqual([S7]);
+    expect(await searchCodes("snack_bar")).toEqual([S8]);
+    expect(await searchCodes("Coca-Cola")).toEqual([S4]);
+    expect(await searchCodes('"hello"')).toEqual([S9]);
   });
 
   it("LIKE wildcards are escaped: % and _ do not match everything", async () => {
-    expect(await searchCodes("%")).toEqual(["S1", "S7"]); // only names containing a literal %
-    expect(await searchCodes("snack_bar")).toEqual(["S8"]);
+    expect(await searchCodes("%")).toEqual([S1, S7]); // only names containing a literal %
+    expect(await searchCodes("snack_bar")).toEqual([S8]);
     expect(await searchCodes("snackxbar")).toEqual([]);
     expect(await searchCodes("s_ack-")).toEqual([]);
   });
@@ -355,11 +359,11 @@ describe("products search", () => {
   });
 
   it("finds a product by barcode: exact, by code prefix (8+ digits), not for short digit strings", async () => {
-    expect(await searchCodes("7290000012345")).toEqual(["7290000012345"]);
-    expect(await searchCodes("72900000123")).toEqual(["7290000012345"]);
+    expect(await searchCodes("7290000012346")).toEqual(["7290000012346"]);
+    expect(await searchCodes("72900000123")).toEqual(["7290000012346"]);
     expect(await searchCodes("7290000099999")).toEqual([]);
     expect(await searchCodes("7290000")).toEqual([]); // < 8 digits keeps the text path
-    const rows = (await (await search("7290000012345")).json()) as any[];
+    const rows = (await (await search("7290000012346")).json()) as any[];
     expect(rows[0]).toMatchObject({ name: "שוקולד פרה", storeCount: 1, minPrice: 5 });
   });
 
@@ -369,6 +373,6 @@ describe("products search", () => {
     const chains = (await res.json()) as { id: string; name: string; nameHe: string; orderUrl: string | null }[];
     expect(chains.length).toBeGreaterThanOrEqual(12);
     expect(chains.map((c) => c.name)).toEqual([...chains.map((c) => c.name)].sort());
-    expect(chains.find((c) => c.id === TIV)).toEqual({ id: TIV, name: "Tiv Taam", nameHe: "טיב טעם", orderUrl: null });
+    expect(chains.find((c) => c.id === KESHET)).toEqual({ id: KESHET, name: "Keshet Taamim", nameHe: "קשת טעמים", orderUrl: null });
   });
 });

@@ -10,7 +10,7 @@ apps/api/                 Node 22 + TypeScript (strict, ESM, NodeNext) API
   src/index.ts            starts the HTTP server (PORT, default 3000)
   src/app.ts              Hono app: CORS, /api/auth/*, /health; register routes here
   src/middleware.ts       AppEnv type + requireUser
-  src/ingest/             price-file parser (parse.ts), chain seed (chains.ts), ingest/geocode CLIs
+  src/ingest/             price-file downloader (download.ts), parser (parse.ts), chain seed (chains.ts), ingest/geocode CLIs
   src/auth.ts             better-auth config (email+password, optional Google/Apple, expo plugin)
   src/db/index.ts         better-sqlite3 + Drizzle; WAL; runs migrations on import
   src/db/schema.ts        better-auth tables (generated) + re-export of appSchema.ts
@@ -40,8 +40,9 @@ npm run typecheck                 # tsc --noEmit in both apps
 npm test                          # vitest run in both apps
 npm run db:generate -w apps/api   # drizzle-kit generate after schema changes
 npm run db:migrate -w apps/api    # apply migrations manually (the API also does it on startup)
+npm run fetch -w apps/api -- --chain <key> --out <dir> [--max-stores N] [--stores-only]   # download Stores + PriceFull (outside the repo)
 npm run ingest -w apps/api -- --chain <key> --stores <file> --prices <file...>   # load price-transparency XML
-npm run geocode -w apps/api       # fill stores.lat/lng via Nominatim (NOMINATIM_URL), 1 req/s
+npm run geocode -w apps/api -- [--chain <key>]   # fill stores.lat/lng via Nominatim (NOMINATIM_URL), 1 req/s
 npx auth@latest generate --config src/auth.ts --output src/db/schema.ts   # (in apps/api) only after adding better-auth plugins; re-append the appSchema re-export
 ```
 

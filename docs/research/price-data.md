@@ -180,3 +180,38 @@ If "no login, plain listing" is the only criterion: Carrefour, Hazi Hinam, Shufe
 8. Per-chain freshness status (`success / partial / stale if newest file >2 days / failed`) and alert on stale feeds ([SalSmart](https://github.com/SaharHalili95/price-comparison-platform)).
 
 **Risks to plan around:** geo-blocking (needs Israeli egress), portal layouts change without notice (OIS runs daily live tests; see [status](https://openisraelisupermarkets.github.io/Status/)), data-licence terms of any third-party dump, and the fact that nothing in this document was exercised live from this container.
+
+## Verified live on 2026-11-01
+
+Run from this container (US egress via an HTTPS proxy, Node's `fetch` needs `NODE_USE_ENV_PROXY=1`) with `npm run fetch` (`apps/api/src/ingest/download.ts`), then `npm run ingest` into a scratch DB. This supersedes the **UNVERIFIED** marks above where they conflict.
+
+**Cerberus (`url.publishedprices.co.il`)**, confirmed step by step: `GET /login` sets cookie `cftpSID` and has `<meta name="csrftoken">`; the form posts to `/login/user` with `r`, `username`, `password` (empty), `csrftoken`; success = `302 Location: /file` plus a new `cftpSID`. `GET /file` carries a fresh csrftoken. `GET /file/json/dir` answers 200 `{"aaData":[],"error":"Invalid request method used for this operation."}`; `POST /file/json/dir` with `sEcho=1&iDisplayStart=0&iDisplayLength=100000&cd=/&csrftoken=<token>` returns every file (Rami Levy: 1089) as `{name, size, time, type:"file"}`. `GET /file/d/<name>` returns the bytes (`Content-Type: text/xml` for Stores).
+- Users that log in with an empty password: `RamiLevi`, `yohananof`, `osherad`, `TivTaam`, `Keshet`, `doralon`, `Stop_Market`, `freshmarket`, `politzer`, `SalachD`.
+- `url.retail.publishedprices.co.il` fails TLS: its certificate is `*.publishedprices.co.il`, which does not cover two labels (`ERR_TLS_CERT_ALTNAME_INVALID`). `Stop_Market` works on the main host.
+- Listings mix both name shapes and both casings (Rami Levy: `PriceFull` 159 + `pricefull` 21, the lower-case ones 3-segment like `pricefull7290058140886-039-202611010514.gz`). Keshet's listing also holds a stale `PriceFull7290055700007-0820-202403281445.gz` (Carrefour's ChainId, 2024), so filter by the chain's own ChainId.
+
+**Shufersal**: `GET https://prices.shufersal.co.il/FileObject/UpdateCategory?catID=<n>&storeId=0` works (5 Stores: 1 row; 2 PriceFull: 20 rows/page, 22 pages). Rows are `<tr class="webgrid-row-style|webgrid-alternating-row">`, cell 1 holds `<a href="https://pricesprodpublic.blob.core.windows.net/<cat>/<Name>.gz?sv=2014-02-14&amp;sr=b&amp;sig=..&amp;se=<~1 h ahead>&amp;sp=r">`, then date, size, type, category, branch, name. The blob URLs download without cookies. Stores name: `Stores7290027600007-000-20261101-020.gz` (3-digit time).
+
+**Unreachable here (one attempt each, 20 s timeout)**: `prices.carrefour.co.il` and `laibcatalog.co.il` (Victory, Machsanei Hashuk): `ECONNRESET` during the TLS handshake (`curl: (35) Recv failure: Connection reset by peer`). `shop.hazi-hinam.co.il/Prices`: HTTP 403. No downloader exists for these yet.
+
+**Files** (all ChainIds equal `chains.ts`; every PriceFull is gzip with a UTF-8 BOM, no XML declaration, `Root > ChainID, SubChainID, StoreID, BikoretNo, Items > Item`, item tags `PriceUpdateTime, ItemCode, LastSaleDateTime, ItemType, ItemName, ManufactureName, ManufactureCountry, ManufacturerItemDescription, UnitQty, Quantity, UnitOfMeasure, bIsWeighted, QtyInPackage, ItemPrice, UnitOfMeasurePrice, AllowDiscount, ItemStatus`, unless noted. Every Stores file is plain XML, UTF-16LE with BOM, `Root > ChainID, ChainName, LastUpdateDate, LastUpdateTime, SubChains > SubChain > SubChainID, SubChainName, Stores > Store > StoreID, BikoretNo, StoreType, StoreName, Address, City, ZIPCode`, unless noted.)
+
+| Chain (key) | ChainId | Stores (sub-chains) | PriceFull fetched (items) | Notes |
+|---|---|---|---|---|
+| shufersal | 7290027600007 | 418 (11) | stores 1/2/3: 6542, 7435, 6192 | Stores is **gzip, UTF-8 BOM, `<?xml encoding="UTF-8"?>`, root `<Chain>`** |
+| rami-levy | 7290058140886 | 99 (1) | 1/2/3: 12994, 11534, 7588 | Address like `האומן,15` |
+| yohananof | 7290803800003 | 51 (1) | 1/4/5: 10679, 11101, 11627 | City always `0` |
+| osher-ad | 7290103152017 | 24 (1) | 1/3/5: 6363, 6589, 6504 | |
+| tiv-taam | 7290873255550 | 54 (1) | 2/3/6: 21590, 19745, 16137 | file sub-chain `000` |
+| keshet | 7290785400000 | 28 (1) | 14/21: 17612, 15695; 2: 11065 | store 2 is 3-segment and another dialect: `XmlDocVersion, ChainId, SubChainId, StoreId, DllVerNo`, `PriceUpdateDate`, `ManufacturerName`; 158 items priced 0; 2 ItemCodes repeated with different prices (7.90/8.90) |
+| stop-market | 7290639000004 | 11 (1) | 2/3/4: 15238, 14349, 18317 | |
+| dor-alon | 7290492000005 | 157 (5) | 401/402/403: 5079, 5299, 4991 | |
+| fresh-market | 7290876100000 | 48 (1) | 1/2/4: 10158, 10773, 8273 | 1 repeated ItemCode |
+| politzer | 7291059100008 | 8 (1) | 1/3/8: 10636, 15055, 14524 | `StoreId` (not `StoreID`), `ManufacturerName`; City `0` |
+| salach-dabach | 7290526500006 | 12 (1) | 4/7/11: 12367, 16964, 17050 | City `0` |
+
+Data facts: no zip files and no UTF-16 price files seen; prices parse as plain decimals; StoreIds are zero-padded in names (`001`) and unpadded inside both file kinds, so they match after stripping zeros; StoreIds are unique per chain across sub-chains; blanks are filled with `לא ידוע`, `Unknown` or `unknown` (unit, manufacturer, address); City is a CBS locality code in every chain (Shufersal too) or `0` (104 of 910 stores), plus 2 Shufersal stores with an empty `<City/>`; never a name. Product overlap across these 11 chains: 28,617 codes appear in 2+ chains; no barcode differs only by leading zeros; 220 short (<8 digit) codes appear in 2+ chains, some legitimately shared (Yohananof and Fresh Market both sell supplier code `1022825`, the same cheese).
+
+**Geocoding**: `nominatim.openstreetmap.org` answers HTTP 403 `Access denied. See https://operations.osmfoundation.org/policies/nominatim/` to this egress IP, so 0/11 Stop Market stores resolved. Run geocoding from another network or point `NOMINATIM_URL` at a self-hosted instance.
+
+**Shops (HEAD/GET from here)**: 200: `https://www.shufersal.co.il/online/he/` (but the body is a maintenance image, as is `/online/he/search?text=<barcode>`, so no barcode deep link was confirmed), `https://www.stopmarket.co.il/`, `https://www.freshmarket.co.il/`, `https://www.doralon.co.il/` (corporate site, not a shop). 403 from Cloudflare or Radware bot protection: rami-levy.co.il/he/online/market, yochananof.co.il, osherad.co.il, victoryonline.co.il, shop.hazi-hinam.co.il, tivtaam.co.il, carrefour.co.il, keshet-teamim.co.il, mck.co.il. No answer: politzer.co.il. A 403 from a US IP does not prove the shop is down for Israeli users.

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { db } from "../db/index.js";
 import { chainSeeds } from "./chains.js";
-import { decodeXml, parsePrices, parseStores } from "./parse.js";
+import { decodeXml, isGtin, parsePrices, parseStores } from "./parse.js";
 
 const sqlite = db.$client;
 
@@ -21,7 +21,7 @@ const upsertStore = sqlite.prepare(
 );
 // First chain to publish a barcode names it; later files only fill blanks (keeps names and FTS rows stable).
 const upsertProduct = sqlite.prepare(
-  `INSERT INTO products (code, name, manufacturer, unit_qty, is_weighted) VALUES (?, ?, ?, ?, ?)
+  `INSERT INTO products (code, item_code, name, manufacturer, unit_qty, is_weighted) VALUES (?, ?, ?, ?, ?, ?)
    ON CONFLICT(code) DO UPDATE SET manufacturer = coalesce(products.manufacturer, excluded.manufacturer),
      unit_qty = coalesce(products.unit_qty, excluded.unit_qty)`,
 );
@@ -49,16 +49,21 @@ export function ingestStores(chainKey: string, xml: string) {
  */
 export function ingestPrices(chainKey: string, xml: string) {
   const parsed = parsePrices(xml);
-  const storeId = `${chainFor(chainKey, parsed.chainId)}-${parsed.storeId}`;
+  const chainId = chainFor(chainKey, parsed.chainId);
+  const storeId = `${chainId}-${parsed.storeId}`;
   if (!storeExists.get(storeId)) throw new Error(`store ${storeId} is unknown; ingest the chain's Stores file first`);
   const now = Date.now();
-  const items = parsed.items.filter((it) => it.price > 0); // also drops NaN
-  if (items.length < parsed.items.length) console.warn(`${storeId}: skipped ${parsed.items.length - items.length} items with price <= 0`);
+  const valid = parsed.items.filter((it) => it.price > 0); // also drops NaN
+  if (valid.length < parsed.items.length) console.warn(`${storeId}: skipped ${parsed.items.length - valid.length} items with price <= 0`);
+  // Real files repeat an ItemCode now and then (Keshet: 7.90 and 8.90 for one code); the last row wins, as the upsert would.
+  // GS1 barcodes are global; internal and weighed codes mean different things per chain, so they are chain-scoped.
+  const key = (code: string) => (isGtin(code) ? code : `${chainId}:${code}`);
+  const items = [...new Map(valid.map((it) => [key(it.code), it])).entries()];
   sqlite.transaction(() => {
     clearPrices.run(storeId);
-    for (const it of items) {
-      upsertProduct.run(it.code, it.name, it.manufacturer, it.unitQty, it.isWeighted ? 1 : 0);
-      upsertPrice.run(storeId, it.code, it.price, it.unitPrice, now);
+    for (const [code, it] of items) {
+      upsertProduct.run(code, it.code, it.name, it.manufacturer, it.unitQty, it.isWeighted ? 1 : 0);
+      upsertPrice.run(storeId, code, it.price, it.unitPrice, now);
     }
   })();
   return items.length;

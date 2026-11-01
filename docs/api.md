@@ -30,6 +30,7 @@ Any member may rotate the invite code. "My list" is auto-created only when the u
 ## Products, stores, compare (`routes/prices.ts`)
 
 Price data comes from the Israeli Price Transparency files (see `docs/research/price-data.md`). `productCode` = the file's `ItemCode` (EAN barcode for packaged goods).
+Product codes: an `ItemCode` that is a valid GS1 barcode (8, 12, 13 or 14 digits, or 11 for a UPC-12 missing its leading 0, with a correct check digit) is global; any other code is chain-scoped as `${chainId}:${itemCode}`.
 
 | Method | Path | Body / query | Returns |
 |---|---|---|---|
@@ -49,6 +50,6 @@ type StoreResult = {
   orderUrl: string|null;
 }
 ```
-Sort semantics: `price` → fewest missing first, then lowest total; `distance` → nearest; `coverage` → most matched, then price. Stores without coordinates are excluded. `unmatched` = codes no store in radius carries.
+Sort semantics: `price` → fewest missing first, then lowest total; `distance` → nearest; `coverage` → most matched, then price. Stores without coordinates are excluded. Weighed items (`isWeighted`) are priced per kg and counted as 1 kg in totals. `unmatched` = codes no store in radius carries.
 
 Ingestion (CLI, not HTTP): `npm run ingest -- --chain <chainKey> [--stores <file>] [--prices <file...>]` parses Stores + PriceFull XML (gz/zip/plain, UTF-8 or UTF-16) into `stores`, `products`, `prices`. Each prices file is a full snapshot: it replaces that store's prices (items no longer listed are dropped), and items with `ItemPrice` <= 0 or NaN are skipped (count logged). Geocoding: `npm run geocode` fills `stores.lat/lng` via Nominatim from `address + city` (cached, 1 req/s).

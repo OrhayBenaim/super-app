@@ -83,7 +83,8 @@ export const stores = sqliteTable(
 );
 
 export const products = sqliteTable("products", {
-  code: text("code").primaryKey(), // ItemCode
+  code: text("code").primaryKey(), // ItemCode if a valid GTIN, else `${chainId}:${ItemCode}`
+  itemCode: text("item_code"), // raw ItemCode as published
   name: text("name").notNull(),
   manufacturer: text("manufacturer"),
   unitQty: text("unit_qty"),
