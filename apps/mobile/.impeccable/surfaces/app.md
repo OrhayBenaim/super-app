@@ -20,7 +20,7 @@ OWN-WORLD: iOS system grouped backgrounds and inset groups, SF type scale (Heebo
 
 STORY: open the list and see what's missing and where the basket is cheapest; tick items off with a tap or swipe; Compare answers "where, how much, how much less" in one glance and hands off to Waze.
 
-FIRST VIEWPORT: Compare: large title, one summary line, segmented control (price/distance/coverage) with the radius as a pull-down in the nav bar. Below, the best branch as the first inset group: chain, branch and distance, the total at 40pt tabular, a green "₪6.50 less than Rami Levy" line, coverage as text, then a full-width tinted Navigate button and a plain Order online. Other branches follow as one plain inset list with trailing prices. Standard tab bar.
+FIRST VIEWPORT: Compare: large title, one summary line, segmented control (price/distance/coverage) with the radius as a pull-down in the nav bar. Below, the best branch as the first inset group: chain, branch and distance, the total at 40pt tabular, a green "₪6.50 less than Rami Levy" line, coverage as text, then a full-width Navigate button filled with the tint (the screen's one primary action, so it takes the filled style) and a plain Order online. Other branches follow as one plain inset list with trailing prices. Standard tab bar.
 
 FORM: canon (standard iOS), chosen by the user after seeing the flyer, shelf-label and departures sketches. seed:cf42fcaabb0b8657
 
