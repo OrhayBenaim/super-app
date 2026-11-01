@@ -2,7 +2,8 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { View, type TextInputInstance } from "react-native";
-import { codeStatus, formatCountdown, MAX_TRIES, type SentCode } from "@/features/auth/resetCode";
+import { codeStatus, RESET_CODE, type SentCode } from "@grocer/shared/reset-code";
+import { formatCountdown, lockMessage } from "@/features/auth/resetCode";
 import { authErrorKey, validate } from "@/features/auth/validate";
 import { fmt } from "@/features/compare/format";
 import { authClient } from "@/lib/auth-client";
@@ -70,7 +71,7 @@ export function PasswordResetScreen() {
 
   // On sign-in the session refetches and the root Stack.Protected swaps to (tabs); nothing to navigate here.
   function submit() {
-    if (!/^\d{6}$/.test(code)) return fail("auth.reset.codeFormat");
+    if (code.length !== RESET_CODE.length) return fail("auth.reset.codeFormat");
     const invalid = validate({ name: "", email: target, password }, "signIn").password;
     if (invalid) return fail(invalid);
     run("reset", async () => {
@@ -79,7 +80,7 @@ export function PasswordResetScreen() {
         const { error } = await authClient.emailOtp.resetPassword({ email: target, otp: code, password });
         if (error) {
           if (error.code === "INVALID_OTP") setSent((s) => s && { ...s, wrongTries: s.wrongTries + 1 });
-          if (error.code === "TOO_MANY_ATTEMPTS") setSent((s) => s && { ...s, wrongTries: MAX_TRIES });
+          if (error.code === "TOO_MANY_ATTEMPTS") setSent((s) => s && { ...s, wrongTries: RESET_CODE.maxTries });
           return authErrorKey(error.code);
         }
         passwordSet.current = password;
@@ -89,7 +90,7 @@ export function PasswordResetScreen() {
     });
   }
 
-  const message = status?.lock ?? error;
+  const message = status?.lock ? lockMessage[status.lock] : error;
   const footnote: StringKey | null = message ?? (sent ? "auth.passwordHint" : null);
   return (
     <Screen scroll keyboard style={{ paddingTop: space[10], paddingBottom: space[8], gap: space[4] }}>
@@ -128,7 +129,7 @@ export function PasswordResetScreen() {
               keyboardType="number-pad"
               autoComplete="one-time-code"
               textContentType="oneTimeCode"
-              maxLength={6}
+              maxLength={RESET_CODE.length}
               returnKeyType="next"
               onSubmitEditing={() => passwordRef.current?.focus()}
             />

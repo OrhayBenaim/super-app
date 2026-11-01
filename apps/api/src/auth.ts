@@ -3,27 +3,13 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { expo } from "@better-auth/expo";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP } from "better-auth/plugins";
+import { RESET_CODE } from "@grocer/shared/reset-code";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "#/db/index.ts";
 import * as schema from "#/db/schema.ts";
+import { resetCodeEmail } from "#/emails/reset-code.ts";
 import type { Config } from "#/services/config.ts";
-import type { Email, MailerService } from "#/services/mailer.ts";
-
-const RESET_MINUTES = 5;
-
-/** The Reset code email: Hebrew first, English below. */
-function resetCodeEmail(to: string, code: string, minutes: number): Email {
-  const he = [`קוד האיפוס שלך ל-Grocer: ${code}`, `הקוד בתוקף ל-${minutes} דקות.`, "אם לא ביקשת לאפס את הסיסמה, אפשר להתעלם מהמייל הזה."];
-  const en = [`Your Grocer reset code: ${code}`, `It is valid for ${minutes} minutes.`, "If you didn't ask to reset your password, you can ignore this email."];
-  const block = (lines: string[], dir: "rtl" | "ltr") =>
-    `<div dir="${dir}">${lines.map((l) => `<p>${l.replace(code, `<strong style="font-size:24px;letter-spacing:4px">${code}</strong>`)}</p>`).join("")}</div>`;
-  return {
-    to,
-    subject: "קוד לאיפוס הסיסמה · Your Grocer reset code",
-    text: [...he, "", ...en].join("\n"),
-    html: `${block(he, "rtl")}<hr>${block(en, "ltr")}`,
-  };
-}
+import type { MailerService } from "#/services/mailer.ts";
 
 export function createAuth(db: Db, config: Config, mailer: MailerService) {
   const hasPassword = (email: string) =>
@@ -76,12 +62,12 @@ export function createAuth(db: Db, config: Config, mailer: MailerService) {
     plugins: [
       expo(),
       emailOTP({
-        otpLength: 6,
-        expiresIn: RESET_MINUTES * 60,
-        allowedAttempts: 3,
+        otpLength: RESET_CODE.length,
+        expiresIn: RESET_CODE.minutes * 60,
+        allowedAttempts: RESET_CODE.maxTries,
         // Only the password-reset paths are enabled, and the hook above lets through only Users with a password.
         async sendVerificationOTP({ email, otp }) {
-          await mailer.send(resetCodeEmail(email, otp, RESET_MINUTES));
+          await mailer.send(resetCodeEmail(email, otp));
         },
       }),
     ],

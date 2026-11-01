@@ -14,7 +14,8 @@ How the code inside `apps/api` is organised.
 | `src/middleware.ts` | `AppEnv` (the context variables) and `requireUser`. |
 | `src/routes/<resource>.ts` | One router per resource. |
 | `src/deps.ts` | Composition root: `buildDeps(config, overrides)` builds every dependency once. |
-| `src/auth.ts` | `createAuth(db, config)`: the better-auth instance. |
+| `src/auth.ts` | `createAuth(db, config, mailer)`: the better-auth instance. |
+| `src/emails/<email>.ts` | One function per email that builds it from its data (e.g. `resetCodeEmail(to, code)`). `emails/layout.ts` turns Hebrew and English paragraphs into the text and HTML every email shares. Send with `deps.mailer`. |
 | `src/services/` | One file per vendor-neutral service (see [Services and providers](#services-and-providers)). |
 | `src/providers/<vendor>/` | Each vendor's implementation of a service, and its fake. |
 | `src/ingest/` | Price-file rules: chain seeds, file names, XML parsing, writing stores and prices. |
@@ -27,6 +28,8 @@ How the code inside `apps/api` is organised.
 Import anything in `src/` through the `#/` alias, never with relative paths: `import { buildDeps } from "#/deps.ts"`. The alias is Node's subpath `imports` field in `package.json` (`"#/*": "./src/*"`), so Node, tsc and Vitest all resolve it with no extra config. Node requires these aliases to start with `#`, so `~` or `@` would need a loader hook.
 
 Node runs the TypeScript directly (type stripping, Node 24.14+), so there is no build step: `npm start` is `node src/api.ts`. That is why imports end in `.ts`, type-only imports use `import type`, and `tsconfig.json` sets `erasableSyntaxOnly` (no `enum`, `namespace` or constructor parameter properties).
+
+Rules the app must agree with (e.g. how long a Reset code lasts) come from the `@grocer/shared` workspace package (`packages/shared`): `import { RESET_CODE } from "@grocer/shared/reset-code"`. It is plain TypeScript too; Node strips its types because the workspace link resolves outside `node_modules`.
 
 ## Services and providers
 

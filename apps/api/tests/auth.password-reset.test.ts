@@ -41,18 +41,14 @@ function codeFrom(i = mail.sent.length - 1) {
 const wrong = (code: string) => (code === "000000" ? "111111" : "000000");
 
 describe("Password reset", () => {
-  it("emails exactly one 6-digit Reset code to an email-and-password User, in Hebrew and English", async () => {
+  // The email's content is covered in tests/emails/.
+  it("emails exactly one 6-digit Reset code to an email-and-password User", async () => {
     await signUp("a@reset.test");
     const res = await requestReset("a@reset.test");
     expect(res.status).toBe(200);
     expect(mail.sent).toHaveLength(1);
-    const [email] = mail.sent;
-    expect(email.to).toBe("a@reset.test");
-    expect(email.text).toMatch(/\b\d{6}\b/);
-    expect(email.html).toContain(codeFrom());
-    expect(email.text).toMatch(/[֐-׿]/);
-    expect(email.text).toMatch(/5 minutes/);
-    expect(email.text.search(/[֐-׿]/)).toBeLessThan(email.text.search(/[A-Za-z]{4}/));
+    expect(mail.sent[0].to).toBe("a@reset.test");
+    expect(mail.sent[0].text).toMatch(/\b\d{6}\b/);
   });
 
   it("answers an unknown email and a Google-only User exactly like a real one, and sends nothing", async () => {

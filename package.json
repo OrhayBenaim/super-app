@@ -2,7 +2,8 @@
   "name": "grocer",
   "private": true,
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "engines": {
     "node": ">=24.14"
