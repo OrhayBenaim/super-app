@@ -23,6 +23,7 @@ export function decodeXml(buf: Buffer): string {
 const parser = new XMLParser({
   ignoreDeclaration: true,
   parseTagValue: false,
+  htmlEntities: true, // real addresses contain "&#x0D;"; without this numeric entities stay literal
   transformTagName: (n) => n.toLowerCase(),
   isArray: (n) => ["subchain", "store", "item", "product"].includes(n),
 });
@@ -35,12 +36,12 @@ function root(xml: string): Node {
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-// Real files fill blanks with "לא ידוע" / "Unknown" / "unknown" (Cerberus chains, 2026-11-01).
-const known = (v: unknown) => (/^(לא ידוע|unknown)$/i.test(str(v)) ? "" : str(v));
+// Real files fill blanks with "לא ידוע" / "Unknown" / "unknown", or bare punctuation: "," (Keshet, Stop Market), "---" (Shufersal).
+const known = (v: unknown) => (/^(לא ידוע|unknown)$/i.test(str(v)) || !/[\p{L}\p{N}]/u.test(str(v)) ? "" : str(v));
 const id = (v: unknown) => str(v).replace(/^0+(?=\d)/, ""); // "034" and "34" are the same store
 const num = (v: unknown) => {
   const n = Number(str(v));
-  return str(v) === "" || Number.isNaN(n) ? null : n;
+  return str(v) === "" || !Number.isFinite(n) ? null : n;
 };
 
 // CBS locality codes, the most common City values in real Stores files (2026-11-01), each checked against store names.

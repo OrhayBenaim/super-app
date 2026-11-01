@@ -18,8 +18,8 @@ export function nominatimUrl(address: string, city: string, name = "") {
 
 export function parseNominatim(json: unknown): { lat: number; lng: number } | null {
   const hit = Array.isArray(json) ? json[0] : undefined;
-  const lat = Number(hit?.lat);
-  const lng = Number(hit?.lon);
+  const lat = parseFloat(hit?.lat); // Number(null) and Number("") are 0, which would geocode a store to the Gulf of Guinea
+  const lng = parseFloat(hit?.lon);
   return hit && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 }
 
