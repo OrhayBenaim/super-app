@@ -29,19 +29,27 @@ export async function syncGeofences(coords: Coords, codes: string[]) {
   await Location.startGeofencingAsync(GEOFENCE_TASK, toRegions(stores)); // replaces the previous set
 }
 
+/** Turns nearby alerts off and leaves nothing of them on the phone. Safe when geofencing never started. */
+export async function disableNearbyAlerts() {
+  await stop();
+  await SecureStore.deleteItemAsync(STORES_KEY);
+  await SecureStore.setItemAsync(ENABLED_KEY, "0");
+  useEnabled.setState({ enabled: false });
+}
+
 export function useNearbyAlerts() {
   const enabled = useEnabled((s) => s.enabled);
 
   /** Returns false when a permission was refused (the switch stays off). */
   const setEnabled = async (on: boolean) => {
-    if (on) {
-      if (!(await requestBackgroundPermission())) return false;
-      if (!(await Notifications.requestPermissionsAsync()).granted) return false;
-    } else {
-      await stop();
+    if (!on) {
+      await disableNearbyAlerts();
+      return true;
     }
-    await SecureStore.setItemAsync(ENABLED_KEY, on ? "1" : "0");
-    useEnabled.setState({ enabled: on });
+    if (!(await requestBackgroundPermission())) return false;
+    if (!(await Notifications.requestPermissionsAsync()).granted) return false;
+    await SecureStore.setItemAsync(ENABLED_KEY, "1");
+    useEnabled.setState({ enabled: true });
     return true;
   };
 
