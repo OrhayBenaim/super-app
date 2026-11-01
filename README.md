@@ -2,13 +2,13 @@
 
 Grocery list + cheapest-supermarket finder for Israel. npm-workspaces monorepo:
 
-- `apps/api` — Node 22.18+ (runs TypeScript natively) + TypeScript, Hono, Drizzle ORM on SQLite (better-sqlite3), better-auth.
+- `apps/api` — Node 24.14+ (runs TypeScript natively) + TypeScript, Hono, Drizzle ORM on SQLite (better-sqlite3), better-auth.
 - `apps/mobile` — Expo SDK 58 + expo-router app (iOS/Android).
 
 ## Run
 
 ```bash
-nvm use                       # Node 22
+nvm use                       # Node 24
 npm install                   # installs both apps
 cp apps/api/.env.example apps/api/.env
 cp apps/mobile/.env.example apps/mobile/.env
@@ -51,6 +51,19 @@ then `npm run ingest -- --chain rami-levy --stores /tmp/prices/rami-levy/Stores*
 then `npm run geocode -- --chain rami-levy` to fill store coordinates from Nominatim at 1 req/s. Stores without coordinates are left out of `/api/compare`.
 Behind an HTTPS proxy, prefix `fetch`/`geocode` with `NODE_USE_ENV_PROXY=1`. The price portals and Nominatim may block non-Israeli or cloud IPs.
 On Windows a whole chain's `--prices` list can pass cmd's 8191-character limit through `npm run`; run `node src/worker.ts ingest-prices ...` from the download folder with relative names instead.
+
+### Price sync
+
+A Price sync (`CONTEXT.md`, "Prices") does fetch, ingest and geocode for every chain and every store in one run, recorded in
+`sync_runs` and `sync_chain_results`. A chain that fails keeps its previous prices; the others continue.
+
+- `npm run sync -w apps/api [-- --max-stores N]`: run one Manual sync now and exit.
+- `npm run worker -w apps/api`: the long-running worker, a second process next to the API on the same SQLite file. Once a
+  minute it runs Scheduled syncs at `SYNC_TIMES` and any waiting Manual sync request. SIGTERM stops a sync after its current
+  chain (recorded as interrupted).
+- Manual sync from the internal dashboard: `curl -X POST -H "Authorization: Bearer $SYNC_TOKEN" http://127.0.0.1:3001/sync`
+  answers 202 `{ "id": n }` (recorded; the worker runs it within a minute), 409 while a sync is running or waiting, 401 without
+  the token. A finished Manual sync skips the next Scheduled sync.
 
 ### Price sync
 
