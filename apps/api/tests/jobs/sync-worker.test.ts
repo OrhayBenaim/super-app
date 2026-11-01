@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { syncRuns } from "#/db/appSchema.ts";
 import { buildDeps, type Deps } from "#/deps.ts";
-import { priceSyncCheck } from "#/jobs/price-sync.ts";
+import { priceSyncCheck, syncWorkerJob } from "#/jobs/sync-worker.ts";
 import { fakeGeocoder } from "#/providers/nominatim/fake.ts";
 import { fakePricePortal } from "#/providers/price-portals/fake.ts";
 import { loadConfig } from "#/services/config.ts";
@@ -170,5 +170,20 @@ describe("priceSyncCheck: Manual syncs", () => {
       ["manual", "interrupted", null],
       ["scheduled", "finished", null],
     ]);
+  });
+});
+
+describe("syncWorkerJob", () => {
+  it("SIGTERM during a sync lets the current Chain finish, records an Interrupted sync and returns", async () => {
+    const sigterm = new AbortController();
+    const fake = fakePricePortal(osherFiles);
+    const { deps } = setup("2026-11-02T06:00:00Z", {
+      pricePortal: { open: async (chain) => (chain.key === "osher-ad" && sigterm.abort(), fake.open()) },
+    });
+    const id = deps.db.insert(syncRuns).values({ trigger: "manual", status: "requested", requestedAt: new Date() }).returning().get().id;
+    await syncWorkerJob(deps)({}, sigterm.signal); // returns well before the next minute tick
+    expect(runs(deps).map((r) => [r.id, r.status])).toEqual([[id, "interrupted"]]);
+    const osher = deps.db.$client.prepare("SELECT status FROM sync_chain_results WHERE sync_run_id = ? AND chain_id = ?").get(id, OSHER);
+    expect(osher).toEqual({ status: "ok" });
   });
 });

@@ -97,7 +97,7 @@ export function geocodeStoresJob(deps: Deps) {
 | `ingest-prices` | `npm run ingest` | Loads Stores and PriceFull files into the database. |
 | `geocode-stores` | `npm run geocode` | Fills store coordinates through `deps.geocoder`. |
 | `price-sync` | `npm run sync` | One Price sync now: fetch, load and geocode every chain, recorded in `sync_runs`/`sync_chain_results`. |
-| `sync-worker` | `npm run worker` | Long-running: runs `priceSyncCheck` once a minute (Scheduled syncs, Manual sync requests, Skipped syncs). |
+| `sync-worker` | `npm run worker` | Long-running (`src/jobs/sync-worker.ts`): runs `priceSyncCheck` once a minute (Scheduled syncs, Manual sync requests, Skipped syncs). |
 
 Rules:
 

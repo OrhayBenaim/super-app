@@ -8,7 +8,8 @@ import { buildDeps, type Deps } from "#/deps.ts";
 import { fetchPricesJob } from "#/jobs/fetch-prices.ts";
 import { geocodeStoresJob } from "#/jobs/geocode-stores.ts";
 import { ingestPricesJob } from "#/jobs/ingest-prices.ts";
-import { priceSyncJob, syncWorkerJob } from "#/jobs/price-sync.ts";
+import { priceSyncJob } from "#/jobs/price-sync.ts";
+import { syncWorkerJob } from "#/jobs/sync-worker.ts";
 import { loadConfig } from "#/services/config.ts";
 
 const jobs = {
