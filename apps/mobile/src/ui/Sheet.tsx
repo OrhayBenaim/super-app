@@ -1,6 +1,7 @@
 import { BottomSheetBackdrop, BottomSheetModal, BottomSheetTextInput, BottomSheetView, type BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { I18nManager, View, type TextInputInstance, type TextInputProps } from "react-native";
+import { Easing, useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { springs, text, useTheme } from "@/theme";
 import { Text } from "./Text";
@@ -11,7 +12,9 @@ const Backdrop = (p: BottomSheetBackdropProps) => <BottomSheetBackdrop {...p} ap
 
 /** Content-sized modal bottom sheet (gorhom, needs BottomSheetModalProvider in app/_layout) driven by `open`; covers the tab bar. */
 export function Sheet({ open, onClose, children }: SheetProps) {
-  const { colors, space, radius } = useTheme();
+  const { colors, space, radius, motion } = useTheme();
+  const reduced = useReducedMotion();
+  const [x1, y1, x2, y2] = motion.easing.sheet;
   const insets = useSafeAreaInsets();
   const ref = useRef<BottomSheetModal>(null);
   useEffect(() => {
@@ -24,7 +27,7 @@ export function Sheet({ open, onClose, children }: SheetProps) {
       ref={ref}
       enableDynamicSizing
       enablePanDownToClose
-      animationConfigs={springs.sheet}
+      animationConfigs={reduced ? { duration: motion.duration.base, easing: Easing.bezier(x1, y1, x2, y2) } : springs.sheet}
       onDismiss={onClose}
       backdropComponent={Backdrop}
       keyboardBehavior="interactive"

@@ -9,6 +9,8 @@ import type { Sort } from "./sort";
 
 const OPTIONS: Sort[] = ["price", "distance", "coverage"];
 const PAD = 2;
+// Segments are 44pt tall for the touch target; the pill stays 36pt.
+const INSET = 4;
 
 /** Segmented control; the pill slides between segments (spatial consistency: it shows where the selection went). */
 export function SortControl({ value, onChange }: { value: Sort; onChange: (s: Sort) => void }) {
@@ -36,7 +38,7 @@ export function SortControl({ value, onChange }: { value: Sort; onChange: (s: So
       {segW > 0 && (
         <Animated.View
           style={[
-            { position: "absolute", top: PAD, bottom: PAD, start: PAD, width: segW, borderRadius: radius.sm - PAD, backgroundColor: colors.surfaceRaised },
+            { position: "absolute", top: PAD + INSET, bottom: PAD + INSET, start: PAD, width: segW, borderRadius: radius.sm - PAD, backgroundColor: colors.surfaceRaised },
             shadow.sm,
             pill,
           ]}
@@ -55,7 +57,7 @@ export function SortControl({ value, onChange }: { value: Sort; onChange: (s: So
               Haptics.selectionAsync();
               onChange(o);
             }}
-            style={{ flex: 1, minHeight: 36, alignItems: "center", justifyContent: "center" }}
+            style={{ flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center" }}
           >
             <Text variant="subhead" color={selected ? "text" : "textSecondary"} style={{ fontWeight: selected ? "600" : "400" }}>
               {t(`compare.sort.${o}`)}

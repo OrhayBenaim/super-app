@@ -99,7 +99,7 @@ export default function Onboarding() {
             <Dot key={slide.title} i={i} scrollX={scrollX} width={width} />
           ))}
         </View>
-        <Button layout={ctaLayout} style={{ minWidth: 120 }} title={t(last ? "common.getStarted" : "common.next")} onPress={next} />
+        <Button layout={ctaLayout} style={{ minWidth: 120 }} title={t(last ? "common.getStarted" : "common.next")} haptic={last} onPress={next} />
       </View>
     </Screen>
   );

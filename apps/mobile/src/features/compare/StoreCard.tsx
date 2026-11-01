@@ -114,7 +114,7 @@ export function StoreCard({ store, basketSize, best, names, listText }: Props) {
 
       <View style={{ gap: space[3] }}>
         <View style={{ flexDirection: "row", gap: space[3] }}>
-          <Button title={t("compare.order")} icon={ShoppingCart} disabled={!store.orderUrl} onPress={order} style={{ flex: 1 }} />
+          <Button title={t("compare.order")} haptic icon={ShoppingCart} disabled={!store.orderUrl} onPress={order} style={{ flex: 1 }} />
           <Tap
             accessibilityLabel={fmt(t("compare.navigate"), { store: label })}
             onPress={() => openWaze(store.lat, store.lng)}

@@ -160,6 +160,7 @@ export default function SignIn() {
         <Button
           layout={layout}
           title={t(mode === "signUp" ? "auth.signUp" : "auth.signIn")}
+          haptic
           loading={busy === "email"}
           disabled={!!busy && busy !== "email"}
           onPress={submit}

@@ -1,8 +1,9 @@
+import * as Haptics from "expo-haptics";
 import type { LucideIcon } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { I18nManager, View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import Animated, { interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated, { interpolate, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { springs, useTheme, type ColorName } from "@/theme";
 
@@ -59,6 +60,14 @@ export function SwipeRow({ children, to, onCommit, color, icon: Icon, actionLabe
       if (commit) scheduleOnRN(onCommit);
     },
   });
+
+  // One light tap when the swipe first arms (the "drag commits" moment), not per frame.
+  useAnimatedReaction(
+    () => armed.get(),
+    (now, prev) => {
+      if (now && !prev) scheduleOnRN(Haptics.impactAsync, Haptics.ImpactFeedbackStyle.Light);
+    },
+  );
 
   const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
   const bgStyle = useAnimatedStyle(() => ({ opacity: interpolate(Math.abs(x.get()), [0, 24], [0, 1], "clamp") }));

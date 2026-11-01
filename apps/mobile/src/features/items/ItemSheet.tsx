@@ -196,7 +196,7 @@ export function ItemSheet({ open, onClose, listId, item }: ItemSheetProps) {
       ) : (
         <View style={{ flexDirection: "row", gap: space[3] }}>
           <Button title={t("common.done")} variant="secondary" onPress={onClose} style={{ flex: 1 }} />
-          <Button title={t("items.addButton")} icon={Plus} disabled={!valid} loading={add.isPending} onPress={submitAdd} style={{ flex: 2 }} />
+          <Button title={t("items.addButton")} haptic icon={Plus} disabled={!valid} loading={add.isPending} onPress={submitAdd} style={{ flex: 2 }} />
         </View>
       )}
     </Sheet>

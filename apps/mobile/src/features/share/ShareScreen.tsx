@@ -104,7 +104,7 @@ export function ShareScreen() {
             </View>
           </Animated.View>
         ) : (
-          <Button title={t("share.invite")} icon={UserPlus} loading={invite.isPending} disabled={!listId} onPress={() => invite.mutate(undefined, { onError: () => Alert.alert(t("common.error")) })} />
+          <Button title={t("share.invite")} haptic icon={UserPlus} loading={invite.isPending} disabled={!listId} onPress={() => invite.mutate(undefined, { onError: () => Alert.alert(t("common.error")) })} />
         )}
       </View>
 

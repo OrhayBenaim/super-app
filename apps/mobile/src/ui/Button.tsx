@@ -13,6 +13,8 @@ export type ButtonProps = Omit<TapProps, "accessibilityLabel" | "children"> & {
   loading?: boolean;
   icon?: LucideIcon;
   accessibilityLabel?: string;
+  /** Light impact on press; only for committing actions. */
+  haptic?: boolean;
 };
 
 const look: Record<Variant, { bg: ColorName | null; fg: ColorName }> = {
@@ -21,7 +23,7 @@ const look: Record<Variant, { bg: ColorName | null; fg: ColorName }> = {
   ghost: { bg: null, fg: "primary" },
 };
 
-export function Button({ title, variant = "primary", loading, icon: Icon, disabled, onPress, style, accessibilityLabel, ...rest }: ButtonProps) {
+export function Button({ title, variant = "primary", loading, icon: Icon, disabled, onPress, style, accessibilityLabel, haptic = false, ...rest }: ButtonProps) {
   const { colors, radius, space } = useTheme();
   const { bg, fg } = look[variant];
   const off = disabled || loading;
@@ -32,7 +34,7 @@ export function Button({ title, variant = "primary", loading, icon: Icon, disabl
       accessibilityState={{ disabled: !!off, busy: !!loading }}
       disabled={off}
       onPress={(e) => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (haptic) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress?.(e);
       }}
       style={[
