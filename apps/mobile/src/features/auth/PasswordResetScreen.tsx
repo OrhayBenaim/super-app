@@ -2,7 +2,7 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { View, type TextInputInstance } from "react-native";
-import { formatCountdown, codeStatus, MAX_TRIES } from "@/features/auth/resetCode";
+import { codeStatus, formatCountdown, MAX_TRIES, type SentCode } from "@/features/auth/resetCode";
 import { authErrorKey, validate } from "@/features/auth/validate";
 import { fmt } from "@/features/compare/format";
 import { authClient } from "@/lib/auth-client";
@@ -19,7 +19,7 @@ export function PasswordResetScreen() {
   const [email, setEmail] = useState(params.email ?? "");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
-  const [sent, setSent] = useState<{ sentAt: number; wrongTries: number } | null>(null);
+  const [sent, setSent] = useState<SentCode | null>(null);
   const [now, setNow] = useState(Date.now);
   const [error, setError] = useState<StringKey | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
@@ -89,8 +89,7 @@ export function PasswordResetScreen() {
     });
   }
 
-  const lockKey: StringKey | null = status?.lock === "expired" ? "auth.reset.expired" : status?.lock ? "auth.reset.tooManyTries" : null;
-  const message = lockKey ?? error;
+  const message = status?.lock ?? error;
   const footnote: StringKey | null = message ?? (sent ? "auth.passwordHint" : null);
   return (
     <Screen scroll keyboard style={{ paddingTop: space[10], paddingBottom: space[8], gap: space[4] }}>

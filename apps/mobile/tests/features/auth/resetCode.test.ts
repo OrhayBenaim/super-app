@@ -14,13 +14,13 @@ it("counts down from 5 minutes and reaches 0:00 at 5 minutes", () => {
 
 it("locks as expired at 5 minutes", () => {
   expect(codeStatus({ sentAt, wrongTries: 0 }, at(299)).lock).toBeNull();
-  expect(codeStatus({ sentAt, wrongTries: 0 }, at(300)).lock).toBe("expired");
+  expect(codeStatus({ sentAt, wrongTries: 0 }, at(300)).lock).toBe("auth.reset.expired");
 });
 
 it("locks after 3 wrong tries, even before expiry", () => {
   expect(codeStatus({ sentAt, wrongTries: 2 }, at(10)).lock).toBeNull();
-  expect(codeStatus({ sentAt, wrongTries: 3 }, at(10)).lock).toBe("tooManyTries");
-  expect(codeStatus({ sentAt, wrongTries: 3 }, at(400)).lock).toBe("tooManyTries");
+  expect(codeStatus({ sentAt, wrongTries: 3 }, at(10)).lock).toBe("auth.reset.tooManyTries");
+  expect(codeStatus({ sentAt, wrongTries: 3 }, at(400)).lock).toBe("auth.reset.tooManyTries");
 });
 
 it("allows a new code 60 seconds after the last send, while the countdown still runs", () => {

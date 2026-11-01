@@ -1,14 +1,17 @@
+import type { StringKey } from "@/lib/strings";
+
 // Mirrors the API's emailOTP settings (apps/api/src/auth.ts).
 const CODE_MS = 5 * 60_000;
 export const MAX_TRIES = 3;
 const RESEND_MS = 60_000;
 
-export type CodeLock = "expired" | "tooManyTries";
+/** A sent Reset code. A new send starts over at wrongTries 0. */
+export type SentCode = { sentAt: number; wrongTries: number };
 
-/** The Reset code's life, from when it was sent and how many wrong tries it has had. A new send starts over at wrongTries 0. */
-export function codeStatus({ sentAt, wrongTries }: { sentAt: number; wrongTries: number }, now: number) {
+/** The Reset code's life; `lock` is the message key for a code that can no longer be used. */
+export function codeStatus({ sentAt, wrongTries }: SentCode, now: number) {
   const msLeft = Math.max(0, sentAt + CODE_MS - now);
-  const lock: CodeLock | null = wrongTries >= MAX_TRIES ? "tooManyTries" : msLeft === 0 ? "expired" : null;
+  const lock: StringKey | null = wrongTries >= MAX_TRIES ? "auth.reset.tooManyTries" : msLeft === 0 ? "auth.reset.expired" : null;
   return { msLeft, lock, resendInMs: Math.max(0, sentAt + RESEND_MS - now) };
 }
 

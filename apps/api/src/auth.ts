@@ -12,7 +12,7 @@ import type { Email, MailerService } from "#/services/mailer.ts";
 const RESET_MINUTES = 5;
 
 /** The Reset code email: Hebrew first, English below. */
-export function resetCodeEmail(to: string, code: string, minutes: number): Email {
+function resetCodeEmail(to: string, code: string, minutes: number): Email {
   const he = [`קוד האיפוס שלך ל-Grocer: ${code}`, `הקוד בתוקף ל-${minutes} דקות.`, "אם לא ביקשת לאפס את הסיסמה, אפשר להתעלם מהמייל הזה."];
   const en = [`Your Grocer reset code: ${code}`, `It is valid for ${minutes} minutes.`, "If you didn't ask to reset your password, you can ignore this email."];
   const block = (lines: string[], dir: "rtl" | "ltr") =>
@@ -26,7 +26,6 @@ export function resetCodeEmail(to: string, code: string, minutes: number): Email
 }
 
 export function createAuth(db: Db, config: Config, mailer: MailerService) {
-  // Only email-and-password Users get a Reset code; for anyone else send nothing, so the response is the same.
   const hasPassword = (email: string) =>
     !!db
       .select({ id: schema.account.id })
@@ -42,12 +41,14 @@ export function createAuth(db: Db, config: Config, mailer: MailerService) {
     emailAndPassword: { enabled: true, revokeSessionsOnPasswordReset: true },
     // emailOTP is only for Password reset: no OTP sign-in, no email verification.
     disabledPaths: ["/sign-in/email-otp", "/email-otp/send-verification-otp", "/email-otp/verify-email", "/forget-password/email-otp"],
-    // A code is stored for every existing User, so refuse it for Users without a password; else a guessed code adds one.
+    // Password reset is only for Users with a password: others get the same answer as a real request but no code,
+    // and can't use a code to gain a password.
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         const email = ctx.body?.email;
-        if (ctx.path === "/email-otp/reset-password" && typeof email === "string" && !hasPassword(email.toLowerCase()))
-          throw APIError.from("BAD_REQUEST", { code: "INVALID_OTP", message: "Invalid OTP" });
+        if (typeof email !== "string" || hasPassword(email.toLowerCase())) return;
+        if (ctx.path === "/email-otp/request-password-reset") return ctx.json({ success: true });
+        if (ctx.path === "/email-otp/reset-password") throw APIError.from("BAD_REQUEST", { code: "INVALID_OTP", message: "Invalid OTP" });
       }),
     },
     // Account deletion: schema cascades remove owned Lists and memberships; sessions older than freshAge get SESSION_EXPIRED.
@@ -78,8 +79,9 @@ export function createAuth(db: Db, config: Config, mailer: MailerService) {
         otpLength: 6,
         expiresIn: RESET_MINUTES * 60,
         allowedAttempts: 3,
-        async sendVerificationOTP({ email, otp, type }) {
-          if (type === "forget-password" && hasPassword(email)) await mailer.send(resetCodeEmail(email, otp, RESET_MINUTES));
+        // Only the password-reset paths are enabled, and the hook above lets through only Users with a password.
+        async sendVerificationOTP({ email, otp }) {
+          await mailer.send(resetCodeEmail(email, otp, RESET_MINUTES));
         },
       }),
     ],
