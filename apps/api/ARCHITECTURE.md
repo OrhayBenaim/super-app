@@ -10,6 +10,7 @@ How the code inside `apps/api` is organised.
 | `src/worker.ts` | `worker` entry point: runs one job (see [Jobs](#jobs)). |
 | `src/jobs/<job>.ts` | One handler per job. |
 | `src/app.ts` | `createApp(deps)`: app-wide middleware and error handling, and mounts the routers. No route logic. |
+| `src/internal-app.ts` | `createInternalApp(deps)`: the private trigger (`POST /sync`), served by `api.ts` on its own internal port. |
 | `src/middleware.ts` | `AppEnv` (the context variables) and `requireUser`. |
 | `src/routes/<resource>.ts` | One router per resource. |
 | `src/deps.ts` | Composition root: `buildDeps(config, overrides)` builds every dependency once. |
@@ -95,12 +96,14 @@ export function geocodeStoresJob(deps: Deps) {
 | `fetch-prices` | `npm run fetch` | Downloads a chain's newest Stores file and PriceFull files through `deps.pricePortal`. |
 | `ingest-prices` | `npm run ingest` | Loads Stores and PriceFull files into the database. |
 | `geocode-stores` | `npm run geocode` | Fills store coordinates through `deps.geocoder`. |
+| `price-sync` | `npm run sync` | One Price sync now: fetch, load and geocode every chain, recorded in `sync_runs`/`sync_chain_results`. |
+| `sync-worker` | `npm run worker` | Long-running: runs `priceSyncCheck` once a minute (Scheduled syncs, Manual sync requests, Skipped syncs). |
 
 Rules:
 
 - **Jobs take `Deps`, nothing else**, like routers. They call vendors only through `deps` (see [Services and providers](#services-and-providers)).
 - **Handlers stay thin.** Business rules live in plain functions outside the handler.
-- **`worker.ts` stays thin.** It runs one job by name from the command line (`node src/worker.ts <job> [--flags]`), passes the flags as the job's data, and exits non-zero on failure. Each job validates its data with Zod. On SIGTERM it lets the running job finish.
+- **`worker.ts` stays thin.** It runs one job by name from the command line (`node src/worker.ts <job> [--flags]`), passes the flags as the job's data, and exits non-zero on failure. Each job validates its data with Zod. Each handler also gets an `AbortSignal` that SIGTERM fires: a Price sync stops after its current chain, other jobs ignore it and finish.
 - **Tests** call the handler directly with fakes from `tests/jobs/<job>.test.ts`. No worker process is started.
 
 ## Responses don't reveal internals
