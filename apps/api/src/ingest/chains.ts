@@ -28,3 +28,9 @@ export const chainSeeds: ChainSeed[] = [
   { ids: ["7291059100008"], key: "politzer", name: "Politzer", nameHe: "פוליצר", source: { cerberus: "politzer" }, orderUrl: null },
   { ids: ["7290526500006"], key: "salach-dabach", name: "Salach Dabach", nameHe: "סאלח דבאח", source: { cerberus: "SalachD" }, orderUrl: null },
 ];
+
+export function chainByKey(key: string) {
+  const chain = chainSeeds.find((c) => c.key === key);
+  if (!chain) throw new Error(`unknown chain "${key}"; one of: ${chainSeeds.map((c) => c.key).join(", ")}`);
+  return chain;
+}

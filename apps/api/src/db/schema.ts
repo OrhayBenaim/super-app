@@ -107,4 +107,4 @@ export const accountRelations = relations(account, ({ one }) => ({
   }),
 }));
 
-export * from "./appSchema.js";
+export * from "#/db/appSchema.ts";

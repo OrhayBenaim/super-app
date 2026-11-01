@@ -1,7 +1,7 @@
 // App (non-auth) tables go here; re-exported from schema.ts.
 import { sql } from "drizzle-orm";
 import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { user } from "./schema.js"; // circular with schema.ts, safe because references() is lazy
+import { user } from "#/db/schema.ts"; // circular with schema.ts, safe because references() is lazy
 
 const createdAt = () =>
   integer("created_at", { mode: "timestamp_ms" })

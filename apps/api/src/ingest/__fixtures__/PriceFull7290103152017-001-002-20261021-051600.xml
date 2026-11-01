@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Root><ChainID>7290103152017</ChainID><SubChainID>001</SubChainID><StoreID>2</StoreID><BikoretNo>7</BikoretNo>
- <Items Count="2">
-  <Item><PriceUpdateDate>2026-10-21 05:16</PriceUpdateDate><ItemCode>7290000000001</ItemCode><ItemType>1</ItemType><ItemName>חלב תנובה 3%</ItemName><ManufacturerName>תנובה</ManufacturerName><ManufactureCountry>IL</ManufactureCountry><UnitQty>ליטר</UnitQty><Quantity>1.00</Quantity><UnitOfMeasure>100 גרם</UnitOfMeasure><bIsWeighted>0</bIsWeighted><QtyInPackage>0</QtyInPackage><ItemPrice>5.50</ItemPrice><UnitOfMeasurePrice>0.60</UnitOfMeasurePrice><AllowDiscount>1</AllowDiscount><ItemStatus>1</ItemStatus></Item>
-  <Item><PriceUpdateDate>2026-10-21 05:16</PriceUpdateDate><ItemCode>7290000000003</ItemCode><ItemType>1</ItemType><ItemName>ביצים L 12 יח</ItemName><ManufacturerName></ManufacturerName><ManufactureCountry>IL</ManufactureCountry><UnitQty>יחידה</UnitQty><Quantity>1.00</Quantity><UnitOfMeasure>100 גרם</UnitOfMeasure><bIsWeighted>0</bIsWeighted><QtyInPackage>0</QtyInPackage><ItemPrice>11.00</ItemPrice><UnitOfMeasurePrice>0.60</UnitOfMeasurePrice><AllowDiscount>1</AllowDiscount><ItemStatus>1</ItemStatus></Item>
- </Items></Root>

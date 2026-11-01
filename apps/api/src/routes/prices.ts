@@ -1,9 +1,7 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import { db } from "../db/index.js";
-import { requireUser, type AppEnv } from "../middleware.js";
-
-const sqlite = db.$client;
+import type { Db } from "#/db/index.ts";
+import { requireUser, type AppEnv } from "#/middleware.ts";
 
 const searchQuery = z.object({
   q: z.string().trim().min(1).max(100),
@@ -21,19 +19,23 @@ const compareBody = z.object({
 const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
 
 const productCols = `p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, count(pr.store_id) AS storeCount, min(pr.price) AS minPrice`;
-const ftsSearch = sqlite.prepare(
-  `SELECT ${productCols} FROM products_fts f JOIN products p ON p.code = f.code JOIN prices pr ON pr.code = p.code
-   WHERE products_fts MATCH ? GROUP BY p.code ORDER BY min(f.rank), storeCount DESC LIMIT ?`,
-);
-const likeSearch = sqlite.prepare(
-  `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
-   WHERE p.name LIKE ? ESCAPE '\\' OR p.code = ? GROUP BY p.code ORDER BY storeCount DESC LIMIT ?`,
-);
+const FTS_SEARCH = `SELECT ${productCols} FROM products_fts f JOIN products p ON p.code = f.code JOIN prices pr ON pr.code = p.code
+   WHERE products_fts MATCH ? GROUP BY p.code ORDER BY min(f.rank), storeCount DESC LIMIT ?`;
+const LIKE_SEARCH = `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
+   WHERE p.name LIKE ? ESCAPE '\\' OR p.code = ? GROUP BY p.code ORDER BY storeCount DESC LIMIT ?`;
+const CODE_SEARCH = `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
+   WHERE p.code = ? OR (p.code LIKE ? AND instr(p.code, ':') = 0) GROUP BY p.code ORDER BY p.code = ? DESC, storeCount DESC LIMIT ?`;
 
-const codeSearch = sqlite.prepare(
-  `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
-   WHERE p.code = ? OR (p.code LIKE ? AND instr(p.code, ':') = 0) GROUP BY p.code ORDER BY p.code = ? DESC, storeCount DESC LIMIT ?`,
-);
+/** Barcode, name prefix (FTS) or free text (LIKE) search over products that some store prices. */
+export function searchProducts(db: Db, q: string, limit: number) {
+  const sqlite = db.$client;
+  const tokens = q.split(/\s+/);
+  // Letters/digits only go to FTS as quoted prefix terms (quotes keep AND/OR/NOT/NEAR literal); anything else (quotes, %, -) would be FTS syntax, so use LIKE.
+  if (/^\d{8,}$/.test(q)) return sqlite.prepare(CODE_SEARCH).all(q, `${q}%`, q, limit); // barcode: exact code first, then code prefix
+  if (tokens.every((t) => /^[\p{L}\p{N}]+$/u.test(t)))
+    return sqlite.prepare(FTS_SEARCH).all(tokens.map((t) => `"${t}"*`).join(" "), limit);
+  return sqlite.prepare(LIKE_SEARCH).all(`%${q.replace(/[\\%_]/g, "\\$&")}%`, q, limit);
+}
 
 const R = 6371;
 const KM_PER_DEG = 111; // below R*pi/180 = 111.195 so the bounding box always contains the circle
@@ -49,32 +51,13 @@ type PriceRow = {
   address: string; city: string; lat: number; lng: number; code: string; price: number;
 };
 
-export const pricesRoutes = new Hono<AppEnv>();
-
-pricesRoutes.get("/chains", (c) => c.json(sqlite.prepare("SELECT id, name, name_he AS nameHe, order_url AS orderUrl FROM chains ORDER BY name").all()));
-
-pricesRoutes.get("/products/search", (c) => {
-  const p = searchQuery.safeParse(c.req.query());
-  if (!p.success) return bad(c, p.error);
-  const { q, limit } = p.data;
-  const tokens = q.split(/\s+/);
-  // Letters/digits only go to FTS as quoted prefix terms (quotes keep AND/OR/NOT/NEAR literal); anything else (quotes, %, -) would be FTS syntax, so use LIKE.
-  const rows = /^\d{8,}$/.test(q)
-    ? codeSearch.all(q, `${q}%`, q, limit) // barcode: exact code first, then code prefix
-    : tokens.every((t) => /^[\p{L}\p{N}]+$/u.test(t))
-      ? ftsSearch.all(tokens.map((t) => `"${t}"*`).join(" "), limit)
-      : likeSearch.all(`%${q.replace(/[\\%_]/g, "\\$&")}%`, q, limit);
-  return c.json(rows);
-});
-
-pricesRoutes.post("/compare", requireUser, async (c) => {
-  const p = compareBody.safeParse(await c.req.json().catch(() => undefined));
-  if (!p.success) return bad(c, p.error);
-  const { lat, lng, radiusKm, sort, limit } = p.data;
-  const codes = [...new Set(p.data.codes)];
+/** What the list costs at each store within `radiusKm`, sorted and cut to `limit`, plus codes no store carries. */
+export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
+  const { lat, lng, radiusKm, sort, limit } = query;
+  const codes = [...new Set(query.codes)];
   const dLat = radiusKm / KM_PER_DEG;
   const dLng = radiusKm / (KM_PER_DEG * Math.max(Math.cos(rad(lat)), 0.01));
-  const rows = sqlite
+  const rows = db.$client
     .prepare(
       `SELECT s.id AS storeId, s.chain_id AS chainId, ch.name AS chainName, ch.order_url AS orderUrl, s.name AS storeName,
          s.address, s.city, s.lat, s.lng, pr.code, pr.price
@@ -117,5 +100,20 @@ pricesRoutes.post("/compare", requireUser, async (c) => {
     coverage: (a, b) => b.matched - a.matched || a.total - b.total,
   };
   stores.sort((a, b) => order[sort](a, b) || a.distanceKm - b.distanceKm);
-  return c.json({ stores: stores.slice(0, limit), unmatched: codes.filter((code) => !carried.has(code)) });
-});
+  return { stores: stores.slice(0, limit), unmatched: codes.filter((code) => !carried.has(code)) };
+}
+
+export const pricesRoutes = new Hono<AppEnv>()
+  .get("/chains", (c) =>
+    c.json(c.var.deps.db.$client.prepare("SELECT id, name, name_he AS nameHe, order_url AS orderUrl FROM chains ORDER BY name").all()),
+  )
+  .get("/products/search", (c) => {
+    const p = searchQuery.safeParse(c.req.query());
+    if (!p.success) return bad(c, p.error);
+    return c.json(searchProducts(c.var.deps.db, p.data.q, p.data.limit));
+  })
+  .post("/compare", requireUser, async (c) => {
+    const p = compareBody.safeParse(await c.req.json().catch(() => undefined));
+    if (!p.success) return bad(c, p.error);
+    return c.json(compareStores(c.var.deps.db, p.data));
+  });
