@@ -60,7 +60,7 @@ describe("parse", () => {
     const q = (address: string, city: string, name?: string) => decodeURIComponent(nominatimUrl(NOMINATIM, address, city, name)?.split("&q=")[1] ?? "") || null;
     expect(q("האומן,15", "ירושלים")).toBe("האומן 15, ירושלים, Israel");
     expect(q("הנדיב 71 הרצליה", "הרצליה", "פרשמרקט הנדיב")).toBe("הנדיב 71 הרצליה, Israel"); // city already in the address
-    expect(q("רחוב המפוח 11, אזור התעשיה", "", "יוחננוף מפוח")).toBe("רחוב המפוח 11, אזור התעשיה, יוחננוף מפוח, Israel");
+    expect(q("רחוב המפוח 11, אזור התעשיה", "", "יוחננוף מפוח")).toBe("המפוח 11, אזור התעשיה, יוחננוף מפוח, Israel");
     expect(q("האומן 5", "1015", "תלפיות")).toBe("האומן 5, תלפיות, Israel"); // undecoded CBS code counts as no city
     expect(q("", "", "יוחננוף בילו")).toBe("יוחננוף בילו, Israel");
     expect(q("", "", "")).toBeNull();

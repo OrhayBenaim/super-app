@@ -12,7 +12,7 @@ const cases: [string, string, number, object, string, string, object][] = [
   ["shufersal", "shufersal-stores.gz", 4, { storeId: "756", subChainId: "1", city: "באר יעקב" }, "shufersal-pricefull.gz", "1", { code: "10900302814", price: 10, unitPrice: 0.33 }],
   ["rami-levy", "rami-levy-stores.xml", 5, { storeId: "1", name: "תלפיות", address: "האומן,15", city: "ירושלים" }, "rami-levy-pricefull.gz", "1", { code: "7290017023212", price: 12.5, unitQty: null }],
   ["yohananof", "yohananof-stores.xml", 5, { storeId: "1", city: "" }, "yohananof-pricefull.gz", "1", { code: "1022788", price: 139, isWeighted: true }],
-  ["osher-ad", "osher-ad-stores.xml", 5, { storeId: "1", name: "מגדל העמק", city: "874" }, "osher-ad-pricefull.gz", "1", { code: "7290001041017", price: 5.8, unitQty: "50 גרם" }],
+  ["osher-ad", "osher-ad-stores.xml", 5, { storeId: "1", name: "מגדל העמק", city: "מגדל העמק" }, "osher-ad-pricefull.gz", "1", { code: "7290001041017", price: 5.8, unitQty: "50 גרם" }],
   ["tiv-taam", "tiv-taam-stores.xml", 5, { storeId: "2", city: "נתניה" }, "tiv-taam-pricefull.gz", "2", { code: "1101346", price: 145, manufacturer: null }],
   ["keshet", "keshet-stores.xml", 5, { storeId: "2", name: "נהריה" }, "keshet-pricefull.gz", "14", { code: "7290000001015", price: 99, unitQty: null }],
   ["stop-market", "stop-market-stores.xml", 5, { storeId: "2", name: "ארנה", city: "הרצליה" }, "stop-market-pricefull.gz", "2", { code: "7290000288024", price: 17.5 }],
