@@ -3,6 +3,8 @@ import { Stack } from "expo-router";
 import { useRef } from "react";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import "@/features/geofence/task"; // registers the background geofence task at startup
+import { useNearbyNotificationTap } from "@/features/geofence/useNearbyNotificationTap";
 import { authClient } from "@/lib/auth-client";
 
 const queryClient = new QueryClient();
@@ -13,6 +15,8 @@ export default function RootLayout() {
   // and returning null then would unmount the whole navigator mid-form.
   const loaded = useRef(false);
   if (!isPending) loaded.current = true;
+  // Navigate only once the navigator is mounted and the (tabs) group is reachable.
+  useNearbyNotificationTap(loaded.current && !!session);
   if (!loaded.current) return null; // session is cached in SecureStore, so this is brief
 
   // Protected groups: without a session expo-router redirects to (auth) (onboarding first), else (tabs).
