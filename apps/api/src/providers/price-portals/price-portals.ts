@@ -118,7 +118,7 @@ export function pricePortals(): PricePortal {
       else if (src.url.startsWith("https://laibcatalog.co.il/")) files = await laibList(chain.ids[0]!, jar);
       else if (src.url.startsWith("https://prices.carrefour.co.il/")) files = await carrefourList(src.url, jar);
       else {
-        // shortcut: Hazi Hinam's listing is not implemented (403 from a US IP, untested from Israel); add it once seen live.
+        // shortcut: Hazi Hinam's listing is not implemented (its page answers 200 from Israel); add it with the next chain.
         const res = await http(src.url, jar, {}, 20_000);
         throw new Error(`no downloader for ${chain.key} yet (portal answered HTTP ${res.status})`);
       }

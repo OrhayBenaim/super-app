@@ -1,5 +1,6 @@
-// Chains we know how to ingest. ChainIds and sources: docs/research/price-data.md section 1; every Cerberus ChainId
-// below was seen in that chain's own Stores and PriceFull files on 2026-11-01 (section "Verified live").
+// Chains we know how to ingest. ChainIds and sources: docs/research/price-data.md section 1; every chain's ids[0] except
+// Hazi Hinam's (no downloader yet) was seen in its own portal's files on 2026-11-01 (sections "Verified live"). The second
+// ids of Victory and Machsanei Hashuk were not: their portals list only ids[0].
 // orderUrl: shop home page, verified reachable from Israel per research; 403 from US IPs (Cloudflare/Radware) is expected.
 // No barcode-search template: Shufersal's /online/he/search?text=<code> served a maintenance image, not a product.
 export type ChainSeed = {
