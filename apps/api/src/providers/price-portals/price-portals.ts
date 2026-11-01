@@ -82,13 +82,13 @@ async function shufersalList(jar: Jar): Promise<PriceFile[]> {
 }
 
 // laibcatalog.co.il/<chain>/index.html is a JS page over a JSON API that lists every file of the chain in one response.
-const LAIB = "https://laibcatalog.co.il/webapi";
+const LAIBCATALOG_API = "https://laibcatalog.co.il/webapi";
 
 export const laibFiles = (rows: { fileName: string }[], chainId: string): PriceFile[] =>
-  rows.map((r) => ({ name: r.fileName, url: `${LAIB}/${chainId}/${encodeURIComponent(r.fileName)}` }));
+  rows.map((r) => ({ name: r.fileName, url: `${LAIBCATALOG_API}/${chainId}/${encodeURIComponent(r.fileName)}` }));
 
 async function laibList(chainId: string, jar: Jar): Promise<PriceFile[]> {
-  const res = await http(`${LAIB}/api/getfiles?edi=${chainId}`, jar);
+  const res = await http(`${LAIBCATALOG_API}/api/getfiles?edi=${chainId}`, jar);
   if (!res.ok) throw new Error(`laibcatalog getfiles?edi=${chainId}: HTTP ${res.status}`);
   return laibFiles((await res.json()) as { fileName: string }[], chainId);
 }

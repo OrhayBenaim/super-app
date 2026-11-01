@@ -19,7 +19,7 @@ export function parseNominatim(json: unknown): LatLng | null {
 }
 
 // Public Nominatim answers 403 "Access denied" to a placeholder contact (dev@example.com); a real project URL passes (2026-11-01).
-export const USER_AGENT = "Grocer/0.1 (+https://github.com/OrhayBenaim/super-app)";
+const USER_AGENT = "Grocer/0.1 (+https://github.com/OrhayBenaim/super-app)";
 
 /** At most 1 request per second (Nominatim usage policy). */
 export function nominatimGeocoder(base: string): Geocoder {

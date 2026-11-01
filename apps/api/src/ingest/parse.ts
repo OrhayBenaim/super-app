@@ -38,7 +38,7 @@ function root(xml: string): Node {
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 // Real files fill blanks with "לא ידוע" / "Unknown" / "unknown", or bare punctuation: "," (Keshet, Stop Market), "---" (Shufersal).
 const known = (v: unknown) => (/^(לא ידוע|unknown)$/i.test(str(v)) || !/[\p{L}\p{N}]/u.test(str(v)) ? "" : str(v));
-const id = (v: unknown) => str(v).replace(/^0+(?=\d)/, ""); // "034" and "34" are the same store
+export const id = (v: unknown) => str(v).replace(/^0+(?=\d)/, ""); // "034" and "34" are the same store
 const num = (v: unknown) => {
   const n = Number(str(v));
   return str(v) === "" || !Number.isFinite(n) ? null : n;

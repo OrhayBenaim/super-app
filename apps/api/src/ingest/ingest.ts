@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
-import { basename } from "node:path";
 import type { Deps } from "#/deps.ts";
 import { chainByKey } from "#/ingest/chains.ts";
-import { parseFileName } from "#/ingest/files.ts";
+import { storeOfFileName } from "#/ingest/files.ts";
 import { decodeXml, isGtin, parsePrices, parseStores } from "#/ingest/parse.ts";
 
 type IngestDeps = Pick<Deps, "db" | "clock">;
@@ -43,8 +42,7 @@ export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: s
   const chainId = chainFor(chainKey, parsed.chainId);
   // Carrefour's former Yeinot Bitan stores (files 400-473) carry their old StoreID inside, and 26 of those are other live
   // stores (file 407 says 117); the name matches the Stores file (2026-11-01).
-  const segments = fileName ? (parseFileName(basename(fileName))?.key.split("-") ?? []) : [];
-  const storeId = `${chainId}-${segments.length > 1 ? segments.at(-1)!.replace(/^0+(?=\d)/, "") : parsed.storeId}`;
+  const storeId = `${chainId}-${(fileName ? storeOfFileName(fileName) : null) ?? parsed.storeId}`;
   // Shufersal still lists months-old PriceFull files of closed stores; they must not abort the rest of the chain.
   if (!sqlite.prepare("SELECT 1 FROM stores WHERE id = ?").get(storeId)) {
     console.warn(`store ${storeId} is not in the chain's Stores file; skipped its prices`);
