@@ -76,6 +76,28 @@ describe("disableNearbyAlerts", () => {
     expect(m.setItem).toHaveBeenCalledWith("nearbyAlertsEnabled", "0");
   });
 
+  it("still saves the setting off when deleting the stored stores fails, and reports the failure", async () => {
+    m.deleteItem.mockRejectedValue(new Error("keychain"));
+    const { disableNearbyAlerts } = await load();
+    await expect(disableNearbyAlerts()).rejects.toThrow("keychain");
+    expect(m.setItem).toHaveBeenCalledWith("nearbyAlertsEnabled", "0");
+  });
+
+  it("a sync still fetching when alerts are turned off leaves no geofence or stored stores behind", async () => {
+    let respond!: (v: unknown) => void;
+    m.fetchCompare.mockReturnValue(new Promise((r) => (respond = r)));
+    const { disableNearbyAlerts, syncGeofences } = await load();
+    const sync = syncGeofences({ lat: 32.08, lng: 34.78 }, ["1"]);
+    await disableNearbyAlerts();
+    respond({ stores: [{ storeId: "s1", chainName: "C", storeName: "s1", total: 1, lat: 32, lng: 34 }], unmatched: [] });
+    await sync;
+    const last = (fn: { mock: { invocationCallOrder: number[] } }) => Math.max(0, ...fn.mock.invocationCallOrder);
+    if (m.start.mock.calls.length) expect(last(m.stop)).toBeGreaterThan(last(m.start));
+    const storesWrites = m.setItem.mock.calls.flatMap((c, i) => (c[0] === "nearbyStores" ? [m.setItem.mock.invocationCallOrder[i]] : []));
+    if (storesWrites.length) expect(last(m.deleteItem)).toBeGreaterThan(Math.max(...storesWrites));
+    expect(m.setItem).toHaveBeenLastCalledWith("nearbyAlertsEnabled", "0");
+  });
+
   it("makes later syncGeofences a no-op", async () => {
     const { disableNearbyAlerts, syncGeofences } = await load();
     await disableNearbyAlerts();

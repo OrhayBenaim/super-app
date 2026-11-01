@@ -27,18 +27,17 @@ export async function syncGeofences(coords: Coords, codes: string[]) {
   const info: StoreInfo = Object.fromEntries(stores.map((s) => [s.storeId, [`${s.chainName} ${s.storeName}`, s.total]]));
   await SecureStore.setItemAsync(STORES_KEY, JSON.stringify(info));
   await Location.startGeofencingAsync(GEOFENCE_TASK, toRegions(stores)); // replaces the previous set
+  if (!useEnabled.getState().enabled) await disableNearbyAlerts(); // turned off while this sync ran: undo it
 }
 
 /** Turns nearby alerts off and leaves nothing of them on the phone. Safe when geofencing never started. */
 export async function disableNearbyAlerts() {
-  try {
-    await stop();
-  } finally {
-    // the stored data and setting go even if the OS refuses to stop geofencing
-    useEnabled.setState({ enabled: false });
-    await SecureStore.deleteItemAsync(STORES_KEY);
-    await SecureStore.setItemAsync(ENABLED_KEY, "0");
-  }
+  useEnabled.setState({ enabled: false }); // first, so a sync still in flight sees it and undoes its work
+  // Every step runs even if another fails; the first failure is reported.
+  const failed = (await Promise.allSettled([stop(), SecureStore.deleteItemAsync(STORES_KEY), SecureStore.setItemAsync(ENABLED_KEY, "0")])).find(
+    (r) => r.status === "rejected",
+  );
+  if (failed) throw failed.reason;
 }
 
 export function useNearbyAlerts() {
