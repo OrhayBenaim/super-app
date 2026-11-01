@@ -51,6 +51,22 @@ describe("priceSyncJob", () => {
     expect(rows(deps, "SELECT DISTINCT store_id FROM prices")).toEqual([{ store_id: `${OSHER}-4` }]);
   });
 
+  it("fails a Chain whose every PriceFull names a store missing from its Stores file", async () => {
+    const unknown = {
+      [`Stores${OSHER}-000-20261021-080500.xml`]: osherFiles[`Stores${OSHER}-000-20261021-080500.xml`]!,
+      [`PriceFull${OSHER}-001-998-20261021-051600.gz`]: osherFiles[`PriceFull${OSHER}-001-001-20261021-051600.gz`]!,
+      [`PriceFull${OSHER}-001-999-20261021-051600.xml`]: osherFiles[`PriceFull${OSHER}-001-002-20261021-051600.xml`]!,
+    };
+    const deps = setup({ pricePortal: fakePricePortal(unknown) });
+    const id = await priceSyncJob(deps)({});
+    expect(one(deps, "SELECT * FROM sync_chain_results WHERE sync_run_id = ? AND chain_id = ?", id, OSHER)).toMatchObject({
+      status: "failed",
+      files_downloaded: 3,
+      prices_loaded: 0,
+      error: expect.stringMatching(/no prices loaded from any of 2 PriceFull files/),
+    });
+  });
+
   it("refuses to start while a Price sync is running or a request is waiting, and records nothing", async () => {
     const deps = setup();
     deps.db.$client.prepare("INSERT INTO sync_runs (trigger, status, requested_at) VALUES ('scheduled', 'running', 0)").run();

@@ -16,9 +16,14 @@ export function ingestPricesJob(deps: Deps) {
   return async (data: IngestPricesData) => {
     const { chain, stores, prices } = ingestPricesData.parse(data);
     if (stores) console.log(`${stores}: ${ingestStores(deps, chain, readXml(stores))} stores`);
+    let loaded = 0;
     for (const f of prices) {
       const t = performance.now();
-      console.log(`${f}: ${ingestPrices(deps, chain, readXml(f), f)} prices in ${Math.round(performance.now() - t)} ms`);
+      const n = ingestPrices(deps, chain, readXml(f), f);
+      loaded += n;
+      console.log(`${f}: ${n} prices in ${Math.round(performance.now() - t)} ms`);
     }
+    // Each skipped file only warns; all of them skipped means a missing or wrong --stores file.
+    if (prices.length && loaded === 0) throw new Error(`no prices loaded from any of ${prices.length} --prices files (stores not in the Stores file?)`);
   };
 }

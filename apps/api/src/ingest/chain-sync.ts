@@ -56,5 +56,8 @@ export async function syncChain(deps: Deps, chain: ChainSeed, maxStores: number,
     if (i === 0) counts.storesLoaded = ingestStores(deps, chain.key, xml);
     else counts.pricesLoaded += ingestPrices(deps, chain.key, xml, f.name);
   }
+  // ingestPrices skips a file whose store is not in the Stores file; when every file is skipped, the chain is broken.
+  if (files.length > 1 && counts.pricesLoaded === 0)
+    throw new Error(`${chain.key}: no prices loaded from any of ${files.length - 1} PriceFull files (stores not in the Stores file?)`);
   counts.storesGeocoded = await geocodeStores(deps, chain.ids[0]!);
 }

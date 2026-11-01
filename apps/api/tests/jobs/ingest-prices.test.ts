@@ -28,9 +28,17 @@ describe("ingestPricesJob", () => {
     const renamed = join(dir, "PriceFull7290103152017-001-004-20261021-051600.gz");
     copyFileSync(fx("PriceFull7290103152017-001-001-20261021-051600.gz"), renamed);
     const deps = buildDeps(loadConfig());
-    await ingestPricesJob(deps)({ chain: "osher-ad", stores: fx("Stores7290103152017-000-20261021-080500.xml"), prices: [renamed] });
-    rmSync(dir, { recursive: true, force: true });
+    try {
+      await ingestPricesJob(deps)({ chain: "osher-ad", stores: fx("Stores7290103152017-000-20261021-080500.xml"), prices: [renamed] });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
     expect(deps.db.$client.prepare("SELECT DISTINCT store_id FROM prices").all()).toEqual([{ store_id: "7290103152017-4" }]);
+  });
+
+  it("fails when every price file is skipped (no Stores file loaded for its store)", async () => {
+    const run = ingestPricesJob(buildDeps(loadConfig()))({ chain: "osher-ad", prices: [fx("PriceFull7290103152017-001-001-20261021-051600.gz")] });
+    await expect(run).rejects.toThrow(/no prices loaded from any of 1 --prices files/);
   });
 
   it("rejects data with neither stores nor prices", async () => {
