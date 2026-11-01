@@ -1,0 +1,4 @@
+# Review only on request: comment "@coderabbitai review" on the PR.
+reviews:
+  auto_review:
+    enabled: false
