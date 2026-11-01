@@ -67,19 +67,6 @@ A Price sync (`CONTEXT.md`, "Prices") does fetch, ingest and geocode for every c
   answers 202 `{ "id": n }` (recorded; the worker runs it within a minute), 409 while a sync is running or waiting, 401 without
   the token. A finished Manual sync skips the next Scheduled sync.
 
-### Price sync
-
-A Price sync (`CONTEXT.md`, "Prices") does fetch, ingest and geocode for every chain and every store in one run, recorded in
-`sync_runs` and `sync_chain_results`. A chain that fails keeps its previous prices; the others continue.
-
-- `npm run sync -w apps/api [-- --max-stores N]`: run one Manual sync now and exit.
-- `npm run worker -w apps/api`: the long-running worker, a second process next to the API on the same SQLite file. Once a
-  minute it runs Scheduled syncs at `SYNC_TIMES` and any waiting Manual sync request. SIGTERM stops a sync after its current
-  chain (recorded as interrupted).
-- Manual sync from the internal dashboard: `curl -X POST -H "Authorization: Bearer $SYNC_TOKEN" http://127.0.0.1:3001/sync`
-  answers 202 `{ "id": n }` (recorded; the worker runs it within a minute), 409 while a sync is running or waiting, 401 without
-  the token. A finished Manual sync skips the next Scheduled sync.
-
 ## Known limitations / not verified on device
 
 - Built and checked with typecheck, vitest and `expo export` only; nothing has run on a real device or simulator yet.

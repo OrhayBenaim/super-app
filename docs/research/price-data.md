@@ -237,7 +237,7 @@ Run from the maintainer's machine (Israeli home IP, Windows, no proxy) with `npm
 | carrefour | 148 (1 + 147) | 87 MB | 6 s | 149 s | 149 s | 147 (147 with prices) | 1,196,383 | 22,857 |
 | shufersal | 425 (1 + 424) | 114 MB | 90 s (listing ~40 s of it) | 351 s | 422 s | 418 (416 with prices) | 2,323,760 | 38,116 |
 
-Victory is the clean reference: about 2.5 minutes end to end with the CLI as it is. Shufersal, the largest, takes about 14.5 minutes (fetch 1.5, ingest 6, geocode 7; geocoding is ~1 s per store, the 1 req/s policy limit, and later syncs only geocode stores still without coordinates). Geocoded: Victory 64/70, Carrefour 94/147, Shufersal 286/418; Compare listed a store of each. Carrefour's whole run went through `ingestPrices` with each file's name (see below), which `src/jobs/ingest-prices.ts` does not pass yet.
+Victory is the clean reference: about 2.5 minutes end to end with the CLI as it is. Shufersal, the largest, takes about 14.5 minutes (fetch 1.5, ingest 6, geocode 7; geocoding is ~1 s per store, the 1 req/s policy limit, and later syncs only geocode stores still without coordinates). Geocoded: Victory 64/70, Carrefour 94/147, Shufersal 286/418; Compare listed a store of each. Carrefour's whole run went through `ingestPrices` with each file's name (see below), which `src/jobs/ingest-prices.ts` now passes too.
 
 **Portal mechanics confirmed:**
 - **Cerberus** works as recorded above (`Stop_Market` on `url.publishedprices.co.il`), one POST lists every file.
