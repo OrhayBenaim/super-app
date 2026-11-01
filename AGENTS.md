@@ -21,9 +21,10 @@ apps/mobile/              Expo SDK 58 + expo-router app
   app/                    file routes: (auth)/onboarding, (auth)/sign-in, (tabs)/index|items|compare|settings
   src/lib/auth-client.ts  better-auth Expo client (SecureStore)
   src/lib/api.ts          api<T>(path, init): fetch wrapper with base URL + auth cookie
+  src/lib/strings.ts      en + he strings; t("key") picks the device language (expo-localization)
   src/features/<feature>/ feature code (hooks, components, queries)
-  src/ui/                 shared UI components
-  src/theme/              theme tokens (source of truth: docs/design/tokens.json)
+  src/ui/                 UI kit: Button, Text, TextField, Screen, Tap, Divider, IconButton (import from "@/ui")
+  src/theme/              useTheme(), springs, text() (imports docs/design/tokens.json directly; import from "@/theme")
 docs/                     research and design notes (docs/research/, docs/design/)
 ```
 
@@ -70,7 +71,12 @@ Mobile (`apps/mobile`)
   between the `(auth)` and `(tabs)` groups with `Stack.Protected`.
 - Motion uses Reanimated 4. babel-preset-expo adds the `react-native-worklets/plugin` automatically,
   so there is no babel.config.js. Gestures use react-native-gesture-handler 3.
-- Colors, spacing and type come from tokens in `src/theme/`. Never write color literals inline.
+- Colors, spacing and type come from `useTheme()` (`colors`, `space`, `radius`, `font`, `motion`, `shadow`, `isDark`);
+  `space` is the token array by index (`space[5]` = 16).
+  Never write color literals inline. Use `<Text variant>` or `text(variant)` for type.
+- Motion goes through `springs` (`withSpring(v, springs.snappy)`) and respects `useReducedMotion()`.
+- Every touchable has an `accessibilityLabel` (`Tap`/`IconButton` require it). Build pressables on `Tap`.
+- Every user-facing string goes through `t()`. Add the key to both `en` and `he` in `src/lib/strings.ts`.
 - The app is Hebrew-first. Layouts must work in RTL: use `start`/`end`, not `left`/`right`.
 
 ## Testing
