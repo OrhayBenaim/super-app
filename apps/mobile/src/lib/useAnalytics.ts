@@ -1,6 +1,6 @@
 import { useSegments } from "expo-router";
 import { useEffect, useRef } from "react";
-import { screen as trackScreen, screenName, syncIdentity } from "./analytics";
+import { screen as trackScreen, screenName, syncIdentity } from "@/lib/analytics";
 
 /** Root layout hook: a $screen event per route, and the PostHog identity following the better-auth session. */
 export function useAnalytics(userId: string | null) {

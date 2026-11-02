@@ -29,6 +29,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
   const fail = () => Alert.alert(t("common.error"));
 
   const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing }, { onError: fail });
+  // New items count here; re-adds count in useItemMutations (the Undo re-create must not count as an add).
   const createItem = (name: string) => {
     Haptics.selectionAsync();
     add.mutate({ name, category: t("items.category.other"), missing: from === "list" }, { onError: fail, onSuccess: () => from === "list" && track("list_item_added", { existing: false }) });
