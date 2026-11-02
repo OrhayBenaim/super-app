@@ -1,0 +1,10 @@
+# Allow-list: only what apps/api/Dockerfile copies (keeps .env, *.db and node_modules out of the image)
+*
+!package.json
+!package-lock.json
+!apps/api/package.json
+!apps/api/src
+!apps/api/drizzle
+!apps/mobile/package.json
+!packages/shared/package.json
+!packages/shared/src
