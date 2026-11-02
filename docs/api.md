@@ -12,8 +12,8 @@ Model: a **list** is shared; **items** belong to a list (not a user). A user's f
 | POST | `/lists` | `{ name }` | `List` |
 | GET | `/lists/:id` | | `{ list: List, members: Member[], items: Item[] }` |
 | PATCH | `/lists/:id` | `{ name }` (owner) | `List` |
-| POST | `/lists/:id/items` | `{ name, category, productCode?, missing? = true }` | `Item` |
-| PATCH | `/lists/:id/items/:itemId` | `{ name?, category?, productCode? (null clears), missing? }` | `Item` |
+| POST | `/lists/:id/items` | `{ name, category, productCode?, groupRef?, missing? = true }` (not both productCode and groupRef) | `Item` |
+| PATCH | `/lists/:id/items/:itemId` | `{ name?, category?, productCode?, groupRef? (null clears; setting one clears the other), missing? }` | `Item` |
 | DELETE | `/lists/:id/items/:itemId` | | 204 |
 | GET | `/lists/:id/categories` | | `string[]` distinct categories, most-used first (autocomplete) |
 | POST | `/lists/:id/invite` | | `{ code, url }` — rotates the invite code; `url = grocer://join/<code>` |
@@ -23,7 +23,7 @@ Model: a **list** is shared; **items** belong to a list (not a user). A user's f
 ```ts
 type List = { id; name; ownerId; role: "owner"|"member"; memberCount: number; updatedAt }
 type Member = { userId; name; email; role }
-type Item = { id; listId; name; category; productCode: string|null; missing: boolean; createdAt; updatedAt }
+type Item = { id; listId; name; category; productCode: string|null; groupRef: string|null; missing: boolean; createdAt; updatedAt }
 ```
 Any member may rotate the invite code. "My list" is auto-created only when the user has no lists. Categories are case-sensitive (client autocomplete mitigates). Any item/list mutation bumps `list.updatedAt`. Realtime: the mobile app polls `GET /lists/:id` (refetchInterval ~5s while focused). `shortcut: polling instead of websockets, upgrade when >2 members per list is common`.
 
@@ -34,22 +34,26 @@ Product codes: an `ItemCode` that is a valid GS1 barcode (8, 12, 13 or 14 digits
 
 | Method | Path | Body / query | Returns |
 |---|---|---|---|
-| GET | `/products/search` | `?q=<text>&limit=20` | `Product[]` (public, no user data; a digits-only `q` of 8+ chars is a barcode lookup: exact code, then code prefix) |
-| POST | `/compare` | `{ lat, lng, radiusKm?=10, codes: string[], sort?: "price"\|"distance"\|"coverage", limit?=20 }` | `{ stores: StoreResult[], unmatched: string[] }` |
+| GET | `/products/search` | `?q=<text>&limit=20` | `(ProductGroup \| Product)[]`: the Product groups the query's words name, then up to `limit` products (a digits-only `q` of 8+ chars is a barcode lookup: exact code, then code prefix, products only) |
+| POST | `/compare` | `{ lat, lng, radiusKm?=10, codes?: string[], groups?: { ref, amount? }[], sort?: "price"\|"distance"\|"coverage", limit?=20 }` (at least one code or group) | `{ stores: StoreResult[], unmatched: string[] }` |
 | GET | `/chains` | (public) | `Chain[]` |
 
 ```ts
-type Product = { code; name; manufacturer: string|null; unitQty: string|null; storeCount: number; minPrice: number }
+type Measure = "kg" | "l" | "unit"
+type Product = { kind: "product"; code; name; manufacturer: string|null; unitQty: string|null; measure: Measure|null; size: number|null; storeCount: number; minPrice: number }
+// A Product group (CONTEXT.md, docs/adr/0001). ref = normalized words|measure[|pack count], e.g. "בורגול|kg", "ביצ|unit|12".
+// minPrice: lowest per kilo/liter, or the cheapest pack for "unit". size: commonest pack in kilos/liters, or the pack count.
+type ProductGroup = { kind: "group"; ref; name; measure: Measure; size: number; productCount: number; storeCount: number; minPrice: number; refinements: string[] }
 type Chain = { id; name; nameHe; orderUrl: string|null }   // orderUrl: online shop home or search URL template with {code}
 type StoreResult = {
   storeId; chainId; chainName; storeName; address; city; lat; lng; distanceKm;
   total: number;              // sum of prices for matched codes
   matched: number;            // codes this store carries
-  missingCodes: string[];     // codes it does not carry
-  items: { code; price }[];
+  missingCodes: string[];     // codes and group refs it does not carry
+  items: ({ code; price } | { ref; code; name; size; unitPrice?; price })[]; // a group item names the product priced
   orderUrl: string|null;
 }
 ```
-Sort semantics: `price` → fewest missing first, then lowest total; `distance` → nearest; `coverage` → most matched, then price. Stores without coordinates are excluded. Weighed items (`isWeighted`) are priced per kg and counted as 1 kg in totals. `unmatched` = codes no store in radius carries.
+Sort semantics: `price` → fewest missing first, then lowest total; `distance` → nearest; `coverage` → most matched, then price. Stores without coordinates are excluded. Weighed items (`isWeighted`) are priced per kg and counted as 1 kg in totals. A group is charged its cheapest product at each store: a kilo or liter group by price per kilo/liter (`unitPrice`) × `amount` (kilos or liters, default the group's commonest pack size), a unit group by the cheapest pack × `amount` (packs, default 1). `unmatched` = codes and group refs no store in radius carries.
 
 Ingestion (CLI, not HTTP): `npm run ingest -- --chain <chainKey> [--stores <file>] [--prices <file...>]` parses Stores + PriceFull XML (gz/zip/plain, UTF-8 or UTF-16) into `stores`, `products`, `prices`. Each prices file is a full snapshot: it replaces that store's prices (items no longer listed are dropped), and items with `ItemPrice` <= 0 or NaN are skipped (count logged). Geocoding: `npm run geocode` fills `stores.lat/lng` via Nominatim from `address + city` (cached, 1 req/s).
