@@ -6,18 +6,24 @@ import { DEFAULT_LIST_NAME } from "@grocer/shared/lists";
 import type { Db } from "#/db/index.ts";
 import { items, listMembers, lists, user } from "#/db/schema.ts";
 import type { Deps } from "#/deps.ts";
+import { parseRef } from "#/ingest/groups.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32 chars, no 0/O/1/I; 256 % 32 == 0 so no modulo bias
 const newCode = () => Array.from(randomBytes(8), (b) => ALPHABET[b % ALPHABET.length]).join("");
 
 const nameBody = z.object({ name: z.string().trim().min(1).max(200) });
-const itemBody = z.object({
+const itemFields = z.object({
   name: z.string().trim().min(1).max(200),
   category: z.string().trim().min(1).max(100),
   productCode: z.string().trim().min(1).max(64).nullable().optional(),
+  groupRef: z.string().trim().min(1).max(200).refine((r) => parseRef(r) !== null, "invalid group ref").nullable().optional(),
   missing: z.boolean().optional(),
 });
+// An item is matched to one product or one Product group, never both.
+const oneMatch = [(b: { productCode?: string | null; groupRef?: string | null }) => !(b.productCode && b.groupRef), "send productCode or groupRef, not both"] as const;
+const itemBody = itemFields.refine(...oneMatch);
+const itemPatch = itemFields.partial().refine(...oneMatch);
 const joinBody = z.object({ code: z.string().trim().min(1).max(32) });
 
 async function parse<T extends z.ZodType>(c: Context<AppEnv>, schema: T) {
@@ -119,8 +125,8 @@ export const listsRoutes = new Hono<AppEnv>()
     if (!roleOf(db, listId, c.var.user.id)) return notFound(c);
     const p = await parse(c, itemBody);
     if (!p.success) return bad(c, p.error);
-    const { name, category, productCode = null, missing = true } = p.data;
-    const item = db.insert(items).values({ id: randomUUID(), listId, name, category, productCode, missing }).returning().get();
+    const { name, category, productCode = null, groupRef = null, missing = true } = p.data;
+    const item = db.insert(items).values({ id: randomUUID(), listId, name, category, productCode, groupRef, missing }).returning().get();
     touch(c.var.deps, listId);
     return c.json(item);
   })
@@ -128,11 +134,12 @@ export const listsRoutes = new Hono<AppEnv>()
     const { db, clock } = c.var.deps;
     const { id: listId, itemId } = c.req.param();
     if (!roleOf(db, listId, c.var.user.id)) return notFound(c);
-    const p = await parse(c, itemBody.partial());
+    const p = await parse(c, itemPatch);
     if (!p.success) return bad(c, p.error);
+    const other = p.data.productCode ? { groupRef: null } : p.data.groupRef ? { productCode: null } : {}; // matching one unmatches the other
     const item = db
       .update(items)
-      .set({ ...p.data, updatedAt: clock.now() })
+      .set({ ...p.data, ...other, updatedAt: clock.now() })
       .where(and(eq(items.id, itemId), eq(items.listId, listId)))
       .returning()
       .get();
