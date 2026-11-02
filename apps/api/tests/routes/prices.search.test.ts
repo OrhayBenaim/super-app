@@ -42,6 +42,7 @@ beforeAll(() => {
     [gtin("729000006651"), "לחם אחיד", 3, 12],
     [gtin("729000006652"), "לחם בטעמים אגדת לחם", 1, 13],
     [chips, "בננה ציפס", 2, 14],
+    ...["חציל קלוי", "חציל במיונז", "חציל בטחינה", "חציל פיקנטי"].map((name, i): [string, string, number, number] => [gtin(`72900000667${i}`), name, 4, 15]),
   ];
   for (let store = 1; store <= 4; store++) {
     const items = products.filter((p) => p[2] >= store).map<Item>(([code, name, , price]) => [code, name, price - (store - 1), packed]);
@@ -49,8 +50,9 @@ beforeAll(() => {
     ingestPrices(deps, "osher-ad", pricesXml(OSHER, store, items));
   }
   // Banana is one Produce group over three chain-local codes, each priced at a single store (fewer than the chips' two).
-  ingestPrices(deps, "shufersal", pricesXml(SHUFERSAL, 1, [["11", "בננה", 7]]));
-  ingestPrices(deps, "rami-levy", pricesXml(RAMI, 1, [["5", "בננה במשקל", 6.5]]));
+  // Eggplant too, against four salads priced at every Osher Ad store.
+  ingestPrices(deps, "shufersal", pricesXml(SHUFERSAL, 1, [["11", "בננה", 7], ["12", "חציל", 5]]));
+  ingestPrices(deps, "rami-levy", pricesXml(RAMI, 1, [["5", "בננה במשקל", 6.5], ["6", "חציל", 5]]));
 });
 
 type Found = { code: string; name: string; manufacturer: string | null; unitQty: string | null; storeCount: number; minPrice: number };
@@ -64,6 +66,11 @@ describe("product search ranking", () => {
 
   it("ranks by store count within a tier, so a repeated word does not beat a popular product", async () => {
     expect(await names("לחם")).toEqual(["לחם אחיד", "לחם בטעמים אגדת לחם"]);
+  });
+
+  it("puts the product named exactly the word first, even a Produce group whose members are each priced in few stores", async () => {
+    const rows = (await (await app.request(`/api/products/search?q=${encodeURIComponent("חציל")}&limit=1`)).json()) as Found[];
+    expect(rows.map((r) => [r.name, r.storeCount])).toEqual([["חציל", 2]]);
   });
 
   it("requires every token to match and orders by the first token's tier", async () => {

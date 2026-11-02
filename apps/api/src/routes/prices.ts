@@ -20,13 +20,14 @@ const compareBody = z.object({
 const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
 
 const productCols = `p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.group_key AS groupKey, count(pr.store_id) AS storeCount, min(pr.price) AS minPrice`;
-// Products named after the first word come first ("חלב 3%" before "שוקולד חלב", both before "חלבה"), then the
-// most widely priced. Counts use the covering index; min price is read for the kept rows only.
+// The product named exactly the first word comes first ("חציל" before "חציל קלוי": a Produce group's members are each
+// priced in few stores, so store count alone would cut it), then products named after the word ("חלב 3%" before
+// "שוקולד חלב", both before "חלבה"), then the most widely priced. Min price is read for the kept rows only.
 const FTS_SEARCH = `SELECT c.code, c.name, c.manufacturer, c.unitQty, c.groupKey, c.storeCount, c.tier,
      (SELECT min(price) FROM prices WHERE code = c.code) AS minPrice FROM (
      SELECT p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.group_key AS groupKey, f.rank,
        (SELECT count(*) FROM prices pr WHERE pr.code = p.code) AS storeCount,
-       CASE WHEN p.name = @first OR p.name LIKE @first || ' %' THEN 0 WHEN ' ' || p.name || ' ' LIKE '% ' || @first || ' %' THEN 1 ELSE 2 END AS tier
+       CASE WHEN p.name = @first THEN 0 WHEN p.name LIKE @first || ' %' THEN 1 WHEN ' ' || p.name || ' ' LIKE '% ' || @first || ' %' THEN 2 ELSE 3 END AS tier
      FROM products_fts f JOIN products p ON p.code = f.code
      WHERE products_fts MATCH @match AND storeCount > 0 ORDER BY tier, storeCount DESC, f.rank LIMIT @limit
    ) c ORDER BY c.tier, c.storeCount DESC, c.rank`;
