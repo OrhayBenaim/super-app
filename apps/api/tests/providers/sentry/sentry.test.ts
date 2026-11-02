@@ -18,9 +18,10 @@ const app = new Hono()
     errorHandler.setUser(c.req.header("x-user") ?? "");
     await next();
   })
-  .get("/boom", async () => {
+  .get("/boom", async (c) => {
     await new Promise((r) => setTimeout(r, 50));
-    throw new Error("boom");
+    // One message per user: Sentry's Dedupe integration drops an error identical to the previous one.
+    throw new Error(`boom for ${c.req.header("x-user")}`);
   })
   .onError((error, c) => {
     errorHandler.report(error);
