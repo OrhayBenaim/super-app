@@ -64,6 +64,7 @@ export const Taps = {
   itemsAdd: "items.add",
   itemsAddCreate: "items.add.create",
   itemsAddDismiss: "items.add.dismiss",
+  itemsAddProduct: "items.add.product",
   itemsAddToList: "items.addToList",
   itemsCategory: "items.category",
   itemsCategoryNew: "items.category.new",

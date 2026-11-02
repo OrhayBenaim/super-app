@@ -14,10 +14,17 @@ export function suggestCategories(input: string, categories: string[], limit = 5
   return { matches, create: q && !exact ? input.trim() : null };
 }
 
-/** Add-field suggestions: items whose name starts with the input (deduped by name), plus `create` when no item has exactly that name. */
+/**
+ * Add-field suggestions: items whose name contains the input anywhere, prefix matches first (deduped by name),
+ * plus `create` when no item has exactly that name.
+ */
 export function suggestItems<T extends { name: string }>(input: string, items: T[], limit = 5): { matches: T[]; create: string | null } {
+  const q = fold(input);
+  if (!q) return { matches: [], create: null };
   const byName = new Map<string, T>();
   for (const i of items) if (!byName.has(i.name)) byName.set(i.name, i);
-  const { matches, create } = suggestCategories(input, [...byName.keys()], limit);
-  return { matches: norm(input) ? matches.map((n) => byName.get(n)!) : [], create };
+  const hits = [...byName.values()].filter((i) => fold(i.name).includes(q));
+  const prefix = hits.filter((i) => fold(i.name).startsWith(q));
+  const matches = [...prefix, ...hits.filter((i) => !prefix.includes(i))].slice(0, limit);
+  return { matches, create: hits.some((i) => fold(i.name) === q) ? null : input.trim() };
 }
