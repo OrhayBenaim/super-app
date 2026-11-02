@@ -1,4 +1,4 @@
-// Imported once by app/_layout.tsx, before any screen, so Sentry starts first.
+// Imported by app/_layout.tsx, so Sentry starts before the first screen renders.
 import * as Sentry from "@sentry/react-native";
 import { useEffect } from "react";
 import { BASE_URL } from "@/lib/api";
