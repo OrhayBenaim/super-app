@@ -9,13 +9,12 @@ import { syncGeofences, useNearbyAlerts } from "@/features/geofence/useNearbyAle
 import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
-import { EmptyState, Group, LargeTitle, Screen } from "@/ui";
+import { EmptyState, Group, LargeTitle, Screen, ShoppingLoader } from "@/ui";
 import { RADII, useCompare, useRadius } from "./api";
 import { BestStore, StoreRow } from "./BestStore";
 import { fmt } from "./format";
 import type { MissingStore } from "./MissingSheet";
 import { RadiusMenu } from "./RadiusMenu";
-import { CompareSkeleton } from "./Skeleton";
 import { saving, sortStores, type Sort } from "./sort";
 import { SortControl } from "./SortControl";
 
@@ -52,7 +51,7 @@ export function CompareScreen() {
 
   const loading = list.isPending || location.status === "checking" || location.status === "locating" || (location.status === "ready" && codes.length > 0 && compare.isPending);
   const body = (() => {
-    if (loading) return <CompareSkeleton />;
+    if (loading) return <ShoppingLoader label={t("compare.loading")} />;
     if (list.isError) return <EmptyState icon={TriangleAlert} title={t("compare.error.title")} action={{ title: t("compare.retry"), onPress: () => list.refetch() }} />;
     if (!codes.length) return <EmptyState icon={ShoppingBasket} title={t("compare.noBasket.title")} body={t("compare.noBasket.body")} />;
     if (location.status === "denied")
