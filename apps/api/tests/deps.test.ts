@@ -9,6 +9,11 @@ describe("buildDeps", () => {
     expect(buildDeps(loadConfig()).mailer).toBeInstanceOf(MailerService);
   });
 
+  it("uses the fake analytics without POSTHOG_KEY and the PostHog provider with it", () => {
+    expect(buildDeps(loadConfig()).analytics).toHaveProperty("captured");
+    expect(buildDeps(loadConfig({ ...process.env, POSTHOG_KEY: "phc_test" })).analytics).not.toHaveProperty("captured");
+  });
+
   it("takes a mailer override backed by the fake provider", async () => {
     const provider = new FakeMailerProvider();
     const mailer = new MailerService(provider);

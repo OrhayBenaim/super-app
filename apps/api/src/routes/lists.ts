@@ -83,7 +83,10 @@ export const listsRoutes = new Hono<AppEnv>()
     const list = db.select({ id: lists.id }).from(lists).where(eq(lists.inviteCode, p.data.code.toUpperCase())).get();
     if (!list) return notFound(c);
     const added = db.insert(listMembers).values({ listId: list.id, userId, role: "member" }).onConflictDoNothing().run();
-    if (added.changes) touch(c.var.deps, list.id);
+    if (added.changes) {
+      touch(c.var.deps, list.id);
+      c.var.deps.analytics.capture(userId, "list_joined", { listId: list.id });
+    }
     return c.json(oneList(db, userId, list.id));
   })
   .get("/:id", (c) => {
@@ -167,6 +170,7 @@ export const listsRoutes = new Hono<AppEnv>()
     if (!roleOf(db, listId, c.var.user.id)) return notFound(c);
     const code = newCode();
     db.update(lists).set({ inviteCode: code, updatedAt: clock.now() }).where(eq(lists.id, listId)).run();
+    c.var.deps.analytics.capture(c.var.user.id, "list_shared", { listId });
     return c.json({ code, url: `grocer://join/${code}` });
   })
   .delete("/:id/members/:userId", (c) => {

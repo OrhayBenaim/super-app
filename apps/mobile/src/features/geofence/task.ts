@@ -3,6 +3,7 @@ import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import * as TaskManager from "expo-task-manager";
+import { posthog, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { GEOFENCE_TASK } from "./regions";
 
@@ -31,4 +32,6 @@ TaskManager.defineTask<GeofenceData>(GEOFENCE_TASK, async ({ data, error }) => {
     },
     trigger: null,
   });
+  track("geofence_triggered", { storeId: storeId ?? "" });
+  await posthog.flush().catch(() => {}); // the OS may suspend the app as soon as the task returns
 });

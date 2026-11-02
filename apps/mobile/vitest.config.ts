@@ -4,4 +4,5 @@ import { defineConfig } from "vitest/config";
 // Tests live in tests/ (mirroring src/) and import the code through "@/".
 export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  test: { setupFiles: ["tests/setup.ts"] },
 });

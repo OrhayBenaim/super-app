@@ -5,6 +5,7 @@ import { Alert, Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { fmt } from "@/features/compare/format";
 import { useItemMutations, type Item } from "@/features/lists/api";
+import { track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Group, Row, SearchField, Tap, Text } from "@/ui";
@@ -30,7 +31,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
   const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing }, { onError: fail });
   const createItem = (name: string) => {
     Haptics.selectionAsync();
-    add.mutate({ name, category: t("items.category.other"), missing: from === "list" }, { onError: fail });
+    add.mutate({ name, category: t("items.category.other"), missing: from === "list" }, { onError: fail, onSuccess: () => track("list_item_added", { from }) });
     setQuery("");
   };
   const addTop = () => {

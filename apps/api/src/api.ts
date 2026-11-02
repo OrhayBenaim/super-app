@@ -14,3 +14,7 @@ if (config.SYNC_TOKEN)
     console.log(`private trigger listening on http://${config.INTERNAL_HOST}:${info.port}`),
   );
 else console.log("private trigger off: SYNC_TOKEN is not set");
+
+// Flush queued analytics events before exiting (node --watch restarts and deploys send SIGTERM).
+for (const signal of ["SIGINT", "SIGTERM"] as const)
+  process.once(signal, () => void deps.analytics.shutdown().finally(() => process.exit(0)));

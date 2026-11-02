@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useIsFocused, useRouter } from "expo-router";
 import { MapPin, SearchX, ShoppingBasket, TriangleAlert } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshControl, ScrollView } from "react-native";
@@ -6,6 +6,7 @@ import Animated, { LinearTransition } from "react-native-reanimated";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
 import { missingCodes, missingItems, useCurrentListId, useList } from "@/features/lists/api";
 import { syncGeofences, useNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
+import { track } from "@/lib/analytics";
 import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
@@ -48,6 +49,12 @@ export function CompareScreen() {
   useEffect(() => {
     if (alertsOn && location.coords && compare.dataUpdatedAt) syncGeofences(location.coords, codes).catch(() => {});
   }, [compare.dataUpdatedAt, alertsOn]);
+
+  // Once per visit with results (tabs stay mounted, so focus marks a visit); the $screen event counts every visit.
+  const focused = useIsFocused();
+  useEffect(() => {
+    if (focused && best) track("compare_viewed", { stores: byPrice.length, radiusKm, items: items.length, matched: codes.length });
+  }, [focused, !!best]);
 
   const loading = list.isPending || location.status === "checking" || location.status === "locating" || (location.status === "ready" && codes.length > 0 && compare.isPending);
   const body = (() => {

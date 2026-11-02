@@ -2,6 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import { useEffect, useRef, useState } from "react";
 import { Linking, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import { track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { openWaze } from "@/lib/waze";
 import { useTheme } from "@/theme";
@@ -30,6 +31,7 @@ export function BestStore({ store, basketSize, saving, listText, onShowMissing }
 
   const order = async () => {
     if (!store.orderUrl) return;
+    track("compare_store_selected", { chainId: store.chainId, action: "order" });
     // No chain exposes add-to-cart links (docs/research/price-data.md §6): hand over the list via the clipboard.
     await Clipboard.setStringAsync(listText);
     setCopied(true);
@@ -65,7 +67,11 @@ export function BestStore({ store, basketSize, saving, listText, onShowMissing }
           <Row title={coverage} titleColor="labelSecondary" />
         )}
         <View style={{ gap: space[2], padding: space[5], paddingTop: space[2] }}>
-          <Button title={t("compare.navigate")} accessibilityLabel={fmt(t("compare.navigateTo"), { store: `${store.chainName} ${store.storeName}` })} haptic onPress={() => openWaze(store.lat, store.lng)} />
+          <Button title={t("compare.navigate")} accessibilityLabel={fmt(t("compare.navigateTo"), { store: `${store.chainName} ${store.storeName}` })} haptic onPress={() => {
+              track("compare_store_selected", { chainId: store.chainId, action: "navigate" });
+              void openWaze(store.lat, store.lng);
+            }}
+          />
           <Button title={t("compare.order")} variant="plain" disabled={!store.orderUrl} onPress={order} />
           {!store.orderUrl && (
             <Text variant="footnote" color="labelSecondary" style={{ textAlign: "center" }}>
