@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { Plus } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { fmt, shekels } from "@/features/compare/format";
 import { useItemMutations, type Item } from "@/features/lists/api";
@@ -34,7 +34,9 @@ export function AddField({ listId, items, from, onClose }: Props) {
   const linked = new Set(items.map((i) => i.productCode));
   const search = useProductSearch(query);
   // The search is debounced, so hide its last results as soon as the field is cleared.
-  const products = query.trim().length >= 2 ? (search.data ?? []).filter((p) => !linked.has(p.code) && !items.some((i) => i.name === p.name)).slice(0, 3) : [];
+  const searchable = query.trim().length >= 2;
+  const searching = searchable && search.isFetching;
+  const products = searchable ? (search.data ?? []).filter((p) => !linked.has(p.code) && !items.some((i) => i.name === p.name)).slice(0, 3) : [];
 
   const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing }, { onError: fail });
   // New items count here; re-adds count in useItemMutations (the Undo re-create must not count as an add).
@@ -92,13 +94,20 @@ export function AddField({ listId, items, from, onClose }: Props) {
           <Text color="tint">{t("common.cancel")}</Text>
         </Tap>
       </View>
-      {(matches.length > 0 || products.length > 0 || create) && (
+      {(matches.length > 0 || products.length > 0 || searching || create) && (
         <ScrollView keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }} contentContainerStyle={{ padding: space[5], paddingTop: space[3] }}>
           <Group>
             {matches.map((item) => (
               <ItemRow key={item.id} item={item} onToggle={(missing) => toggle(item, missing)} />
             ))}
-            {products.map(productRow)}
+            {searching ? (
+              <View accessible accessibilityRole="progressbar" accessibilityLabel={t("items.add.searching")} style={{ flexDirection: "row", alignItems: "center", gap: space[3], minHeight: 44, paddingHorizontal: space[5] }}>
+                <ActivityIndicator color={colors.labelSecondary} />
+                <Text color="labelSecondary">{t("items.add.searching")}</Text>
+              </View>
+            ) : (
+              products.map(productRow)
+            )}
             {create && (
               <Row
                 title={fmt(t(from === "list" ? "items.add.create" : "items.add.createInItems"), { name: create })}
