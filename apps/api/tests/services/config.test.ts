@@ -23,6 +23,12 @@ describe("loadConfig", () => {
     expect(c.BETTER_AUTH_URL).toBeUndefined();
   });
 
+  it("reads TRUST_PROXY as a boolean, off by default", () => {
+    expect(loadConfig({}).TRUST_PROXY).toBe(false);
+    expect(loadConfig({ TRUST_PROXY: "true" }).TRUST_PROXY).toBe(true);
+    expect(loadConfig({ TRUST_PROXY: "false" }).TRUST_PROXY).toBe(false);
+  });
+
   it("splits and trims TRUSTED_ORIGINS, dropping blanks", () => {
     expect(loadConfig({ TRUSTED_ORIGINS: " http://a.test , http://b.test,, " }).TRUSTED_ORIGINS).toEqual(["http://a.test", "http://b.test"]);
   });

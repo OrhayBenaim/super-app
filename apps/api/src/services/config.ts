@@ -7,6 +7,8 @@ const schema = z.object({
   DATABASE_URL: z.string().default("./data/grocer.db"),
   BETTER_AUTH_URL: z.url().optional(),
   BETTER_AUTH_SECRET: optional,
+  // Behind a reverse proxy, key rate limits by the client address it appends to X-Forwarded-For.
+  TRUST_PROXY: z.stringbool().default(false),
   TRUSTED_ORIGINS: z
     .string()
     .default("")

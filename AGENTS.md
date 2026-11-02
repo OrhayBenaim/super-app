@@ -13,15 +13,18 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/worker.ts           entry point: runs one job from src/jobs/ by name (npm run fetch|ingest|geocode|sync|worker)
   src/app.ts              createApp(deps): deps on the context, CORS, /api/auth/*, /health, onError; mounts routers
   src/deps.ts             Deps + buildDeps(config, overrides): the composition root
-  src/middleware.ts       AppEnv type (c.var.deps, c.var.user) + requireUser
+  src/middleware.ts       AppEnv type (c.var.deps, c.var.user), requireUser, rateLimit (per-IP, mounted for every route in app.ts)
   src/services/           vendor-neutral services (config, error-handler, geocoder, price-portal)
   src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, price-portals, fake-error-handler)
   src/jobs/               fetch-prices, ingest-prices, geocode-stores, price-sync (one Price sync), sync-worker (once-a-minute check)
   src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts)
-  src/auth.ts             createAuth(db, config): better-auth (email+password, optional Google/Apple, expo plugin)
+  src/auth.ts             createAuth(db, config, mailer): better-auth (email+password, optional Google/Apple, expo plugin)
+  src/auth/               one auth feature per file as better-auth plugins (password-reset.ts: emailOTP for Password reset only)
+  src/emails/             one file per email (reset-code.ts) + layout.ts (Hebrew-first bilingual text and HTML)
   src/db/index.ts         openDb(path): better-sqlite3 + Drizzle; WAL; runs migrations, seeds chains
   src/db/schema.ts        better-auth tables (generated) + re-export of appSchema.ts
   src/db/appSchema.ts     app tables (lists, items, stores, prices...)
+  src/db/users.ts         queries about Users that no single route owns (hasPassword)
   src/routes/*.ts         feature routers (lists.ts, prices.ts)
   src/utils/clock.ts      Clock, systemClock, fakeClock
   tests/                  all API tests, mirroring src/; fixtures in tests/__fixtures__/
@@ -39,6 +42,8 @@ apps/mobile/              Expo SDK 58 + expo-router app
                           (sheet route body) (import from "@/ui")
   src/theme/              useTheme(), springs, text() (imports docs/design/tokens.json directly; import from "@/theme")
   tests/                  all mobile tests, mirroring src/ (vitest.config.ts maps "@/" to src/)
+packages/shared/          @grocer/shared: rules both apps share, as plain TS with no build (reset-code.ts: RESET_CODE,
+                          codeStatus). Import by subpath: "@grocer/shared/reset-code". Tests in packages/shared/tests/
 docs/                     research and design notes (docs/research/, docs/design/)
 ```
 
@@ -69,6 +74,8 @@ If api.expo.dev is unreachable, prefix it with `EXPO_OFFLINE=1`.
 General
 - TypeScript strict everywhere. ESM. In `apps/api`, import through `#/` with the `.ts` extension, never relative (`#/deps.ts`).
 - Smallest change that works. No new dependency for a few lines.
+- A rule both apps must agree on (limits, durations, pure logic) lives once in `packages/shared`, never copied.
+  Erasable TS only (no enum), no dependencies, no Node or React Native imports; add each module to its `exports`.
 - Secrets come from env only. List every new env var in the app's `.env.example` and in README.md.
 
 API (`apps/api`): follow `apps/api/ARCHITECTURE.md`
@@ -77,6 +84,8 @@ API (`apps/api`): follow `apps/api/ARCHITECTURE.md`
 - Read dependencies from `c.var.deps` (db, auth, clock, services). Never import `db` or a provider into a route or job.
 - Vendors sit behind a service in `src/services/` with a provider and a fake in `src/providers/<vendor>/`; `deps.ts` wires them.
 - Protect routes with `requireUser` (from `src/middleware.ts`); read the user with `c.var.user`.
+- Every route is rate limited per client IP by `rateLimit` in `createApp`; add a stricter `.use(path, rateLimit(...))` there
+  for anything guessable (sign-in, sign-up and Reset codes have one). better-auth's own limiter is off.
 - Validate every request body, query and param with zod at the HTTP boundary. Return 400 on failure.
 - Tables live in `src/db/appSchema.ts`. Never hand-edit the better-auth tables in `schema.ts`.
 - Schema change: edit `appSchema.ts`, run `npm run db:generate -w apps/api`, and commit the new `drizzle/` files.
@@ -139,7 +148,8 @@ Mobile (`apps/mobile`)
 | design | `docs/design/` (tokens.json, screen specs). `apps/mobile/src/theme/tokens.ts` imports tokens.json directly |
 | api | `apps/api/src/` (routes, jobs, services, providers, ingest, db/appSchema.ts), `apps/api/drizzle/`, `apps/api/src/app.ts` (router mounting only) |
 | mobile | `apps/mobile/app/`, `apps/mobile/src/features/`, `apps/mobile/src/ui/`, `apps/mobile/src/theme/` |
-| test | `apps/api/tests/` and `apps/mobile/tests/`. Changes no production code except to fix a bug it found, flagged in the commit |
+| api, mobile | `packages/shared/` (ask first: a change reaches both apps) |
+| test | `apps/api/tests/`, `apps/mobile/tests/` and `packages/shared/tests/`. Changes no production code except to fix a bug it found, flagged in the commit |
 
 Agents working in parallel stay inside their own paths. Ask before changing a shared file such as
 `app.ts`, `_layout.tsx`, `package.json` or this file.

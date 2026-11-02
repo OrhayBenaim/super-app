@@ -35,6 +35,7 @@ On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN IP, not lo
 | api | `BETTER_AUTH_URL` | public URL of the API (OAuth callbacks) |
 | api | `BETTER_AUTH_SECRET` | 32+ random chars: `openssl rand -base64 32` |
 | api | `TRUSTED_ORIGINS` | extra comma-separated origins (auth + CORS) |
+| api | `TRUST_PROXY` | `true` behind a reverse proxy: rate limits key by the last `X-Forwarded-For` hop; default `false` (socket address). The API port must then be reachable only through the proxy, or clients can spoof the header |
 | api | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional; Google sign-in on when both set |
 | api | `SYNC_TIMES` | Scheduled sync times, comma-separated `HH:MM` in Asia/Jerusalem time, default `05:00,12:00,23:30` |
 | api | `SYNC_TOKEN` | shared secret for the private trigger (`Authorization: Bearer <token>`); the private port starts only when set |

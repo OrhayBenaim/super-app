@@ -1,18 +1,21 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { expo } from "@better-auth/expo";
+import { passwordReset, unusedOtpPaths } from "#/auth/password-reset.ts";
 import type { Db } from "#/db/index.ts";
 import * as schema from "#/db/schema.ts";
 import type { Config } from "#/services/config.ts";
+import type { ErrorHandler } from "#/services/error-handler.ts";
 import type { MailerService } from "#/services/mailer.ts";
 
-// mailer: sends Password reset emails (#11).
-export function createAuth(db: Db, config: Config, mailer: MailerService) {
+export function createAuth(db: Db, config: Config, mailer: MailerService, errorHandler: ErrorHandler) {
   return betterAuth({
     baseURL: config.BETTER_AUTH_URL,
     secret: config.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: "sqlite", schema }),
-    emailAndPassword: { enabled: true },
+    emailAndPassword: { enabled: true, revokeSessionsOnPasswordReset: true },
+    disabledPaths: unusedOtpPaths,
+    rateLimit: { enabled: false }, // the API's rateLimit middleware covers every route, auth included
     // Account deletion: schema cascades remove owned Lists and memberships; sessions older than freshAge get SESSION_EXPIRED.
     user: { deleteUser: { enabled: true } },
     socialProviders: {
@@ -35,7 +38,10 @@ export function createAuth(db: Db, config: Config, mailer: MailerService) {
       "https://appleid.apple.com", // Apple posts its callback from this origin
       ...config.TRUSTED_ORIGINS,
     ],
-    plugins: [expo()],
+    plugins: [
+      expo(),
+      ...passwordReset(db, mailer, errorHandler),
+    ],
   });
 }
 

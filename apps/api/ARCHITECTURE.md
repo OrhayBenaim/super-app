@@ -11,14 +11,16 @@ How the code inside `apps/api` is organised.
 | `src/jobs/<job>.ts` | One handler per job. |
 | `src/app.ts` | `createApp(deps)`: app-wide middleware and error handling, and mounts the routers. No route logic. |
 | `src/internal-app.ts` | `createInternalApp(deps)`: the private trigger (`POST /sync`), served by `api.ts` on its own internal port. |
-| `src/middleware.ts` | `AppEnv` (the context variables) and `requireUser`. |
+| `src/middleware.ts` | `AppEnv` (the context variables), `requireUser`, and `rateLimit({ max, windowMs })`: per client IP, in memory. `createApp` mounts it for every route, with stricter limits on sign-in, sign-up and `/api/auth/email-otp/*`. |
 | `src/routes/<resource>.ts` | One router per resource. |
 | `src/deps.ts` | Composition root: `buildDeps(config, overrides)` builds every dependency once. |
-| `src/auth.ts` | `createAuth(db, config)`: the better-auth instance. |
+| `src/auth.ts` | `createAuth(db, config, mailer)`: the better-auth instance. It wires features; each feature's own rules live in `src/auth/`. |
+| `src/auth/<feature>.ts` | One auth feature as better-auth plugins, e.g. `password-reset.ts`: `passwordReset(db, mailer)` (emailOTP plus the hook that lets only Users with a password in) and `unusedOtpPaths`. |
+| `src/emails/<email>.ts` | One function per email that builds it from its data (e.g. `resetCodeEmail(to, code)`). `emails/layout.ts` turns Hebrew and English paragraphs into the text and HTML every email shares. Send through the `MailerService` (`deps.mailer`, or the `mailer` that `createAuth` receives). |
 | `src/services/` | One file per vendor-neutral service (see [Services and providers](#services-and-providers)). |
 | `src/providers/<vendor>/` | Each vendor's implementation of a service, and its fake. |
 | `src/ingest/` | Price-file rules: chain seeds, file names, XML parsing, writing stores and prices. |
-| `src/db/` | Drizzle schema and `openDb()`. Migrations are in `drizzle/`. |
+| `src/db/` | Drizzle schema and `openDb()`. Migrations are in `drizzle/`. Queries that belong to no single route take `db` first and live by what they ask about (e.g. `users.ts`: `hasPassword(db, email)`). |
 | `src/utils/` | Small stateless helpers (e.g. `clock.ts`). |
 | `tests/` | All tests (see [Tests](#tests)). |
 
@@ -27,6 +29,8 @@ How the code inside `apps/api` is organised.
 Import anything in `src/` through the `#/` alias, never with relative paths: `import { buildDeps } from "#/deps.ts"`. The alias is Node's subpath `imports` field in `package.json` (`"#/*": "./src/*"`), so Node, tsc and Vitest all resolve it with no extra config. Node requires these aliases to start with `#`, so `~` or `@` would need a loader hook.
 
 Node runs the TypeScript directly (type stripping, Node 24.14+), so there is no build step: `npm start` is `node src/api.ts`. That is why imports end in `.ts`, type-only imports use `import type`, and `tsconfig.json` sets `erasableSyntaxOnly` (no `enum`, `namespace` or constructor parameter properties).
+
+Rules the app must agree with (e.g. how long a Reset code lasts) come from the `@grocer/shared` workspace package (`packages/shared`): `import { RESET_CODE } from "@grocer/shared/reset-code"`. It is plain TypeScript too; Node strips its types because the workspace link resolves outside `node_modules`.
 
 ## Services and providers
 

@@ -28,3 +28,9 @@ it("maps better-auth error codes to string keys", () => {
   expect(authErrorKey("USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL")).toBe("auth.error.exists");
   expect(authErrorKey(undefined)).toBe("auth.error.generic");
 });
+
+it("maps Reset code errors to string keys", () => {
+  expect(authErrorKey("INVALID_OTP")).toBe("auth.reset.wrongCode");
+  expect(authErrorKey("OTP_EXPIRED")).toBe("auth.reset.expired");
+  expect(authErrorKey("TOO_MANY_ATTEMPTS")).toBe("auth.reset.tooManyTries");
+});

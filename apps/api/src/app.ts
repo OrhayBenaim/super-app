@@ -2,9 +2,11 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import type { Deps } from "#/deps.ts";
-import type { AppEnv } from "#/middleware.ts";
+import { rateLimit, type AppEnv } from "#/middleware.ts";
 import { listsRoutes } from "#/routes/lists.ts";
 import { pricesRoutes } from "#/routes/prices.ts";
+
+const MINUTE = 60_000;
 
 export function createApp(deps: Deps) {
   // Native apps send no Origin header; CORS only matters for Expo web (Metro on :8081).
@@ -15,6 +17,11 @@ export function createApp(deps: Deps) {
       c.set("deps", deps);
       await next();
     })
+    .use(rateLimit({ max: 300, windowMs: MINUTE }))
+    // Stricter where a password or a Reset code can be guessed.
+    .use("/api/auth/sign-in/*", rateLimit({ max: 10, windowMs: MINUTE }))
+    .use("/api/auth/sign-up/*", rateLimit({ max: 10, windowMs: MINUTE }))
+    .use("/api/auth/email-otp/*", rateLimit({ max: 5, windowMs: MINUTE }))
     .use(cors({ origin: corsOrigins, credentials: true }))
     .all("/api/auth/*", (c) => deps.auth.handler(c.req.raw))
     .get("/health", (c) => {
