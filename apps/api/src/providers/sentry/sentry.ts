@@ -10,6 +10,7 @@ export function sentryErrorHandler({ dsn, tracesSampleRate }: { dsn: string; tra
     Sentry.init({
       dsn,
       tracesSampleRate,
+      initialScope: { tags: { app: "api" } }, // one project for API and mobile: filter by app
       // Existing console.warn/console.error calls become Sentry logs next to the errors.
       integrations: [Sentry.consoleLoggingIntegration({ levels: ["warn", "error"] })],
     });

@@ -43,11 +43,11 @@ On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN IP, not lo
 | api | `RESEND_API_KEY` | required; Resend API key for sending email (Password reset) |
 | api | `EMAIL_FROM` | sender address, default `Grocer <no-reply@example.com>` |
 | api | `NOMINATIM_URL` | optional geocoder base URL for `npm run geocode`, default `https://nominatim.openstreetmap.org` |
-| api | `SENTRY_DSN` | optional; Sentry project `grocer-api`. Unset: errors are only logged |
+| api | `SENTRY_DSN` | optional; the one Sentry project `grocer`, shared with mobile (events tagged `app:api`). Unset: errors are only logged |
 | api | `SENTRY_TRACES_SAMPLE_RATE` | 0 to 1, default 0.2; set 1 in dev to trace every request |
 | api | `APPLE_CLIENT_ID`, `APPLE_CLIENT_SECRET`, `APPLE_APP_BUNDLE_IDENTIFIER` | optional; Apple sign-in on when id + secret set |
 | mobile | `EXPO_PUBLIC_API_URL` | e.g. `http://localhost:3000` |
-| mobile | `EXPO_PUBLIC_SENTRY_DSN` | optional; Sentry project `grocer-mobile`. Unset: the SDK stays off. `.env` is not uploaded to EAS, so set it as an EAS env var for cloud builds |
+| mobile | `EXPO_PUBLIC_SENTRY_DSN` | optional; same DSN as the API's `SENTRY_DSN` (events tagged `app:mobile`). Unset: the SDK stays off. `.env` is not uploaded to EAS, so set it as an EAS env var for cloud builds |
 | mobile | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | build time only, for source map upload; set as EAS secrets, never in git |
 
 ## Ingest
