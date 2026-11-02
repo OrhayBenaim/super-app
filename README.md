@@ -75,16 +75,13 @@ A Price sync (`CONTEXT.md`, "Prices") does fetch, ingest and geocode for every c
 
 ## Deploy
 
-Two environments, `staging` and `production`. Pushing to `main` deploys to staging; publishing a GitHub release deploys to production.
-Each setting lives in one place: mobile app settings in EAS, server settings on the VM, and only the Expo token in GitHub.
+Each setting lives in one place: mobile app settings in EAS, server settings in Coolify, and only the Expo token in GitHub.
 
-- `deploy-api.yml` builds `apps/api/Dockerfile` (build context: the repo root) and pushes `ghcr.io/<owner>/grocer-api` and `ghcr.io/<owner>/grocer-worker`
-  tagged `:staging` or `:production` (plus `:<version>` on releases and `:sha-<short>`). It only pushes images; the VM pulls and restarts them.
-- `deploy-mobile.yml` starts EAS builds of both platforms: profile `staging` (internal distribution, EAS environment `preview`) or
-  `production` (EAS environment `production`, auto-submitted to the stores). Run it by hand after changing EAS variables.
+- The server is one production stack on a Coolify VPS, built from `docker-compose.yaml` (Docker Compose build pack) on every push to `main`.
+- `deploy-mobile.yml` starts EAS builds of both platforms: on `main`, profile `staging` (internal distribution, EAS environment `preview`);
+  on a published GitHub release, `production` (EAS environment `production`, auto-submitted to the stores). Run it by hand after changing EAS variables.
 
-**GitHub** (repo or both environments): secret `EXPO_TOKEN`, an expo.dev access token (a robot user). GHCR uses the built-in `GITHUB_TOKEN`.
-Add required reviewers to `production`.
+**GitHub** (repo or both environments): secret `EXPO_TOKEN`, an expo.dev access token (a robot user). Add required reviewers to `production`.
 
 **EAS** (expo.dev > project > Environment variables; `preview` for staging, `production` for production):
 
@@ -99,11 +96,23 @@ Add required reviewers to `production`.
 `EXPO_PUBLIC_*` values are compiled into the app, so they are never secret. From `apps/mobile`:
 `npx eas-cli@latest env:set preview --name EXPO_PUBLIC_API_URL --value https://... --visibility plaintext`.
 
-**VM** (one env file per environment, passed to both containers, e.g. `docker run --env-file /etc/grocer/staging.env`):
-the API env vars listed above. Required: `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET` (different per environment), `RESEND_API_KEY`
-(the worker needs it too, since config validation requires it) and `SENTRY_ENVIRONMENT` (`staging` or `production`).
-`PORT` and `DATABASE_URL` (`/data/grocer.db`) have image defaults. The API and worker share one SQLite file, so run both on the same VM
-with the same volume on `/data`. Log the VM in to GHCR with a token that has `read:packages` (packages are private by default).
+**Coolify** (a Docker Compose resource on this repo, branch `main`, compose file `/docker-compose.yaml`):
+give the `api` service its domain as `https://api.example.com:3000` and set the API env vars listed above in the resource's
+Environment Variables. Required: `BETTER_AUTH_URL` (that domain), `BETTER_AUTH_SECRET`, `RESEND_API_KEY` (the worker needs it too,
+since config validation requires it). `SENTRY_ENVIRONMENT` defaults to `production`, `TRUST_PROXY` is always on, and `PORT` and
+`DATABASE_URL` (`/data/grocer.db`) have image defaults. `api` and `worker` share the `grocer-data` volume (one SQLite file).
+
+The chains' portals block non-Israeli IPs, so the worker's HTTP goes through the `tailscale` container, which uses a machine in Israel
+as its Tailscale exit node. Price syncs fail while that machine is off or offline; prices stay at the last good sync. Set:
+
+| Name | Notes |
+| --- | --- |
+| `TS_AUTHKEY` | Tailscale auth key for the container (admin console > Settings > Keys); used on first start, state lives in the `tailscale-state` volume |
+| `TS_EXIT_NODE` | the Tailscale IP (`100.x.y.z`) of the machine in Israel; it runs Tailscale with "Run exit node" on, approved in the admin console |
+
+To move an existing database in: stop the resource, copy the file into the `grocer-data` volume as `grocer.db`
+(`/var/lib/docker/volumes/<volume>/_data/`), `chown 1000:1000` it (the containers run as `node`), and start the resource.
+Make the copy with `VACUUM INTO` rather than copying the file, so the WAL is included and the copy is consistent.
 
 One-time setup (the EAS project is `@ottersprod/grocer`): run one interactive
 `eas build --profile production` per platform to create signing credentials; add an App Store Connect API key and a Google Play

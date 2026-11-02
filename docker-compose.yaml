@@ -1,0 +1,60 @@
+# Production stack for Coolify (Docker Compose build pack, compose file /docker-compose.yaml).
+# api: the public API; give it a domain in Coolify (https://api.example.com:3000).
+# worker: Price syncs. The chains' portals block non-Israeli IPs, so its HTTP goes through the tailscale
+#   container, which uses a machine in Israel as its exit node. Only the worker uses it; nothing else on the VPS does.
+# api and worker share one SQLite file on the grocer-data volume, so they must run on the same host.
+x-env: &env
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+  TRUSTED_ORIGINS: ${TRUSTED_ORIGINS}
+  TRUST_PROXY: "true" # Coolify's proxy appends the client address to X-Forwarded-For
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+  APPLE_CLIENT_ID: ${APPLE_CLIENT_ID}
+  APPLE_CLIENT_SECRET: ${APPLE_CLIENT_SECRET}
+  APPLE_APP_BUNDLE_IDENTIFIER: ${APPLE_APP_BUNDLE_IDENTIFIER}
+  RESEND_API_KEY: ${RESEND_API_KEY}
+  EMAIL_FROM: ${EMAIL_FROM}
+  NOMINATIM_URL: ${NOMINATIM_URL}
+  SYNC_TIMES: ${SYNC_TIMES}
+  SENTRY_DSN: ${SENTRY_DSN}
+  SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+
+services:
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile, target: api }
+    environment: *env
+    volumes:
+      - grocer-data:/data
+    restart: unless-stopped
+
+  worker:
+    build: { context: ., dockerfile: apps/api/Dockerfile, target: worker }
+    environment:
+      <<: *env
+      NODE_USE_ENV_PROXY: "1" # Node 24's fetch honors HTTP(S)_PROXY only with this
+      HTTP_PROXY: http://tailscale:1055
+      HTTPS_PROXY: http://tailscale:1055
+      NO_PROXY: .sentry.io # error reports still arrive when the exit node is offline
+    volumes:
+      - grocer-data:/data
+    depends_on: [tailscale]
+    stop_grace_period: 10m # on SIGTERM it finishes the current Chain first
+    restart: unless-stopped
+
+  tailscale:
+    image: tailscale/tailscale:v1.104.2
+    hostname: grocer-worker
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true" # no TUN device or NET_ADMIN; traffic leaves only through the proxy below
+      TS_OUTBOUND_HTTP_PROXY_LISTEN: 0.0.0.0:1055
+      TS_EXTRA_ARGS: --exit-node=${TS_EXIT_NODE}
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    restart: unless-stopped
+
+volumes:
+  grocer-data:
+  tailscale-state:
