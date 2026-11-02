@@ -1,7 +1,21 @@
 import { afterEach, expect, it, vi } from "vitest";
 
-const captureException = vi.hoisted(() => vi.fn());
-vi.mock("@sentry/react-native", () => ({ captureException }));
+// The fake keeps which span is active, so a test can tell where fetch and captureException ran.
+const sentry = vi.hoisted(() => ({ active: undefined as object | undefined, span: { end: () => {} }, fetchedIn: [] as unknown[] }));
+const captureException = vi.hoisted(() => vi.fn(() => sentry.active));
+vi.mock("@sentry/react-native", () => ({
+  captureException,
+  startInactiveSpan: () => sentry.span,
+  withActiveSpan: <T>(span: object, fn: () => T) => {
+    const before = sentry.active;
+    sentry.active = span;
+    try {
+      return fn();
+    } finally {
+      sentry.active = before;
+    }
+  },
+}));
 vi.mock("@/lib/auth-client", () => ({ authClient: { getCookie: async () => "grocer.session=abc" } }));
 
 afterEach(() => {
@@ -39,4 +53,17 @@ it("does not send a client error to Sentry", async () => {
   const { api } = await import("@/lib/api");
   await expect(api("/lists/x")).rejects.toThrow("404");
   expect(captureException).not.toHaveBeenCalled();
+});
+
+it("sends the request and reports its 5xx inside one span, so both stay in one trace across a screen change", async () => {
+  const end = vi.spyOn(sentry.span, "end");
+  vi.stubGlobal("fetch", async () => {
+    sentry.fetchedIn.push(sentry.active);
+    return new Response("boom", { status: 503 });
+  });
+  const { api } = await import("@/lib/api");
+  await expect(api("/lists")).rejects.toThrow("503");
+  expect(sentry.fetchedIn).toEqual([sentry.span]);
+  expect(captureException).toHaveReturnedWith(sentry.span);
+  expect(end).toHaveBeenCalledOnce();
 });
