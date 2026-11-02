@@ -3,14 +3,15 @@ import { Plus } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-import { fmt } from "@/features/compare/format";
+import { fmt, shekels } from "@/features/compare/format";
 import { useItemMutations, type Item } from "@/features/lists/api";
 import { Events, Taps, track, trackTap } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Group, Row, SearchField, Tap, Text } from "@/ui";
 import { suggestItems } from "./autocomplete";
-import { ItemRow } from "./ItemRow";
+import { AddBadge, ItemRow } from "./ItemRow";
+import { useProductSearch, type Product } from "./products";
 
 type Props = {
   listId: string | null;
@@ -20,19 +21,29 @@ type Props = {
   onClose: () => void;
 };
 
-/** The + add field: takes over the top of the screen with My items suggestions and a create row. Return adds the top match and keeps it open. */
+/**
+ * The + add field: takes over the top of the screen with My items suggestions, matched products from the price data
+ * (added already linked) and a create row (added unlinked). Return adds the top My items match or creates, and keeps it open.
+ */
 export function AddField({ listId, items, from, onClose }: Props) {
   const { colors, space, motion } = useTheme();
   const { add, update } = useItemMutations(listId);
   const [query, setQuery] = useState("");
   const { matches, create } = suggestItems(query, items);
   const fail = () => Alert.alert(t("common.error"));
+  const linked = new Set(items.map((i) => i.productCode));
+  const search = useProductSearch(query);
+  // The search is debounced, so hide its last results as soon as the field is cleared.
+  const products = query.trim().length >= 2 ? (search.data ?? []).filter((p) => !linked.has(p.code) && !items.some((i) => i.name === p.name)).slice(0, 3) : [];
 
   const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing }, { onError: fail });
   // New items count here; re-adds count in useItemMutations (the Undo re-create must not count as an add).
-  const createItem = (name: string) => {
+  const createItem = (name: string, productCode: string | null = null) => {
     Haptics.selectionAsync();
-    add.mutate({ name, category: t("items.category.other"), missing: from === "list" }, { onError: fail, onSuccess: () => from === "list" && track(Events.listItemAdded, { existing: false }) });
+    add.mutate(
+      { name, category: t("items.category.other"), productCode, missing: from === "list" },
+      { onError: fail, onSuccess: () => from === "list" && track(Events.listItemAdded, { existing: false, matched: !!productCode }) },
+    );
     setQuery("");
   };
   const addTop = () => {
@@ -45,6 +56,18 @@ export function AddField({ listId, items, from, onClose }: Props) {
       setQuery("");
     } else if (create) createItem(create);
   };
+
+  const productRow = (p: Product) => (
+    <Row
+      key={p.code}
+      title={p.name}
+      detail={[fmt(t("items.product.from"), { price: shekels(p.minPrice) }), fmt(t("items.product.stores"), { n: p.storeCount })].join(" · ")}
+      accessibilityLabel={fmt(t(from === "list" ? "items.addToList" : "items.add.createInItems"), { name: p.name })}
+      analyticsName={Taps.itemsAddProduct}
+      trailing={<AddBadge />}
+      onPress={() => createItem(p.name, p.code)}
+    />
+  );
 
   return (
     <Animated.View
@@ -69,12 +92,13 @@ export function AddField({ listId, items, from, onClose }: Props) {
           <Text color="tint">{t("common.cancel")}</Text>
         </Tap>
       </View>
-      {(matches.length > 0 || create) && (
+      {(matches.length > 0 || products.length > 0 || create) && (
         <ScrollView keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }} contentContainerStyle={{ padding: space[5], paddingTop: space[3] }}>
           <Group>
             {matches.map((item) => (
               <ItemRow key={item.id} item={item} onToggle={(missing) => toggle(item, missing)} />
             ))}
+            {products.map(productRow)}
             {create && (
               <Row
                 title={fmt(t(from === "list" ? "items.add.create" : "items.add.createInItems"), { name: create })}
