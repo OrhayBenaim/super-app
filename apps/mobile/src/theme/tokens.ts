@@ -3,7 +3,7 @@ import tokens from "../../../../docs/design/tokens.json";
 
 export { tokens };
 
-export type ColorName = keyof typeof tokens.color.light;
+export type ColorName = keyof typeof tokens.color;
 export type Colors = Record<ColorName, string>;
 export type TextVariant = keyof typeof tokens.font.size;
 type Weight = "400" | "600" | "700";

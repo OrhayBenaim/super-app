@@ -3,6 +3,8 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { create } from "zustand";
 import { Events, track } from "@/lib/analytics";
 import { api } from "@/lib/api";
+import { t } from "@/lib/strings";
+import { DEFAULT_LIST_NAME } from "@grocer/shared/lists";
 
 export type List = { id: string; name: string; ownerId: string; role: "owner" | "member"; memberCount: number; updatedAt: string };
 export type Member = { userId: string; name: string; email: string; role: "owner" | "member" };
@@ -11,6 +13,9 @@ export type Item = {
   productCode: string | null; missing: boolean; createdAt: string; updatedAt: string;
 };
 export type ListDetail = { list: List; members: Member[]; items: Item[] };
+
+/** A list's display name: the auto-created default list reads in the device language. */
+export const listName = (list: List) => (list.name === DEFAULT_LIST_NAME ? t("list.defaultName") : list.name);
 
 export const listKeys = {
   all: ["lists"] as const,

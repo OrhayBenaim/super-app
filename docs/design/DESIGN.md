@@ -18,21 +18,6 @@ colors:
   warning: "#9A5800"
   danger: "#D70015"
   scrim: "rgba(0, 0, 0, 0.4)"
-  grouped-bg-dark: "#000000"
-  surface-dark: "#1C1C1E"
-  elevated-dark: "#2C2C2E"
-  fill-control-dark: "#2C2C2E"
-  fill-selected-dark: "#636366"
-  label-primary-dark: "#FFFFFF"
-  label-secondary-dark: "#98989F"
-  control-outline-dark: "#7C7C82"
-  separator-dark: "#38383A"
-  tint-dark: "#8C98FF"
-  tint-soft-dark: "#23284A"
-  tint-on-dark: "#0A0D2B"
-  saving-dark: "#4CD27A"
-  warning-dark: "#FFB340"
-  danger-dark: "#FF6961"
 typography:
   largeTitle:
     fontFamily: "SF Pro, SF Hebrew, -apple-system, system-ui, sans-serif"
@@ -183,7 +168,7 @@ components:
 
 > **Status.** This file records the v2 visual world as built in Figma: https://www.figma.com/design/YncE254fQ7DyfktwvCsqR0/ (pages Foundations, Components, Screens; the v1 pages were deleted, the old look lives only in git history of this file). The Screens page is grouped into flow sections (Onboarding & sign in, List, My items, Compare, Settings & nearby alert); every frame carries a "How you get here" caption. **The code is migrated:** `docs/design/tokens.json` now carries these v2 values (camelCase names, e.g. `grouped-bg` → `groupedBg`, plus `onDanger` for the swipe-delete label and `size.*` for row, target, button and segmented heights) and `apps/mobile/src/theme` loads it. Known gaps in code: the tab bar is solid Group White (no 85% blur, which needs expo-blur); the Compare radius pull-down uses the system action sheet (iOS) / alert (Android) instead of a native menu; item rows have no "from ₪x · in N branches" detail line (the API has no per-item price lookup); Recently bought rows show no who/when detail.
 >
-> Figma uses **Heebo** as a stand-in for SF Pro / SF Hebrew; the app uses the system font. Color and size values live as Figma variables (collections "Grocer color" with Light / Dark modes, and "Grocer size"); text styles are `v2/*`.
+> Figma uses **Heebo** as a stand-in for SF Pro / SF Hebrew; the app uses the system font. Color and size values live as Figma variables (collections "Grocer color" and "Grocer size"; the app uses only the Light mode); text styles are `v2/*`.
 
 ## Overview
 
@@ -199,31 +184,31 @@ The system refuses the grocery category's green produce look, card stacks and co
 - Green, amber and red are states, never decoration.
 - Prices are tabular and visible: the best total is the largest thing on Compare.
 - RTL first; layout speaks in leading / trailing, never left / right.
-- Light and dark from the same variables.
+- Light only: the app forces the light appearance (`userInterfaceStyle: "light"`).
 
 ## Colors
 
 A gray-and-white iOS system ground with one saturated ultramarine and three single-purpose state colors.
 
 ### Primary
-- **Ultramarine Tint** (light / dark: `tint`, `tint-dark`): every interactive element: filled and plain buttons, links, the switch "on" track, the checked circle, the selected tab, chevrons that open something, the nav-bar radius pull-down. Filled buttons put **Tint On** (`tint-on`, `tint-on-dark`) on it (7.02:1 light, 7.28:1 dark). Tint as text reads 7.02:1 on white and 6.52:1 on dark surface.
-- **Tint Wash** (`tint-soft`, `tint-soft-dark`): tinted-button fill and member avatars. Never a surface for content.
+- **Ultramarine Tint** (`tint`): every interactive element: filled and plain buttons, links, the switch "on" track, the checked circle, the selected tab, chevrons that open something, the nav-bar radius pull-down. Filled buttons put **Tint On** (`tint-on`) on it (7.02:1). Tint as text reads 7.02:1 on white.
+- **Tint Wash** (`tint-soft`): tinted-button fill and member avatars. Never a surface for content.
 
 ### Tertiary (states)
-- **Money Green** (`saving`, `saving-dark`): only the money-saved line ("₪1.20 less than Rami Levy"). 5.07:1 light, 8.76:1 dark.
-- **Coverage Amber** (`warning`, `warning-dark`): only partial coverage ("priced 3 of 4 · 1 missing") and the missing count on store rows. 5.57:1 / 9.54:1.
-- **Destructive Red** (`danger`, `danger-dark`): only destructive actions (sign out, delete, remove member) and blocking errors. 5.38:1 / 6.03:1.
+- **Money Green** (`saving`): only the money-saved line ("₪1.20 less than Rami Levy"). 5.07:1.
+- **Coverage Amber** (`warning`): only partial coverage ("priced 3 of 4 · 1 missing") and the missing count on store rows. 5.57:1.
+- **Destructive Red** (`danger`): only destructive actions (sign out, delete, remove member) and blocking errors. 5.38:1.
 
 ### Neutral
-- **Grouped Gray** (`grouped-bg`, `grouped-bg-dark`): screen background behind inset groups.
-- **Group White** (`surface`, `surface-dark`): inset groups, rows, tab bar (at 85% with blur).
-- **Sheet Surface** (`elevated`, `elevated-dark`): sheets and popovers; in dark it steps one level lighter than groups.
-- **Control Fill** (`fill-control`, `fill-control-dark`): segmented track, search field, switch "off" track.
-- **Selected Thumb** (`fill-selected`, `fill-selected-dark`): the selected segment.
-- **Label** (`label-primary`, `label-primary-dark`): primary text and prices.
-- **Secondary Label** (`label-secondary`, `label-secondary-dark`): detail lines, section headers, footers, checked items, placeholders. Holds 4.96:1 even on Control Fill (5.94:1 dark on surface).
-- **Control Outline** (`control-outline`, `control-outline-dark`): empty check circle, sheet grabber, disclosure chevrons. Non-text, at least 3:1 (3.44 on white, 4.1 on dark surface).
-- **Separator** (`separator`, `separator-dark`): hairlines between rows and the tab bar top edge.
+- **Grouped Gray** (`grouped-bg`): screen background behind inset groups.
+- **Group White** (`surface`): inset groups, rows, tab bar (at 85% with blur).
+- **Sheet Surface** (`elevated`): sheets and popovers.
+- **Control Fill** (`fill-control`): segmented track, search field, switch "off" track.
+- **Selected Thumb** (`fill-selected`): the selected segment.
+- **Label** (`label-primary`): primary text and prices.
+- **Secondary Label** (`label-secondary`): detail lines, section headers, footers, checked items, placeholders. Holds 4.96:1 even on Control Fill.
+- **Control Outline** (`control-outline`): empty check circle, sheet grabber, disclosure chevrons. Non-text, at least 3:1 (3.44 on white).
+- **Separator** (`separator`): hairlines between rows and the tab bar top edge.
 - **Scrim** (`scrim`, black at 40%): behind sheets.
 
 ### Named Rules
@@ -264,7 +249,7 @@ Screen anatomy, as drawn: **List** = + / share in the nav bar → "cheapest now"
 
 ## Elevation & Depth
 
-Flat and tonal. Depth comes from the grouped-background / surface / elevated steps (in dark: black → #1C1C1E → #2C2C2E), never from cast shadows on content. The tab bar sits at 85% surface with background blur and a top hairline.
+Flat and tonal. Depth comes from the grouped-background / surface / elevated steps, never from cast shadows on content. The tab bar sits at 85% surface with background blur and a top hairline.
 
 ### Shadow Vocabulary
 - **Sheet** (system sheet shadow): sheets only, over the scrim.

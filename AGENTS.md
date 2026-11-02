@@ -110,7 +110,7 @@ Mobile (`apps/mobile`)
 - Optimistic mutations snapshot in `onMutate` and roll back in `onError`; polling screens pass `poll: useIsFocused()`.
 - Motion uses Reanimated 4. babel-preset-expo adds the `react-native-worklets/plugin` automatically,
   so there is no babel.config.js. Gestures use react-native-gesture-handler 3.
-- Colors, spacing and type come from `useTheme()` (`colors`, `space`, `radius`, `font`, `motion`, `shadow`, `isDark`);
+- Colors, spacing and type come from `useTheme()` (`colors`, `space`, `radius`, `font`, `motion`, `shadow`); the app is light-only;
   `space` is the token array by index (`space[5]` = 16).
   Never write color literals (hex/rgb) outside `src/theme`. Use `<Text variant>` or `text(variant)` for type.
 - Motion goes through `springs` (`withSpring(v, springs.snappy)`) and respects `useReducedMotion()`.

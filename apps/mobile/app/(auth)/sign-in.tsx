@@ -20,7 +20,7 @@ const s = springs.gentle;
 const layout = LinearTransition.springify().damping(s.damping).stiffness(s.stiffness).mass(s.mass);
 
 export default function SignIn() {
-  const { space, radius, size, isDark } = useTheme();
+  const { space, radius, size } = useTheme();
   const [mode, setMode] = useState<Mode>("signIn");
   const [fields, setFields] = useState<Fields>({ name: "", email: "", password: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -64,7 +64,7 @@ export default function SignIn() {
     Platform.OS === "ios" ? (
       <AppleAuthentication.AppleAuthenticationButton
         buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-        buttonStyle={isDark ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+        buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
         cornerRadius={radius.button}
         style={{ height: size.button, opacity: busy ? 0.5 : 1 }}
         onPress={() => {
