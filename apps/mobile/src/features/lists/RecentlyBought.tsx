@@ -7,7 +7,7 @@ import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { EmptyState, Group, IconButton, LargeTitle, Row, Screen } from "@/ui";
-import { useCurrentListId, useItemMutations, useList } from "./api";
+import { listName, useCurrentListId, useItemMutations, useList } from "./api";
 import { RECENT_MS, recentlyBought } from "./group";
 
 /** Pushed from the List: items bought in the last 24 hours; ↺ puts one back on the list. */
@@ -20,7 +20,7 @@ export function RecentlyBought() {
 
   return (
     <Screen edges={[]} style={{ paddingHorizontal: 0 }}>
-      <Stack.Screen options={{ headerBackTitle: data?.list.name }} />
+      <Stack.Screen options={{ headerBackTitle: data && listName(data.list) }} />
       <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingHorizontal: space[5], paddingBottom: space[9] }}>
         <LargeTitle title={t("list.recent")} subtitle={fmt(t("list.recent.summary"), { n: recent.length })} />
         {recent.length === 0 ? (

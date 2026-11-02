@@ -15,7 +15,3 @@ it("has a complete type scale", () => {
   expect(text("largeTitle").fontWeight).toBe("700");
   expect(text("priceHero")).toMatchObject({ fontSize: 40, fontWeight: "700", fontVariant: ["tabular-nums"] });
 });
-
-it("light and dark palettes have the same colors", () => {
-  expect(Object.keys(tokens.color.dark)).toEqual(Object.keys(tokens.color.light));
-});

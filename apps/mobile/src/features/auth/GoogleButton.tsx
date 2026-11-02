@@ -9,8 +9,8 @@ type Props = { loading: boolean; disabled: boolean; onPress: () => void };
 
 /** The official "Continue with Google" pill: Google's colors, 20px G logo, Roboto Medium 14/20, Android padding 12/10/12. */
 export function GoogleButton({ loading, disabled, onPress }: Props) {
-  const { size, isDark } = useTheme();
-  const c = isDark ? google.dark : google.light;
+  const { size } = useTheme();
+  const c = google.button;
   const off = disabled || loading;
   return (
     <Tap

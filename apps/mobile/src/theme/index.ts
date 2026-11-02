@@ -1,12 +1,9 @@
-import { useColorScheme } from "react-native";
-import { tokens, type Colors } from "./tokens";
+import { tokens } from "./tokens";
 
 export * from "./tokens";
 export { google } from "./google";
 
 export function useTheme() {
-  const isDark = useColorScheme() === "dark";
-  const colors: Colors = isDark ? tokens.color.dark : tokens.color.light;
-  const { space, radius, size, font, motion, shadow } = tokens;
-  return { colors, space, radius, size, font, motion, shadow, isDark };
+  const { color: colors, space, radius, size, font, motion, shadow } = tokens;
+  return { colors, space, radius, size, font, motion, shadow };
 }

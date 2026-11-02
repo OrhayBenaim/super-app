@@ -49,7 +49,7 @@ function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
-        <StatusBar style="auto" />
+        <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false }}>
           {/* shortcut: a signed-out join/share deep link lands on onboarding and the invite code is lost after sign-in; stash it if users complain. */}
           <Stack.Protected guard={!!session}>

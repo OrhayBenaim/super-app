@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./lists": "./src/lists.ts",
     "./reset-code": "./src/reset-code.ts",
     "./sentry": "./src/sentry.ts"
   },

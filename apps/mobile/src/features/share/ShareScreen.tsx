@@ -6,7 +6,7 @@ import { useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, Share, TextInput, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { fmt } from "@/features/compare/format";
-import { useCurrentListId, useList } from "@/features/lists/api";
+import { listName, useCurrentListId, useList } from "@/features/lists/api";
 import { Avatar } from "@/features/lists/Avatars";
 import { Taps } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
@@ -69,7 +69,7 @@ function Members({ onDone, onJoin }: { onDone: () => void; onJoin: () => void })
 
   return (
     <>
-      <SheetHeader title={data ? fmt(t("share.titleNamed"), { name: data.list.name }) : t("share.title")} end={{ title: t("common.done"), analyticsName: Taps.commonDone, onPress: onDone }} />
+      <SheetHeader title={data ? fmt(t("share.titleNamed"), { name: listName(data.list) }) : t("share.title")} end={{ title: t("common.done"), analyticsName: Taps.commonDone, onPress: onDone }} />
       {!data ? (
         <ActivityIndicator color={colors.labelSecondary} style={{ marginTop: space[7] }} />
       ) : (

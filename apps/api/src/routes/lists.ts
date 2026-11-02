@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
+import { DEFAULT_LIST_NAME } from "@grocer/shared/lists";
 import type { Db } from "#/db/index.ts";
 import { items, listMembers, lists, user } from "#/db/schema.ts";
 import type { Deps } from "#/deps.ts";
@@ -68,7 +69,7 @@ export const listsRoutes = new Hono<AppEnv>()
     const { db } = c.var.deps;
     const userId = c.var.user.id;
     const all = listFor(db, userId);
-    return c.json(all.length ? all : [createList(db, userId, "My list")]);
+    return c.json(all.length ? all : [createList(db, userId, DEFAULT_LIST_NAME)]);
   })
   .post("/", async (c) => {
     const p = await parse(c, nameBody);

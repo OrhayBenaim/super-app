@@ -24,7 +24,7 @@ import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
 import { EmptyState, Group, IconButton, LargeTitle, Row, Screen, Tap, Text } from "@/ui";
-import { missingCodes, missingItems, useCategories, useCurrentListId, useItemMutations, useList, type Item } from "./api";
+import { listName, missingCodes, missingItems, useCategories, useCurrentListId, useItemMutations, useList, type Item } from "./api";
 import { Avatars } from "./Avatars";
 import { groupByCategory, RECENT_MS, recentlyBought } from "./group";
 
@@ -81,7 +81,7 @@ export function ShoppingList() {
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: space[5], paddingBottom: space[9] }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.labelSecondary} />}
       >
-        <LargeTitle title={data.list.name} subtitle={missing.length ? fmt(t("list.summary"), { n: missing.length }) : undefined} nav={nav} />
+        <LargeTitle title={listName(data.list)} subtitle={missing.length ? fmt(t("list.summary"), { n: missing.length }) : undefined} nav={nav} />
 
         <LayoutAnimationConfig skipEntering>
           {groups.length === 0 ? (
