@@ -1,5 +1,5 @@
-import { Children, Fragment, type ReactNode } from "react";
-import { View, type ViewStyle } from "react-native";
+import { Children, Fragment, useState, type ReactNode } from "react";
+import { ScrollView, View, type ViewStyle } from "react-native";
 import { useTheme } from "@/theme";
 import { Divider } from "./Divider";
 import { Text } from "./Text";
@@ -12,24 +12,42 @@ export type GroupProps = {
   footer?: string;
   /** Leading inset of the hairlines between rows (to the text start). */
   inset?: number;
+  /** Show this many rows and scroll the rest inside the group. */
+  maxRows?: number;
   style?: ViewStyle;
 };
 
 /** iOS inset group: white rounded block on the grouped background, hairlines between rows, no border or shadow. */
-export function Group({ children, title, count, footer, inset, style }: GroupProps) {
+export function Group({ children, title, count, footer, inset, maxRows, style }: GroupProps) {
   const { colors, radius, space } = useTheme();
   const rows = Children.toArray(children);
+  // Measured top of the first hidden row: rows vary in height (detail lines, Dynamic Type).
+  const [cut, setCut] = useState<number>();
+  const scrolls = maxRows !== undefined && rows.length > maxRows;
+  const Block = scrolls ? ScrollView : View;
   return (
     <View style={style}>
       {title !== undefined && <SectionHeader title={title} count={count} />}
-      <View style={{ backgroundColor: colors.surface, borderRadius: radius.group, overflow: "hidden" }}>
-        {rows.map((row, i) => (
-          <Fragment key={i}>
-            {i > 0 && <Divider style={{ marginStart: inset ?? space[5] }} />}
-            {row}
-          </Fragment>
-        ))}
-      </View>
+      <Block
+        style={{ backgroundColor: colors.surface, borderRadius: radius.group, overflow: "hidden", maxHeight: scrolls ? cut : undefined }}
+        {...(scrolls && { keyboardShouldPersistTaps: "handled", nestedScrollEnabled: true })}
+      >
+        {rows.map((row, i) => {
+          const body = (
+            <>
+              {i > 0 && <Divider style={{ marginStart: inset ?? space[5] }} />}
+              {row}
+            </>
+          );
+          return scrolls && i === maxRows ? (
+            <View key={i} onLayout={(e) => setCut(e.nativeEvent.layout.y)}>
+              {body}
+            </View>
+          ) : (
+            <Fragment key={i}>{body}</Fragment>
+          );
+        })}
+      </Block>
       {footer && (
         <Text variant="footnote" color="labelSecondary" style={{ paddingHorizontal: space[5], paddingTop: space[3] }}>
           {footer}

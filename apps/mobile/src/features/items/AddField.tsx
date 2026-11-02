@@ -36,7 +36,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
   // The search is debounced, so hide its last results as soon as the field is cleared.
   const searchable = query.trim().length >= 2;
   const searching = searchable && search.isFetching;
-  const products = searchable ? (search.data ?? []).filter((p) => !linked.has(p.code) && !items.some((i) => i.name === p.name)).slice(0, 3) : [];
+  const products = searchable ? (search.data ?? []).filter((p) => !linked.has(p.code) && !items.some((i) => i.name === p.name)) : [];
 
   const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing }, { onError: fail });
   // New items count here; re-adds count in useItemMutations (the Undo re-create must not count as an add).
@@ -106,7 +106,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
                 <Text color="labelSecondary">{t("items.add.searching")}</Text>
               </View>
             ) : (
-              products.map(productRow)
+              products.length > 0 && <Group maxRows={3}>{products.map(productRow)}</Group>
             )}
             {create && (
               <Row
