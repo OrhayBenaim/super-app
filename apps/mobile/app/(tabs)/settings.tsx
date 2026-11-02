@@ -15,6 +15,9 @@ export default function Settings() {
         <LargeTitle title={t("tabs.settings")} />
         <NearbyAlerts />
         <AccountGroup />
+        <Text variant="footnote" color="labelSecondary" style={{ paddingHorizontal: space[5], paddingTop: space[6] }}>
+          {t("settings.imageCredit")}
+        </Text>
       </ScrollView>
     </Screen>
   );
