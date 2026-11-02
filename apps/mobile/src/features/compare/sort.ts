@@ -6,7 +6,7 @@ export type StoreResult = {
   /** Codes and Product group refs this store does not carry. */
   missingCodes: string[];
   /** One per priced code or group; a group item names the product its price comes from (unitPrice per kilo or liter). */
-  items: { code: string; price: number; ref?: string; name?: string; size?: number; unitPrice?: number }[];
+  items: ({ code: string; price: number } | { ref: string; code: string; name: string; size: number; unitPrice?: number; price: number })[];
   orderUrl: string | null;
 };
 export type CompareResponse = { stores: StoreResult[]; unmatched: string[] };
