@@ -60,6 +60,16 @@ export function CompareScreen() {
   const body = (() => {
     if (loading) return <ShoppingLoader label={t("compare.loading")} />;
     if (list.isError) return <EmptyState icon={TriangleAlert} title={t("compare.error.title")} action={{ title: t("compare.retry"), analyticsName: Taps.compareRetryList, onPress: () => list.refetch() }} />;
+    if (!codes.length && items.length)
+      // Missing items exist but none is matched to a product, so there is nothing to price yet.
+      return (
+        <EmptyState
+          icon={ShoppingBasket}
+          title={t("compare.unmatched.title")}
+          body={fmt(t("compare.unmatched.body"), { n: items.length })}
+          action={{ title: fmt(t("compare.unmatched.match"), { name: items[0].name }), analyticsName: Taps.compareMissingMatch, onPress: () => router.push({ pathname: "/item/[id]", params: { id: items[0].id, page: "product" } }), filled: true }}
+        />
+      );
     if (!codes.length) return <EmptyState icon={ShoppingBasket} title={t("compare.noBasket.title")} body={t("compare.noBasket.body")} />;
     if (location.status === "denied")
       return (
