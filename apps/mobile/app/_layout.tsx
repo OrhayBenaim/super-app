@@ -2,7 +2,8 @@ import { useSentryNavigation, useSentryUser } from "@/lib/sentry"; // first: sta
 import * as Sentry from "@sentry/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
-import { useRef } from "react";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect, useRef } from "react";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "@/features/geofence/task"; // registers the background geofence task at startup
@@ -12,6 +13,9 @@ import { authClient } from "@/lib/auth-client";
 import { useTheme } from "@/theme";
 
 const queryClient = new QueryClient();
+
+// Keep the native splash (logo) up until the session is read, instead of a blank first frame.
+SplashScreen.preventAutoHideAsync();
 
 function RootLayout() {
   const { data: session, isPending } = authClient.useSession();
@@ -25,7 +29,11 @@ function RootLayout() {
   if (!isPending) loaded.current = true;
   // Navigate only once the navigator is mounted and the (tabs) group is reachable.
   useNearbyNotificationTap(loaded.current && !!session);
-  if (!loaded.current) return null; // session is cached in SecureStore, so this is brief
+  const ready = loaded.current;
+  useEffect(() => {
+    if (ready) SplashScreen.hide();
+  }, [ready]);
+  if (!ready) return null; // the splash stays up meanwhile; the session is cached in SecureStore, so this is brief
 
   // Native content-sized sheet; grouped background so the white inset groups inside read as groups, as on screens.
   const sheet = {
