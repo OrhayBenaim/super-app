@@ -142,6 +142,15 @@ describe("product groups: search", () => {
     expect((await groups("בורגול גס")).length).toBe(0); // one product: not a group
   });
 
+  it("never splits a kilo group by a typed size", async () => {
+    expect(await groups("בורגול 500 גרם")).toMatchObject([{ ref: "בורגול|kg", productCount: 5 }]);
+  });
+
+  it("ranks products the same with or without punctuation in the query", async () => {
+    const names = async (q: string) => (await search(q)).filter((r) => r.kind === "product").map((r) => r.name);
+    expect(await names("קוטג'")).toEqual(await names("קוטג"));
+  });
+
   it("keeps dishes out of the bulgur group", async () => {
     const rows = await search("בורגול עם גרגירי חומוס");
     expect(rows.some((r) => r.kind === "group")).toBe(false);
@@ -331,7 +340,7 @@ describe("product groups: compare", () => {
   });
 
   it("400 on a malformed group ref or amount", async () => {
-    for (const ref of ["x|kg|3", "x|foo", "x", "|kg", "x|unit", "x|unit|0", "x|unit|1.5", "x|kg|1|2", ""])
+    for (const ref of ["x|kg|3", "x|foo", "x", "|kg", "x|unit", "x|unit|0", "x|unit|1.5", "x|kg|1|2", "", "a\"b|kg", "a  b|kg", "a*|kg"])
       expect((await post({ ...here, groups: [{ ref }] })).status, ref).toBe(400);
     for (const amount of [0, -1, "2"]) expect((await post({ ...here, groups: [{ ref: "בורגול|kg", amount }] })).status, String(amount)).toBe(400);
   });

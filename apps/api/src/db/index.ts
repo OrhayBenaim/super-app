@@ -5,7 +5,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { chainSeeds } from "#/ingest/chains.ts";
-import { ownGroupRef } from "#/ingest/groups.ts";
+import { ownGroupRef } from "#/prices/groups.ts";
 import * as schema from "#/db/schema.ts";
 
 /** Opens the SQLite file (":memory:" in tests), applies migrations, upserts the chain seeds and links old Produce-group items. */

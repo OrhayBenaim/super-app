@@ -48,7 +48,7 @@ export const items = sqliteTable(
     name: text("name").notNull(),
     category: text("category").notNull(),
     productCode: text("product_code"),
-    groupRef: text("group_ref"), // a Product group (src/ingest/groups.ts); never set with productCode
+    groupRef: text("group_ref"), // a Product group (src/prices/groups.ts); never set with productCode
     missing: integer("missing", { mode: "boolean" }).notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

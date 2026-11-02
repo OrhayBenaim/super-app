@@ -6,7 +6,7 @@ import { DEFAULT_LIST_NAME } from "@grocer/shared/lists";
 import type { Db } from "#/db/index.ts";
 import { items, listMembers, lists, user } from "#/db/schema.ts";
 import type { Deps } from "#/deps.ts";
-import { parseRef } from "#/ingest/groups.ts";
+import { groupRefSchema } from "#/prices/groups.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32 chars, no 0/O/1/I; 256 % 32 == 0 so no modulo bias
@@ -17,7 +17,7 @@ const itemFields = z.object({
   name: z.string().trim().min(1).max(200),
   category: z.string().trim().min(1).max(100),
   productCode: z.string().trim().min(1).max(64).nullable().optional(),
-  groupRef: z.string().trim().min(1).max(200).refine((r) => parseRef(r) !== null, "invalid group ref").nullable().optional(),
+  groupRef: groupRefSchema.nullable().optional(),
   missing: z.boolean().optional(),
 });
 // An item is matched to one product or one Product group, never both.

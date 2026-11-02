@@ -55,7 +55,7 @@ describe("items matched to a Product group", () => {
 
   it("400 for a malformed groupRef, on create and on patch", async () => {
     const item = await addItem({ name: "Oil" });
-    for (const groupRef of ["x|kg|3", "x|foo", "x", "", "x|unit"]) {
+    for (const groupRef of ["x|kg|3", "x|foo", "x", "", "x|unit", "a\"b|kg"]) {
       expect((await call("POST", `/${listId}/items`, { name: "x", category: "y", groupRef })).status, groupRef).toBe(400);
       expect((await call("PATCH", `/${listId}/items/${item.id}`, { groupRef })).status, groupRef).toBe(400);
     }
