@@ -67,7 +67,8 @@
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "scheme": "grocer",
     "newArchEnabled": true,

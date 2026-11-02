@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "#/app.ts";
 import { buildDeps } from "#/deps.ts";
 import { MAX_CLIENTS } from "#/middleware.ts";
+import { fakeErrorHandler } from "#/providers/fake-error-handler/fake.ts";
 import { loadConfig } from "#/services/config.ts";
 import { fakeClock } from "#/utils/clock.ts";
 
@@ -60,5 +61,22 @@ describe("rateLimit", () => {
     const proxied = setup({ TRUST_PROXY: "true" });
     for (let i = 0; i < 6; i++) await proxied.from("10.0.0.1", "/api/auth/email-otp/request-password-reset", { "x-forwarded-for": `spoofed, 2.2.2.${i}` });
     expect((await proxied.from("10.0.0.1", "/api/auth/email-otp/request-password-reset", { "x-forwarded-for": "2.2.2.200" })).status).not.toBe(429);
+  });
+});
+
+describe("requireUser", () => {
+  it("tags error reports with the signed-in user's id", async () => {
+    const errorHandler = fakeErrorHandler();
+    const deps = buildDeps(loadConfig(), { errorHandler });
+    const app = createApp(deps);
+    const signUp = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "dana@example.com", password: "password1234", name: "Dana" }),
+    });
+    const { user } = (await signUp.json()) as { user: { id: string } };
+    const cookie = signUp.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    expect((await app.request("/api/lists", { headers: { cookie } })).status).toBe(200);
+    expect(errorHandler.user).toBe(user.id);
   });
 });

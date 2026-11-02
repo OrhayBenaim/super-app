@@ -3,6 +3,7 @@ import { openDb, type Db } from "#/db/index.ts";
 import { fakeErrorHandler } from "#/providers/fake-error-handler/fake.ts";
 import { nominatimGeocoder } from "#/providers/nominatim/nominatim.ts";
 import { ResendProvider } from "#/providers/resend/resend.ts";
+import { sentryErrorHandler } from "#/providers/sentry/sentry.ts";
 import { pricePortals } from "#/providers/price-portals/price-portals.ts";
 import type { Config } from "#/services/config.ts";
 import type { ErrorHandler } from "#/services/error-handler.ts";
@@ -27,7 +28,9 @@ export function buildDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
   const db = overrides.db ?? openDb(config.DATABASE_URL);
   // Before auth, which sends email through the mailer and reports failed sends.
   const mailer = overrides.mailer ?? new MailerService(new ResendProvider(config.RESEND_API_KEY, config.EMAIL_FROM));
-  const errorHandler = overrides.errorHandler ?? fakeErrorHandler();
+  const errorHandler =
+    overrides.errorHandler ??
+    (config.SENTRY_DSN ? sentryErrorHandler({ dsn: config.SENTRY_DSN, tracesSampleRate: config.SENTRY_TRACES_SAMPLE_RATE }) : fakeErrorHandler());
   return {
     config,
     db,

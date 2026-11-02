@@ -5,6 +5,7 @@
   "dependencies": {
     "@better-auth/expo": "^1.7.14",
     "@grocer/shared": "*",
+    "@sentry/react-native": "~8.28.0",
     "@tanstack/react-query": "^5.105.0",
     "better-auth": "^1.7.14",
     "expo": "~58.0.22",

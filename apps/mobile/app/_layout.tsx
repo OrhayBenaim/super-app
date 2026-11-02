@@ -1,17 +1,21 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "@/features/geofence/task"; // registers the background geofence task at startup
 import { useNearbyNotificationTap } from "@/features/geofence/useNearbyNotificationTap";
 import { authClient } from "@/lib/auth-client";
+import { Sentry } from "@/lib/sentry";
 import { useTheme } from "@/theme";
 
 const queryClient = new QueryClient();
 
-export default function RootLayout() {
+function RootLayout() {
   const { data: session, isPending } = authClient.useSession();
+  const userId = session?.user.id;
+  // Same id the API sets in requireUser; null on sign-out.
+  useEffect(() => Sentry.setUser(userId ? { id: userId } : null), [userId]);
   const { colors, radius, shadow } = useTheme();
   // Gate only the first load: a signed-out refetch (sign-in, app focus) sets isPending again,
   // and returning null then would unmount the whole navigator mid-form.
@@ -57,3 +61,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default Sentry.wrap(RootLayout);
