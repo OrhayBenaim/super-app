@@ -80,6 +80,8 @@ General
 - All product analytics (screen views, taps, feature events) go through our analytics module, never the PostHog SDK
   directly: `deps.analytics` in the API, `@/lib/analytics` in mobile. Both use the better-auth `user.id` as the
   distinct id. Event properties carry ids, counts and enums only: no names, emails, item names or free text.
+  Event and tap names are never string literals at call sites: use the `as const` maps (`Events`, `Taps` in
+  `@/lib/analytics`, `AnalyticsEvents` in `src/services/analytics.ts`) and add new names there.
 - Secrets come from env only. List every new env var in the app's `.env.example` and in README.md.
 
 API (`apps/api`): follow `apps/api/ARCHITECTURE.md`
@@ -114,10 +116,10 @@ Mobile (`apps/mobile`)
   Never write color literals (hex/rgb) outside `src/theme`. Use `<Text variant>` or `text(variant)` for type.
 - Motion goes through `springs` (`withSpring(v, springs.snappy)`) and respects `useReducedMotion()`.
 - Every touchable has an `accessibilityLabel` (`Tap`/`IconButton` require it). Build pressables on `Tap`.
-- Every touchable has an `analyticsName` (`Tap` requires it and tracks each press as a `tap` event): a stable,
-  language-neutral name, usually the strings key of the action (`"compare.navigate"`), never user data.
+- Every touchable has an `analyticsName` from `Taps` (`Tap` requires it and tracks each press as a `tap` event),
+  e.g. `analyticsName={Taps.compareNavigate}`. Values are stable, language-neutral, never user data.
   Screen views are tracked by route pattern in the root layout. A raw `Pressable` or `Switch` calls
-  `track("tap", { name })` itself.
+  `trackTap(Taps.x)` itself.
 - Every user-facing string goes through `t()` (fill `{name}` with `fmt`). Add the key to both `en` and `he`
   in `src/lib/strings.ts`; typecheck fails if `he` misses one.
 - The app is Hebrew-first. Layouts must work in RTL: use `start`/`end`, not `left`/`right`.
@@ -144,7 +146,7 @@ Mobile (`apps/mobile`)
 - [ ] `npm run typecheck` and `npm test` pass at the root.
 - [ ] New logic has tests. New endpoints have a `createApp(deps).request()` test that includes the 401 case.
 - [ ] No TODOs, commented-out code or console noise left behind.
-- [ ] Every touchable has `accessibilityRole`, `accessibilityLabel` and an `analyticsName` (or its own `track("tap")`).
+- [ ] Every touchable has `accessibilityRole`, `accessibilityLabel` and an `analyticsName` (or its own `trackTap`).
 - [ ] Screens render correctly in RTL (Hebrew) and LTR.
 - [ ] Every new env var is in `.env.example` and README.md. Migrations are generated and committed.
 

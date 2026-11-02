@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { missingItems, useCurrentListId, useList } from "@/features/lists/api";
+import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { Button, Group, Row, Sheet, SheetHeader } from "@/ui";
 import { fmt, shekels } from "./format";
@@ -18,7 +19,7 @@ export function MissingSheet() {
   const missing = items.filter((i) => !i.productCode || notHere.has(i.productCode));
   return (
     <Sheet>
-      <SheetHeader title={fmt(t("compare.missing.title"), { store: store.chainName })} end={{ title: t("common.done"), analyticsName: "common.done", onPress: () => router.back() }} />
+      <SheetHeader title={fmt(t("compare.missing.title"), { store: store.chainName })} end={{ title: t("common.done"), analyticsName: Taps.commonDone, onPress: () => router.back() }} />
       <Group footer={fmt(t("compare.missing.footer"), { total: shekels(store.total), n: store.matched })}>
         {missing.map((item) =>
           item.productCode ? (
@@ -32,7 +33,7 @@ export function MissingSheet() {
                 <Button
                   variant="plain"
                   title={t("compare.missing.match")}
-                  analyticsName="compare.missing.match"
+                  analyticsName={Taps.compareMissingMatch}
                   accessibilityLabel={`${t("compare.missing.match")}: ${item.name}`}
                   onPress={() => router.replace({ pathname: "/item/[id]", params: { id: item.id, page: "product" } })}
                   style={{ paddingHorizontal: 0 }}

@@ -1,6 +1,7 @@
 import type { ReactNode, Ref } from "react";
 import { I18nManager, TextInput, View, type TextInputInstance, type TextInputProps } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { TapName } from "@/lib/analytics";
 import { text, useTheme } from "@/theme";
 import { Tap } from "./Tap";
 import { Text } from "./Text";
@@ -12,7 +13,7 @@ export function Sheet({ children }: { children: ReactNode }) {
   return <View style={{ paddingTop: space[3], paddingHorizontal: space[5], paddingBottom: insets.bottom + space[5], gap: space[4] }}>{children}</View>;
 }
 
-type NavAction = { title: string; analyticsName: string; onPress: () => void; disabled?: boolean };
+type NavAction = { title: string; analyticsName: TapName; onPress: () => void; disabled?: boolean };
 
 /** Sheet nav bar: leading action (Cancel / Back), centered title, trailing action (Save / Done). */
 export function SheetHeader({ title, start, end }: { title: string; start?: NavAction; end?: NavAction }) {

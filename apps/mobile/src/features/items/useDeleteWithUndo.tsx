@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { Alert } from "react-native";
 import { fmt } from "@/features/compare/format";
 import { useItemMutations, type Item } from "@/features/lists/api";
+import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { Toast } from "@/ui";
 import { takePendingDelete } from "./pendingDelete";
@@ -36,7 +37,7 @@ export function useDeleteWithUndo(listId: string | null) {
       message={deleted && fmt(t("items.deleted"), { name: deleted.name })}
       action={{
         title: t("common.undo"),
-        analyticsName: "common.undo",
+        analyticsName: Taps.commonUndo,
         onPress: () => {
           if (!deleted) return;
           const { name, category, productCode, missing } = deleted;

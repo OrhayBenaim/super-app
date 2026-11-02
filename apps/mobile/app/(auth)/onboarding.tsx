@@ -12,6 +12,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { Illustration } from "@/features/onboarding/Illustration";
+import { Taps } from "@/lib/analytics";
 import { t, type StringKey } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Button, Screen, Text } from "@/ui";
@@ -58,7 +59,7 @@ export default function Onboarding() {
           importantForAccessibility={last ? "no-hide-descendants" : "auto"}
           style={{ opacity: last ? 0 : 1, transitionProperty: "opacity", transitionDuration: motion.duration.fast }}
         >
-          <Button variant="plain" title={t("common.skip")} analyticsName="common.skip" onPress={finish} style={{ paddingHorizontal: space[3] }} />
+          <Button variant="plain" title={t("common.skip")} analyticsName={Taps.commonSkip} onPress={finish} style={{ paddingHorizontal: space[3] }} />
         </Animated.View>
       </View>
 
@@ -94,7 +95,7 @@ export default function Onboarding() {
             <Dot key={slide.title} i={i} scrollX={scrollX} width={width} />
           ))}
         </View>
-        <Button style={{ alignSelf: "stretch" }} title={t(last ? "common.getStarted" : "common.next")} analyticsName={last ? "common.getStarted" : "common.next"} haptic={last} onPress={next} />
+        <Button style={{ alignSelf: "stretch" }} title={t(last ? "common.getStarted" : "common.next")} analyticsName={last ? Taps.commonGetStarted : Taps.commonNext} haptic={last} onPress={next} />
       </View>
     </Screen>
   );

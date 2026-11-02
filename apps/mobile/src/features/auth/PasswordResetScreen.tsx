@@ -6,6 +6,7 @@ import { codeStatus, RESET_CODE, type CodeLock, type SentCode } from "@grocer/sh
 import { formatCountdown } from "@/features/auth/countdown";
 import { authErrorKey, emailError, passwordError } from "@/features/auth/validate";
 import { fmt } from "@/features/compare/format";
+import { Taps } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { t, type StringKey } from "@/lib/strings";
 import { useTheme } from "@/theme";
@@ -179,7 +180,7 @@ export function PasswordResetScreen() {
         <>
           <Button
             title={t("auth.reset.submit")}
-            analyticsName="auth.reset.submit"
+            analyticsName={Taps.authResetSubmit}
             haptic
             loading={busy === "reset"}
             disabled={!!status?.lock || busy === "send"}
@@ -190,16 +191,16 @@ export function PasswordResetScreen() {
             variant="plain"
             title={status?.resendInMs ? fmt(t("auth.reset.resendIn"), { time: formatCountdown(status.resendInMs) }) : t("auth.reset.resend")}
             accessibilityLabel={t("auth.reset.resend")}
-            analyticsName="auth.reset.resend"
+            analyticsName={Taps.authResetResend}
             loading={busy === "send"}
             disabled={!!status?.resendInMs || busy === "reset"}
             onPress={send}
           />
         </>
       ) : (
-        <Button title={t("auth.reset.send")} analyticsName="auth.reset.send" haptic loading={busy === "send"} onPress={send} style={{ marginTop: space[2] }} />
+        <Button title={t("auth.reset.send")} analyticsName={Taps.authResetSend} haptic loading={busy === "send"} onPress={send} style={{ marginTop: space[2] }} />
       )}
-      <Button variant="plain" title={t("auth.reset.back")} analyticsName="auth.reset.back" disabled={!!busy} onPress={() => router.back()} />
+      <Button variant="plain" title={t("auth.reset.back")} analyticsName={Taps.authResetBack} disabled={!!busy} onPress={() => router.back()} />
     </Screen>
   );
 }

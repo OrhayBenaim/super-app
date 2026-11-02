@@ -6,6 +6,7 @@ import { Platform, type TextInputInstance } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { signInWithApple, signInWithBrowser } from "@/features/auth/social";
 import { authErrorKey, validate, type FieldErrors, type Fields } from "@/features/auth/validate";
+import { Taps } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
@@ -61,7 +62,7 @@ export default function SignIn() {
   const google = (
     <Button
       title={t("auth.google")}
-      analyticsName="auth.google"
+      analyticsName={Taps.authGoogle}
       variant="neutral"
       loading={busy === "google"}
       disabled={!!busy}
@@ -79,7 +80,7 @@ export default function SignIn() {
   ) : (
     <Button
       title={t("auth.apple")}
-      analyticsName="auth.apple"
+      analyticsName={Taps.authApple}
       variant="neutral"
       loading={busy === "apple"}
       disabled={!!busy}
@@ -169,7 +170,7 @@ export default function SignIn() {
       <Button
         layout={layout}
         title={t(mode === "signUp" ? "auth.signUp" : "auth.signIn")}
-        analyticsName={mode === "signUp" ? "auth.signUp" : "auth.signIn"}
+        analyticsName={mode === "signUp" ? Taps.authSignUp : Taps.authSignIn}
         haptic
         loading={busy === "email"}
         disabled={!!busy && busy !== "email"}
@@ -181,7 +182,7 @@ export default function SignIn() {
           layout={layout}
           variant="plain"
           title={t("auth.forgot")}
-          analyticsName="auth.forgot"
+          analyticsName={Taps.authForgot}
           disabled={!!busy}
           onPress={() => router.push({ pathname: "/password-reset", params: { email: fields.email.trim() } })}
         />
@@ -190,7 +191,7 @@ export default function SignIn() {
         layout={layout}
         variant="plain"
         title={t(mode === "signUp" ? "auth.toSignIn" : "auth.toSignUp")}
-        analyticsName={mode === "signUp" ? "auth.toSignIn" : "auth.toSignUp"}
+        analyticsName={mode === "signUp" ? Taps.authToSignIn : Taps.authToSignUp}
         onPress={() => {
           setMode((m) => (m === "signUp" ? "signIn" : "signUp"));
           setErrors({});

@@ -8,6 +8,7 @@ import Animated, { FadeIn } from "react-native-reanimated";
 import { fmt } from "@/features/compare/format";
 import { useCurrentListId, useList } from "@/features/lists/api";
 import { Avatar } from "@/features/lists/Avatars";
+import { Taps } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/strings";
 import { text, useTheme } from "@/theme";
@@ -68,7 +69,7 @@ function Members({ onDone, onJoin }: { onDone: () => void; onJoin: () => void })
 
   return (
     <>
-      <SheetHeader title={data ? fmt(t("share.titleNamed"), { name: data.list.name }) : t("share.title")} end={{ title: t("common.done"), analyticsName: "common.done", onPress: onDone }} />
+      <SheetHeader title={data ? fmt(t("share.titleNamed"), { name: data.list.name }) : t("share.title")} end={{ title: t("common.done"), analyticsName: Taps.commonDone, onPress: onDone }} />
       {!data ? (
         <ActivityIndicator color={colors.labelSecondary} style={{ marginTop: space[7] }} />
       ) : (
@@ -82,7 +83,7 @@ function Members({ onDone, onJoin }: { onDone: () => void; onJoin: () => void })
               value={m.role === "owner" ? t("share.owner") : undefined}
               trailing={
                 isOwner && m.userId !== me ? (
-                  <IconButton icon={UserMinus} color="danger" accessibilityLabel={`${t("common.remove")} ${m.name}`} analyticsName="share.removeMember" onPress={() => confirmRemove(m.userId, m.name, false)} />
+                  <IconButton icon={UserMinus} color="danger" accessibilityLabel={`${t("common.remove")} ${m.name}`} analyticsName={Taps.shareRemoveMember} onPress={() => confirmRemove(m.userId, m.name, false)} />
                 ) : undefined
               }
             />
@@ -102,18 +103,18 @@ function Members({ onDone, onJoin }: { onDone: () => void; onJoin: () => void })
               </Text>
             </Animated.View>
           )}
-          <Button title={t("share.send")} analyticsName="share.send" haptic loading={invite.isPending} disabled={!listId} onPress={() => send().catch(fail)} style={{ alignSelf: "stretch" }} />
-          <Button title={t(copied ? "share.copied" : "share.copy")} analyticsName="share.copy" variant="plain" disabled={!listId} onPress={() => copy().catch(fail)} style={{ alignSelf: "stretch" }} />
+          <Button title={t("share.send")} analyticsName={Taps.shareSend} haptic loading={invite.isPending} disabled={!listId} onPress={() => send().catch(fail)} style={{ alignSelf: "stretch" }} />
+          <Button title={t(copied ? "share.copied" : "share.copy")} analyticsName={Taps.shareCopy} variant="plain" disabled={!listId} onPress={() => copy().catch(fail)} style={{ alignSelf: "stretch" }} />
         </View>
       </Group>
 
       <Group style={{ marginTop: space[6] }}>
-        <Row title={t("share.join")} analyticsName="share.join" chevron onPress={onJoin} />
+        <Row title={t("share.join")} analyticsName={Taps.shareJoin} chevron onPress={onJoin} />
       </Group>
 
       {data && !isOwner && (
         <Group style={{ marginTop: space[6] }}>
-          <Row title={t("share.leave")} analyticsName="share.leave" titleColor="danger" onPress={() => me && confirmRemove(me, "", true)} />
+          <Row title={t("share.leave")} analyticsName={Taps.shareLeave} titleColor="danger" onPress={() => me && confirmRemove(me, "", true)} />
         </Group>
       )}
     </>
@@ -127,7 +128,7 @@ function Join({ onBack, onJoined }: { onBack: () => void; onJoined: () => void }
   const submit = () => code.trim() && !join.isPending && join.mutate(code, { onSuccess: onJoined });
   return (
     <View style={{ gap: space[4] }}>
-      <SheetHeader title={t("share.join")} start={{ title: t("common.back"), analyticsName: "common.back", onPress: onBack }} end={{ title: t("share.join.button"), analyticsName: "share.join.button", onPress: submit, disabled: !code.trim() || join.isPending }} />
+      <SheetHeader title={t("share.join")} start={{ title: t("common.back"), analyticsName: Taps.commonBack, onPress: onBack }} end={{ title: t("share.join.button"), analyticsName: Taps.shareJoinButton, onPress: submit, disabled: !code.trim() || join.isPending }} />
       <Text variant="subhead" color="labelSecondary" style={{ paddingHorizontal: space[5] }}>
         {t("share.join.hint")}
       </Text>

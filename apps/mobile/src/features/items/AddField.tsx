@@ -5,7 +5,7 @@ import { Alert, Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { fmt } from "@/features/compare/format";
 import { useItemMutations, type Item } from "@/features/lists/api";
-import { track } from "@/lib/analytics";
+import { Events, Taps, track, trackTap } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Group, Row, SearchField, Tap, Text } from "@/ui";
@@ -32,7 +32,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
   // New items count here; re-adds count in useItemMutations (the Undo re-create must not count as an add).
   const createItem = (name: string) => {
     Haptics.selectionAsync();
-    add.mutate({ name, category: t("items.category.other"), missing: from === "list" }, { onError: fail, onSuccess: () => from === "list" && track("list_item_added", { existing: false }) });
+    add.mutate({ name, category: t("items.category.other"), missing: from === "list" }, { onError: fail, onSuccess: () => from === "list" && track(Events.listItemAdded, { existing: false }) });
     setQuery("");
   };
   const addTop = () => {
@@ -52,7 +52,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
       exiting={FadeOut.duration(motion.duration.fast)}
       style={{ position: "absolute", top: 0, bottom: 0, start: 0, end: 0, zIndex: 1 }}
     >
-      <Pressable accessibilityRole="button" accessibilityLabel={t("common.cancel")} onPress={() => { track("tap", { name: "items.add.dismiss" }); onClose(); }} style={{ position: "absolute", top: 0, bottom: 0, start: 0, end: 0, backgroundColor: colors.scrim }} />
+      <Pressable accessibilityRole="button" accessibilityLabel={t("common.cancel")} onPress={() => { trackTap(Taps.itemsAddDismiss); onClose(); }} style={{ position: "absolute", top: 0, bottom: 0, start: 0, end: 0, backgroundColor: colors.scrim }} />
       <View style={{ backgroundColor: colors.groupedBg, flexDirection: "row", alignItems: "center", gap: space[4], paddingHorizontal: space[5], paddingVertical: space[3] }}>
         <SearchField
           label={t("items.add.placeholder")}
@@ -65,7 +65,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
           onSubmitEditing={addTop}
           containerStyle={{ flex: 1 }}
         />
-        <Tap accessibilityLabel={t("common.cancel")} analyticsName="common.cancel" onPress={onClose} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>
+        <Tap accessibilityLabel={t("common.cancel")} analyticsName={Taps.commonCancel} onPress={onClose} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>
           <Text color="tint">{t("common.cancel")}</Text>
         </Tap>
       </View>
@@ -79,7 +79,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
               <Row
                 title={fmt(t(from === "list" ? "items.add.create" : "items.add.createInItems"), { name: create })}
                 titleColor="tint"
-                analyticsName="items.add.create"
+                analyticsName={Taps.itemsAddCreate}
                 trailing={<Plus size={20} color={colors.tint} strokeWidth={2} />}
                 onPress={() => createItem(create)}
               />

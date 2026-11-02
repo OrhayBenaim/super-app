@@ -6,6 +6,7 @@ import type { Db } from "#/db/index.ts";
 import { items, listMembers, lists, user } from "#/db/schema.ts";
 import type { Deps } from "#/deps.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
+import { AnalyticsEvents } from "#/services/analytics.ts";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32 chars, no 0/O/1/I; 256 % 32 == 0 so no modulo bias
 const newCode = () => Array.from(randomBytes(8), (b) => ALPHABET[b % ALPHABET.length]).join("");
@@ -85,7 +86,7 @@ export const listsRoutes = new Hono<AppEnv>()
     const added = db.insert(listMembers).values({ listId: list.id, userId, role: "member" }).onConflictDoNothing().run();
     if (added.changes) {
       touch(c.var.deps, list.id);
-      c.var.deps.analytics.capture(userId, "list_joined", { listId: list.id });
+      c.var.deps.analytics.capture(userId, AnalyticsEvents.listJoined, { listId: list.id });
     }
     return c.json(oneList(db, userId, list.id));
   })
@@ -170,7 +171,7 @@ export const listsRoutes = new Hono<AppEnv>()
     if (!roleOf(db, listId, c.var.user.id)) return notFound(c);
     const code = newCode();
     db.update(lists).set({ inviteCode: code, updatedAt: clock.now() }).where(eq(lists.id, listId)).run();
-    c.var.deps.analytics.capture(c.var.user.id, "list_shared", { listId });
+    c.var.deps.analytics.capture(c.var.user.id, AnalyticsEvents.listShared, { listId });
     return c.json({ code, url: `grocer://join/${code}` });
   })
   .delete("/:id/members/:userId", (c) => {

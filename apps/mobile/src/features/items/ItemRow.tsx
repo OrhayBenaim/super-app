@@ -3,6 +3,7 @@ import { Plus } from "lucide-react-native";
 import { View } from "react-native";
 import type { Item } from "@/features/lists/api";
 import { fmt } from "@/features/compare/format";
+import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Tap, Text } from "@/ui";
@@ -18,7 +19,7 @@ export function ItemRow({ item, onToggle, onEdit }: { item: Item; onToggle: (mis
       accessibilityLabel={fmt(t(item.missing ? "items.removeFromList" : "items.addToList"), { name: item.name })}
       accessibilityHint={onEdit ? t("items.editHint") : undefined}
       accessibilityState={{ selected: item.missing }}
-      analyticsName={item.missing ? "items.removeFromList" : "items.addToList"}
+      analyticsName={item.missing ? Taps.itemsRemoveFromList : Taps.itemsAddToList}
       scaleTo={1}
       onPress={() => {
         Haptics.selectionAsync();

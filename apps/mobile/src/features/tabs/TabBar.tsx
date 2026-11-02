@@ -2,11 +2,12 @@ import * as Haptics from "expo-haptics";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
 import { ChartColumn, ListChecks, Settings, ShoppingBasket, type LucideIcon } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
-import { track } from "@/lib/analytics";
+import { Taps, trackTap, type TapName } from "@/lib/analytics";
 import { useTheme } from "@/theme";
 import { Text } from "@/ui";
 
 const ICONS: Record<string, LucideIcon> = { index: ListChecks, items: ShoppingBasket, compare: ChartColumn, settings: Settings };
+const TAPS: Record<string, TapName> = { index: Taps.tabIndex, items: Taps.tabItems, compare: Taps.tabCompare, settings: Taps.tabSettings };
 
 /** Standard iOS tab bar: Lucide icon over a Caption label; selected = tint, others Secondary Label; top hairline. */
 export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: BottomTabBarProps) {
@@ -30,7 +31,8 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
         const Icon = ICONS[route.name] ?? ListChecks;
         const color = focused ? colors.tint : colors.labelSecondary;
         const onPress = () => {
-          track("tap", { name: `tab.${route.name}` });
+          const tap = TAPS[route.name];
+          if (tap) trackTap(tap);
           const event = emitter.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
           if (focused || event.defaultPrevented) return;
           Haptics.selectionAsync();

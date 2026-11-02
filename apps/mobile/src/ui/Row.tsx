@@ -1,6 +1,7 @@
 import { ChevronRight } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { I18nManager, View } from "react-native";
+import type { TapName } from "@/lib/analytics";
 import { useTheme, type ColorName } from "@/theme";
 import { Tap, type TapProps } from "./Tap";
 import { Text } from "./Text";
@@ -17,7 +18,7 @@ export type RowProps = Partial<Omit<TapProps, "children" | "analyticsName">> & {
   chevron?: boolean;
   leading?: ReactNode;
   trailing?: ReactNode;
-} & ({ onPress?: undefined; onLongPress?: undefined; analyticsName?: undefined } | { analyticsName: string }); // pressable rows must name their tap
+} & ({ onPress?: undefined; onLongPress?: undefined; analyticsName?: undefined } | { analyticsName: TapName }); // pressable rows must name their tap
 
 /** The standard 52pt list row. Pressable when it has onPress/onLongPress, static otherwise. */
 export function Row({ title, titleColor = "label", detail, value, valueColor = "labelSecondary", chevron, leading, trailing, onPress, onLongPress, accessibilityLabel, analyticsName, ...rest }: RowProps) {

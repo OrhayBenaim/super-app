@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { ActivityIndicator } from "react-native";
 import { useShareMutations } from "@/features/share/api";
+import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { EmptyState, Screen } from "@/ui";
@@ -23,7 +24,7 @@ export default function JoinByLink() {
   return (
     <Screen>
       {join.isError ? (
-        <EmptyState title={t("share.join.error")} action={{ title: t("list.toList"), analyticsName: "list.toList", onPress: () => router.replace("/(tabs)") }} />
+        <EmptyState title={t("share.join.error")} action={{ title: t("list.toList"), analyticsName: Taps.listToList, onPress: () => router.replace("/(tabs)") }} />
       ) : (
         <ActivityIndicator style={{ flex: 1 }} color={colors.labelSecondary} accessibilityLabel={t("share.joining")} />
       )}

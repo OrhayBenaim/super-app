@@ -1,7 +1,7 @@
 // Shared list data layer (types mirror docs/api.md). Both the list screens and Compare build on this.
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { create } from "zustand";
-import { track } from "@/lib/analytics";
+import { Events, track } from "@/lib/analytics";
 import { api } from "@/lib/api";
 
 export type List = { id: string; name: string; ownerId: string; role: "owner" | "member"; memberCount: number; updatedAt: string };
@@ -81,7 +81,7 @@ export function useItemMutations(listId: string | null) {
     onMutate: ({ id, ...patch }) => patchCache((items) => items.map((i) => (i.id === id ? { ...i, ...patch } : i))),
     onError: rollback,
     onSuccess: (_item, { missing }) => {
-      if (missing === true) track("list_item_added", { existing: true });
+      if (missing === true) track(Events.listItemAdded, { existing: true });
     },
     onSettled: invalidate,
   });
