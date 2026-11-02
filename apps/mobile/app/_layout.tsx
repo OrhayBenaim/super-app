@@ -1,3 +1,4 @@
+import { useSentryNavigation, useSentryUser } from "@/lib/sentry"; // first: starts Sentry before the rest loads
 import * as Sentry from "@sentry/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
@@ -7,13 +8,13 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "@/features/geofence/task"; // registers the background geofence task at startup
 import { useNearbyNotificationTap } from "@/features/geofence/useNearbyNotificationTap";
 import { authClient } from "@/lib/auth-client";
-import { useSentryUser } from "@/lib/sentry";
 import { useTheme } from "@/theme";
 
 const queryClient = new QueryClient();
 
 function RootLayout() {
   const { data: session, isPending } = authClient.useSession();
+  useSentryNavigation();
   useSentryUser(session?.user.id);
   const { colors, radius, shadow } = useTheme();
   // Gate only the first load: a signed-out refetch (sign-in, app focus) sets isPending again,

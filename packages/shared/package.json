@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./reset-code": "./src/reset-code.ts"
+    "./reset-code": "./src/reset-code.ts",
+    "./sentry": "./src/sentry.ts"
   },
   "scripts": {
     "test": "vitest run",

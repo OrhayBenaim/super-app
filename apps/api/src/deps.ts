@@ -30,7 +30,7 @@ export function buildDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
   const mailer = overrides.mailer ?? new MailerService(new ResendProvider(config.RESEND_API_KEY, config.EMAIL_FROM));
   const errorHandler =
     overrides.errorHandler ??
-    (config.SENTRY_DSN ? sentryErrorHandler({ dsn: config.SENTRY_DSN, tracesSampleRate: config.SENTRY_TRACES_SAMPLE_RATE }) : fakeErrorHandler());
+    (config.SENTRY_DSN ? sentryErrorHandler({ dsn: config.SENTRY_DSN, environment: config.SENTRY_ENVIRONMENT }) : fakeErrorHandler());
   return {
     config,
     db,

@@ -44,7 +44,7 @@ On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN IP, not lo
 | api | `EMAIL_FROM` | sender address, default `Grocer <no-reply@example.com>` |
 | api | `NOMINATIM_URL` | optional geocoder base URL for `npm run geocode`, default `https://nominatim.openstreetmap.org` |
 | api | `SENTRY_DSN` | optional; the one Sentry project `grocer`, shared with mobile (events tagged `app:api`). Unset: errors are only logged |
-| api | `SENTRY_TRACES_SAMPLE_RATE` | 0 to 1, default 0.2; set 1 in dev to trace every request |
+| api | `SENTRY_ENVIRONMENT` | default `development`; set `production` in deploys. Traces: 100% in development, 20% in production, the same rule as mobile (`packages/shared/src/sentry.ts`) |
 | api | `APPLE_CLIENT_ID`, `APPLE_CLIENT_SECRET`, `APPLE_APP_BUNDLE_IDENTIFIER` | optional; Apple sign-in on when id + secret set |
 | mobile | `EXPO_PUBLIC_API_URL` | e.g. `http://localhost:3000` |
 | mobile | `EXPO_PUBLIC_SENTRY_DSN` | optional; same DSN as the API's `SENTRY_DSN` (events tagged `app:mobile`). Unset: the SDK stays off. `.env` is not uploaded to EAS, so set it as an EAS env var for cloud builds |
