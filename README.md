@@ -73,6 +73,53 @@ A Price sync (`CONTEXT.md`, "Prices") does fetch, ingest and geocode for every c
   answers 202 `{ "id": n }` (recorded; the worker runs it within a minute), 409 while a sync is running or waiting, 401 without
   the token. A finished Manual sync skips the next Scheduled sync.
 
+## Deploy
+
+Each setting lives in one place: mobile app settings in EAS, server settings in Coolify, and only the Expo token in GitHub.
+
+- The server is one production stack on a Coolify VPS, built from `docker-compose.yaml` (Docker Compose build pack) on every push to `main`.
+- `deploy-mobile.yml` starts EAS builds of both platforms: on `main`, profile `staging` (internal distribution, EAS environment `preview`);
+  on a published GitHub release, `production` (EAS environment `production`, auto-submitted to the stores). Run it by hand after changing EAS variables.
+
+**GitHub** (repo or both environments): secret `EXPO_TOKEN`, an expo.dev access token (a robot user). Add required reviewers to `production`.
+
+**EAS** (expo.dev > project > Environment variables; `preview` for staging, `production` for production):
+
+| Name | Visibility | Notes |
+| --- | --- | --- |
+| `EXPO_PUBLIC_API_URL` | plaintext | required; that environment's public API URL |
+| `EXPO_PUBLIC_SENTRY_DSN` | plaintext | optional; same DSN as the API's `SENTRY_DSN` |
+| `EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_POSTHOG_HOST` | plaintext | optional |
+| `SENTRY_ORG`, `SENTRY_PROJECT` | plaintext | source map upload |
+| `SENTRY_AUTH_TOKEN` | secret | source map upload; the iOS build fails without it unless `SENTRY_DISABLE_AUTO_UPLOAD=true` |
+
+`EXPO_PUBLIC_*` values are compiled into the app, so they are never secret. From `apps/mobile`:
+`npx eas-cli@latest env:set preview --name EXPO_PUBLIC_API_URL --value https://... --visibility plaintext`.
+
+**Coolify** (a Docker Compose resource on this repo, branch `main`, compose file `/docker-compose.yaml`):
+give the `api` service its domain as `https://api.example.com:3000` and set the API env vars listed above in the resource's
+Environment Variables. Required: `BETTER_AUTH_URL` (that domain), `BETTER_AUTH_SECRET`, `RESEND_API_KEY` (the worker needs it too,
+since config validation requires it). `SENTRY_ENVIRONMENT` defaults to `production`, `TRUST_PROXY` is always on, and `PORT` and
+`DATABASE_URL` (`/data/grocer.db`) have image defaults. `api` and `worker` share the `grocer-data` volume (one SQLite file).
+
+The chains' portals block non-Israeli IPs, so the worker's HTTP goes through the `tailscale` container, which uses a machine in Israel
+as its Tailscale exit node. Price syncs fail while that machine is off or offline; prices stay at the last good sync. Set:
+
+| Name | Notes |
+| --- | --- |
+| `TS_AUTHKEY` | Tailscale auth key for the container (admin console > Settings > Keys); used on first start, state lives in the `tailscale-state` volume |
+| `TS_EXIT_NODE` | the Tailscale IP (`100.x.y.z`) of the machine in Israel; it runs Tailscale with "Run exit node" on, approved in the admin console |
+
+To move an existing database in: stop the resource, copy the file into the `grocer-data` volume as `grocer.db`
+(`/var/lib/docker/volumes/<volume>/_data/`), delete any `grocer.db-wal` and `grocer.db-shm` there (they belong to the old file and
+would corrupt the new one), `chown 1000:1000` it (the containers run as `node`), and start the resource.
+Make the copy with `VACUUM INTO` rather than copying the file, so the WAL is included and the copy is consistent.
+
+One-time setup (the EAS project is `@ottersprod/grocer`): run one interactive
+`eas build --profile production` per platform to create signing credentials; add an App Store Connect API key and a Google Play
+service account key to EAS for submits (Google Play needs the first Android upload by hand); register iOS test devices for staging
+builds with `eas device:create`.
+
 ## Known limitations / not verified on device
 
 - Built and checked with typecheck, vitest and `expo export` only; nothing has run on a real device or simulator yet.

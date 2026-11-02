@@ -87,6 +87,12 @@
     "newArchEnabled": true,
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "c3c9318d-a94c-4f2f-acbe-4727eb2aeded"
+      }
+    },
+    "owner": "ottersprod"
   }
 }
