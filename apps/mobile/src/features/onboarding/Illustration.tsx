@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { View } from "react-native";
 import Animated, { Extrapolation, interpolate, useAnimatedStyle, useReducedMotion, type SharedValue } from "react-native-reanimated";
 import { fmt, formatDistance, shekels } from "@/features/compare/format";
+import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Button, Group, Text } from "@/ui";
@@ -93,8 +94,8 @@ function BestStoreFragment() {
         <Text variant="footnote" color="warning">
           {fmt(t("compare.coverage.partial"), { n: 3, m: 4, missing: 1 })}
         </Text>
-        <Button title={t("compare.navigate")} style={{ minHeight: 42 }} />
-        <Button title={t("compare.order")} variant="plain" style={{ minHeight: 36 }} />
+        <Button title={t("compare.navigate")} analyticsName={Taps.onboardingDemoNavigate} style={{ minHeight: 42 }} />
+        <Button title={t("compare.order")} analyticsName={Taps.onboardingDemoOrder} variant="plain" style={{ minHeight: 36 }} />
       </View>
     </Group>
   );

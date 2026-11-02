@@ -1,6 +1,7 @@
 import type { ReactNode, Ref } from "react";
 import { I18nManager, TextInput, View, type TextInputInstance, type TextInputProps } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { TapName } from "@/lib/analytics";
 import { text, useTheme } from "@/theme";
 import { Tap } from "./Tap";
 import { Text } from "./Text";
@@ -12,14 +13,14 @@ export function Sheet({ children }: { children: ReactNode }) {
   return <View style={{ paddingTop: space[3], paddingHorizontal: space[5], paddingBottom: insets.bottom + space[5], gap: space[4] }}>{children}</View>;
 }
 
-type NavAction = { title: string; onPress: () => void; disabled?: boolean };
+type NavAction = { title: string; analyticsName: TapName; onPress: () => void; disabled?: boolean };
 
 /** Sheet nav bar: leading action (Cancel / Back), centered title, trailing action (Save / Done). */
 export function SheetHeader({ title, start, end }: { title: string; start?: NavAction; end?: NavAction }) {
   const { space, size } = useTheme();
   const action = (a: NavAction | undefined, strong: boolean) =>
     a ? (
-      <Tap accessibilityLabel={a.title} onPress={a.onPress} disabled={a.disabled} hitSlop={8} style={{ minHeight: size.target, justifyContent: "center", opacity: a.disabled ? 0.4 : 1 }}>
+      <Tap accessibilityLabel={a.title} analyticsName={a.analyticsName} onPress={a.onPress} disabled={a.disabled} hitSlop={8} style={{ minHeight: size.target, justifyContent: "center", opacity: a.disabled ? 0.4 : 1 }}>
         <Text variant={strong ? "headline" : "body"} color="tint">
           {a.title}
         </Text>

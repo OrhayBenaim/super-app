@@ -1,10 +1,12 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "#/app.ts";
 import { buildDeps } from "#/deps.ts";
+import { fakeAnalytics } from "#/providers/posthog/fake.ts";
 import { loadConfig } from "#/services/config.ts";
 
 let app: ReturnType<typeof createApp>;
 let deps: ReturnType<typeof buildDeps>;
+const analytics = fakeAnalytics();
 let dana: string;
 let eli: string;
 
@@ -26,7 +28,7 @@ function call(cookie: string, method: string, path: string, body?: unknown) {
 }
 
 beforeAll(async () => {
-  deps = buildDeps(loadConfig());
+  deps = buildDeps(loadConfig(), { analytics });
   app = createApp(deps);
   dana = await signUp("dana@lists.test", "Dana");
   eli = await signUp("eli@lists.test", "Eli");
@@ -111,5 +113,19 @@ describe("lists", () => {
     const eliId = members.find((m: { role: string }) => m.role === "member").userId;
     expect((await call(dana, "DELETE", `/${listId}/members/${eliId}`)).status).toBe(204);
     expect((await call(eli, "GET", `/${listId}`)).status).toBe(404);
+  });
+
+  it("captures list_shared and list_joined once, by user id", async () => {
+    const noa = await signUp("noa@lists.test", "Noa");
+    analytics.captured.length = 0;
+    const { code } = await (await call(dana, "POST", `/${listId}/invite`)).json();
+    await call(noa, "POST", "/join", { code });
+    await call(noa, "POST", "/join", { code }); // already a member: no second event
+    const { members } = await (await call(dana, "GET", `/${listId}`)).json();
+    const idOf = (name: string) => members.find((m: { name: string }) => m.name === name).userId;
+    expect(analytics.captured).toEqual([
+      { distinctId: idOf("Dana"), event: "list_shared", properties: { listId } },
+      { distinctId: idOf("Noa"), event: "list_joined", properties: { listId } },
+    ]);
   });
 });

@@ -46,9 +46,11 @@ On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN IP, not lo
 | api | `SENTRY_DSN` | optional; the one Sentry project `grocer`, shared with mobile (events tagged `app:api`). Unset: errors are only logged |
 | api | `SENTRY_ENVIRONMENT` | default `development`; set `production` in deploys. Traces: 100% in development, 20% in production, the same rule as mobile (`packages/shared/src/sentry.ts`) |
 | api | `APPLE_CLIENT_ID`, `APPLE_CLIENT_SECRET`, `APPLE_APP_BUNDLE_IDENTIFIER` | optional; Apple sign-in on when id + secret set |
+| api | `POSTHOG_KEY`, `POSTHOG_HOST` | optional; PostHog product analytics (`list_shared`, `list_joined`) on when the key is set; host default `https://eu.i.posthog.com` |
 | mobile | `EXPO_PUBLIC_API_URL` | e.g. `http://localhost:3000` |
 | mobile | `EXPO_PUBLIC_SENTRY_DSN` | optional; same DSN as the API's `SENTRY_DSN` (events tagged `app:mobile`). Unset: the SDK stays off. `.env` is not uploaded to EAS, so set it as an EAS env var for cloud builds |
 | mobile | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | build time only, for source map upload; set as EAS secrets, never in git |
+| mobile | `EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_POSTHOG_HOST` | optional; same PostHog project as the API (events share the better-auth user id); host default `https://eu.i.posthog.com` |
 
 ## Ingest
 

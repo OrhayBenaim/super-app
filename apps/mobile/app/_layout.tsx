@@ -7,6 +7,7 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "@/features/geofence/task"; // registers the background geofence task at startup
 import { useNearbyNotificationTap } from "@/features/geofence/useNearbyNotificationTap";
+import { useAnalytics } from "@/lib/useAnalytics";
 import { authClient } from "@/lib/auth-client";
 import { useTheme } from "@/theme";
 
@@ -17,6 +18,7 @@ function RootLayout() {
   useSentryNavigation();
   useSentryUser(session?.user.id);
   const { colors, radius, shadow } = useTheme();
+  useAnalytics(session?.user.id ?? null);
   // Gate only the first load: a signed-out refetch (sign-in, app focus) sets isPending again,
   // and returning null then would unmount the whole navigator mid-form.
   const loaded = useRef(false);

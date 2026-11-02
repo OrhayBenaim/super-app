@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Linking, ScrollView, Switch, View } from "react-native";
 import { AccountGroup } from "@/features/account/AccountGroup";
 import { useNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
+import { Taps, trackTap } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Button, Group, LargeTitle, Screen, Text } from "@/ui";
@@ -39,6 +40,7 @@ function NearbyAlerts() {
             trackColor={{ true: colors.tint, false: colors.fillControl }}
             ios_backgroundColor={colors.fillControl}
             onValueChange={async (on) => {
+              trackTap(Taps.settingsNearby, { on });
               setPending(true);
               setDenied(!(await setEnabled(on).finally(() => setPending(false))));
             }}
@@ -49,7 +51,7 @@ function NearbyAlerts() {
         {note}
       </Text>
       {denied && (
-        <Button variant="plain" title={t("settings.openSettings")} onPress={() => Linking.openSettings()} style={{ alignSelf: "flex-start", minHeight: 44, paddingHorizontal: space[5] }} />
+        <Button variant="plain" title={t("settings.openSettings")} analyticsName={Taps.settingsOpenSettings} onPress={() => Linking.openSettings()} style={{ alignSelf: "flex-start", minHeight: 44, paddingHorizontal: space[5] }} />
       )}
     </View>
   );

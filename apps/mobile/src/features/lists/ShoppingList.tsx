@@ -19,6 +19,7 @@ import { fmt, shekels } from "@/features/compare/format";
 import { sortStores } from "@/features/compare/sort";
 import { AddField } from "@/features/items/AddField";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
+import { Events, Taps, track } from "@/lib/analytics";
 import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
@@ -48,7 +49,7 @@ export function ShoppingList() {
   const missing = missingItems(data);
   const groups = groupByCategory(missing, categories);
   const recent = recentlyBought(data?.items ?? [], 50, Date.now() - RECENT_MS);
-  const bought = (id: string) => update.mutate({ id, missing: false });
+  const bought = (id: string) => update.mutate({ id, missing: false }, { onSuccess: () => track(Events.listItemChecked) });
   // Own flag, not isRefetching: the 5s poll would flash the spinner.
   const onRefresh = async () => {
     setRefreshing(true);
@@ -66,11 +67,11 @@ export function ShoppingList() {
 
   const nav = (
     <>
-      <Tap accessibilityLabel={t("share.title")} onPress={() => router.push("/share")} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: space[3], minHeight: 44 }}>
+      <Tap accessibilityLabel={t("share.title")} analyticsName={Taps.shareTitle} onPress={() => router.push("/share")} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: space[3], minHeight: 44 }}>
         <Avatars names={data.members.map((m) => m.name)} size={24} />
         <Share size={22} color={colors.tint} strokeWidth={1.75} />
       </Tap>
-      <IconButton icon={Plus} accessibilityLabel={t("items.add")} onPress={() => setAdding(true)} />
+      <IconButton icon={Plus} accessibilityLabel={t("items.add")} analyticsName={Taps.itemsAdd} onPress={() => setAdding(true)} />
     </>
   );
 
@@ -89,7 +90,7 @@ export function ShoppingList() {
                 icon={ShoppingBasket}
                 title={t("list.empty.title")}
                 body={t("list.empty.body")}
-                action={{ title: t("list.toItems"), onPress: () => router.navigate("/items") }}
+                action={{ title: t("list.toItems"), analyticsName: Taps.listToItems, onPress: () => router.navigate("/items") }}
               />
             </Animated.View>
           ) : (
@@ -101,6 +102,7 @@ export function ShoppingList() {
                     value={`${cheapest.chainName} · ${shekels(cheapest.total)}`}
                     valueColor="tint"
                     accessibilityRole="link"
+                    analyticsName={Taps.listCheapest}
                     onPress={() => router.navigate("/compare")}
                   />
                 </Group>
@@ -110,7 +112,10 @@ export function ShoppingList() {
                   <Group title={g.category} count={g.count} inset={CHECK_INSET + space[5]}>
                     {g.items.map((item) => (
                       <Animated.View key={item.id} layout={LAYOUT} entering={ENTER} exiting={EXIT}>
-                        <CheckRow item={item} onBought={bought} onEdit={() => router.push({ pathname: "/item/[id]", params: { id: item.id } })} />
+                        <CheckRow item={item} onBought={bought} onEdit={() => {
+                          track(Events.itemEditOpened, { from: "list" });
+                          router.push({ pathname: "/item/[id]", params: { id: item.id } });
+                        }} />
                       </Animated.View>
                     ))}
                   </Group>
@@ -122,7 +127,7 @@ export function ShoppingList() {
           {recent.length > 0 && (
             <Animated.View layout={LAYOUT} style={{ marginTop: space[6] }}>
               <Group>
-                <Row title={t("list.recent")} value={String(recent.length)} chevron onPress={() => router.push("/recent")} />
+                <Row title={t("list.recent")} analyticsName={Taps.listRecent} value={String(recent.length)} chevron onPress={() => router.push("/recent")} />
               </Group>
             </Animated.View>
           )}
@@ -166,6 +171,7 @@ function CheckRow({ item, onBought, onEdit }: { item: Item; onBought: (id: strin
       <Tap
         accessibilityRole="checkbox"
         accessibilityLabel={`${t("list.check")}: ${item.name}`}
+        analyticsName={Taps.listCheck}
         accessibilityState={{ checked: done }}
         onPress={check}
         scaleTo={0.9}
@@ -190,6 +196,7 @@ function CheckRow({ item, onBought, onEdit }: { item: Item; onBought: (id: strin
       <Tap
         accessibilityLabel={item.name}
         accessibilityHint={t("items.editHint")}
+        analyticsName={Taps.listItem}
         scaleTo={1}
         onLongPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

@@ -2,6 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import { useEffect, useRef, useState } from "react";
 import { Linking, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { openWaze } from "@/lib/waze";
 import { useTheme } from "@/theme";
@@ -28,8 +29,10 @@ export function BestStore({ store, basketSize, saving, listText, onShowMissing }
   const missing = basketSize - store.matched;
   const coverage = fmt(t(missing ? "compare.coverage.partial" : "compare.coverage.full"), { n: store.matched, m: basketSize, missing });
 
+  const selected = (action: "navigate" | "order") => track(Events.compareStoreSelected, { chainId: store.chainId, action });
   const order = async () => {
     if (!store.orderUrl) return;
+    selected("order");
     // No chain exposes add-to-cart links (docs/research/price-data.md §6): hand over the list via the clipboard.
     await Clipboard.setStringAsync(listText);
     setCopied(true);
@@ -60,13 +63,16 @@ export function BestStore({ store, basketSize, saving, listText, onShowMissing }
           </Text>
         </View>
         {missing > 0 ? (
-          <Row title={coverage} titleColor="warning" chevron accessibilityHint={t("compare.missing.hint")} onPress={onShowMissing} />
+          <Row title={coverage} titleColor="warning" chevron accessibilityHint={t("compare.missing.hint")} analyticsName={Taps.compareMissing} onPress={onShowMissing} />
         ) : (
           <Row title={coverage} titleColor="labelSecondary" />
         )}
         <View style={{ gap: space[2], padding: space[5], paddingTop: space[2] }}>
-          <Button title={t("compare.navigate")} accessibilityLabel={fmt(t("compare.navigateTo"), { store: `${store.chainName} ${store.storeName}` })} haptic onPress={() => openWaze(store.lat, store.lng)} />
-          <Button title={t("compare.order")} variant="plain" disabled={!store.orderUrl} onPress={order} />
+          <Button title={t("compare.navigate")} analyticsName={Taps.compareNavigate} accessibilityLabel={fmt(t("compare.navigateTo"), { store: `${store.chainName} ${store.storeName}` })} haptic onPress={() => {
+            selected("navigate");
+            void openWaze(store.lat, store.lng);
+          }} />
+          <Button title={t("compare.order")} analyticsName={Taps.compareOrder} variant="plain" disabled={!store.orderUrl} onPress={order} />
           {!store.orderUrl && (
             <Text variant="footnote" color="labelSecondary" style={{ textAlign: "center" }}>
               {t("compare.noShop")}

@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 import { RotateCcw } from "lucide-react-native";
 import { ScrollView } from "react-native";
 import { fmt } from "@/features/compare/format";
+import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { EmptyState, Group, IconButton, LargeTitle, Row, Screen } from "@/ui";
@@ -34,6 +35,7 @@ export function RecentlyBought() {
                   <IconButton
                     icon={RotateCcw}
                     accessibilityLabel={`${t("list.putBack")}: ${item.name}`}
+                    analyticsName={Taps.listPutBack}
                     onPress={() => {
                       Haptics.selectionAsync();
                       update.mutate({ id: item.id, missing: true });

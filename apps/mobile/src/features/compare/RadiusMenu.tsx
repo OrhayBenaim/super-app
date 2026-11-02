@@ -1,6 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { ChevronDown } from "lucide-react-native";
 import { ActionSheetIOS, Alert, Platform } from "react-native";
+import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Tap, Text } from "@/ui";
@@ -29,6 +30,7 @@ export function RadiusMenu({ value, onChange }: { value: number; onChange: (km: 
     <Tap
       accessibilityLabel={`${t("compare.radiusLabel")}: ${label(value)}`}
       accessibilityRole="button"
+      analyticsName={Taps.compareRadiusLabel}
       onPress={open}
       hitSlop={8}
       style={{ flexDirection: "row", alignItems: "center", gap: space[1], minHeight: size.target }}

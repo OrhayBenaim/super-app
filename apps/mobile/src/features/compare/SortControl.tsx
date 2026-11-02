@@ -2,12 +2,14 @@ import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
 import { I18nManager, Pressable, View } from "react-native";
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from "react-native-reanimated";
+import { Taps, trackTap } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
 import { Text } from "@/ui";
 import type { Sort } from "./sort";
 
 const OPTIONS: Sort[] = ["price", "distance", "coverage"];
+const TAPS = { price: Taps.compareSortPrice, distance: Taps.compareSortDistance, coverage: Taps.compareSortCoverage } satisfies Record<Sort, unknown>;
 const PAD = 2;
 
 /** iOS segmented control (32pt, vertical hit slop to 44pt); the thumb slides between segments. */
@@ -49,6 +51,7 @@ export function SortControl({ value, onChange }: { value: Sort; onChange: (s: So
             accessibilityState={{ selected }}
             hitSlop={{ top: slop, bottom: slop }}
             onPress={() => {
+              trackTap(TAPS[o]);
               if (selected) return;
               Haptics.selectionAsync();
               onChange(o);

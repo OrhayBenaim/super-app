@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useIsFocused, useRouter } from "expo-router";
 import { MapPin, SearchX, ShoppingBasket, TriangleAlert } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshControl, ScrollView } from "react-native";
@@ -6,6 +6,7 @@ import Animated, { LinearTransition } from "react-native-reanimated";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
 import { missingCodes, missingItems, useCurrentListId, useList } from "@/features/lists/api";
 import { syncGeofences, useNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
+import { Events, Taps, track } from "@/lib/analytics";
 import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
@@ -49,10 +50,16 @@ export function CompareScreen() {
     if (alertsOn && location.coords && compare.dataUpdatedAt) syncGeofences(location.coords, codes).catch(() => {});
   }, [compare.dataUpdatedAt, alertsOn]);
 
+  // Once per visit with results (tabs stay mounted, so focus marks a visit); the $screen event counts every visit.
+  const focused = useIsFocused();
+  useEffect(() => {
+    if (focused && best) track(Events.compareViewed, { stores: byPrice.length, radiusKm, items: items.length, matched: codes.length });
+  }, [focused, !!best]);
+
   const loading = list.isPending || location.status === "checking" || location.status === "locating" || (location.status === "ready" && codes.length > 0 && compare.isPending);
   const body = (() => {
     if (loading) return <ShoppingLoader label={t("compare.loading")} />;
-    if (list.isError) return <EmptyState icon={TriangleAlert} title={t("compare.error.title")} action={{ title: t("compare.retry"), onPress: () => list.refetch() }} />;
+    if (list.isError) return <EmptyState icon={TriangleAlert} title={t("compare.error.title")} action={{ title: t("compare.retry"), analyticsName: Taps.compareRetryList, onPress: () => list.refetch() }} />;
     if (!codes.length) return <EmptyState icon={ShoppingBasket} title={t("compare.noBasket.title")} body={t("compare.noBasket.body")} />;
     if (location.status === "denied")
       return (
@@ -60,11 +67,11 @@ export function CompareScreen() {
           icon={MapPin}
           title={t("compare.location.title")}
           body={t("compare.location.body")}
-          action={{ title: t(location.canAskAgain ? "compare.location.allow" : "compare.location.settings"), onPress: location.request, filled: true }}
+          action={{ title: t(location.canAskAgain ? "compare.location.allow" : "compare.location.settings"), analyticsName: location.canAskAgain ? Taps.compareLocationAllow : Taps.compareLocationSettings, onPress: location.request, filled: true }}
         />
       );
-    if (location.status === "error") return <EmptyState icon={TriangleAlert} title={t("compare.location.error")} action={{ title: t("compare.retry"), onPress: location.refresh }} />;
-    if (compare.isError) return <EmptyState icon={TriangleAlert} title={t("compare.error.title")} action={{ title: t("compare.retry"), onPress: () => compare.refetch() }} />;
+    if (location.status === "error") return <EmptyState icon={TriangleAlert} title={t("compare.location.error")} action={{ title: t("compare.retry"), analyticsName: Taps.compareRetryLocation, onPress: location.refresh }} />;
+    if (compare.isError) return <EmptyState icon={TriangleAlert} title={t("compare.error.title")} action={{ title: t("compare.retry"), analyticsName: Taps.compareRetryCompare, onPress: () => compare.refetch() }} />;
     if (!best) {
       const wider = RADII.find((r) => r > radiusKm);
       return (
@@ -72,7 +79,7 @@ export function CompareScreen() {
           icon={SearchX}
           title={fmt(t("compare.empty.title"), { km: radiusKm })}
           body={t("compare.empty.body")}
-          action={wider ? { title: fmt(t("compare.empty.widen"), { km: wider }), onPress: () => setRadiusKm(wider) } : undefined}
+          action={wider ? { title: fmt(t("compare.empty.widen"), { km: wider }), analyticsName: Taps.compareEmptyWiden, onPress: () => setRadiusKm(wider) } : undefined}
         />
       );
     }

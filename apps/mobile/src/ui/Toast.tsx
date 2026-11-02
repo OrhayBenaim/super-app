@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
 import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
 import { useTheme } from "@/theme";
+import type { TapName } from "@/lib/analytics";
 import { Button } from "./Button";
 import { Text } from "./Text";
 
-export type ToastProps = { message: string | null; action?: { title: string; onPress: () => void }; onHide: () => void };
+export type ToastProps = { message: string | null; action?: { title: string; analyticsName: TapName; onPress: () => void }; onHide: () => void };
 
 /** Floating message near the bottom (e.g. delete + Undo); hides after motion.duration.toast. */
 export function Toast({ message, action, onHide }: ToastProps) {
@@ -35,6 +36,7 @@ export function Toast({ message, action, onHide }: ToastProps) {
         <Button
           variant="plain"
           title={action.title}
+          analyticsName={action.analyticsName}
           onPress={() => {
             action.onPress();
             onHide();

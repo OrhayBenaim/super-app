@@ -1,6 +1,7 @@
 import { Eye, EyeOff } from "lucide-react-native";
 import { useState, type Ref } from "react";
 import { I18nManager, TextInput, View, type TextInputInstance, type TextInputProps } from "react-native";
+import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { text, useTheme } from "@/theme";
 import { IconButton } from "./IconButton";
@@ -28,6 +29,7 @@ export function TextField({ label, error, secureTextEntry, style, ...rest }: Tex
           icon={hidden ? Eye : EyeOff}
           color="labelSecondary"
           accessibilityLabel={t(hidden ? "auth.showPassword" : "auth.hidePassword")}
+          analyticsName={hidden ? Taps.authShowPassword : Taps.authHidePassword}
           onPress={() => setHidden((h) => !h)}
         />
       )}

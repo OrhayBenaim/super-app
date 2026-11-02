@@ -3,6 +3,7 @@ import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import * as TaskManager from "expo-task-manager";
+import { Events, flush, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { GEOFENCE_TASK } from "./regions";
 
@@ -18,8 +19,8 @@ type GeofenceData = { eventType: Location.GeofencingEventType; region: Location.
 
 TaskManager.defineTask<GeofenceData>(GEOFENCE_TASK, async ({ data, error }) => {
   if (error || data.eventType !== Location.GeofencingEventType.Enter) return;
-  const { identifier: storeId, latitude: lat, longitude: lng } = data.region;
-  const info = (JSON.parse((await SecureStore.getItemAsync(STORES_KEY)) ?? "{}") as StoreInfo)[storeId ?? ""];
+  const { identifier: storeId = "", latitude: lat, longitude: lng } = data.region;
+  const info = (JSON.parse((await SecureStore.getItemAsync(STORES_KEY)) ?? "{}") as StoreInfo)[storeId];
   if (!info) return;
   const [store, total] = info;
   await Notifications.scheduleNotificationAsync({
@@ -31,4 +32,6 @@ TaskManager.defineTask<GeofenceData>(GEOFENCE_TASK, async ({ data, error }) => {
     },
     trigger: null,
   });
+  track(Events.geofenceTriggered, { storeId });
+  await flush().catch(() => {}); // the OS may suspend the app as soon as the task returns
 });

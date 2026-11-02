@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert } from "react-native";
 import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, LinearTransition } from "react-native-reanimated";
 import { useCategories, useCurrentListId, useItemMutations, useList, type Item } from "@/features/lists/api";
 import { groupByCategory } from "@/features/lists/group";
+import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { EmptyState, Group, IconButton, LargeTitle, Screen, SearchField, SwipeRow, Text } from "@/ui";
@@ -31,7 +32,7 @@ export function MyItems() {
   const items = data?.items ?? [];
   const groups = groupByCategory(q ? items.filter((i) => i.name.toLocaleLowerCase().includes(q)) : items, categories);
   const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing }, { onError: () => Alert.alert(t("common.error")) });
-  const nav = <IconButton icon={Plus} accessibilityLabel={t("items.add")} onPress={() => setAdding(true)} />;
+  const nav = <IconButton icon={Plus} accessibilityLabel={t("items.add")} analyticsName={Taps.itemsAdd} onPress={() => setAdding(true)} />;
 
   return (
     <Screen edges={["top"]} style={{ paddingHorizontal: 0 }}>
@@ -40,7 +41,7 @@ export function MyItems() {
       ) : items.length === 0 ? (
         <Animated.View entering={ENTER} style={{ flex: 1, paddingHorizontal: space[5] }}>
           <LargeTitle title={t("tabs.items")} nav={nav} />
-          <EmptyState title={t("items.empty.title")} body={t("items.empty.body")} action={{ title: t("items.empty.cta"), onPress: () => setAdding(true) }} />
+          <EmptyState title={t("items.empty.title")} body={t("items.empty.body")} action={{ title: t("items.empty.cta"), analyticsName: Taps.itemsEmptyCta, onPress: () => setAdding(true) }} />
         </Animated.View>
       ) : (
         <Animated.ScrollView contentContainerStyle={{ paddingHorizontal: space[5], paddingBottom: space[9] }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
@@ -57,8 +58,11 @@ export function MyItems() {
                 <Group title={g.category} count={g.count} footer={gi === groups.length - 1 ? t("items.footer") : undefined}>
                   {g.items.map((item) => (
                     <Animated.View key={item.id} layout={LAYOUT} entering={ENTER} exiting={EXIT}>
-                      <SwipeRow label={t("common.delete")} onDelete={() => deleteItem(item)}>
-                        <ItemRow item={item} onToggle={(missing) => toggle(item, missing)} onEdit={() => router.push({ pathname: "/item/[id]", params: { id: item.id } })} />
+                      <SwipeRow label={t("common.delete")} onDelete={() => deleteItem(item, "swipe")}>
+                        <ItemRow item={item} onToggle={(missing) => toggle(item, missing)} onEdit={() => {
+                          track(Events.itemEditOpened, { from: "items" });
+                          router.push({ pathname: "/item/[id]", params: { id: item.id } });
+                        }} />
                       </SwipeRow>
                     </Animated.View>
                   ))}
