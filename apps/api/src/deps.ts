@@ -1,6 +1,6 @@
 import { createAuth, type Auth } from "#/auth.ts";
 import { openDb, type Db } from "#/db/index.ts";
-import { fakeErrorHandler } from "#/providers/fake-error-handler/fake.ts";
+import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
 import { nominatimGeocoder } from "#/providers/nominatim/nominatim.ts";
 import { ResendProvider } from "#/providers/resend/resend.ts";
 import { sentryErrorHandler } from "#/providers/sentry/sentry.ts";

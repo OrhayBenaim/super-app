@@ -55,10 +55,16 @@ process.once("SIGTERM", () => {
 });
 
 type Job = (deps: Deps) => (data: never, signal: AbortSignal) => Promise<unknown>;
+const deps = buildDeps(loadConfig());
 try {
   // Each job validates its own data with Zod.
-  await (jobs[name as keyof typeof jobs] as Job)(buildDeps(loadConfig()))(data as never, controller.signal);
+  await (jobs[name as keyof typeof jobs] as Job)(deps)(data as never, controller.signal);
 } catch (error) {
-  console.error(error instanceof z.ZodError ? z.prettifyError(error) : error);
+  if (error instanceof z.ZodError) console.error(z.prettifyError(error)); // a usage mistake, not a bug
+  else {
+    console.error(error);
+    deps.errorHandler.report(error);
+  }
+  await deps.errorHandler.flush();
   process.exit(1);
 }

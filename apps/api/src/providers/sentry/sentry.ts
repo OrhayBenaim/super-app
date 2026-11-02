@@ -16,5 +16,6 @@ export function sentryErrorHandler({ dsn, tracesSampleRate }: { dsn: string; tra
   return {
     report: (error) => Sentry.captureException(error),
     setUser: (id) => Sentry.setUser({ id }),
+    flush: () => Sentry.flush(2000),
   };
 }

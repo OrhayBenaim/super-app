@@ -50,7 +50,7 @@ src/providers/<vendor>/fake.ts     its fake
 | Service | Interface | Provider folder |
 |---|---|---|
 | `config.ts` | `Config` | none: env vars, validated with Zod |
-| `error-handler.ts` | `ErrorHandler` | `sentry/` when `SENTRY_DSN` is set, else `fake-error-handler/` |
+| `error-handler.ts` | `ErrorHandler` | `sentry/` (its fake when `SENTRY_DSN` is unset) |
 | `geocoder.ts` | `Geocoder` | `nominatim/` |
 | `mailer.ts` | `MailerService` (facade over `MailerProvider`) | `resend/` |
 | `price-portal.ts` | `PricePortal` | `price-portals/` (the chains' price-transparency portals) |

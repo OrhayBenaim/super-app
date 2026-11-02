@@ -13,6 +13,7 @@ export function fakeErrorHandler() {
     setUser(id: string) {
       fake.user = id;
     },
+    flush: async () => true,
   };
   return fake satisfies ErrorHandler;
 }

@@ -1,5 +1,7 @@
+// Imported once by app/_layout.tsx, before any screen, so Sentry starts first.
 import * as Sentry from "@sentry/react-native";
-import { BASE_URL } from "./api";
+import { useEffect } from "react";
+import { BASE_URL } from "@/lib/api";
 
 const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
 
@@ -11,4 +13,9 @@ Sentry.init({
   tracePropagationTargets: [BASE_URL],
 });
 
-export { Sentry };
+/** Tags events with the better-auth user id, the same id the API sets in requireUser; cleared on sign-out. */
+export function useSentryUser(userId: string | undefined) {
+  useEffect(() => {
+    Sentry.setUser(userId ? { id: userId } : null);
+  }, [userId]);
+}

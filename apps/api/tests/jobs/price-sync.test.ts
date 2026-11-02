@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { buildDeps, type Deps } from "#/deps.ts";
 import { chainSeeds } from "#/ingest/chains.ts";
 import { priceSyncJob } from "#/jobs/price-sync.ts";
-import { fakeErrorHandler } from "#/providers/fake-error-handler/fake.ts";
+import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
 import { fakeGeocoder } from "#/providers/nominatim/fake.ts";
 import { fakePricePortal } from "#/providers/price-portals/fake.ts";
 import { loadConfig } from "#/services/config.ts";
