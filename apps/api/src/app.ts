@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import type { Deps } from "#/deps.ts";
@@ -9,9 +10,6 @@ import { pricesRoutes } from "#/routes/prices.ts";
 const MINUTE = 60_000;
 
 export function createApp(deps: Deps) {
-  // Native apps send no Origin header; CORS only matters for Expo web (Metro on :8081).
-  const corsOrigins = ["http://localhost:8081", ...deps.config.TRUSTED_ORIGINS];
-
   return new Hono<AppEnv>()
     .use(async (c, next) => {
       c.set("deps", deps);
@@ -22,7 +20,11 @@ export function createApp(deps: Deps) {
     .use("/api/auth/sign-in/*", rateLimit({ max: 10, windowMs: MINUTE }))
     .use("/api/auth/sign-up/*", rateLimit({ max: 10, windowMs: MINUTE }))
     .use("/api/auth/email-otp/*", rateLimit({ max: 5, windowMs: MINUTE }))
-    .use(cors({ origin: corsOrigins, credentials: true }))
+    .use("/api/lists/join", rateLimit({ max: 10, windowMs: MINUTE }))
+    // Every JSON body is a few KB at most; without a cap, one unauthenticated sign-up could buffer gigabytes.
+    .use(bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: "too_large" }, 413) }))
+    // Native apps send no Origin header; CORS only matters for Expo web (dev: TRUSTED_ORIGINS=http://localhost:8081).
+    .use(cors({ origin: deps.config.TRUSTED_ORIGINS, credentials: true }))
     .all("/api/auth/*", (c) => deps.auth.handler(c.req.raw))
     .get("/health", (c) => {
       try {

@@ -28,11 +28,25 @@ describe("api", () => {
   it("an unhandled error is a 500 and is reported", async () => {
     const errorHandler = fakeErrorHandler();
     const deps = buildDeps(loadConfig(), { errorHandler });
+    const app = createApp(deps);
+    const signUp = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "broken@example.com", password: "password1234", name: "Bo" }),
+    });
+    const cookie = signUp.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
     deps.db.$client.close();
-    const res = await createApp(deps).request("/api/chains");
+    const res = await app.request("/api/chains", { headers: { cookie } });
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "internal" });
     expect(errorHandler.reported).toHaveLength(1);
+  });
+
+  it("413 for a body over 64 KB, before auth reads it", async () => {
+    const body = JSON.stringify({ email: "big@example.com", password: "password1234", name: "x".repeat(70_000) });
+    const res = await app.request("/api/auth/sign-up/email", { method: "POST", headers: { "content-type": "application/json" }, body });
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: "too_large" });
   });
 
   it("signs up with email and reads the session back", async () => {

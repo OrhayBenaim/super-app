@@ -22,8 +22,9 @@ const pricesXml = (chain: string, store: number, items: Item[]) =>
 const milk = gtin("729000006631");
 const chips = gtin("729000006632");
 let app: ReturnType<typeof createApp>;
+let cookie: string;
 
-beforeAll(() => {
+beforeAll(async () => {
   const deps = buildDeps(loadConfig());
   app = createApp(deps);
   ingestStores(deps, "osher-ad", storesXml(OSHER, [1, 2, 3, 4]));
@@ -57,10 +58,17 @@ beforeAll(() => {
   const carrots = ["גזר במשקל", "גזר טרי", "גזר ישראלי", "גזר מובחר"].map((name, i): Item => [`2${i}`, name, 4]);
   ingestPrices(deps, "shufersal", pricesXml(SHUFERSAL, 1, [["11", "בננה", 7], ["12", "חציל", 5], ...carrots]));
   ingestPrices(deps, "rami-levy", pricesXml(RAMI, 1, [["5", "בננה במשקל", 6.5], ["6", "חציל", 5], ...carrots]));
+  const res = await app.request("/api/auth/sign-up/email", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "search@prices.test", password: "password1234", name: "Sara" }),
+  });
+  cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
 });
+const get = (path: string) => app.request(path, { headers: { cookie } });
 
 type Found = { code: string; name: string; manufacturer: string | null; unitQty: string | null; storeCount: number; minPrice: number };
-const search = async (q: string) => (await (await app.request(`/api/products/search?q=${encodeURIComponent(q)}`)).json()) as Found[];
+const search = async (q: string) => (await (await get(`/api/products/search?q=${encodeURIComponent(q)}`)).json()) as Found[];
 const names = async (q: string) => (await search(q)).map((r) => r.name);
 
 describe("product search ranking", () => {
@@ -73,12 +81,12 @@ describe("product search ranking", () => {
   });
 
   it("puts the product named exactly the word first, even a Produce group whose members are each priced in few stores", async () => {
-    const rows = (await (await app.request(`/api/products/search?q=${encodeURIComponent("חציל")}&limit=1`)).json()) as Found[];
+    const rows = (await (await get(`/api/products/search?q=${encodeURIComponent("חציל")}&limit=1`)).json()) as Found[];
     expect(rows.map((r) => [r.name, r.storeCount])).toEqual([["חציל", 2]]);
   });
 
   it("ranks a Produce group shown as the word first, and as one row however many members match", async () => {
-    const rows = (await (await app.request(`/api/products/search?q=${encodeURIComponent("גזר")}&limit=2`)).json()) as Found[];
+    const rows = (await (await get(`/api/products/search?q=${encodeURIComponent("גזר")}&limit=2`)).json()) as Found[];
     expect(rows.map((r) => [r.name, r.storeCount])).toEqual([["גזר", 2], [expect.stringMatching(/^גזר /), 4]]);
   });
 
