@@ -8,6 +8,7 @@ import { isGtin } from "#/ingest/parse.ts";
 import { loadConfig } from "#/services/config.ts";
 
 let app: ReturnType<typeof createApp>;
+let cookie: string;
 let deps: ReturnType<typeof buildDeps>;
 let sqlite: Database;
 
@@ -38,7 +39,7 @@ const snapshot = () => ({
   fts: count("SELECT count(*) AS n FROM products_fts"),
 });
 const search = async (q: string, extra = "") => {
-  const res = await app.request(`/api/products/search?q=${encodeURIComponent(q)}${extra}`);
+  const res = await app.request(`/api/products/search?q=${encodeURIComponent(q)}${extra}`, { headers: { cookie } });
   expect(res.status, q).toBe(200);
   return (await res.json()) as { code: string; name: string; storeCount: number; minPrice: number }[];
 };
@@ -51,6 +52,12 @@ beforeAll(async () => {
   ing.ingestStores(deps, "rami-levy", storesXml(RAMI, ["1", "2"]));
   ing.ingestStores(deps, "victory", storesXml(VICTORY[0]!, ["1"]));
   ing.ingestStores(deps, "victory", storesXml(VICTORY[1]!, ["2"]));
+  const res = await app.request("/api/auth/sign-up/email", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "scope@ingest.test", password: "password1234", name: "Shay" }),
+  });
+  cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
 });
 
 describe("product keys", () => {

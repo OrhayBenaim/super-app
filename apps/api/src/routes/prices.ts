@@ -161,10 +161,10 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
 }
 
 export const pricesRoutes = new Hono<AppEnv>()
-  .get("/chains", (c) =>
+  .get("/chains", requireUser, (c) =>
     c.json(c.var.deps.db.$client.prepare("SELECT id, name, name_he AS nameHe, order_url AS orderUrl FROM chains ORDER BY name").all()),
   )
-  .get("/products/search", (c) => {
+  .get("/products/search", requireUser, (c) => {
     const p = searchQuery.safeParse(c.req.query());
     if (!p.success) return bad(c, p.error);
     return c.json(searchProducts(c.var.deps.db, p.data.q, p.data.limit));

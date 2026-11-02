@@ -33,6 +33,7 @@ beforeAll(async () => {
   cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
 });
 
+const get = (path: string, auth = true) => app.request(path, auth ? { headers: { cookie } } : {});
 const compare = (body: unknown, auth = true) =>
   app.request("/api/compare", {
     method: "POST",
@@ -43,14 +44,14 @@ const ids = (r: { stores: { storeId: string }[] }) => r.stores.map((s) => s.stor
 
 describe("prices", () => {
   it("finds chain-scoped codes by name (storeCount within the chain), never through the barcode prefix", async () => {
-    const q = async (text: string) => (await (await app.request(`/api/products/search?q=${encodeURIComponent(text)}`)).json()) as { code: string; storeCount: number }[];
+    const q = async (text: string) => (await (await get(`/api/products/search?q=${encodeURIComponent(text)}`)).json()) as { code: string; storeCount: number }[];
     const milk = (await q("חלב תנובה")).find((p) => p.code === A);
     expect(milk?.storeCount).toBe(3); // Osher Ad stores 1-3 in the fixtures, no other chain can share a scoped code
     expect(await q("7290103152017")).toEqual([]); // the ChainId prefix of every scoped code is not a barcode match
   });
 
   it("searches by Hebrew prefix with storeCount and minPrice", async () => {
-    const res = await app.request(`/api/products/search?q=${encodeURIComponent("חל תנו")}`);
+    const res = await get(`/api/products/search?q=${encodeURIComponent("חל תנו")}`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([
       { code: A, name: "חלב תנובה 3%", manufacturer: "תנובה", unitQty: "1 ליטר", storeCount: 3, minPrice: 4 },
@@ -58,13 +59,18 @@ describe("prices", () => {
   });
 
   it("falls back to LIKE for FTS-special characters and validates the query", async () => {
-    const rows = await (await app.request(`/api/products/search?q=${encodeURIComponent("3%")}`)).json();
+    const rows = await (await get(`/api/products/search?q=${encodeURIComponent("3%")}`)).json();
     expect(rows.map((r: { code: string }) => r.code)).toEqual([A]);
-    expect((await app.request("/api/products/search?q=")).status).toBe(400);
+    expect((await get("/api/products/search?q=")).status).toBe(400);
   });
 
-  it("lists chains publicly", async () => {
-    const chains = await (await app.request("/api/chains")).json();
+  it("401 on search and chains without a cookie", async () => {
+    expect((await get(`/api/products/search?q=${encodeURIComponent("חלב")}`, false)).status).toBe(401);
+    expect((await get("/api/chains", false)).status).toBe(401);
+  });
+
+  it("lists chains", async () => {
+    const chains = await (await get("/api/chains")).json();
     expect(chains).toContainEqual({ id: "7290103152017", name: "Osher Ad", nameHe: "אושר עד", orderUrl: "https://www.osherad.co.il/" });
   });
 

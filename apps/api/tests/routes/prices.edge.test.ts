@@ -106,7 +106,8 @@ const compare = async (body: Record<string, unknown>) => {
   return (await res.json()) as { stores: any[]; unmatched: string[] };
 };
 const names = (r: { stores: any[] }) => r.stores.map((s) => s.storeName);
-const search = async (q: string, extra = "") => app.request(`/api/products/search?q=${encodeURIComponent(q)}${extra}`);
+const get = (path: string, auth = true) => app.request(path, auth ? { headers: { cookie } } : {});
+const search = async (q: string, extra = "") => get(`/api/products/search?q=${encodeURIComponent(q)}${extra}`);
 const searchCodes = async (q: string) => {
   const res = await search(q);
   expect(res.status, `q=${q}`).toBe(200);
@@ -345,7 +346,7 @@ describe("products search", () => {
 
   it("is consistent on empty input: missing, empty, blank and overlong q are all 400", async () => {
     for (const url of ["/api/products/search", "/api/products/search?q=", "/api/products/search?q=%20%20%20"]) {
-      const res = await app.request(url);
+      const res = await get(url);
       expect(res.status, url).toBe(400);
       expect(typeof ((await res.json()) as { error: string }).error).toBe("string");
     }
@@ -368,8 +369,8 @@ describe("products search", () => {
     expect(rows[0]).toMatchObject({ name: "שוקולד פרה", storeCount: 1, minPrice: 5 });
   });
 
-  it("GET /chains is public and lists every seeded chain", async () => {
-    const res = await app.request("/api/chains");
+  it("GET /chains lists every seeded chain", async () => {
+    const res = await get("/api/chains");
     expect(res.status).toBe(200);
     const chains = (await res.json()) as { id: string; name: string; nameHe: string; orderUrl: string | null }[];
     expect(chains.length).toBeGreaterThanOrEqual(12);

@@ -57,7 +57,7 @@ beforeAll(async () => {
 
 type Found = { code: string; name: string; storeCount: number; minPrice: number };
 type Store = { chainName: string; total: number };
-const search = async (q: string) => (await (await app.request(`/api/products/search?q=${encodeURIComponent(q)}`)).json()) as Found[];
+const search = async (q: string) => (await (await app.request(`/api/products/search?q=${encodeURIComponent(q)}`, { headers: { cookie } })).json()) as Found[];
 const compare = (codes: string[], auth = true) =>
   app.request("/api/compare", {
     method: "POST",
