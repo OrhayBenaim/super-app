@@ -52,6 +52,7 @@ src/providers/<vendor>/fake.ts     its fake
 | `config.ts` | `Config` | none: env vars, validated with Zod |
 | `error-handler.ts` | `ErrorHandler` | `sentry/` (its fake when `SENTRY_DSN` is unset) |
 | `geocoder.ts` | `Geocoder` | `nominatim/` |
+| `analytics.ts` | `Analytics` | `posthog/` (the fake when `POSTHOG_KEY` is unset) |
 | `mailer.ts` | `MailerService` (facade over `MailerProvider`) | `resend/` |
 | `price-portal.ts` | `PricePortal` | `price-portals/` (the chains' price-transparency portals) |
 

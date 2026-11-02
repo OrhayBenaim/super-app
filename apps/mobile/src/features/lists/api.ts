@@ -81,7 +81,7 @@ export function useItemMutations(listId: string | null) {
     onMutate: ({ id, ...patch }) => patchCache((items) => items.map((i) => (i.id === id ? { ...i, ...patch } : i))),
     onError: rollback,
     onSuccess: (_item, { missing }) => {
-      if (missing === false) track("list_item_checked");
+      if (missing === true) track("list_item_added", { existing: true });
     },
     onSettled: invalidate,
   });

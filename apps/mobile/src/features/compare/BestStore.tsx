@@ -29,9 +29,10 @@ export function BestStore({ store, basketSize, saving, listText, onShowMissing }
   const missing = basketSize - store.matched;
   const coverage = fmt(t(missing ? "compare.coverage.partial" : "compare.coverage.full"), { n: store.matched, m: basketSize, missing });
 
+  const selected = (action: "navigate" | "order") => track("compare_store_selected", { chainId: store.chainId, action });
   const order = async () => {
     if (!store.orderUrl) return;
-    track("compare_store_selected", { chainId: store.chainId, action: "order" });
+    selected("order");
     // No chain exposes add-to-cart links (docs/research/price-data.md §6): hand over the list via the clipboard.
     await Clipboard.setStringAsync(listText);
     setCopied(true);
@@ -68,10 +69,9 @@ export function BestStore({ store, basketSize, saving, listText, onShowMissing }
         )}
         <View style={{ gap: space[2], padding: space[5], paddingTop: space[2] }}>
           <Button title={t("compare.navigate")} accessibilityLabel={fmt(t("compare.navigateTo"), { store: `${store.chainName} ${store.storeName}` })} haptic onPress={() => {
-              track("compare_store_selected", { chainId: store.chainId, action: "navigate" });
-              void openWaze(store.lat, store.lng);
-            }}
-          />
+            selected("navigate");
+            void openWaze(store.lat, store.lng);
+          }} />
           <Button title={t("compare.order")} variant="plain" disabled={!store.orderUrl} onPress={order} />
           {!store.orderUrl && (
             <Text variant="footnote" color="labelSecondary" style={{ textAlign: "center" }}>

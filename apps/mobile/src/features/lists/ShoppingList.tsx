@@ -19,6 +19,7 @@ import { fmt, shekels } from "@/features/compare/format";
 import { sortStores } from "@/features/compare/sort";
 import { AddField } from "@/features/items/AddField";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
+import { track } from "@/lib/analytics";
 import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
@@ -48,7 +49,7 @@ export function ShoppingList() {
   const missing = missingItems(data);
   const groups = groupByCategory(missing, categories);
   const recent = recentlyBought(data?.items ?? [], 50, Date.now() - RECENT_MS);
-  const bought = (id: string) => update.mutate({ id, missing: false });
+  const bought = (id: string) => update.mutate({ id, missing: false }, { onSuccess: () => track("list_item_checked") });
   // Own flag, not isRefetching: the 5s poll would flash the spinner.
   const onRefresh = async () => {
     setRefreshing(true);

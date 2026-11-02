@@ -31,7 +31,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
   const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing }, { onError: fail });
   const createItem = (name: string) => {
     Haptics.selectionAsync();
-    add.mutate({ name, category: t("items.category.other"), missing: from === "list" }, { onError: fail, onSuccess: () => track("list_item_added", { from }) });
+    add.mutate({ name, category: t("items.category.other"), missing: from === "list" }, { onError: fail, onSuccess: () => from === "list" && track("list_item_added", { existing: false }) });
     setQuery("");
   };
   const addTop = () => {
