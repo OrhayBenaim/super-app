@@ -7,6 +7,7 @@ export { LargeTitle } from "./LargeTitle";
 export { Row } from "./Row";
 export { Screen } from "./Screen";
 export { SearchField } from "./SearchField";
+export { ShoppingLoader } from "./ShoppingLoader";
 export { Sheet, SheetHeader, SheetTextField } from "./Sheet";
 export { SwipeRow } from "./SwipeRow";
 export { Tap } from "./Tap";
