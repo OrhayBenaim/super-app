@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { listKeys, selectList, type List } from "@/features/lists/api";
+import { Events, track } from "@/lib/analytics";
 import { api } from "@/lib/api";
 
 export function useShareMutations(listId: string | null) {
@@ -8,10 +9,12 @@ export function useShareMutations(listId: string | null) {
 
   const invite = useMutation({
     mutationFn: () => api<{ code: string; url: string }>(`api/lists/${listId}/invite`, { method: "POST" }),
+    onSuccess: () => listId && track(Events.listShared, { listId }),
   });
   const join = useMutation({
     mutationFn: (code: string) => api<List>("api/lists/join", { method: "POST", body: JSON.stringify({ code: code.trim() }) }),
     onSuccess: async (list) => {
+      track(Events.listJoined, { listId: list.id });
       await refresh();
       selectList(list.id);
     },
