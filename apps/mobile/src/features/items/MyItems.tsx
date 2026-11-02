@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert } from "react-native";
 import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, LinearTransition } from "react-native-reanimated";
 import { useCategories, useCurrentListId, useItemMutations, useList, type Item } from "@/features/lists/api";
 import { groupByCategory } from "@/features/lists/group";
-import { Taps } from "@/lib/analytics";
+import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { EmptyState, Group, IconButton, LargeTitle, Screen, SearchField, SwipeRow, Text } from "@/ui";
@@ -58,8 +58,11 @@ export function MyItems() {
                 <Group title={g.category} count={g.count} footer={gi === groups.length - 1 ? t("items.footer") : undefined}>
                   {g.items.map((item) => (
                     <Animated.View key={item.id} layout={LAYOUT} entering={ENTER} exiting={EXIT}>
-                      <SwipeRow label={t("common.delete")} onDelete={() => deleteItem(item)}>
-                        <ItemRow item={item} onToggle={(missing) => toggle(item, missing)} onEdit={() => router.push({ pathname: "/item/[id]", params: { id: item.id } })} />
+                      <SwipeRow label={t("common.delete")} onDelete={() => deleteItem(item, "swipe")}>
+                        <ItemRow item={item} onToggle={(missing) => toggle(item, missing)} onEdit={() => {
+                          track(Events.itemEditOpened, { from: "items" });
+                          router.push({ pathname: "/item/[id]", params: { id: item.id } });
+                        }} />
                       </SwipeRow>
                     </Animated.View>
                   ))}

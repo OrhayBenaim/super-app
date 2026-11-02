@@ -17,6 +17,9 @@ export const Events = {
   compareViewed: "compare_viewed",
   compareStoreSelected: "compare_store_selected",
   geofenceTriggered: "geofence_triggered",
+  notificationOpened: "notification_opened",
+  itemEditOpened: "item_edit_opened",
+  itemDeleted: "item_deleted",
 } as const;
 export type Event = (typeof Events)[keyof typeof Events];
 

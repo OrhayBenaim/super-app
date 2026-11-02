@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { Alert } from "react-native";
 import { fmt } from "@/features/compare/format";
 import { useItemMutations, type Item } from "@/features/lists/api";
-import { Taps } from "@/lib/analytics";
+import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { Toast } from "@/ui";
 import { takePendingDelete } from "./pendingDelete";
@@ -18,8 +18,9 @@ export function useDeleteWithUndo(listId: string | null) {
   const [deleted, setDeleted] = useState<Item | null>(null);
   const fail = () => Alert.alert(t("common.error"));
 
-  const deleteItem = (item: Item) => {
+  const deleteItem = (item: Item, via: "swipe" | "sheet") => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    track(Events.itemDeleted, { via });
     remove.mutate(item.id, { onError: fail });
     setDeleted(item);
   };
@@ -27,7 +28,7 @@ export function useDeleteWithUndo(listId: string | null) {
   useFocusEffect(
     useCallback(() => {
       const item = takePendingDelete();
-      if (item) deleteItem(item);
+      if (item) deleteItem(item, "sheet");
     }, [listId]),
   );
 

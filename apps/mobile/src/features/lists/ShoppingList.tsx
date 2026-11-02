@@ -112,7 +112,10 @@ export function ShoppingList() {
                   <Group title={g.category} count={g.count} inset={CHECK_INSET + space[5]}>
                     {g.items.map((item) => (
                       <Animated.View key={item.id} layout={LAYOUT} entering={ENTER} exiting={EXIT}>
-                        <CheckRow item={item} onBought={bought} onEdit={() => router.push({ pathname: "/item/[id]", params: { id: item.id } })} />
+                        <CheckRow item={item} onBought={bought} onEdit={() => {
+                          track(Events.itemEditOpened, { from: "list" });
+                          router.push({ pathname: "/item/[id]", params: { id: item.id } });
+                        }} />
                       </Animated.View>
                     ))}
                   </Group>

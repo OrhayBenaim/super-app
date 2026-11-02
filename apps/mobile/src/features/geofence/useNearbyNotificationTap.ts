@@ -1,12 +1,14 @@
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { useEffect } from "react";
+import { Events, track } from "@/lib/analytics";
 import { openWaze } from "@/lib/waze";
 
 function handle(response: Notifications.NotificationResponse | null) {
   const { lat, lng } = (response?.notification.request.content.data ?? {}) as { lat?: unknown; lng?: unknown };
   if (typeof lat !== "number" || typeof lng !== "number") return;
   Notifications.clearLastNotificationResponse(); // don't replay it on the next sign-in or remount
+  track(Events.notificationOpened, { kind: "nearby" }); // open rate = notification_opened / geofence_triggered
   void openWaze(lat, lng);
   router.replace("/(tabs)"); // back in the app later, the shopping list is waiting
 }
