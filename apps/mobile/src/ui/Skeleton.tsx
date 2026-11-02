@@ -3,7 +3,7 @@ import type { StyleProp, ViewStyle } from "react-native";
 import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSpring } from "react-native-reanimated";
 import { springs, useTheme } from "@/theme";
 
-/** A rounded placeholder box for content still loading. Pulses gently; stays still under reduced motion. */
+/** A rounded placeholder box for content still loading, hidden from assistive tech. Pulses gently; still under reduced motion. */
 export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
   const { colors, radius } = useTheme();
   const reduced = useReducedMotion();
@@ -17,5 +17,11 @@ export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
     };
   }, [reduced]);
   const pulse = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  return <Animated.View style={[{ backgroundColor: colors.fillControl, borderRadius: radius.control }, style, pulse]} />;
+  return (
+    <Animated.View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[{ backgroundColor: colors.fillControl, borderRadius: radius.control }, style, pulse]}
+    />
+  );
 }

@@ -71,7 +71,7 @@ export function ItemSheet() {
             <Row
               title={t("items.product")}
               analyticsName={Taps.itemsProduct}
-              leading={<ProductImage key={productCode} url={productImage} />}
+              leading={<ProductImage url={productImage} />}
               value={productCode ? (productName ?? t("items.matched")) : t("items.product.optional")}
               chevron
               onPress={() => setPage("product")}

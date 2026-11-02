@@ -2,14 +2,15 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { lookupProductImage } from "./imageLookup";
+import { hasBarcode, lookupProductImage } from "./imageLookup";
 
 /** `imageUrl`: undefined while looking up (skeleton), a URL when found, null when there is none. */
 export type Product = { code: string; name: string; manufacturer: string | null; unitQty: string | null; storeCount: number; minPrice: number; imageUrl?: string | null };
 
-const hasBarcode = (code: string | null): code is string => !!code && !code.includes(":");
-
-/** Each code is looked up once per app session; a found image starts downloading into expo-image's cache right away. */
+/**
+ * Each code is looked up once per app session; a found image starts downloading into expo-image's cache right away.
+ * No code or no barcode starts as null (none), so it never shows a skeleton.
+ */
 const imageQuery = (code: string | null) => ({
   queryKey: ["products", "image", code],
   queryFn: async () => {
@@ -18,14 +19,14 @@ const imageQuery = (code: string | null) => ({
     return url;
   },
   enabled: hasBarcode(code),
+  initialData: hasBarcode(code) ? undefined : null,
   staleTime: Infinity,
   gcTime: Infinity,
 });
 
 /** The Product image of a product code: undefined while looking up, null with no code, no barcode or no image. */
 export function useProductImage(code: string | null): string | null | undefined {
-  const query = useQuery(imageQuery(code));
-  return hasBarcode(code) ? query.data : null;
+  return useQuery(imageQuery(code)).data;
 }
 
 /**
@@ -45,6 +46,5 @@ export function useProductSearch(q: string) {
     staleTime: 60_000,
   });
   const images = useQueries({ queries: (search.data ?? []).map((p) => imageQuery(p.code)) });
-  const data = search.data?.map((p, i) => ({ ...p, imageUrl: hasBarcode(p.code) ? images[i].data : null }));
-  return { ...search, data };
+  return { isFetching: search.isFetching, data: search.data?.map((p, i) => ({ ...p, imageUrl: images[i].data })) };
 }

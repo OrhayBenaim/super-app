@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { lookupProductImage } from "@/features/items/imageLookup";
 
 const rami = (code: string) => `https://img.rami-levy.co.il/product/${code}/small.jpg`;
-const off = "https://images.openfoodfacts.org/images/products/729/000/001/1/front_he.3.400.jpg";
+const offImage = "https://images.openfoodfacts.org/images/products/729/000/001/1/front_he.3.400.jpg";
 const fetchMock = vi.fn<typeof fetch>();
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
 const status = (n: number) => new Response(null, { status: n });
@@ -27,8 +27,8 @@ describe("lookupProductImage", () => {
   });
 
   it("falls back to Open Food Facts' image_front_url when Rami Levy answers 403", async () => {
-    fetchMock.mockResolvedValueOnce(status(403)).mockResolvedValueOnce(json({ status: 1, product: { image_front_url: off } }));
-    expect(await lookupProductImage("7290000011")).toBe(off);
+    fetchMock.mockResolvedValueOnce(status(403)).mockResolvedValueOnce(json({ status: 1, product: { image_front_url: offImage } }));
+    expect(await lookupProductImage("7290000011")).toBe(offImage);
     expect(String(fetchMock.mock.calls[1][0])).toBe("https://world.openfoodfacts.org/api/v2/product/7290000011.json?fields=image_front_url");
   });
 
@@ -43,8 +43,8 @@ describe("lookupProductImage", () => {
   });
 
   it("falls back to Open Food Facts when Rami Levy throws a network error", async () => {
-    fetchMock.mockRejectedValueOnce(new TypeError("Network request failed")).mockResolvedValueOnce(json({ product: { image_front_url: off } }));
-    expect(await lookupProductImage("7290000011")).toBe(off);
+    fetchMock.mockRejectedValueOnce(new TypeError("Network request failed")).mockResolvedValueOnce(json({ product: { image_front_url: offImage } }));
+    expect(await lookupProductImage("7290000011")).toBe(offImage);
   });
 
   it("returns no image, without throwing, when Open Food Facts throws", async () => {
@@ -60,6 +60,18 @@ describe("lookupProductImage", () => {
   it("ignores a non-string image_front_url", async () => {
     fetchMock.mockResolvedValueOnce(status(403)).mockResolvedValueOnce(json({ product: { image_front_url: 42 } }));
     expect(await lookupProductImage("7290000011")).toBeNull();
+  });
+
+  it("returns no image when a request stalls past the timeout", async () => {
+    vi.useFakeTimers();
+    const stall = (_: unknown, init?: RequestInit) =>
+      new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError"))));
+    fetchMock.mockImplementation(stall);
+    const result = lookupProductImage("7290000011");
+    await vi.advanceTimersByTimeAsync(16_000);
+    expect(await result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   it("sends Open Food Facts a custom User-Agent naming the app", async () => {
