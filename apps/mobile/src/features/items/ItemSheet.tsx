@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Barcode, Check } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Alert } from "react-native";
 import { fmt, shekels } from "@/features/compare/format";
 import { useCategories, useCurrentListId, useItemMutations, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
@@ -21,7 +21,6 @@ export function ItemSheet() {
   const { id, page: initialPage = "form" } = useLocalSearchParams<{ id: string; page?: ItemPage }>();
   const router = useRouter();
   const { colors } = useTheme();
-  const { height } = useWindowDimensions();
   const listId = useCurrentListId();
   const item = useList(listId, { poll: false }).data?.items.find((i) => i.id === id) ?? null;
   const { update } = useItemMutations(listId);
@@ -60,8 +59,7 @@ export function ItemSheet() {
   };
 
   return (
-    // The product page loads in (spinner, then results): start it at 40% so it only grows, upward.
-    <Sheet minHeight={page === "product" ? height * 0.4 : undefined}>
+    <Sheet>
       {page === "form" && (
         <>
           <SheetHeader title={t("items.edit")} start={{ title: t("common.cancel"), analyticsName: Taps.commonCancel, onPress: onClose }} end={{ title: t("common.save"), analyticsName: Taps.commonSave, onPress: save, disabled: !valid }} />

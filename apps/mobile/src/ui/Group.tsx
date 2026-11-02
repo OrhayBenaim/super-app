@@ -22,7 +22,6 @@ export function Group({ children, title, count, footer, inset, maxRows, style }:
   const { colors, radius, space } = useTheme();
   const rows = Children.toArray(children);
   // Measured top of the first hidden row: rows vary in height (detail lines, Dynamic Type).
-  // Until measured the scroller is 0 tall, not every row tall: a fitToContents sheet would jump to full height and back.
   const [cut, setCut] = useState<number>();
   const scrolls = maxRows !== undefined && rows.length > maxRows;
   const Block = scrolls ? ScrollView : View;
@@ -33,7 +32,7 @@ export function Group({ children, title, count, footer, inset, maxRows, style }:
       {title !== undefined && <SectionHeader title={title} count={count} />}
       <Block
         key={rowKeys}
-        style={{ backgroundColor: colors.surface, borderRadius: radius.group, overflow: "hidden", maxHeight: scrolls ? (cut ?? 0) : undefined }}
+        style={{ backgroundColor: colors.surface, borderRadius: radius.group, overflow: "hidden", maxHeight: scrolls ? cut : undefined }}
         {...(scrolls && { keyboardShouldPersistTaps: "handled", nestedScrollEnabled: true })}
       >
         {rows.map((row, i) => {
