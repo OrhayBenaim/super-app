@@ -10,12 +10,23 @@ vi.mock("posthog-react-native", () => ({
   },
 }));
 
+vi.stubEnv("EXPO_PUBLIC_POSTHOG_KEY", "phc_test");
 const { screenName, syncIdentity } = await import("@/lib/analytics");
 
 beforeEach(() => vi.clearAllMocks());
 
-it("is disabled without EXPO_PUBLIC_POSTHOG_KEY", () => {
-  expect(client.options).toMatchObject({ disabled: true });
+it("creates no client without EXPO_PUBLIC_POSTHOG_KEY, and every call is a no-op", async () => {
+  vi.stubEnv("EXPO_PUBLIC_POSTHOG_KEY", "");
+  vi.resetModules();
+  client.options = undefined;
+  const analytics = await import("@/lib/analytics");
+  expect(client.options).toBeUndefined();
+  analytics.track(analytics.Events.tap);
+  analytics.screen("/");
+  analytics.syncIdentity(null, "u1");
+  await expect(analytics.flush()).resolves.toBeUndefined();
+  expect(client.capture).not.toHaveBeenCalled();
+  expect(client.identify).not.toHaveBeenCalled();
 });
 
 it("identifies on sign-in and resets on sign-out", () => {

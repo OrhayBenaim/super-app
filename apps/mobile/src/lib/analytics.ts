@@ -2,12 +2,11 @@ import { PostHog } from "posthog-react-native";
 
 const key = process.env.EXPO_PUBLIC_POSTHOG_KEY;
 
-// Without a key (dev, tests) the client is disabled and every call is a no-op. Session replay stays off.
-const posthog = new PostHog(key ?? "", {
-  host: process.env.EXPO_PUBLIC_POSTHOG_HOST ?? "https://eu.i.posthog.com",
-  disabled: !key,
-  captureAppLifecycleEvents: true,
-});
+// Without a key (dev, tests) there is no client at all, so PostHog can't take the app down; every call is a no-op.
+// Session replay stays off.
+const posthog = key
+  ? new PostHog(key, { host: process.env.EXPO_PUBLIC_POSTHOG_HOST ?? "https://eu.i.posthog.com", captureAppLifecycleEvents: true })
+  : undefined;
 
 /** Every event the app sends. */
 export const Events = {
@@ -103,11 +102,11 @@ export const Taps = {
 export type TapName = (typeof Taps)[keyof typeof Taps];
 
 /** Every analytics call in the app goes through this module; nothing else imports posthog-react-native. */
-export const screen = (name: string) => posthog.screen(name);
-export const flush = () => posthog.flush();
+export const screen = (name: string) => posthog?.screen(name);
+export const flush = async () => posthog?.flush();
 
 /** Never pass names, emails or free text: the user id is the only personal data we send. */
-export const track = (event: Event, properties?: Record<string, string | number | boolean>) => posthog.capture(event, properties);
+export const track = (event: Event, properties?: Record<string, string | number | boolean>) => posthog?.capture(event, properties);
 
 /** `Tap` sends this for every press; a raw Pressable or Switch calls it itself. */
 export const trackTap = (name: TapName, properties?: Record<string, boolean>) => track(Events.tap, { name, ...properties });
@@ -115,8 +114,8 @@ export const trackTap = (name: TapName, properties?: Record<string, boolean>) =>
 /** identify() merges the anonymous pre-sign-in events into the user; reset() starts a new anonymous id. */
 export function syncIdentity(previousId: string | null, userId: string | null) {
   if (userId === previousId) return;
-  if (previousId) posthog.reset();
-  if (userId) posthog.identify(userId);
+  if (previousId) posthog?.reset();
+  if (userId) posthog?.identify(userId);
 }
 
 /** Route pattern, not the URL: "/join/[code]" keeps invite codes and ids out of PostHog. */
