@@ -111,7 +111,8 @@ as its Tailscale exit node. Price syncs fail while that machine is off or offlin
 | `TS_EXIT_NODE` | the Tailscale IP (`100.x.y.z`) of the machine in Israel; it runs Tailscale with "Run exit node" on, approved in the admin console |
 
 To move an existing database in: stop the resource, copy the file into the `grocer-data` volume as `grocer.db`
-(`/var/lib/docker/volumes/<volume>/_data/`), `chown 1000:1000` it (the containers run as `node`), and start the resource.
+(`/var/lib/docker/volumes/<volume>/_data/`), delete any `grocer.db-wal` and `grocer.db-shm` there (they belong to the old file and
+would corrupt the new one), `chown 1000:1000` it (the containers run as `node`), and start the resource.
 Make the copy with `VACUUM INTO` rather than copying the file, so the WAL is included and the copy is consistent.
 
 One-time setup (the EAS project is `@ottersprod/grocer`): run one interactive
