@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 
 export type Product = { code: string; name: string; manufacturer: string | null; unitQty: string | null; storeCount: number; minPrice: number };
 
-/** Product search for "Match a product", debounced 250ms; idle under 2 characters. */
+/** Product search for "Match a product" (the API's default 20 results), debounced 250ms; idle under 2 characters. */
 export function useProductSearch(q: string) {
   const [debounced, setDebounced] = useState(q);
   useEffect(() => {
@@ -13,7 +13,7 @@ export function useProductSearch(q: string) {
   }, [q]);
   return useQuery({
     queryKey: ["products", "search", debounced],
-    queryFn: () => api<Product[]>(`api/products/search?q=${encodeURIComponent(debounced)}&limit=8`),
+    queryFn: () => api<Product[]>(`api/products/search?q=${encodeURIComponent(debounced)}`),
     enabled: debounced.length >= 2,
     staleTime: 60_000,
   });

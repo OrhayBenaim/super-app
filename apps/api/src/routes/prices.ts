@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { Db } from "#/db/index.ts";
-import { produceName } from "#/ingest/produce.ts";
+import { produceName, stem } from "#/ingest/produce.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
 
 const searchQuery = z.object({
@@ -20,16 +20,23 @@ const compareBody = z.object({
 const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
 
 const productCols = `p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.group_key AS groupKey, count(pr.store_id) AS storeCount, min(pr.price) AS minPrice`;
-// Products named after the first word come first ("חלב 3%" before "שוקולד חלב", both before "חלבה"), then the
-// most widely priced. Counts use the covering index; min price is read for the kept rows only.
+// The product named exactly the first word comes first ("חציל" before "חציל קלוי": a Produce group's members are each
+// priced in few stores, so store count alone would cut it), a Produce group whose shown name is the word too ("גזר במשקל"
+// shows as "גזר"), then products named after the word ("חלב 3%" before "שוקולד חלב", both before "חלבה"), then the
+// most widely priced. LIKE matches ASCII case-insensitively, as the FTS tokenizer does. One row per group (its best
+// member, ranked by the group's summed store count) so one group's many members never crowd out the rest. Min price is
+// read for the kept rows only.
 const FTS_SEARCH = `SELECT c.code, c.name, c.manufacturer, c.unitQty, c.groupKey, c.storeCount, c.tier,
      (SELECT min(price) FROM prices WHERE code = c.code) AS minPrice FROM (
-     SELECT p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.group_key AS groupKey, f.rank,
-       (SELECT count(*) FROM prices pr WHERE pr.code = p.code) AS storeCount,
-       CASE WHEN p.name = @first OR p.name LIKE @first || ' %' THEN 0 WHEN ' ' || p.name || ' ' LIKE '% ' || @first || ' %' THEN 1 ELSE 2 END AS tier
-     FROM products_fts f JOIN products p ON p.code = f.code
-     WHERE products_fts MATCH @match AND storeCount > 0 ORDER BY tier, storeCount DESC, f.rank LIMIT @limit
-   ) c ORDER BY c.tier, c.storeCount DESC, c.rank`;
+     SELECT m.*, row_number() OVER g AS nth, sum(m.storeCount) OVER g AS reach FROM (
+       SELECT p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.group_key AS groupKey, f.rank,
+         (SELECT count(*) FROM prices pr WHERE pr.code = p.code) AS storeCount,
+         CASE WHEN p.name LIKE @first OR p.group_key LIKE @key || '|%' THEN 0 WHEN p.name LIKE @first || ' %' THEN 1
+           WHEN ' ' || p.name || ' ' LIKE '% ' || @first || ' %' THEN 2 ELSE 3 END AS tier
+       FROM products_fts f JOIN products p ON p.code = f.code WHERE products_fts MATCH @match AND storeCount > 0
+     ) m WINDOW g AS (PARTITION BY coalesce(m.groupKey, m.code) ORDER BY m.tier, m.storeCount DESC, m.rank
+       RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
+   ) c WHERE c.nth = 1 ORDER BY c.tier, c.reach DESC, c.rank LIMIT @limit`;
 const LIKE_SEARCH = `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
    WHERE p.name LIKE ? ESCAPE '\\' OR p.code = ? GROUP BY p.code ORDER BY storeCount DESC LIMIT ?`;
 const CODE_SEARCH = `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
@@ -73,7 +80,7 @@ function findProducts(db: Db, q: string, limit: number) {
   // Letters/digits only go to FTS as quoted prefix terms (quotes keep AND/OR/NOT/NEAR literal); anything else (quotes, %, -) would be FTS syntax, so use LIKE.
   if (/^\d{8,}$/.test(q)) return sqlite.prepare(CODE_SEARCH).all(q, `${q}%`, q, limit); // barcode: exact code first, then code prefix
   if (tokens.every((t) => /^[\p{L}\p{N}]+$/u.test(t)))
-    return sqlite.prepare(FTS_SEARCH).all({ match: tokens.map((t) => `"${t}"*`).join(" "), first: tokens[0], limit });
+    return sqlite.prepare(FTS_SEARCH).all({ match: tokens.map((t) => `"${t}"*`).join(" "), first: tokens[0], key: stem(tokens[0]!), limit });
   return sqlite.prepare(LIKE_SEARCH).all(`%${q.replace(/[\\%_]/g, "\\$&")}%`, q, limit);
 }
 

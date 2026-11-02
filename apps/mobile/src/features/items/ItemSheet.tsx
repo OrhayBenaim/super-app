@@ -124,8 +124,8 @@ export function ItemSheet() {
           <SearchField label={t("items.product.placeholder")} value={query} onChangeText={setQuery} returnKeyType="search" />
           {products.isFetching && <ActivityIndicator color={colors.labelSecondary} />}
           {!!products.data?.length && (
-            <Group title={t("items.product.results")}>
-              {products.data.slice(0, 5).map((p) => (
+            <Group title={t("items.product.results")} maxRows={5}>
+              {products.data.map((p) => (
                 <Row
                   key={p.code}
                   title={p.name}
