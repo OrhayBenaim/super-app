@@ -3,7 +3,11 @@ export type Sort = "price" | "distance" | "coverage";
 export type StoreResult = {
   storeId: string; chainId: string; chainName: string; storeName: string; address: string; city: string;
   lat: number; lng: number; distanceKm: number; total: number; matched: number;
-  missingCodes: string[]; items: { code: string; price: number }[]; orderUrl: string | null;
+  /** Codes and Product group refs this store does not carry. */
+  missingCodes: string[];
+  /** One per priced code or group; a group item names the product its price comes from (unitPrice per kilo or liter). */
+  items: { code: string; price: number; ref?: string; name?: string; size?: number; unitPrice?: number }[];
+  orderUrl: string | null;
 };
 export type CompareResponse = { stores: StoreResult[]; unmatched: string[] };
 

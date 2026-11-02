@@ -4,6 +4,7 @@ import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { fetchCompare } from "@/features/compare/api";
+import { basketSize, type Basket } from "@/features/lists/api";
 import { requestBackgroundPermission, type Coords } from "@/lib/location";
 import { GEOFENCE_TASK, MAX_REGIONS, toRegions } from "./regions";
 import { STORES_KEY, type StoreInfo } from "./task";
@@ -19,10 +20,10 @@ async function stop() {
 }
 
 /** Arms geofences on the cheapest nearby stores for the basket; stops them when the basket is empty. */
-export async function syncGeofences(coords: Coords, codes: string[]) {
+export async function syncGeofences(coords: Coords, basket: Basket) {
   if (!useEnabled.getState().enabled) return;
-  if (!codes.length) return stop();
-  const { stores } = await fetchCompare({ ...coords, radiusKm: 20, codes, sort: "price", limit: MAX_REGIONS });
+  if (!basketSize(basket)) return stop();
+  const { stores } = await fetchCompare({ ...coords, radiusKm: 20, ...basket, sort: "price", limit: MAX_REGIONS });
   if (!stores.length) return stop();
   const info: StoreInfo = Object.fromEntries(stores.map((s) => [s.storeId, [`${s.chainName} ${s.storeName}`, s.total]]));
   await SecureStore.setItemAsync(STORES_KEY, JSON.stringify(info));

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshControl, ScrollView } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
-import { missingCodes, missingItems, useCurrentListId, useList } from "@/features/lists/api";
+import { basketSize, missingBasket, missingItems, useCurrentListId, useList } from "@/features/lists/api";
 import { syncGeofences, useNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
 import { Events, Taps, track } from "@/lib/analytics";
 import { useLocation } from "@/lib/location";
@@ -51,9 +51,10 @@ export function CompareScreen() {
   const listId = useCurrentListId();
   const list = useList(listId, { poll: false });
   const items = missingItems(list.data);
-  const codes = missingCodes(list.data);
+  const basket = missingBasket(list.data);
+  const matched = basketSize(basket);
   const location = useLocation();
-  const compare = useCompare(location.coords, radiusKm, codes);
+  const compare = useCompare(location.coords, radiusKm, basket);
   const { enabled: alertsOn } = useNearbyAlerts();
   // Owns the Undo toast for a delete made in the item sheet opened from the missing sheet.
   const { toast } = useDeleteWithUndo(listId);
@@ -66,23 +67,23 @@ export function CompareScreen() {
   // Deps are only the fetch stamp and the flag: re-sync per fetch, not per render.
   // Fresh results: re-arm nearby alerts on the same basket. Best-effort; a failure just keeps the old geofences.
   useEffect(() => {
-    if (alertsOn && location.coords && compare.dataUpdatedAt) syncGeofences(location.coords, codes).catch(() => {});
+    if (alertsOn && location.coords && compare.dataUpdatedAt) syncGeofences(location.coords, basket).catch(() => {});
   }, [compare.dataUpdatedAt, alertsOn]);
 
   // Once per visit with results (tabs stay mounted, so focus marks a visit); the $screen event counts every visit.
   const focused = useIsFocused();
   useEffect(() => {
-    if (focused && best) track(Events.compareViewed, { stores: byPrice.length, radiusKm, items: items.length, matched: codes.length });
+    if (focused && best) track(Events.compareViewed, { stores: byPrice.length, radiusKm, items: items.length, matched });
   }, [focused, !!best]);
 
   const loading = useMinDuration(
-    list.isPending || location.status === "checking" || location.status === "locating" || (location.status === "ready" && codes.length > 0 && compare.isPending),
+    list.isPending || location.status === "checking" || location.status === "locating" || (location.status === "ready" && matched > 0 && compare.isPending),
     MIN_LOADER_MS,
   );
   const body = (() => {
     if (loading) return <ShoppingLoader label={t("compare.loading")} />;
     if (list.isError) return <EmptyState icon={TriangleAlert} title={t("compare.error.title")} action={{ title: t("compare.retry"), analyticsName: Taps.compareRetryList, onPress: () => list.refetch() }} />;
-    if (!codes.length && items.length)
+    if (!matched && items.length)
       // Missing items exist but none is matched to a product, so there is nothing to price yet.
       return (
         <EmptyState
@@ -92,7 +93,7 @@ export function CompareScreen() {
           action={{ title: fmt(t("compare.unmatched.match"), { name: items[0].name }), analyticsName: Taps.compareMissingMatch, onPress: () => router.push({ pathname: "/item/[id]", params: { id: items[0].id, page: "product" } }), filled: true }}
         />
       );
-    if (!codes.length) return <EmptyState icon={ShoppingBasket} title={t("compare.noBasket.title")} body={t("compare.noBasket.body")} />;
+    if (!matched) return <EmptyState icon={ShoppingBasket} title={t("compare.noBasket.title")} body={t("compare.noBasket.body")} />;
     if (location.status === "denied")
       return (
         <EmptyState
@@ -118,7 +119,7 @@ export function CompareScreen() {
     return null;
   })();
 
-  const subtitle = loading ? t("compare.searching") : codes.length ? fmt(t("compare.summary"), { items: items.length, matched: codes.length }) : undefined;
+  const subtitle = loading ? t("compare.searching") : matched ? fmt(t("compare.summary"), { items: items.length, matched }) : undefined;
 
   return (
     <Screen edges={["top"]} style={{ paddingHorizontal: 0 }}>
@@ -136,7 +137,7 @@ export function CompareScreen() {
         }
       >
         <LargeTitle title={t("tabs.compare")} subtitle={subtitle} nav={location.status !== "denied" && <RadiusMenu value={radiusKm} onChange={setRadiusKm} />} />
-        {location.status !== "denied" && codes.length > 0 && <SortControl value={sort} onChange={setSort} />}
+        {location.status !== "denied" && matched > 0 && <SortControl value={sort} onChange={setSort} />}
         {body ?? (
           <>
             <BestStore store={best} basketSize={items.length} saving={saving(byPrice)} listText={listText} onShowMissing={() => {

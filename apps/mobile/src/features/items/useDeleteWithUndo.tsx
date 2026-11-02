@@ -41,8 +41,8 @@ export function useDeleteWithUndo(listId: string | null) {
         analyticsName: Taps.commonUndo,
         onPress: () => {
           if (!deleted) return;
-          const { name, category, productCode, missing } = deleted;
-          add.mutate({ name, category, productCode, missing }, { onError: fail });
+          const { name, category, productCode, groupRef, missing } = deleted;
+          add.mutate({ name, category, productCode, groupRef, missing }, { onError: fail });
         },
       }}
       onHide={() => setDeleted(null)}

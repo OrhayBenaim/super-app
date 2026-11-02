@@ -3,15 +3,17 @@ import { Plus } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-import { fmt, shekels } from "@/features/compare/format";
+import { fmt } from "@/features/compare/format";
 import { useItemMutations, type Item } from "@/features/lists/api";
 import { Events, Taps, track, trackTap } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Group, Row, SearchField, Tap, Text } from "@/ui";
 import { suggestItems } from "./autocomplete";
+import { GroupResult } from "./GroupResult";
 import { AddBadge, ItemRow } from "./ItemRow";
-import { useProductSearch, type Product } from "./products";
+import { groupTitle, productDetail } from "./labels";
+import { splitResults, useProductSearch, type Product, type ProductGroup } from "./products";
 
 type Props = {
   listId: string | null;
@@ -31,20 +33,23 @@ export function AddField({ listId, items, from, onClose }: Props) {
   const [query, setQuery] = useState("");
   const { matches, create } = suggestItems(query, items);
   const fail = () => Alert.alert(t("common.error"));
-  const linked = new Set(items.map((i) => i.productCode));
+  const linked = new Set(items.flatMap((i) => [i.productCode, i.groupRef]));
   const search = useProductSearch(query);
   // The search is debounced, so hide its last results as soon as the field is cleared.
   const searchable = query.trim().length >= 2;
   const searching = searchable && search.isFetching;
-  const products = searchable ? (search.data ?? []).filter((p) => !linked.has(p.code) && !items.some((i) => i.name === p.name)) : [];
+  const found = splitResults(searchable ? search.data : []);
+  const groups = found.groups.filter((g) => !linked.has(g.ref));
+  const products = found.products.filter((p) => !linked.has(p.code) && !items.some((i) => i.name === p.name));
 
   const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing }, { onError: fail });
   // New items count here; re-adds count in useItemMutations (the Undo re-create must not count as an add).
-  const createItem = (name: string, productCode: string | null = null) => {
+  const createItem = (name: string, match: { productCode: string } | { groupRef: string } | null = null) => {
     Haptics.selectionAsync();
+    const matchedKind = match ? ("groupRef" in match ? "group" : "product") : null;
     add.mutate(
-      { name, category: t("items.category.other"), productCode, missing: from === "list" },
-      { onError: fail, onSuccess: () => from === "list" && track(Events.listItemAdded, { existing: false, matched: !!productCode }) },
+      { name, category: t("items.category.other"), ...match, missing: from === "list" },
+      { onError: fail, onSuccess: () => from === "list" && track(Events.listItemAdded, { existing: false, matched: !!match, ...(matchedKind && { matchedKind }) }) },
     );
     setQuery("");
   };
@@ -63,12 +68,15 @@ export function AddField({ listId, items, from, onClose }: Props) {
     <Row
       key={p.code}
       title={p.name}
-      detail={[fmt(t("items.product.from"), { price: shekels(p.minPrice) }), fmt(t("items.product.stores"), { n: p.storeCount })].join(" · ")}
+      detail={productDetail(p, t)}
       accessibilityLabel={fmt(t(from === "list" ? "items.addToList" : "items.add.createInItems"), { name: p.name })}
       analyticsName={Taps.itemsAddProduct}
       trailing={<AddBadge />}
-      onPress={() => createItem(p.name, p.code)}
+      onPress={() => createItem(p.name, { productCode: p.code })}
     />
+  );
+  const groupRow = (g: ProductGroup) => (
+    <GroupResult key={g.ref} group={g} trailing={<AddBadge />} onPress={() => createItem(groupTitle(g, t), { groupRef: g.ref })} onRefine={(word) => setQuery(`${query.trim()} ${word}`)} />
   );
 
   return (
@@ -94,7 +102,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
           <Text color="tint">{t("common.cancel")}</Text>
         </Tap>
       </View>
-      {(matches.length > 0 || products.length > 0 || searching || create) && (
+      {(matches.length > 0 || groups.length > 0 || products.length > 0 || searching || create) && (
         <ScrollView keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }} contentContainerStyle={{ padding: space[5], paddingTop: space[3] }}>
           <Group>
             {matches.map((item) => (
@@ -106,7 +114,14 @@ export function AddField({ listId, items, from, onClose }: Props) {
                 <Text color="labelSecondary">{t("items.add.searching")}</Text>
               </View>
             ) : (
-              products.length > 0 && <Group maxRows={3}>{products.map(productRow)}</Group>
+              [
+                ...groups.map(groupRow),
+                products.length > 0 && (
+                  <Group key="products" title={groups.length ? t("items.product.specific") : undefined} maxRows={3}>
+                    {products.map(productRow)}
+                  </Group>
+                ),
+              ]
             )}
             {create && (
               <Row

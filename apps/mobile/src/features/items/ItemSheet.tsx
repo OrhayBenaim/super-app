@@ -1,15 +1,16 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Barcode, Check } from "lucide-react-native";
+import { Barcode, Check, Layers } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert } from "react-native";
-import { fmt, shekels } from "@/features/compare/format";
 import { useCategories, useCurrentListId, useItemMutations, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Group, Row, SearchField, Sheet, SheetHeader, SheetTextField } from "@/ui";
 import { requestDelete } from "./pendingDelete";
-import { useProductSearch } from "./products";
+import { GroupResult } from "./GroupResult";
+import { groupTitle, productDetail } from "./labels";
+import { splitResults, useProductSearch } from "./products";
 
 export type ItemPage = "form" | "category" | "product";
 
@@ -30,9 +31,11 @@ export function ItemSheet() {
   const [category, setCategory] = useState("");
   const [newCategory, setNewCategory] = useState<string | null>(null);
   const [productCode, setProductCode] = useState<string | null>(null);
+  const [groupRef, setGroupRef] = useState<string | null>(null);
   const [productName, setProductName] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const products = useProductSearch(page === "product" ? query : "");
+  const search = useProductSearch(page === "product" ? query : "");
+  const found = splitResults(search.data);
 
   // Seed the form once the item is known; keyed on the id because refetches hand us a fresh `item` object.
   useEffect(() => {
@@ -40,6 +43,7 @@ export function ItemSheet() {
     setName(item.name);
     setCategory(item.category);
     setProductCode(item.productCode);
+    setGroupRef(item.groupRef);
     setQuery(item.name);
   }, [item?.id]);
 
@@ -49,8 +53,15 @@ export function ItemSheet() {
   const back = { title: t("common.back"), analyticsName: Taps.commonBack, onPress: () => setPage("form") };
   const save = () => {
     if (!valid) return;
-    update.mutate({ id: item.id, name: name.trim(), category: category.trim(), productCode }, { onError: () => Alert.alert(t("common.error")) });
+    update.mutate({ id: item.id, name: name.trim(), category: category.trim(), productCode, groupRef }, { onError: () => Alert.alert(t("common.error")) });
     onClose();
+  };
+  // An item is matched to one product or one Product group (null, null: no match).
+  const pick = (code: string | null, ref: string | null, shown: string | null) => {
+    setProductCode(code);
+    setGroupRef(ref);
+    setProductName(shown);
+    setPage("form");
   };
   const pickCategory = (c: string) => {
     setCategory(c);
@@ -69,7 +80,7 @@ export function ItemSheet() {
             <Row
               title={t("items.product")}
               analyticsName={Taps.itemsProduct}
-              value={productCode ? (productName ?? t("items.matched")) : t("items.product.optional")}
+              value={productName ?? (productCode ? t("items.matched") : groupRef ? t("items.matchedGroup") : t("items.product.optional"))}
               chevron
               onPress={() => setPage("product")}
             />
@@ -122,37 +133,43 @@ export function ItemSheet() {
         <>
           <SheetHeader title={t("items.product")} start={back} />
           <SearchField label={t("items.product.placeholder")} value={query} onChangeText={setQuery} returnKeyType="search" />
-          {products.isFetching && <ActivityIndicator color={colors.labelSecondary} />}
-          {!!products.data?.length && (
-            <Group title={t("items.product.results")} maxRows={5}>
-              {products.data.map((p) => (
-                <Row
-                  key={p.code}
-                  title={p.name}
-                  detail={[p.manufacturer, fmt(t("items.product.from"), { price: shekels(p.minPrice) }), fmt(t("items.product.stores"), { n: p.storeCount })].filter(Boolean).join(" · ")}
-                  accessibilityState={{ selected: p.code === productCode }}
-                  analyticsName={Taps.itemsProductPick}
-                  trailing={<Barcode size={20} color={colors.labelSecondary} strokeWidth={1.75} />}
-                  onPress={() => {
-                    setProductCode(p.code);
-                    setProductName(p.name);
-                    setPage("form");
-                  }}
+          {search.isFetching && <ActivityIndicator color={colors.labelSecondary} />}
+          {found.groups.length > 0 && (
+            <Group title={t("items.product.results")}>
+              {found.groups.map((g) => (
+                <GroupResult
+                  key={g.ref}
+                  group={g}
+                  selected={g.ref === groupRef}
+                  trailing={<Layers size={20} color={colors.labelSecondary} strokeWidth={1.75} />}
+                  onPress={() => pick(null, g.ref, groupTitle(g, t))}
+                  onRefine={(word) => setQuery(`${query.trim()} ${word}`)}
                 />
               ))}
             </Group>
           )}
-          {products.data?.length === 0 && <Row title={t("items.product.none")} />}
+          {found.products.length > 0 && (
+            <Group title={t(found.groups.length ? "items.product.specific" : "items.product.results")} maxRows={5}>
+              {found.products.map((p) => (
+                <Row
+                  key={p.code}
+                  title={p.name}
+                  detail={productDetail(p, t, true)}
+                  accessibilityState={{ selected: p.code === productCode }}
+                  analyticsName={Taps.itemsProductPick}
+                  trailing={<Barcode size={20} color={colors.labelSecondary} strokeWidth={1.75} />}
+                  onPress={() => pick(p.code, null, p.name)}
+                />
+              ))}
+            </Group>
+          )}
+          {search.data?.length === 0 && <Row title={t("items.product.none")} />}
           <Group>
             <Row
               title={t("items.product.noMatch")}
               detail={t("items.product.noMatch.detail")}
               analyticsName={Taps.itemsProductNoMatch}
-              onPress={() => {
-                setProductCode(null);
-                setProductName(null);
-                setPage("form");
-              }}
+              onPress={() => pick(null, null, null)}
             />
           </Group>
         </>
