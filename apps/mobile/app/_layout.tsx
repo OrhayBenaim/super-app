@@ -36,10 +36,12 @@ function RootLayout() {
   if (!ready) return null; // the splash stays up meanwhile; the session is cached in SecureStore, so this is brief
 
   // Native content-sized sheet; grouped background so the white inset groups inside read as groups, as on screens.
+  // No resize animation: on Android a resize that starts mid-animation (results loading in) leaves the sheet off-screen.
   const sheet = {
     presentation: "formSheet",
     sheetAllowedDetents: "fitToContents",
     sheetGrabberVisible: true,
+    sheetResizeAnimationEnabled: false,
     sheetCornerRadius: radius.sheet,
     sheetElevation: shadow.sheet.elevation,
     contentStyle: { backgroundColor: colors.groupedBg },
