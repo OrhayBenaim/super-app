@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "#/app.ts";
 import { buildDeps } from "#/deps.ts";
+import { MAX_CLIENTS } from "#/middleware.ts";
 import { loadConfig } from "#/services/config.ts";
 import { fakeClock } from "#/utils/clock.ts";
 
@@ -40,6 +41,15 @@ describe("rateLimit", () => {
     const { from } = setup();
     for (let i = 0; i < 300; i++) await from("10.0.0.1", "/health");
     expect((await from("10.0.0.1", "/health")).status).toBe(429);
+  });
+
+  it("keeps limiting tracked clients once MAX_CLIENTS addresses are stored, and lets new ones through", async () => {
+    const { from } = setup();
+    for (let i = 0; i < 300; i++) await from("10.0.0.1", "/health");
+    for (let i = 1; i < MAX_CLIENTS; i++) await from(`10.1.${i >> 8}.${i & 255}`, "/health");
+    expect((await from("10.0.0.1", "/health")).status).toBe(429);
+    for (let i = 0; i < 300; i++) await from("10.2.0.1", "/health");
+    expect((await from("10.2.0.1", "/health")).status).not.toBe(429);
   });
 
   it("ignores X-Forwarded-For unless TRUST_PROXY is set, then keys by the last hop", async () => {
