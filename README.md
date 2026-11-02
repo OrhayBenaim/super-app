@@ -73,6 +73,43 @@ A Price sync (`CONTEXT.md`, "Prices") does fetch, ingest and geocode for every c
   answers 202 `{ "id": n }` (recorded; the worker runs it within a minute), 409 while a sync is running or waiting, 401 without
   the token. A finished Manual sync skips the next Scheduled sync.
 
+## Deploy
+
+Two environments, `staging` and `production`. Pushing to `main` deploys to staging; publishing a GitHub release deploys to production.
+Each setting lives in one place: mobile app settings in EAS, server settings on the VM, and only the Expo token in GitHub.
+
+- `deploy-api.yml` builds `apps/api/Dockerfile` (build context: the repo root) and pushes `ghcr.io/<owner>/grocer-api` and `ghcr.io/<owner>/grocer-worker`
+  tagged `:staging` or `:production` (plus `:<version>` on releases and `:sha-<short>`). It only pushes images; the VM pulls and restarts them.
+- `deploy-mobile.yml` starts EAS builds of both platforms: profile `staging` (internal distribution, EAS environment `preview`) or
+  `production` (EAS environment `production`, auto-submitted to the stores). Run it by hand after changing EAS variables.
+
+**GitHub** (repo or both environments): secret `EXPO_TOKEN`, an expo.dev access token (a robot user). GHCR uses the built-in `GITHUB_TOKEN`.
+Add required reviewers to `production`.
+
+**EAS** (expo.dev > project > Environment variables; `preview` for staging, `production` for production):
+
+| Name | Visibility | Notes |
+| --- | --- | --- |
+| `EXPO_PUBLIC_API_URL` | plaintext | required; that environment's public API URL |
+| `EXPO_PUBLIC_SENTRY_DSN` | plaintext | optional; same DSN as the API's `SENTRY_DSN` |
+| `EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_POSTHOG_HOST` | plaintext | optional |
+| `SENTRY_ORG`, `SENTRY_PROJECT` | plaintext | source map upload |
+| `SENTRY_AUTH_TOKEN` | secret | source map upload; the iOS build fails without it unless `SENTRY_DISABLE_AUTO_UPLOAD=true` |
+
+`EXPO_PUBLIC_*` values are compiled into the app, so they are never secret. From `apps/mobile`:
+`npx eas-cli@latest env:set preview --name EXPO_PUBLIC_API_URL --value https://... --visibility plaintext`.
+
+**VM** (one env file per environment, passed to both containers, e.g. `docker run --env-file /etc/grocer/staging.env`):
+the API env vars listed above. Required: `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET` (different per environment), `RESEND_API_KEY`
+(the worker needs it too, since config validation requires it) and `SENTRY_ENVIRONMENT` (`staging` or `production`).
+`PORT` and `DATABASE_URL` (`/data/grocer.db`) have image defaults. The API and worker share one SQLite file, so run both on the same VM
+with the same volume on `/data`. Log the VM in to GHCR with a token that has `read:packages` (packages are private by default).
+
+One-time setup (the EAS project is `@ottersprod/grocer`): run one interactive
+`eas build --profile production` per platform to create signing credentials; add an App Store Connect API key and a Google Play
+service account key to EAS for submits (Google Play needs the first Android upload by hand); register iOS test devices for staging
+builds with `eas device:create`.
+
 ## Known limitations / not verified on device
 
 - Built and checked with typecheck, vitest and `expo export` only; nothing has run on a real device or simulator yet.
