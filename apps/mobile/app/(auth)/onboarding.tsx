@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { Bell, ChartColumn, Plus, Share, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
 import { I18nManager, useWindowDimensions, View } from "react-native";
 import Animated, {
@@ -11,13 +12,23 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
+import { fmt } from "@/features/compare/format";
 import { Illustration } from "@/features/onboarding/Illustration";
 import { Taps } from "@/lib/analytics";
 import { t, type StringKey } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Button, Screen, Text } from "@/ui";
 
-const SLIDES = [1, 2, 3].map((n) => ({ title: `onboarding.${n}.title` as StringKey, body: `onboarding.${n}.body` as StringKey }));
+type Slide = { title: StringKey; body: StringKey; tip?: { icon: LucideIcon; text: () => string } };
+const slide = (n: number, tip?: Slide["tip"]): Slide => ({ title: `onboarding.${n}.title` as StringKey, body: `onboarding.${n}.body` as StringKey, tip });
+// Each tip says where the feature lives, with the real tab and setting names.
+const SLIDES = [
+  slide(1),
+  slide(2, { icon: Plus, text: () => t("onboarding.2.tip") }),
+  slide(3, { icon: Share, text: () => t("onboarding.3.tip") }),
+  slide(4, { icon: ChartColumn, text: () => fmt(t("onboarding.4.tip"), { tab: t("tabs.compare") }) }),
+  slide(5, { icon: Bell, text: () => fmt(t("onboarding.5.tip"), { setting: t("settings.nearby") }) }),
+];
 const N = SLIDES.length;
 const RTL = I18nManager.isRTL;
 
@@ -27,9 +38,9 @@ const physical = (logical: number) => (RTL ? N - 1 - logical : logical);
 
 export default function Onboarding() {
   const { width, height } = useWindowDimensions();
-  const { space, motion } = useTheme();
+  const { colors, space, radius, motion } = useTheme();
   const reduced = useReducedMotion();
-  const stage = Math.min(height * 0.5, 440);
+  const stage = Math.min(height * 0.45, 380);
   const scrollX = useSharedValue(physical(0) * width);
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const [index, setIndex] = useState(0);
@@ -52,7 +63,7 @@ export default function Onboarding() {
 
   return (
     <Screen style={{ paddingHorizontal: 0 }}>
-      <View style={{ alignItems: "flex-end", paddingHorizontal: space[3], minHeight: 50 }}>
+      <View style={{ alignItems: "flex-end", paddingHorizontal: space[3], minHeight: 44 }}>
         <Animated.View
           pointerEvents={last ? "none" : "auto"}
           accessibilityElementsHidden={last}
@@ -76,13 +87,23 @@ export default function Onboarding() {
           style={{ direction: "ltr" }}
         >
           {(RTL ? [...SLIDES].reverse() : SLIDES).map((slide) => (
-            <View key={slide.title} style={{ width, paddingTop: stage, paddingHorizontal: space[7], gap: space[3] }}>
+            <View key={slide.title} style={{ width, paddingTop: stage + space[7], paddingHorizontal: space[8], gap: space[3] }}>
               <Text variant="title2" accessibilityRole="header" style={{ textAlign: "center" }}>
                 {t(slide.title)}
               </Text>
               <Text variant="callout" color="labelSecondary" style={{ textAlign: "center" }}>
                 {t(slide.body)}
               </Text>
+              {slide.tip && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: space[4], marginTop: space[3], paddingHorizontal: space[4], paddingVertical: 10, borderRadius: radius.group, backgroundColor: colors.surface }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.tintSoft, alignItems: "center", justifyContent: "center" }}>
+                    <slide.tip.icon size={18} color={colors.tint} strokeWidth={1.75} />
+                  </View>
+                  <Text variant="footnote" color="labelSecondary" style={{ flex: 1 }}>
+                    {slide.tip.text()}
+                  </Text>
+                </View>
+              )}
             </View>
           ))}
         </Animated.ScrollView>
@@ -111,5 +132,5 @@ function Dot({ i, scrollX, width }: { i: number; scrollX: SharedValue<number>; w
       backgroundColor: interpolateColor(page, range, [colors.controlOutline, colors.tint, colors.controlOutline]),
     };
   });
-  return <Animated.View style={[{ width: 7, height: 7, borderRadius: 3.5 }, style]} />;
+  return <Animated.View style={[{ width: 8, height: 8, borderRadius: 4 }, style]} />;
 }
