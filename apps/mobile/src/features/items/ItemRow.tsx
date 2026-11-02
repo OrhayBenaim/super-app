@@ -40,14 +40,20 @@ export function ItemRow({ item, onToggle, onEdit }: { item: Item; onToggle: (mis
         </Text>
         {item.missing && <OnListTag />}
       </View>
-      {!item.missing && (
-        <View style={{ width: size.target, alignItems: "center" }}>
-          <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.tintSoft, alignItems: "center", justifyContent: "center" }}>
-            <Plus size={18} color={colors.tint} strokeWidth={2} />
-          </View>
-        </View>
-      )}
+      {!item.missing && <AddBadge />}
     </Tap>
+  );
+}
+
+/** The round + at the end of a row that adds something. */
+export function AddBadge() {
+  const { colors, size } = useTheme();
+  return (
+    <View style={{ width: size.target, alignItems: "center" }}>
+      <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.tintSoft, alignItems: "center", justifyContent: "center" }}>
+        <Plus size={18} color={colors.tint} strokeWidth={2} />
+      </View>
+    </View>
   );
 }
 

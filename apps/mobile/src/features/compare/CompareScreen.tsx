@@ -1,6 +1,6 @@
 import { useIsFocused, useRouter } from "expo-router";
 import { MapPin, SearchX, ShoppingBasket, TriangleAlert } from "lucide-react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshControl, ScrollView } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
@@ -21,6 +21,25 @@ import { SortControl } from "./SortControl";
 
 // Rows glide to their new slot when the sort changes; snappy matches the segmented thumb.
 const reorder = LinearTransition.springify().damping(springs.snappy.damping).stiffness(springs.snappy.stiffness).mass(springs.snappy.mass);
+
+// Local prices answer in milliseconds; hold the loader until the mascot reaches the store (half of its 2.8 s trip) so it never just flashes.
+const MIN_LOADER_MS = 1400;
+
+/** True while `on`, and for the rest of `ms` after it turned on. */
+function useMinDuration(on: boolean, ms: number) {
+  const [held, setHeld] = useState(on);
+  const since = useRef(0);
+  useEffect(() => {
+    if (on) {
+      since.current = Date.now();
+      setHeld(true);
+      return;
+    }
+    const id = setTimeout(() => setHeld(false), Math.max(0, since.current + ms - Date.now()));
+    return () => clearTimeout(id);
+  }, [on, ms]);
+  return on || held;
+}
 
 export function CompareScreen() {
   const router = useRouter();
@@ -56,10 +75,23 @@ export function CompareScreen() {
     if (focused && best) track(Events.compareViewed, { stores: byPrice.length, radiusKm, items: items.length, matched: codes.length });
   }, [focused, !!best]);
 
-  const loading = list.isPending || location.status === "checking" || location.status === "locating" || (location.status === "ready" && codes.length > 0 && compare.isPending);
+  const loading = useMinDuration(
+    list.isPending || location.status === "checking" || location.status === "locating" || (location.status === "ready" && codes.length > 0 && compare.isPending),
+    MIN_LOADER_MS,
+  );
   const body = (() => {
     if (loading) return <ShoppingLoader label={t("compare.loading")} />;
     if (list.isError) return <EmptyState icon={TriangleAlert} title={t("compare.error.title")} action={{ title: t("compare.retry"), analyticsName: Taps.compareRetryList, onPress: () => list.refetch() }} />;
+    if (!codes.length && items.length)
+      // Missing items exist but none is matched to a product, so there is nothing to price yet.
+      return (
+        <EmptyState
+          icon={ShoppingBasket}
+          title={t("compare.unmatched.title")}
+          body={fmt(t("compare.unmatched.body"), { n: items.length })}
+          action={{ title: fmt(t("compare.unmatched.match"), { name: items[0].name }), analyticsName: Taps.compareMissingMatch, onPress: () => router.push({ pathname: "/item/[id]", params: { id: items[0].id, page: "product" } }), filled: true }}
+        />
+      );
     if (!codes.length) return <EmptyState icon={ShoppingBasket} title={t("compare.noBasket.title")} body={t("compare.noBasket.body")} />;
     if (location.status === "denied")
       return (

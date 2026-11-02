@@ -73,7 +73,15 @@
           "isAndroidBackgroundLocationEnabled": true
         }
       ],
-      "@sentry/react-native"
+      "@sentry/react-native",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#3446D6",
+          "image": "./assets/android-icon-foreground.png",
+          "imageWidth": 200
+        }
+      ]
     ],
     "scheme": "grocer",
     "newArchEnabled": true,

@@ -44,6 +44,16 @@ describe("suggestItems", () => {
     expect(suggestItems("mil", items).matches.map((i) => i.id)).toEqual([1, 2]);
   });
 
+  it("matches anywhere in the name, prefix matches first", () => {
+    const he = [{ id: 1, name: "שוקו חלב" }, { id: 2, name: "חלב 3%" }, { id: 3, name: "לחם" }];
+    expect(suggestItems("חלב", he).matches.map((i) => i.id)).toEqual([2, 1]);
+    expect(suggestItems("3%", he).matches.map((i) => i.id)).toEqual([2]);
+  });
+
+  it("folds Hebrew final letters when matching", () => {
+    expect(suggestItems("לחמ", [{ name: "לחם" }])).toEqual({ matches: [{ name: "לחם" }], create: null });
+  });
+
   it("offers create unless an item has exactly that name", () => {
     expect(suggestItems("Milk", items).create).toBe("Milk");
     expect(suggestItems("bread", items)).toEqual({ matches: [items[2]], create: null });
