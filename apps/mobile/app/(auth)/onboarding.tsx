@@ -1,5 +1,4 @@
 import { router } from "expo-router";
-import { Bell, ChartColumn, Plus, Share, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
 import { I18nManager, useWindowDimensions, View } from "react-native";
 import Animated, {
@@ -12,24 +11,15 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
-import { fmt } from "@/features/compare/format";
 import { Illustration } from "@/features/onboarding/Illustration";
+import { SLIDES, SlideTip } from "@/features/onboarding/slides";
 import { Taps } from "@/lib/analytics";
-import { t, type StringKey } from "@/lib/strings";
+import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Button, Screen, Text } from "@/ui";
 
-type Slide = { title: StringKey; body: StringKey; tip?: { icon: LucideIcon; text: () => string } };
-const slide = (n: number, tip?: Slide["tip"]): Slide => ({ title: `onboarding.${n}.title` as StringKey, body: `onboarding.${n}.body` as StringKey, tip });
-// Each tip says where the feature lives, with the real tab and setting names.
-const SLIDES = [
-  slide(1),
-  slide(2, { icon: Plus, text: () => t("onboarding.2.tip") }),
-  slide(3, { icon: Share, text: () => t("onboarding.3.tip") }),
-  slide(4, { icon: ChartColumn, text: () => fmt(t("onboarding.4.tip"), { tab: t("tabs.compare") }) }),
-  slide(5, { icon: Bell, text: () => fmt(t("onboarding.5.tip"), { setting: t("settings.nearby") }) }),
-];
 const N = SLIDES.length;
+const STAGES = SLIDES.map((s) => s.Stage);
 const RTL = I18nManager.isRTL;
 
 // The pager is forced LTR so offsets mean the same on iOS and Android; in RTL the slides are
@@ -38,7 +28,7 @@ const physical = (logical: number) => (RTL ? N - 1 - logical : logical);
 
 export default function Onboarding() {
   const { width, height } = useWindowDimensions();
-  const { colors, space, radius, motion } = useTheme();
+  const { space, motion } = useTheme();
   const reduced = useReducedMotion();
   const stage = Math.min(height * 0.45, 380);
   const scrollX = useSharedValue(physical(0) * width);
@@ -89,25 +79,16 @@ export default function Onboarding() {
           {(RTL ? [...SLIDES].reverse() : SLIDES).map((slide) => (
             <View key={slide.title} style={{ width, paddingTop: stage + space[7], paddingHorizontal: space[8], gap: space[3] }}>
               <Text variant="title2" accessibilityRole="header" style={{ textAlign: "center" }}>
-                {t(slide.title)}
+                {slide.title}
               </Text>
               <Text variant="callout" color="labelSecondary" style={{ textAlign: "center" }}>
-                {t(slide.body)}
+                {slide.body}
               </Text>
-              {slide.tip && (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: space[4], marginTop: space[3], paddingHorizontal: space[4], paddingVertical: 10, borderRadius: radius.group, backgroundColor: colors.surface }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.tintSoft, alignItems: "center", justifyContent: "center" }}>
-                    <slide.tip.icon size={18} color={colors.tint} strokeWidth={1.75} />
-                  </View>
-                  <Text variant="footnote" color="labelSecondary" style={{ flex: 1 }}>
-                    {slide.tip.text()}
-                  </Text>
-                </View>
-              )}
+              {slide.tip && <SlideTip {...slide.tip} />}
             </View>
           ))}
         </Animated.ScrollView>
-        <Illustration scrollX={scrollX} width={width} height={stage} pages={N} rtl={RTL} />
+        <Illustration scrollX={scrollX} width={width} height={stage} rtl={RTL} stages={STAGES} />
       </View>
 
       <View style={{ alignItems: "center", gap: space[6], padding: space[5] }}>

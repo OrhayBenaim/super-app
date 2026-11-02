@@ -1,19 +1,22 @@
 import { Image } from "expo-image";
 import { Plus, ShoppingBasket } from "lucide-react-native";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { View } from "react-native";
 import Animated, { Extrapolation, interpolate, useAnimatedStyle, useReducedMotion, type SharedValue } from "react-native-reanimated";
 import { BestStore } from "@/features/compare/BestStore";
 import { fmt, shekels } from "@/features/compare/format";
+import type { StoreResult } from "@/features/compare/sort";
 import { AddBadge, ItemRow } from "@/features/items/ItemRow";
+import type { Item } from "@/features/lists/api";
 import { Avatar } from "@/features/lists/Avatars";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Button, Group, Row, SearchField, Text } from "@/ui";
 
-type Props = { scrollX: SharedValue<number>; width: number; height: number; pages: number; rtl: boolean };
-type FragmentProps = { stage: number; screen: number; rtl: boolean };
+/** What each slide's stage gets: the stage width, the screen width and the layout direction. */
+export type StageProps = { stage: number; screen: number; rtl: boolean };
+type Props = { scrollX: SharedValue<number>; width: number; height: number; rtl: boolean; stages: ComponentType<StageProps>[] };
 
 const art = {
   wave: require("../../../assets/onboarding/mascot-wave.svg"),
@@ -29,15 +32,11 @@ const art = {
   light: require("../../../assets/onboarding/car/light.svg"),
 };
 
-/**
- * Onboarding stage: a tint-soft card whose content follows the pager, one page per slide (the mascot, then clones of
- * the real add field, share sheet, best store and nearby alert). Decorative, hidden from assistive tech.
- */
-export function Illustration({ scrollX, width, height, pages, rtl }: Props) {
+/** Onboarding stage: a tint-soft card whose content follows the pager, one page per slide. Decorative, hidden from assistive tech. */
+export function Illustration({ scrollX, width, height, rtl, stages }: Props) {
   const { colors, space } = useTheme();
   const reduced = useReducedMotion();
   const stage = width - space[5] * 2;
-  const fragments = [Hello, AddItem, ShareList, Cheapest, GoNearby];
   return (
     <View
       pointerEvents="none"
@@ -45,9 +44,9 @@ export function Illustration({ scrollX, width, height, pages, rtl }: Props) {
       importantForAccessibility="no-hide-descendants"
       style={{ position: "absolute", top: 0, start: space[5], end: space[5], height, borderRadius: 24, backgroundColor: colors.tintSoft, overflow: "hidden", direction: "ltr" }}
     >
-      {fragments.slice(0, pages).map((Fragment, i) => (
-        <Page key={i} physical={rtl ? pages - 1 - i : i} {...{ scrollX, width, stage, reduced, rtl }}>
-          <Fragment stage={stage} screen={width} rtl={rtl} />
+      {stages.map((Stage, i) => (
+        <Page key={i} physical={rtl ? stages.length - 1 - i : i} {...{ scrollX, width, stage, reduced, rtl }}>
+          <Stage stage={stage} screen={width} rtl={rtl} />
         </Page>
       ))}
     </View>
@@ -67,9 +66,9 @@ function Page({ physical, scrollX, width, stage, reduced, rtl, children }: { phy
   return <Animated.View style={[{ position: "absolute", top: 0, bottom: 0, start: 0, width: stage, direction: rtl ? "rtl" : "ltr" }, style]}>{children}</Animated.View>;
 }
 
-/** Shrinks a full-size clone of a real screen part to `width`, anchored at its top. */
-function Scaled({ width, scale, children }: { width: number; scale: number; children: ReactNode }) {
-  const inner = width / scale;
+/** Lays out a real screen part at its full `inner` width and shrinks it to `width`, anchored at its top. */
+function Scaled({ width, inner, children }: { width: number; inner: number; children: ReactNode }) {
+  const scale = width / inner;
   return (
     <View style={{ width }}>
       <View style={{ width: inner, marginHorizontal: (width - inner) / 2, transform: [{ scale }], transformOrigin: "50% 0%" }}>{children}</View>
@@ -79,18 +78,20 @@ function Scaled({ width, scale, children }: { width: number; scale: number; chil
 
 /** The 104pt mascot holding a price tag, at the bottom end of the stage. ₪ is a glyph, never drawn art. */
 function PriceMascot() {
-  const { colors } = useTheme();
   return (
-    <View style={{ position: "absolute", end: 8, bottom: 4, width: 104, height: 104, direction: "ltr" }}>
-      <Image source={art.price} style={{ width: 104, height: 104 }} contentFit="fill" />
-      <Text variant="caption" style={{ position: "absolute", left: 14.5, top: 75.8, width: 11, fontSize: 8, lineHeight: 14, fontWeight: "700", color: colors.tintOn, textAlign: "center", transform: [{ rotate: "-18deg" }] }}>
-        ₪
-      </Text>
+    <View style={{ position: "absolute", end: 8, bottom: 4, width: 104, height: 104 }}>
+      {/* The glyph sits on the drawn tag, so it is placed in the art's own LTR coordinates and sized to it. */}
+      <View style={{ flex: 1, direction: "ltr" }}>
+        <Image source={art.price} style={{ width: 104, height: 104 }} contentFit="fill" />
+        <Text variant="caption" color="tintOn" style={{ position: "absolute", left: 14.5, top: 75.8, width: 11, fontSize: 8, lineHeight: 14, fontWeight: "700", textAlign: "center", transform: [{ rotate: "-18deg" }] }}>
+          ₪
+        </Text>
+      </View>
     </View>
   );
 }
 
-function Hello() {
+export function Hello() {
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
       <Image source={art.wave} style={{ width: 220, height: 220 }} contentFit="fill" />
@@ -98,16 +99,17 @@ function Hello() {
   );
 }
 
-const sampleItem = (name: string, missing: boolean) => ({ id: name, listId: "", name, category: "", productCode: null, missing, createdAt: "", updatedAt: "" });
+const sampleItem = (name: string, missing: boolean): Item => ({ id: name, listId: "", name, category: "", productCode: null, missing, createdAt: "", updatedAt: "" });
 const noop = () => {};
 
 /** Clone of the + add field with a typed query, as the list screen shows it. */
-function AddItem({ stage, screen, rtl }: FragmentProps) {
+// Preview widths are the design's share of the 361pt stage.
+export function AddItem({ stage, screen, rtl }: StageProps) {
   const { colors, space } = useTheme();
   const query = t("onboarding.sample.query");
   return (
     <View style={{ flex: 1, alignItems: "flex-start", paddingTop: space[7] }}>
-      <Scaled width={stage * 0.87} scale={(stage * 0.87) / screen}>
+      <Scaled width={stage * 0.87} inner={screen}>
         <View style={{ paddingHorizontal: space[5], paddingVertical: space[3] }}>
           <SearchField label={t("items.add.placeholder")} icon={Plus} value={query} editable={false} />
         </View>
@@ -130,13 +132,13 @@ function AddItem({ stage, screen, rtl }: FragmentProps) {
 }
 
 /** Clone of the share sheet: members and the invite code. */
-function ShareList({ stage }: FragmentProps) {
+export function ShareList({ stage }: StageProps) {
   const { space } = useTheme();
   const owner = t("onboarding.sample.owner");
   const member = t("onboarding.sample.member");
   return (
     <View style={{ flex: 1, alignItems: "center", paddingTop: space[6] }}>
-      <Scaled width={stage * 0.78} scale={0.78}>
+      <Scaled width={stage * 0.78} inner={stage}>
         <Group inset={space[5] + 32 + space[4]}>
           <Row title={`${owner} (${t("share.you")})`} detail="noa@example.co.il" leading={<Avatar name={owner} />} value={t("share.owner")} />
           <Row title={member} detail="omer@example.co.il" leading={<Avatar name={member} />} />
@@ -161,17 +163,17 @@ function ShareList({ stage }: FragmentProps) {
   );
 }
 
-const sampleStore = {
+const sampleStore: StoreResult = {
   storeId: "", chainId: "", chainName: "", storeName: "", address: "", city: "",
   lat: 0, lng: 0, distanceKm: 1.2, total: 21.7, matched: 3, missingCodes: [], items: [], orderUrl: "https://example.com",
 };
 
 /** The real Compare hero with sample numbers. */
-function Cheapest() {
+export function Cheapest() {
   const { space } = useTheme();
-  const store = { ...sampleStore, chainName: t("onboarding.sample.chain"), storeName: t("onboarding.sample.branch") };
+  const store: StoreResult = { ...sampleStore, chainName: t("onboarding.sample.chain"), storeName: t("onboarding.sample.branch") };
   return (
-    <View style={{ flex: 1, paddingTop: space[1] }}>
+    <View style={{ flex: 1, paddingTop: space[3] }}>
       <BestStore store={store} basketSize={4} saving={{ amount: 1.2, chainName: t("onboarding.sample.other") }} listText="" onShowMissing={noop} />
       <PriceMascot />
     </View>
@@ -183,10 +185,11 @@ type Pct = `${number}%`;
 const carPart = (source: number, [top, right, bottom, left]: Pct[]) => <Image source={source} style={{ position: "absolute", top, right, bottom, left }} contentFit="fill" />;
 
 /** The mascot driving along the panorama road, under the nearby alert it gets on the way. */
-function GoNearby() {
+export function GoNearby() {
   const { colors, space } = useTheme();
   return (
     <View style={{ flex: 1, paddingTop: 36 }}>
+      {/* Scene geometry is the design's, in points from the stage's top-left. */}
       <View style={{ position: "absolute", left: -110, top: -500, width: 1108.8, height: 1204.56, direction: "ltr" }}>
         <Image source={art.road} style={{ position: "absolute", left: -73.5, top: 0, width: 1260, height: 1204.56 }} contentFit="fill" />
         <View style={{ position: "absolute", left: 199.92, top: 675.97, width: 164.97, height: 154.85, alignItems: "center", justifyContent: "center" }}>
