@@ -1,4 +1,4 @@
-import { Children, Fragment, useState, type ReactNode } from "react";
+import { Children, Fragment, isValidElement, useState, type ReactNode } from "react";
 import { ScrollView, View, type ViewStyle } from "react-native";
 import { useTheme } from "@/theme";
 import { Divider } from "./Divider";
@@ -25,10 +25,13 @@ export function Group({ children, title, count, footer, inset, maxRows, style }:
   const [cut, setCut] = useState<number>();
   const scrolls = maxRows !== undefined && rows.length > maxRows;
   const Block = scrolls ? ScrollView : View;
+  // A new set of rows (another search) remounts the scroller so it starts at the top, not at the last offset.
+  const rowKeys = scrolls ? rows.map((row) => (isValidElement(row) ? row.key : "")).join() : undefined;
   return (
     <View style={style}>
       {title !== undefined && <SectionHeader title={title} count={count} />}
       <Block
+        key={rowKeys}
         style={{ backgroundColor: colors.surface, borderRadius: radius.group, overflow: "hidden", maxHeight: scrolls ? cut : undefined }}
         {...(scrolls && { keyboardShouldPersistTaps: "handled", nestedScrollEnabled: true })}
       >
