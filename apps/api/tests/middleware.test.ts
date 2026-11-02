@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "#/app.ts";
 import { buildDeps } from "#/deps.ts";
-import { MAX_CLIENTS } from "#/middleware.ts";
+import { clientKey, MAX_CLIENTS } from "#/middleware.ts";
 import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
 import { loadConfig } from "#/services/config.ts";
 import { fakeClock } from "#/utils/clock.ts";
@@ -38,6 +38,19 @@ describe("rateLimit", () => {
     expect((await from("10.0.0.1", "/api/auth/sign-in/email")).status).toBe(429);
   });
 
+  it("limits invite code guesses", async () => {
+    const { from } = setup();
+    for (let i = 0; i < 10; i++) expect((await from("10.0.0.1", "/api/lists/join")).status).not.toBe(429);
+    expect((await from("10.0.0.1", "/api/lists/join")).status).toBe(429);
+  });
+
+  it("counts an IPv6 /64 as one client", async () => {
+    const { from } = setup();
+    for (let i = 0; i < 5; i++) await from(`2001:db8:1:2::${i + 1}`, "/api/auth/email-otp/request-password-reset");
+    expect((await from("2001:db8:1:2:ffff::9", "/api/auth/email-otp/request-password-reset")).status).toBe(429);
+    expect((await from("2001:db8:1:3::1", "/api/auth/email-otp/request-password-reset")).status).not.toBe(429);
+  });
+
   it("covers every route with a looser limit", async () => {
     const { from } = setup();
     for (let i = 0; i < 300; i++) await from("10.0.0.1", "/health");
@@ -61,6 +74,18 @@ describe("rateLimit", () => {
     const proxied = setup({ TRUST_PROXY: "true" });
     for (let i = 0; i < 6; i++) await proxied.from("10.0.0.1", "/api/auth/email-otp/request-password-reset", { "x-forwarded-for": `spoofed, 2.2.2.${i}` });
     expect((await proxied.from("10.0.0.1", "/api/auth/email-otp/request-password-reset", { "x-forwarded-for": "2.2.2.200" })).status).not.toBe(429);
+  });
+});
+
+describe("clientKey", () => {
+  it("keys IPv6 by /64 and leaves IPv4 and IPv4-mapped addresses whole", () => {
+    expect(clientKey("2001:0DB8:0001:0002:aaaa:bbbb:cccc:dddd")).toBe("2001:db8:1:2::/64");
+    expect(clientKey("2001:db8::1")).toBe("2001:db8:0:0::/64");
+    expect(clientKey("2001:db8:1:2:3::")).toBe("2001:db8:1:2::/64");
+    expect(clientKey("::1")).toBe("0:0:0:0::/64");
+    expect(clientKey("fe80::1%eth0")).toBe("fe80:0:0:0::/64");
+    expect(clientKey("10.0.0.1")).toBe("10.0.0.1");
+    expect(clientKey("::ffff:10.0.0.1")).toBe("::ffff:10.0.0.1");
   });
 });
 
