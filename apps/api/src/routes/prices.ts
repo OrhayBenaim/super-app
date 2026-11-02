@@ -37,6 +37,16 @@ export function searchProducts(db: Db, q: string, limit: number) {
   return sqlite.prepare(LIKE_SEARCH).all(`%${q.replace(/[\\%_]/g, "\\$&")}%`, q, limit);
 }
 
+const MATCH = `SELECT f.code FROM products_fts f JOIN prices pr ON pr.code = f.code
+   WHERE products_fts MATCH ? AND f.name = ? GROUP BY f.code ORDER BY count(*) DESC LIMIT 1`;
+
+/** The product named exactly `name` that the most stores price, or null. Exact names only: the top search hit for "חלב" is halva. */
+export function matchProduct(db: Db, name: string): string | null {
+  const phrase = `"${name.replace(/"/g, '""')}"`; // the FTS phrase narrows to candidates; "" escapes a quote inside it
+  const row = db.$client.prepare(MATCH).get(phrase, name) as { code: string } | undefined;
+  return row?.code ?? null;
+}
+
 const R = 6371;
 const KM_PER_DEG = 111; // below R*pi/180 = 111.195 so the bounding box always contains the circle
 const rad = (d: number) => (d * Math.PI) / 180;

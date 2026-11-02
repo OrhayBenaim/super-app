@@ -6,6 +6,7 @@ import type { Db } from "#/db/index.ts";
 import { items, listMembers, lists, user } from "#/db/schema.ts";
 import type { Deps } from "#/deps.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
+import { matchProduct } from "#/routes/prices.ts";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32 chars, no 0/O/1/I; 256 % 32 == 0 so no modulo bias
 const newCode = () => Array.from(randomBytes(8), (b) => ALPHABET[b % ALPHABET.length]).join("");
@@ -118,7 +119,9 @@ export const listsRoutes = new Hono<AppEnv>()
     if (!roleOf(db, listId, c.var.user.id)) return notFound(c);
     const p = await parse(c, itemBody);
     if (!p.success) return bad(c, p.error);
-    const { name, category, productCode = null, missing = true } = p.data;
+    const { name, category, missing = true } = p.data;
+    // Absent means "link it for me"; an explicit null (e.g. Undo re-creating an unlinked item) stays unlinked.
+    const productCode = p.data.productCode === undefined ? matchProduct(db, name) : p.data.productCode;
     const item = db.insert(items).values({ id: randomUUID(), listId, name, category, productCode, missing }).returning().get();
     touch(c.var.deps, listId);
     return c.json(item);
