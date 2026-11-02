@@ -13,7 +13,7 @@
         "dark": "./assets/icon-dark.png",
         "tinted": "./assets/icon-tinted.png"
       },
-      "bundleIdentifier": "com.grocer.app",
+      "bundleIdentifier": "com.ottersprod.grocer",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "waze"
@@ -33,7 +33,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.grocer.app",
+      "package": "com.ottersprod.grocer",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",

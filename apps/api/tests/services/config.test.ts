@@ -9,7 +9,7 @@ describe("loadConfig", () => {
       PORT: 3000,
       DATABASE_URL: "./data/grocer.db",
       TRUSTED_ORIGINS: [],
-      APPLE_APP_BUNDLE_IDENTIFIER: "com.grocer.app",
+      APPLE_APP_BUNDLE_IDENTIFIER: "com.ottersprod.grocer",
       NOMINATIM_URL: "https://nominatim.openstreetmap.org",
     });
   });
