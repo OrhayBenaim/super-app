@@ -45,7 +45,7 @@ export function ItemSheet() {
   if (!item) return null;
   const onClose = () => router.back();
   const valid = !!name.trim() && !!category.trim();
-  const back = { title: t("common.back"), onPress: () => setPage("form") };
+  const back = { title: t("common.back"), analyticsName: "common.back", onPress: () => setPage("form") };
   const save = () => {
     if (!valid) return;
     update.mutate({ id: item.id, name: name.trim(), category: category.trim(), productCode }, { onError: () => Alert.alert(t("common.error")) });
@@ -61,12 +61,13 @@ export function ItemSheet() {
     <Sheet>
       {page === "form" && (
         <>
-          <SheetHeader title={t("items.edit")} start={{ title: t("common.cancel"), onPress: onClose }} end={{ title: t("common.save"), onPress: save, disabled: !valid }} />
+          <SheetHeader title={t("items.edit")} start={{ title: t("common.cancel"), analyticsName: "common.cancel", onPress: onClose }} end={{ title: t("common.save"), analyticsName: "common.save", onPress: save, disabled: !valid }} />
           <Group footer={t("items.product.why")}>
             <SheetTextField label={t("items.name")} value={name} onChangeText={setName} returnKeyType="done" onSubmitEditing={save} />
-            <Row title={t("items.category")} value={category} chevron onPress={() => setPage("category")} />
+            <Row title={t("items.category")} analyticsName="items.category" value={category} chevron onPress={() => setPage("category")} />
             <Row
               title={t("items.product")}
+              analyticsName="items.product"
               value={productCode ? (productName ?? t("items.matched")) : t("items.product.optional")}
               chevron
               onPress={() => setPage("product")}
@@ -75,6 +76,7 @@ export function ItemSheet() {
           <Group>
             <Row
               title={t("items.delete")}
+              analyticsName="items.delete"
               titleColor="danger"
               onPress={() => {
                 requestDelete(item);
@@ -94,12 +96,13 @@ export function ItemSheet() {
                 key={c}
                 title={c}
                 accessibilityState={{ selected: c === category }}
+                analyticsName="items.category.pick"
                 trailing={c === category ? <Check size={20} color={colors.tint} strokeWidth={2} /> : undefined}
                 onPress={() => pickCategory(c)}
               />
             ))}
             {newCategory === null ? (
-              <Row title={t("items.category.new")} titleColor="tint" onPress={() => setNewCategory("")} />
+              <Row title={t("items.category.new")} analyticsName="items.category.new" titleColor="tint" onPress={() => setNewCategory("")} />
             ) : (
               <SheetTextField
                 label={t("items.category.new")}
@@ -127,6 +130,7 @@ export function ItemSheet() {
                   title={p.name}
                   detail={[p.manufacturer, fmt(t("items.product.from"), { price: shekels(p.minPrice) }), fmt(t("items.product.stores"), { n: p.storeCount })].filter(Boolean).join(" · ")}
                   accessibilityState={{ selected: p.code === productCode }}
+                  analyticsName="items.product.pick"
                   trailing={<Barcode size={20} color={colors.labelSecondary} strokeWidth={1.75} />}
                   onPress={() => {
                     setProductCode(p.code);
@@ -142,6 +146,7 @@ export function ItemSheet() {
             <Row
               title={t("items.product.noMatch")}
               detail={t("items.product.noMatch.detail")}
+              analyticsName="items.product.noMatch"
               onPress={() => {
                 setProductCode(null);
                 setProductName(null);

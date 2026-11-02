@@ -2,6 +2,7 @@ import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
 import { I18nManager, Pressable, View } from "react-native";
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from "react-native-reanimated";
+import { track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
 import { Text } from "@/ui";
@@ -49,6 +50,7 @@ export function SortControl({ value, onChange }: { value: Sort; onChange: (s: So
             accessibilityState={{ selected }}
             hitSlop={{ top: slop, bottom: slop }}
             onPress={() => {
+              track("tap", { name: `compare.sort.${o}` });
               if (selected) return;
               Haptics.selectionAsync();
               onChange(o);

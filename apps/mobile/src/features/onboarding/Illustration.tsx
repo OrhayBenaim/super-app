@@ -93,8 +93,8 @@ function BestStoreFragment() {
         <Text variant="footnote" color="warning">
           {fmt(t("compare.coverage.partial"), { n: 3, m: 4, missing: 1 })}
         </Text>
-        <Button title={t("compare.navigate")} style={{ minHeight: 42 }} />
-        <Button title={t("compare.order")} variant="plain" style={{ minHeight: 36 }} />
+        <Button title={t("compare.navigate")} analyticsName="onboarding.demo.navigate" style={{ minHeight: 42 }} />
+        <Button title={t("compare.order")} analyticsName="onboarding.demo.order" variant="plain" style={{ minHeight: 36 }} />
       </View>
     </Group>
   );

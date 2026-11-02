@@ -34,6 +34,7 @@ export function RecentlyBought() {
                   <IconButton
                     icon={RotateCcw}
                     accessibilityLabel={`${t("list.putBack")}: ${item.name}`}
+                    analyticsName="list.putBack"
                     onPress={() => {
                       Haptics.selectionAsync();
                       update.mutate({ id: item.id, missing: true });

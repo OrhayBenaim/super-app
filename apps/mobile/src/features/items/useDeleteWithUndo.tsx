@@ -36,6 +36,7 @@ export function useDeleteWithUndo(listId: string | null) {
       message={deleted && fmt(t("items.deleted"), { name: deleted.name })}
       action={{
         title: t("common.undo"),
+        analyticsName: "common.undo",
         onPress: () => {
           if (!deleted) return;
           const { name, category, productCode, missing } = deleted;

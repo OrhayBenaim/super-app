@@ -23,7 +23,7 @@ export default function JoinByLink() {
   return (
     <Screen>
       {join.isError ? (
-        <EmptyState title={t("share.join.error")} action={{ title: t("list.toList"), onPress: () => router.replace("/(tabs)") }} />
+        <EmptyState title={t("share.join.error")} action={{ title: t("list.toList"), analyticsName: "list.toList", onPress: () => router.replace("/(tabs)") }} />
       ) : (
         <ActivityIndicator style={{ flex: 1 }} color={colors.labelSecondary} accessibilityLabel={t("share.joining")} />
       )}

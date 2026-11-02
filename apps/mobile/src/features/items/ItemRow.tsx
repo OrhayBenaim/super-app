@@ -18,6 +18,7 @@ export function ItemRow({ item, onToggle, onEdit }: { item: Item; onToggle: (mis
       accessibilityLabel={fmt(t(item.missing ? "items.removeFromList" : "items.addToList"), { name: item.name })}
       accessibilityHint={onEdit ? t("items.editHint") : undefined}
       accessibilityState={{ selected: item.missing }}
+      analyticsName={item.missing ? "items.removeFromList" : "items.addToList"}
       scaleTo={1}
       onPress={() => {
         Haptics.selectionAsync();

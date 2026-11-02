@@ -32,6 +32,7 @@ export function AccountGroup() {
       {user && <Row title={t("auth.email")} value={user.email} />}
       <Row
         title={t("settings.signOut")}
+        analyticsName="settings.signOut"
         titleColor="danger"
         accessibilityState={{ busy: busy === "signOut" }}
         disabled={!!busy}
@@ -39,6 +40,7 @@ export function AccountGroup() {
       />
       <Row
         title={t("settings.deleteAccount")}
+        analyticsName="settings.deleteAccount"
         titleColor="danger"
         accessibilityState={{ busy: busy === "delete" }}
         disabled={!!busy}

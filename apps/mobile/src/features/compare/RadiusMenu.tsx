@@ -29,6 +29,7 @@ export function RadiusMenu({ value, onChange }: { value: number; onChange: (km: 
     <Tap
       accessibilityLabel={`${t("compare.radiusLabel")}: ${label(value)}`}
       accessibilityRole="button"
+      analyticsName="compare.radiusLabel"
       onPress={open}
       hitSlop={8}
       style={{ flexDirection: "row", alignItems: "center", gap: space[1], minHeight: size.target }}

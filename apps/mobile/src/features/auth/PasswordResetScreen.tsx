@@ -179,6 +179,7 @@ export function PasswordResetScreen() {
         <>
           <Button
             title={t("auth.reset.submit")}
+            analyticsName="auth.reset.submit"
             haptic
             loading={busy === "reset"}
             disabled={!!status?.lock || busy === "send"}
@@ -189,15 +190,16 @@ export function PasswordResetScreen() {
             variant="plain"
             title={status?.resendInMs ? fmt(t("auth.reset.resendIn"), { time: formatCountdown(status.resendInMs) }) : t("auth.reset.resend")}
             accessibilityLabel={t("auth.reset.resend")}
+            analyticsName="auth.reset.resend"
             loading={busy === "send"}
             disabled={!!status?.resendInMs || busy === "reset"}
             onPress={send}
           />
         </>
       ) : (
-        <Button title={t("auth.reset.send")} haptic loading={busy === "send"} onPress={send} style={{ marginTop: space[2] }} />
+        <Button title={t("auth.reset.send")} analyticsName="auth.reset.send" haptic loading={busy === "send"} onPress={send} style={{ marginTop: space[2] }} />
       )}
-      <Button variant="plain" title={t("auth.reset.back")} disabled={!!busy} onPress={() => router.back()} />
+      <Button variant="plain" title={t("auth.reset.back")} analyticsName="auth.reset.back" disabled={!!busy} onPress={() => router.back()} />
     </Screen>
   );
 }

@@ -31,7 +31,7 @@ export function MyItems() {
   const items = data?.items ?? [];
   const groups = groupByCategory(q ? items.filter((i) => i.name.toLocaleLowerCase().includes(q)) : items, categories);
   const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing }, { onError: () => Alert.alert(t("common.error")) });
-  const nav = <IconButton icon={Plus} accessibilityLabel={t("items.add")} onPress={() => setAdding(true)} />;
+  const nav = <IconButton icon={Plus} accessibilityLabel={t("items.add")} analyticsName="items.add" onPress={() => setAdding(true)} />;
 
   return (
     <Screen edges={["top"]} style={{ paddingHorizontal: 0 }}>
@@ -40,7 +40,7 @@ export function MyItems() {
       ) : items.length === 0 ? (
         <Animated.View entering={ENTER} style={{ flex: 1, paddingHorizontal: space[5] }}>
           <LargeTitle title={t("tabs.items")} nav={nav} />
-          <EmptyState title={t("items.empty.title")} body={t("items.empty.body")} action={{ title: t("items.empty.cta"), onPress: () => setAdding(true) }} />
+          <EmptyState title={t("items.empty.title")} body={t("items.empty.body")} action={{ title: t("items.empty.cta"), analyticsName: "items.empty.cta", onPress: () => setAdding(true) }} />
         </Animated.View>
       ) : (
         <Animated.ScrollView contentContainerStyle={{ paddingHorizontal: space[5], paddingBottom: space[9] }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">

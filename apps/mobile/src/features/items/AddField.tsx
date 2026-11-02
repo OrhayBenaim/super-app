@@ -51,7 +51,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
       exiting={FadeOut.duration(motion.duration.fast)}
       style={{ position: "absolute", top: 0, bottom: 0, start: 0, end: 0, zIndex: 1 }}
     >
-      <Pressable accessibilityRole="button" accessibilityLabel={t("common.cancel")} onPress={onClose} style={{ position: "absolute", top: 0, bottom: 0, start: 0, end: 0, backgroundColor: colors.scrim }} />
+      <Pressable accessibilityRole="button" accessibilityLabel={t("common.cancel")} onPress={() => { track("tap", { name: "items.add.dismiss" }); onClose(); }} style={{ position: "absolute", top: 0, bottom: 0, start: 0, end: 0, backgroundColor: colors.scrim }} />
       <View style={{ backgroundColor: colors.groupedBg, flexDirection: "row", alignItems: "center", gap: space[4], paddingHorizontal: space[5], paddingVertical: space[3] }}>
         <SearchField
           label={t("items.add.placeholder")}
@@ -64,7 +64,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
           onSubmitEditing={addTop}
           containerStyle={{ flex: 1 }}
         />
-        <Tap accessibilityLabel={t("common.cancel")} onPress={onClose} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>
+        <Tap accessibilityLabel={t("common.cancel")} analyticsName="common.cancel" onPress={onClose} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>
           <Text color="tint">{t("common.cancel")}</Text>
         </Tap>
       </View>
@@ -78,6 +78,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
               <Row
                 title={fmt(t(from === "list" ? "items.add.create" : "items.add.createInItems"), { name: create })}
                 titleColor="tint"
+                analyticsName="items.add.create"
                 trailing={<Plus size={20} color={colors.tint} strokeWidth={2} />}
                 onPress={() => createItem(create)}
               />

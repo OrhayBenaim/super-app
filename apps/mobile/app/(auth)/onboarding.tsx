@@ -58,7 +58,7 @@ export default function Onboarding() {
           importantForAccessibility={last ? "no-hide-descendants" : "auto"}
           style={{ opacity: last ? 0 : 1, transitionProperty: "opacity", transitionDuration: motion.duration.fast }}
         >
-          <Button variant="plain" title={t("common.skip")} onPress={finish} style={{ paddingHorizontal: space[3] }} />
+          <Button variant="plain" title={t("common.skip")} analyticsName="common.skip" onPress={finish} style={{ paddingHorizontal: space[3] }} />
         </Animated.View>
       </View>
 
@@ -94,7 +94,7 @@ export default function Onboarding() {
             <Dot key={slide.title} i={i} scrollX={scrollX} width={width} />
           ))}
         </View>
-        <Button style={{ alignSelf: "stretch" }} title={t(last ? "common.getStarted" : "common.next")} haptic={last} onPress={next} />
+        <Button style={{ alignSelf: "stretch" }} title={t(last ? "common.getStarted" : "common.next")} analyticsName={last ? "common.getStarted" : "common.next"} haptic={last} onPress={next} />
       </View>
     </Screen>
   );

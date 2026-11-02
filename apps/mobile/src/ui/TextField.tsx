@@ -28,6 +28,7 @@ export function TextField({ label, error, secureTextEntry, style, ...rest }: Tex
           icon={hidden ? Eye : EyeOff}
           color="labelSecondary"
           accessibilityLabel={t(hidden ? "auth.showPassword" : "auth.hidePassword")}
+          analyticsName={hidden ? "auth.showPassword" : "auth.hidePassword"}
           onPress={() => setHidden((h) => !h)}
         />
       )}

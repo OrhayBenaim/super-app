@@ -61,6 +61,7 @@ export default function SignIn() {
   const google = (
     <Button
       title={t("auth.google")}
+      analyticsName="auth.google"
       variant="neutral"
       loading={busy === "google"}
       disabled={!!busy}
@@ -78,6 +79,7 @@ export default function SignIn() {
   ) : (
     <Button
       title={t("auth.apple")}
+      analyticsName="auth.apple"
       variant="neutral"
       loading={busy === "apple"}
       disabled={!!busy}
@@ -167,6 +169,7 @@ export default function SignIn() {
       <Button
         layout={layout}
         title={t(mode === "signUp" ? "auth.signUp" : "auth.signIn")}
+        analyticsName={mode === "signUp" ? "auth.signUp" : "auth.signIn"}
         haptic
         loading={busy === "email"}
         disabled={!!busy && busy !== "email"}
@@ -178,6 +181,7 @@ export default function SignIn() {
           layout={layout}
           variant="plain"
           title={t("auth.forgot")}
+          analyticsName="auth.forgot"
           disabled={!!busy}
           onPress={() => router.push({ pathname: "/password-reset", params: { email: fields.email.trim() } })}
         />
@@ -186,6 +190,7 @@ export default function SignIn() {
         layout={layout}
         variant="plain"
         title={t(mode === "signUp" ? "auth.toSignIn" : "auth.toSignUp")}
+        analyticsName={mode === "signUp" ? "auth.toSignIn" : "auth.toSignUp"}
         onPress={() => {
           setMode((m) => (m === "signUp" ? "signIn" : "signUp"));
           setErrors({});
