@@ -1,3 +1,5 @@
+import { useSentryNavigation, useSentryUser } from "@/lib/sentry"; // first: starts Sentry before the rest loads
+import * as Sentry from "@sentry/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { useRef } from "react";
@@ -10,8 +12,10 @@ import { useTheme } from "@/theme";
 
 const queryClient = new QueryClient();
 
-export default function RootLayout() {
+function RootLayout() {
   const { data: session, isPending } = authClient.useSession();
+  useSentryNavigation();
+  useSentryUser(session?.user.id);
   const { colors, radius, shadow } = useTheme();
   // Gate only the first load: a signed-out refetch (sign-in, app focus) sets isPending again,
   // and returning null then would unmount the whole navigator mid-form.
@@ -57,3 +61,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default Sentry.wrap(RootLayout);

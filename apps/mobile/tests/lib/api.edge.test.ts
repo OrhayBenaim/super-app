@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({ cookie: "grocer.session=abc" as string | null }));
+vi.mock("@sentry/react-native", () => ({
+  captureException: vi.fn(),
+  startInactiveSpan: () => ({ end: () => {} }),
+  withActiveSpan: <T>(_span: unknown, fn: () => T) => fn(),
+}));
 vi.mock("@/lib/auth-client", () => ({ authClient: { getCookie: async () => auth.cookie } }));
 
 const fetchMock = vi.fn();

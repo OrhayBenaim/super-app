@@ -11,6 +11,7 @@ export const requireUser = createMiddleware<AppEnv>(async (c, next) => {
   const session = await c.var.deps.auth.api.getSession({ headers: c.req.raw.headers });
   if (!session) return c.json({ error: "unauthorized" }, 401);
   c.set("user", session.user);
+  c.var.deps.errorHandler.setUser(session.user.id);
   await next();
 });
 

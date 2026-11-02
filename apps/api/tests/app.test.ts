@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "#/app.ts";
 import { buildDeps } from "#/deps.ts";
-import { fakeErrorHandler } from "#/providers/fake-error-handler/fake.ts";
+import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
 import { loadConfig } from "#/services/config.ts";
 
 let app: ReturnType<typeof createApp>;

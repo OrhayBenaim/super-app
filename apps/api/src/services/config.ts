@@ -30,6 +30,8 @@ const schema = z.object({
   SYNC_TOKEN: optional, // the private trigger port starts only when set
   INTERNAL_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   INTERNAL_HOST: z.string().default("127.0.0.1"),
+  SENTRY_DSN: optional, // unset: errors are only logged, nothing is sent
+  SENTRY_ENVIRONMENT: z.string().default("development"), // "production" in deploys: also lowers trace sampling
 });
 
 export type Config = z.infer<typeof schema>;

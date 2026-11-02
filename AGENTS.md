@@ -15,7 +15,7 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/deps.ts             Deps + buildDeps(config, overrides): the composition root
   src/middleware.ts       AppEnv type (c.var.deps, c.var.user), requireUser, rateLimit (per-IP, mounted for every route in app.ts)
   src/services/           vendor-neutral services (config, error-handler, geocoder, price-portal)
-  src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, price-portals, fake-error-handler)
+  src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, price-portals, resend, sentry)
   src/jobs/               fetch-prices, ingest-prices, geocode-stores, price-sync (one Price sync), sync-worker (once-a-minute check)
   src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts)
   src/auth.ts             createAuth(db, config, mailer): better-auth (email+password, optional Google/Apple, expo plugin)

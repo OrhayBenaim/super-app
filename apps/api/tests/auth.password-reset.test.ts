@@ -3,7 +3,7 @@ import { createApp } from "#/app.ts";
 import { eq } from "drizzle-orm";
 import { account, user, verification } from "#/db/schema.ts";
 import { buildDeps } from "#/deps.ts";
-import { fakeErrorHandler } from "#/providers/fake-error-handler/fake.ts";
+import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
 import { FakeMailerProvider } from "#/providers/resend/fake.ts";
 import { loadConfig } from "#/services/config.ts";
 import { MailerService } from "#/services/mailer.ts";

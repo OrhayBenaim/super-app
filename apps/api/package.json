@@ -24,6 +24,7 @@
     "@better-auth/expo": "^1.7.14",
     "@grocer/shared": "*",
     "@hono/node-server": "^2.1.5",
+    "@sentry/node": "^11.10.0",
     "better-auth": "^1.7.14",
     "better-sqlite3": "^13.0.3",
     "dotenv": "^18.0.9",

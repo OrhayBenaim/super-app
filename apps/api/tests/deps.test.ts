@@ -17,4 +17,9 @@ describe("buildDeps", () => {
     await deps.mailer.send({ to: "a@test.dev", subject: "s", text: "t" });
     expect(provider.sent).toEqual([{ to: "a@test.dev", subject: "s", text: "t" }]);
   });
+
+  it("keeps the fake error handler when SENTRY_DSN is unset, so tests and local runs send nothing", () => {
+    const config = loadConfig({ ...process.env, SENTRY_DSN: "" });
+    expect("reported" in buildDeps(config).errorHandler).toBe(true);
+  });
 });
