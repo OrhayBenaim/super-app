@@ -21,8 +21,6 @@ const schema = z.object({
   RESEND_API_KEY: z.string(),
   EMAIL_FROM: z.string().default("Grocer <no-reply@example.com>"),
   NOMINATIM_URL: z.url().default("https://nominatim.openstreetmap.org"),
-  POSTHOG_KEY: optional, // product analytics are off (fake, in memory) when unset
-  POSTHOG_HOST: z.url().default("https://eu.i.posthog.com"),
   // Scheduled sync times, read as Asia/Jerusalem wall-clock time whatever the server timezone.
   SYNC_TIMES: z
     .string()

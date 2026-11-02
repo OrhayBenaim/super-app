@@ -1,13 +1,10 @@
 import { createAuth, type Auth } from "#/auth.ts";
 import { openDb, type Db } from "#/db/index.ts";
 import { nominatimGeocoder } from "#/providers/nominatim/nominatim.ts";
-import { fakeAnalytics } from "#/providers/posthog/fake.ts";
-import { posthogAnalytics } from "#/providers/posthog/posthog.ts";
 import { pricePortals } from "#/providers/price-portals/price-portals.ts";
 import { ResendProvider } from "#/providers/resend/resend.ts";
 import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
 import { sentryErrorHandler } from "#/providers/sentry/sentry.ts";
-import type { Analytics } from "#/services/analytics.ts";
 import type { Config } from "#/services/config.ts";
 import type { ErrorHandler } from "#/services/error-handler.ts";
 import type { Geocoder } from "#/services/geocoder.ts";
@@ -19,7 +16,6 @@ export type Deps = {
   config: Config;
   db: Db;
   auth: Auth;
-  analytics: Analytics;
   clock: Clock;
   errorHandler: ErrorHandler;
   geocoder: Geocoder;
@@ -39,7 +35,6 @@ export function buildDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
     config,
     db,
     auth: createAuth(db, config, mailer, errorHandler),
-    analytics: config.POSTHOG_KEY ? posthogAnalytics(config.POSTHOG_KEY, config.POSTHOG_HOST) : fakeAnalytics(),
     clock: systemClock,
     errorHandler,
     geocoder: nominatimGeocoder(config.NOMINATIM_URL),

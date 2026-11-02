@@ -14,8 +14,8 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/app.ts              createApp(deps): deps on the context, CORS, /api/auth/*, /health, onError; mounts routers
   src/deps.ts             Deps + buildDeps(config, overrides): the composition root
   src/middleware.ts       AppEnv type (c.var.deps, c.var.user), requireUser, rateLimit (per-IP, mounted for every route in app.ts)
-  src/services/           vendor-neutral services (analytics, config, error-handler, geocoder, price-portal)
-  src/providers/<vendor>/ each service's implementation + fake.ts (posthog, nominatim, price-portals, resend, sentry)
+  src/services/           vendor-neutral services (config, error-handler, geocoder, price-portal)
+  src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, price-portals, resend, sentry)
   src/jobs/               fetch-prices, ingest-prices, geocode-stores, price-sync (one Price sync), sync-worker (once-a-minute check)
   src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts)
   src/auth.ts             createAuth(db, config, mailer): better-auth (email+password, optional Google/Apple, expo plugin)
@@ -77,11 +77,10 @@ General
 - Smallest change that works. No new dependency for a few lines.
 - A rule both apps must agree on (limits, durations, pure logic) lives once in `packages/shared`, never copied.
   Erasable TS only (no enum), no dependencies, no Node or React Native imports; add each module to its `exports`.
-- All product analytics (screen views, taps, feature events) go through our analytics module, never the PostHog SDK
-  directly: `deps.analytics` in the API, `@/lib/analytics` in mobile. Both use the better-auth `user.id` as the
-  distinct id. Event properties carry ids, counts and enums only: no names, emails, item names or free text.
+- All product analytics (screen views, taps, feature events) are captured by the mobile app through
+  `@/lib/analytics`, never the PostHog SDK directly; the API sends none. The distinct id is the better-auth `user.id`. Event properties carry ids, counts and enums only: no names, emails, item names or free text.
   Event and tap names are never string literals at call sites: use the `as const` maps (`Events`, `Taps` in
-  `@/lib/analytics`, `AnalyticsEvents` in `src/services/analytics.ts`) and add new names there.
+  `@/lib/analytics`) and add new names there.
 - Secrets come from env only. List every new env var in the app's `.env.example` and in README.md.
 
 API (`apps/api`): follow `apps/api/ARCHITECTURE.md`
