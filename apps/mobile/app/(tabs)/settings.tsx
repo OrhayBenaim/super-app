@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Linking, ScrollView, Switch, View } from "react-native";
+import { Alert, Linking, ScrollView, Switch, View } from "react-native";
 import { AccountGroup } from "@/features/account/AccountGroup";
 import { useNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
 import { Taps, trackTap } from "@/lib/analytics";
@@ -26,6 +26,10 @@ function NearbyAlerts() {
   const [pending, setPending] = useState(false);
   const [denied, setDenied] = useState(false);
   const note = !supported ? t("settings.nearbyExpoGo") : denied ? t("settings.nearbyDenied") : t("settings.nearbyWhy");
+  const toggle = async (on: boolean) => {
+    setPending(true);
+    setDenied(!(await setEnabled(on).finally(() => setPending(false))));
+  };
   return (
     <View>
       <Group title={t("settings.alerts")}>
@@ -39,10 +43,14 @@ function NearbyAlerts() {
             disabled={!supported || pending}
             trackColor={{ true: colors.tint, false: colors.fillControl }}
             ios_backgroundColor={colors.fillControl}
-            onValueChange={async (on) => {
+            onValueChange={(on) => {
               trackTap(Taps.settingsNearby, { on });
-              setPending(true);
-              setDenied(!(await setEnabled(on).finally(() => setPending(false))));
+              if (!on) return void toggle(false);
+              // Google Play's prominent disclosure: shown before, and leading straight into, the background location prompt.
+              Alert.alert(t("settings.nearbyDisclosureTitle"), t("settings.nearbyDisclosureBody"), [
+                { text: t("common.cancel"), style: "cancel" },
+                { text: t("settings.nearbyDisclosureContinue"), onPress: () => void toggle(true) },
+              ]);
             }}
           />
         </View>
