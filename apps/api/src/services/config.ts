@@ -17,7 +17,7 @@ const schema = z.object({
   GOOGLE_CLIENT_SECRET: optional,
   APPLE_CLIENT_ID: optional,
   APPLE_CLIENT_SECRET: optional,
-  APPLE_APP_BUNDLE_IDENTIFIER: z.string().default("com.grocer.app"),
+  APPLE_APP_BUNDLE_IDENTIFIER: z.string().default("com.ottersprod.grocer"),
   RESEND_API_KEY: z.string(),
   EMAIL_FROM: z.string().default("Grocer <no-reply@example.com>"),
   NOMINATIM_URL: z.url().default("https://nominatim.openstreetmap.org"),
