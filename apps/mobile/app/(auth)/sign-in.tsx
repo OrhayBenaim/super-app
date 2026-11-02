@@ -4,9 +4,10 @@ import { router } from "expo-router";
 import { useRef, useState } from "react";
 import { Platform, type TextInputInstance } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
-import { signInWithApple, signInWithBrowser } from "@/features/auth/social";
+import { GoogleButton } from "@/features/auth/GoogleButton";
+import { signInWithApple, signInWithGoogle } from "@/features/auth/social";
 import { authErrorKey, validate, type FieldErrors, type Fields } from "@/features/auth/validate";
-import { Taps } from "@/lib/analytics";
+import { Taps, trackTap } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
@@ -58,35 +59,23 @@ export default function SignIn() {
     });
   }
 
-  const ios = Platform.OS === "ios";
-  const google = (
-    <Button
-      title={t("auth.google")}
-      analyticsName={Taps.authGoogle}
-      variant="neutral"
-      loading={busy === "google"}
-      disabled={!!busy}
-      onPress={() => run("google", () => signInWithBrowser("google"))}
-    />
-  );
-  const apple = ios ? (
-    <AppleAuthentication.AppleAuthenticationButton
-      buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-      buttonStyle={isDark ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-      cornerRadius={radius.button}
-      style={{ height: size.button, opacity: busy ? 0.5 : 1 }}
-      onPress={() => !busy && run("apple", signInWithApple)}
-    />
-  ) : (
-    <Button
-      title={t("auth.apple")}
-      analyticsName={Taps.authApple}
-      variant="neutral"
-      loading={busy === "apple"}
-      disabled={!!busy}
-      onPress={() => run("apple", () => signInWithBrowser("apple"))}
-    />
-  );
+  // One provider per platform: Sign in with Apple on iOS, Google everywhere else.
+  const social =
+    Platform.OS === "ios" ? (
+      <AppleAuthentication.AppleAuthenticationButton
+        buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+        buttonStyle={isDark ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+        cornerRadius={radius.button}
+        style={{ height: size.button, opacity: busy ? 0.5 : 1 }}
+        onPress={() => {
+          if (busy) return;
+          trackTap(Taps.authApple);
+          run("apple", signInWithApple);
+        }}
+      />
+    ) : (
+      <GoogleButton loading={busy === "google"} disabled={!!busy} onPress={() => run("google", signInWithGoogle)} />
+    );
 
   const fieldError = errors.name ?? errors.email ?? errors.password;
   return (
@@ -100,10 +89,7 @@ export default function SignIn() {
         </Text>
       </Animated.View>
 
-      <Animated.View layout={layout} style={{ gap: space[3] }}>
-        {ios ? apple : google}
-        {ios ? google : apple}
-      </Animated.View>
+      <Animated.View layout={layout}>{social}</Animated.View>
 
       <Animated.View layout={layout}>
         <Text variant="footnote" color="labelSecondary" style={{ textAlign: "center", paddingVertical: space[2] }}>

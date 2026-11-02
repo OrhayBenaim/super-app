@@ -5,8 +5,8 @@ import { useTheme, type ColorName } from "@/theme";
 import { Tap, type TapProps } from "./Tap";
 import { Text } from "./Text";
 
-/** filled: the screen's one primary action. tinted: secondary with weight. plain: text only. destructive: danger text. neutral: third-party sign-in on a white fill. */
-type Variant = "filled" | "tinted" | "plain" | "destructive" | "neutral";
+/** filled: the screen's one primary action. tinted: secondary with weight. plain: text only. destructive: danger text. */
+type Variant = "filled" | "tinted" | "plain" | "destructive";
 
 export type ButtonProps = Omit<TapProps, "accessibilityLabel" | "children"> & {
   title: string;
@@ -23,7 +23,6 @@ const look: Record<Variant, { bg: ColorName | null; fg: ColorName }> = {
   tinted: { bg: "tintSoft", fg: "tint" },
   plain: { bg: null, fg: "tint" },
   destructive: { bg: null, fg: "danger" },
-  neutral: { bg: "surface", fg: "label" },
 };
 
 export function Button({ title, variant = "filled", loading, icon: Icon, disabled, onPress, style, accessibilityLabel, haptic = false, ...rest }: ButtonProps) {
