@@ -9,7 +9,7 @@ const posthog = new PostHog(key ?? "", {
   captureAppLifecycleEvents: true,
 });
 
-/** Every event the app sends. list_shared and list_joined are captured by the API, under the same user id. */
+/** Every event the app sends. */
 export const Events = {
   tap: "tap",
   listItemAdded: "list_item_added",
@@ -20,6 +20,8 @@ export const Events = {
   notificationOpened: "notification_opened",
   itemEditOpened: "item_edit_opened",
   itemDeleted: "item_deleted",
+  listShared: "list_shared",
+  listJoined: "list_joined",
 } as const;
 export type Event = (typeof Events)[keyof typeof Events];
 
