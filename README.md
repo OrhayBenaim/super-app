@@ -78,7 +78,7 @@ A Price sync (`CONTEXT.md`, "Prices") does fetch, ingest and geocode for every c
 Each setting lives in one place: mobile app settings in EAS, server settings in Coolify, and only the Expo token in GitHub.
 
 - The server is one production stack on a Coolify VPS, built from `docker-compose.yaml` (Docker Compose build pack) on every push to `main`.
-- `deploy-mobile.yml` starts EAS builds of both platforms: on `main`, profile `staging` (internal distribution, EAS environment `preview`);
+- `deploy-mobile.yml` starts EAS builds of Android only (iOS is not set up yet): on `main`, profile `staging` (internal distribution, EAS environment `preview`);
   on a published GitHub release, `production` (EAS environment `production`, auto-submitted to the stores). Run it by hand after changing EAS variables.
 
 **GitHub** (repo or both environments): secret `EXPO_TOKEN`, an expo.dev access token (a robot user). Add required reviewers to `production`.

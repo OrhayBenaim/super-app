@@ -1,6 +1,6 @@
 name: deploy-mobile
 
-# Starts EAS cloud builds of both platforms (the runner only triggers them, --no-wait):
+# Starts EAS cloud builds of Android only, iOS is not set up yet (the runner only triggers them, --no-wait):
 # main -> staging profile (internal distribution), a published release -> production profile, submitted to the stores.
 # App variables and secrets live in EAS, not GitHub: the staging profile reads the EAS "preview" environment,
 # production reads "production" (eas.json). Run this by hand (Actions > deploy-mobile > Run workflow) after changing them.
@@ -48,7 +48,7 @@ jobs:
       - name: Start EAS builds
         run: |
           if [ "$DEPLOY_ENV" = production ]; then
-            eas build --platform all --profile production --auto-submit --non-interactive --no-wait
+            eas build --platform android --profile production --auto-submit --non-interactive --no-wait
           else
-            eas build --platform all --profile staging --non-interactive --no-wait
+            eas build --platform android --profile staging --non-interactive --no-wait
           fi
