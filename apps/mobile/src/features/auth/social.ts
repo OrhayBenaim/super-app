@@ -31,8 +31,8 @@ export async function signInWithApple(): Promise<string | null> {
   return error ? (error.message ?? t("auth.error.generic")) : null;
 }
 
-/** Browser OAuth (expo-web-browser); used for Google everywhere and Apple on Android. */
-export async function signInWithBrowser(provider: "google" | "apple"): Promise<string | null> {
-  const { error } = await authClient.signIn.social({ provider, callbackURL: "/" });
+/** Google through browser OAuth (expo-web-browser); offered on Android. */
+export async function signInWithGoogle(): Promise<string | null> {
+  const { error } = await authClient.signIn.social({ provider: "google", callbackURL: "/" });
   return error ? (error.message ?? t("auth.error.generic")) : null;
 }

@@ -2,6 +2,7 @@ import { useColorScheme } from "react-native";
 import { tokens, type Colors } from "./tokens";
 
 export * from "./tokens";
+export { google } from "./google";
 
 export function useTheme() {
   const isDark = useColorScheme() === "dark";
