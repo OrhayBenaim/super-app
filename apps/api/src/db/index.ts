@@ -5,9 +5,10 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { chainSeeds } from "#/ingest/chains.ts";
+import { fillProduceGroups } from "#/ingest/ingest.ts";
 import * as schema from "#/db/schema.ts";
 
-/** Opens the SQLite file (":memory:" in tests), applies migrations and upserts the chain seeds. */
+/** Opens the SQLite file (":memory:" in tests), applies migrations, upserts the chain seeds and fills missing Produce groups. */
 export function openDb(path: string) {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
 
@@ -22,6 +23,7 @@ export function openDb(path: string) {
     const row = { id: ids[0]!, key, name, nameHe, orderUrl };
     db.insert(schema.chains).values(row).onConflictDoUpdate({ target: schema.chains.id, set: row }).run();
   }
+  fillProduceGroups({ db });
   return db;
 }
 

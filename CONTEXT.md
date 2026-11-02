@@ -52,6 +52,10 @@ _Avoid_: Cancelled sync
 A Chain whose files could not be downloaded or loaded during a Price sync, including one whose price files all name stores missing from its Stores file. It is logged and recorded. Stores it loaded before failing keep their new prices; the rest keep their previous prices until a later Price sync succeeds for that Chain.
 _Avoid_: Sync failure (the Price sync itself still finishes)
 
+**Produce group**:
+Products that are one thing to a shopper but have a different code at every Chain: produce sold by weight and anything without a global barcode. Their names match once origin, grade, "by weight" and "loose" words, spellings and plurals are evened out ("בננות ישראל" and "בננה מובחרת" are both "בננה"). Search shows a Produce group once, and Compare charges each store its cheapest product of the group. Packed and loose are different groups ("גזר ארוז" vs "גזר"), and so are priced per kilo and priced per unit. Organic, premium and named varieties stay apart.
+_Avoid_: Generic product, canonical product
+
 ### Account lifecycle
 
 **Account deletion**:

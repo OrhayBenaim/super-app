@@ -3,6 +3,7 @@ import type { Deps } from "#/deps.ts";
 import { chainByKey } from "#/ingest/chains.ts";
 import { storeOfFileName } from "#/ingest/files.ts";
 import { decodeXml, isGtin, parsePrices, parseStores } from "#/ingest/parse.ts";
+import { produceKey } from "#/ingest/produce.ts";
 
 type IngestDeps = Pick<Deps, "db" | "clock">;
 
@@ -57,9 +58,9 @@ export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: s
   const items = [...new Map(valid.map((it) => [key(it.code), it])).entries()];
   // First chain to publish a barcode names it; later files only fill blanks (keeps names and FTS rows stable).
   const upsertProduct = sqlite.prepare(
-    `INSERT INTO products (code, item_code, name, manufacturer, unit_qty, is_weighted) VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO products (code, item_code, name, manufacturer, unit_qty, is_weighted, group_key) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(code) DO UPDATE SET manufacturer = coalesce(products.manufacturer, excluded.manufacturer),
-       unit_qty = coalesce(products.unit_qty, excluded.unit_qty)`,
+       unit_qty = coalesce(products.unit_qty, excluded.unit_qty), group_key = coalesce(products.group_key, excluded.group_key)`,
   );
   const upsertPrice = sqlite.prepare(
     `INSERT INTO prices (store_id, code, price, unit_price, updated_at) VALUES (?, ?, ?, ?, ?)
@@ -68,11 +69,27 @@ export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: s
   sqlite.transaction(() => {
     sqlite.prepare("DELETE FROM prices WHERE store_id = ?").run(storeId);
     for (const [code, it] of items) {
-      upsertProduct.run(code, it.code, it.name, it.manufacturer, it.unitQty, it.isWeighted ? 1 : 0);
+      const group = produceKey({ code, name: it.name, isWeighted: it.isWeighted, unitQty: it.unitQty });
+      upsertProduct.run(code, it.code, it.name, it.manufacturer, it.unitQty, it.isWeighted ? 1 : 0, group);
       upsertPrice.run(storeId, code, it.price, it.unitPrice, now);
     }
   })();
   return items.length;
+}
+
+/**
+ * Sets the Produce group of every product that should have one and has none: rows loaded before groups existed.
+ * To apply changed rules in produce.ts, a migration sets group_key to NULL and this refills it on the next start.
+ */
+export function fillProduceGroups({ db }: Pick<Deps, "db">) {
+  const sqlite = db.$client;
+  const rows = sqlite
+    .prepare("SELECT code, name, is_weighted AS isWeighted, unit_qty AS unitQty FROM products WHERE group_key IS NULL AND (is_weighted = 1 OR instr(code, ':') > 0)")
+    .all() as { code: string; name: string; isWeighted: number; unitQty: string | null }[];
+  const set = sqlite.prepare("UPDATE products SET group_key = ? WHERE code = ?");
+  sqlite.transaction(() => {
+    for (const r of rows) set.run(produceKey({ ...r, isWeighted: !!r.isWeighted }), r.code);
+  })();
 }
 
 export const readXml = (file: string) => decodeXml(readFileSync(file));
