@@ -15,7 +15,7 @@ const words = (name: string) =>
     .filter((w) => w && !NOISE.has(w));
 
 /** Spelling and plural forms of one word: עגבנייה, עגבנית, עגבניות -> עגבניה; בננות -> בננה; מלפפונים -> מלפפון. */
-const stem = (w: string) => {
+export const stem = (w: string) => {
   const s = w.replace(/יי/g, "י");
   return s.length < 4 ? s : s.replace(/ות$/, "ה").replace(/ים$/, "").replace(/ית$/, "יה");
 };
