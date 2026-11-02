@@ -20,8 +20,16 @@ const compareBody = z.object({
 const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
 
 const productCols = `p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.group_key AS groupKey, count(pr.store_id) AS storeCount, min(pr.price) AS minPrice`;
-const FTS_SEARCH = `SELECT ${productCols} FROM products_fts f JOIN products p ON p.code = f.code JOIN prices pr ON pr.code = p.code
-   WHERE products_fts MATCH ? GROUP BY p.code ORDER BY min(f.rank), storeCount DESC LIMIT ?`;
+// Products named after the first word come first ("חלב 3%" before "שוקולד חלב", both before "חלבה"), then the
+// most widely priced. Counts use the covering index; min price is read for the kept rows only.
+const FTS_SEARCH = `SELECT c.code, c.name, c.manufacturer, c.unitQty, c.groupKey, c.storeCount, c.tier,
+     (SELECT min(price) FROM prices WHERE code = c.code) AS minPrice FROM (
+     SELECT p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.group_key AS groupKey, f.rank,
+       (SELECT count(*) FROM prices pr WHERE pr.code = p.code) AS storeCount,
+       CASE WHEN p.name = @first OR p.name LIKE @first || ' %' THEN 0 WHEN ' ' || p.name || ' ' LIKE '% ' || @first || ' %' THEN 1 ELSE 2 END AS tier
+     FROM products_fts f JOIN products p ON p.code = f.code
+     WHERE products_fts MATCH @match AND storeCount > 0 ORDER BY tier, storeCount DESC, f.rank LIMIT @limit
+   ) c ORDER BY c.tier, c.storeCount DESC, c.rank`;
 const LIKE_SEARCH = `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
    WHERE p.name LIKE ? ESCAPE '\\' OR p.code = ? GROUP BY p.code ORDER BY storeCount DESC LIMIT ?`;
 const CODE_SEARCH = `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
@@ -33,7 +41,7 @@ const GROUP_TOTALS = `SELECT count(DISTINCT pr.store_id) AS storeCount, min(pr.p
 const GROUP_TOP = `SELECT p.code, p.name, p.unit_qty AS unitQty FROM products p JOIN prices pr ON pr.code = p.code
    WHERE p.group_key = ? GROUP BY p.code ORDER BY count(*) DESC, p.code LIMIT 1`;
 
-type Found = { code: string; name: string; manufacturer: string | null; unitQty: string | null; groupKey: string | null; storeCount: number; minPrice: number };
+type Found = { code: string; name: string; manufacturer: string | null; unitQty: string | null; groupKey: string | null; storeCount: number; minPrice: number; tier?: number };
 
 /**
  * Product search with one result per Produce group: its most widely priced product's code, its name without noise
@@ -50,10 +58,12 @@ export function searchProducts(db: Db, q: string, limit: number) {
       seen.add(groupKey);
       const top = sqlite.prepare(GROUP_TOP).get(groupKey) as Pick<Found, "code" | "name" | "unitQty">;
       const totals = sqlite.prepare(GROUP_TOTALS).get(groupKey) as Pick<Found, "storeCount" | "minPrice" | "manufacturer">;
-      results.push({ ...top, name: produceName(top.name), ...totals }); // manufacturer only when every product agrees
+      results.push({ ...top, name: produceName(top.name), ...totals, tier: product.tier }); // manufacturer only when every product agrees
     }
   }
-  return results;
+  // Name searches rank by store count, which for a group is only known now ("בננה" across chains beats banana chips).
+  if (results[0]?.tier !== undefined) results.sort((a, b) => a.tier! - b.tier! || b.storeCount - a.storeCount);
+  return results.map(({ tier: _, ...product }) => product);
 }
 
 /** Barcode, name prefix (FTS) or free text (LIKE) search over products that some store prices. */
@@ -63,7 +73,7 @@ function findProducts(db: Db, q: string, limit: number) {
   // Letters/digits only go to FTS as quoted prefix terms (quotes keep AND/OR/NOT/NEAR literal); anything else (quotes, %, -) would be FTS syntax, so use LIKE.
   if (/^\d{8,}$/.test(q)) return sqlite.prepare(CODE_SEARCH).all(q, `${q}%`, q, limit); // barcode: exact code first, then code prefix
   if (tokens.every((t) => /^[\p{L}\p{N}]+$/u.test(t)))
-    return sqlite.prepare(FTS_SEARCH).all(tokens.map((t) => `"${t}"*`).join(" "), limit);
+    return sqlite.prepare(FTS_SEARCH).all({ match: tokens.map((t) => `"${t}"*`).join(" "), first: tokens[0], limit });
   return sqlite.prepare(LIKE_SEARCH).all(`%${q.replace(/[\\%_]/g, "\\$&")}%`, q, limit);
 }
 
