@@ -2,6 +2,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import type { SoldBy } from "@grocer/shared/quantity";
+import { SEARCH } from "@grocer/shared/search";
 import { api } from "@/lib/api";
 import { hasBarcode, lookupProductImage } from "./imageLookup";
 
@@ -66,7 +67,7 @@ export function useProductSearch(q: string) {
   const search = useQuery({
     queryKey: ["products", "search", debounced],
     queryFn: () => api<SearchResult[]>(`api/products/search?q=${encodeURIComponent(debounced)}`),
-    enabled: debounced.length >= 2,
+    enabled: debounced.length >= SEARCH.minLength,
     staleTime: 60_000,
   });
   // Only specific products have a barcode to look up; group rows pass through untouched.

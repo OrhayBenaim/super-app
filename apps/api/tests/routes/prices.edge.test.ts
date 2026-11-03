@@ -329,11 +329,21 @@ describe("products search", () => {
   });
 
   it("FTS-special characters never cause a 500", async () => {
-    for (const q of ['"', '"hello"', "*", "(", ")", "(world)", "-", "--", "a-b", ":", "name:חלב", "^", "'", "\\", "%", "_", "a OR", "~", "{", "}", "[", "]", "NEAR(", "\u0000x"]) {
+    for (const q of ['""', '"hello"', "**", "()", "(world)", "--", "a-b", "::", "name:חלב", "^^", "''", "\\\\", "%%", "__", "a OR", "~~", "{}", "[]", "NEAR(", "\u0000x"]) {
       const res = await search(q);
       expect(res.status, `q=${JSON.stringify(q)}`).toBe(200);
       expect(Array.isArray(await res.json())).toBe(true);
     }
+  });
+
+  it("one-character q is 400, never a 500, whatever the character", async () => {
+    for (const q of ['"', "*", "(", ")", "-", ":", "^", "'", "\\", "%", "_", "~", "{", "}", "[", "]", "x", "ח", " ח "]) {
+      const res = await search(q);
+      expect(res.status, `q=${JSON.stringify(q)}`).toBe(400);
+      expect(typeof ((await res.json()) as { error: string }).error).toBe("string");
+    }
+    expect((await search("חל")).status).toBe(200);
+    expect((await search(" חל ")).status).toBe(200);
   });
 
   it("FTS boolean keywords typed as plain words do not break the search", async () => {
@@ -353,9 +363,9 @@ describe("products search", () => {
   });
 
   it("% and _ in q are plain punctuation: they do not match everything", async () => {
-    expect(await searchCodes("%")).toEqual([]); // no words left
-    expect(await searchCodes("_")).toEqual([]);
-    expect(await searchCodes("'")).toEqual([]);
+    expect(await searchCodes("%%")).toEqual([]); // no words left
+    expect(await searchCodes("__")).toEqual([]);
+    expect(await searchCodes("''")).toEqual([]);
     expect(await searchCodes("s_ack")).toEqual([]); // "s" and "ack" are separate words, no product has both
     expect(await searchCodes("snackxbar")).toEqual([]);
   });

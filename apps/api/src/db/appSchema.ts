@@ -106,7 +106,8 @@ export const prices = sqliteTable(
     unitPrice: real("unit_price"),
     updatedAt: updatedAt(),
   },
-  (t) => [primaryKey({ columns: [t.storeId, t.code] }), index("prices_code_idx").on(t.code)],
+  // Covering: search and Compare read a code's stores and prices from the index alone, never the table rows.
+  (t) => [primaryKey({ columns: [t.storeId, t.code] }), index("prices_code_store_price_idx").on(t.code, t.storeId, t.price)],
 );
 
 // Price syncs (CONTEXT.md "Prices"). One row per Price sync, Skipped sync or Manual sync request.

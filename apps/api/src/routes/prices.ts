@@ -1,13 +1,14 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { QUANTITY } from "@grocer/shared/quantity";
+import { SEARCH } from "@grocer/shared/search";
 import type { Db } from "#/db/index.ts";
 import { commonest, ftsMatch, groupMembers, groupRefSchema, measureOf, nameWords, parseRef, searchGroups, soldByOf, withoutSizes } from "#/prices/groups.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
 
 const quantity = z.number().positive().max(QUANTITY.max);
 const searchQuery = z.object({
-  q: z.string().trim().min(1).max(100),
+  q: z.string().trim().min(SEARCH.minLength).max(100),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 const compareBody = z
@@ -27,17 +28,21 @@ const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.iss
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 type Found = { code: string; name: string; manufacturer: string | null; unitQty: string | null; isWeighted: number; storeCount: number; minPrice: number };
-const productCols = `p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.is_weighted AS isWeighted, count(pr.store_id) AS storeCount, min(pr.price) AS minPrice`;
+const productCols = `p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.is_weighted AS isWeighted`;
 // The product named exactly the first word comes first, then products named after the word ("חלב 3%" before "שוקולד
 // חלב", both before "חלבה"), then the most widely priced. LIKE matches ASCII case-insensitively, as the FTS tokenizer does.
+// Store count and min price are per-product lookups in the covering prices index: a JOIN + GROUP BY over every price
+// row was 4x slower. Products no store prices are left out.
 // shortcut: candidates are capped at 3000; a group's members rank in the first tiers, so only a bigger group loses some.
 // Raise the cap or count members in SQL when one real search hits it.
 const FTS_SEARCH = `SELECT ${productCols},
+     (SELECT count(*) FROM prices pr WHERE pr.code = p.code) AS storeCount,
+     (SELECT min(pr.price) FROM prices pr WHERE pr.code = p.code) AS minPrice,
      CASE WHEN p.name LIKE @first THEN 0 WHEN p.name LIKE @first || ' %' THEN 1
        WHEN ' ' || p.name || ' ' LIKE '% ' || @first || ' %' THEN 2 ELSE 3 END AS tier
-   FROM products_fts f JOIN products p ON p.code = f.code JOIN prices pr ON pr.code = p.code
-   WHERE products_fts MATCH @match GROUP BY p.code ORDER BY tier, storeCount DESC, min(f.rank) LIMIT 3000`;
-const CODE_SEARCH = `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
+   FROM products_fts f JOIN products p ON p.code = f.code
+   WHERE products_fts MATCH @match AND storeCount > 0 ORDER BY tier, storeCount DESC, f.rank, p.code LIMIT 3000`;
+const CODE_SEARCH = `SELECT ${productCols}, count(pr.store_id) AS storeCount, min(pr.price) AS minPrice FROM products p JOIN prices pr ON pr.code = p.code
    WHERE p.code = ? OR (p.code LIKE ? AND instr(p.code, ':') = 0) GROUP BY p.code ORDER BY p.code = ? DESC, storeCount DESC LIMIT ?`;
 
 const productResult = ({ isWeighted, ...p }: Found) => ({

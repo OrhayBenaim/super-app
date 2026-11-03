@@ -64,6 +64,13 @@
       "when": 1793707498160,
       "tag": "0008_same_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793746471896,
+      "tag": "0009_high_wendigo",
+      "breakpoints": true
     }
   ]
 }
