@@ -82,8 +82,6 @@ export const Taps = {
   listRecent: "list.recent",
   listToItems: "list.toItems",
   listToList: "list.toList",
-  onboardingDemoNavigate: "onboarding.demo.navigate",
-  onboardingDemoOrder: "onboarding.demo.order",
   settingsDeleteAccount: "settings.deleteAccount",
   settingsNearby: "settings.nearby",
   settingsOpenSettings: "settings.openSettings",
