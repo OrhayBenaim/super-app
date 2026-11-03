@@ -1,11 +1,13 @@
 # Product groups are defined by their words, not stored on products
 
-A Product group (CONTEXT.md) is identified by its normalized words ("בורגול", "בורגול דק"). Its members are
-whichever products currently pass the group rules for those words: the name starts with them, it is not a "with"
-product or a substitute, and it is measured the same way. An Item matched to a group stores those words, not a group
-id, and the members are worked out again on every search and every Compare. Groups nest freely ("סוגת בורגול דק" is in
-"בורגול", "בורגול דק" and "בורגול סוגת" all at once) and need no table, migration or backfill. Products added by a
-Price sync join their groups right away.
+A Product group (CONTEXT.md) is identified by its normalized words ("בורגול", "בורגול דק") and how it is measured.
+Its members are whichever products currently pass the group rules for those words: the name starts with them, it is
+not a "with" product or a substitute, and it is measured the same way. An Item matched to a group stores a group ref,
+not a group id: the words, the measure (`kg`, `l` or `unit`) and, for a unit group, the pack count, joined by `|`
+("בורגול|kg", "ביצ|unit|12"). Words alone are not a valid ref. The words decide membership; the measure and pack count
+only split the products those words find. The members are worked out again on every search and every Compare.
+Groups nest freely ("בורגול דק סוגת" is in "בורגול" and "בורגול דק" at once) and need no table, migration or
+backfill. Products added by a Price sync join their groups right away.
 
 ## Considered options
 

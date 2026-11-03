@@ -73,6 +73,8 @@ beforeAll(async () => {
     ["112", "בננה מובחרת", 5, W],
     ["121", "גזר תפזורת", 3, W],
     ["122", "גזר ארוז", 4, W],
+    // stemmed to "סידר": the index keeps "יי"
+    ["s1", "סיידר תפוחים 1 ליטר", 9, litre],
   ]);
   load("shufersal", SHUFERSAL, [
     [miaCoarse, "בורגול גס מיה", 3.5, g500],
@@ -84,6 +86,7 @@ beforeAll(async () => {
     ["11", "בננה", 7, W],
     ["21", "גזר", 2.5, W],
     ["22", "גזר ארוז", 4.5, W],
+    ["s2", "סיידר 1 ליטר", 8, litre],
   ]);
   load("rami-levy", RAMI, [
     ["c5", "קוטג עם זיתים 250 גרם", 6.5, g250],
@@ -212,6 +215,10 @@ describe("product groups: search", () => {
     }
   });
 
+  it("finds a group whose name has a doubled yod, however it is typed", async () => {
+    for (const q of ["סיידר", "סידר"]) expect(await groups(q), q).toMatchObject([{ ref: "סידר|l", name: "סיידר", productCount: 2 }]);
+  });
+
   it("keeps packed produce apart from loose", async () => {
     const [loose] = await groups("גזר");
     expect(loose).toMatchObject({ ref: "גזר|kg", productCount: 2, storeCount: 2, minPrice: 2.5 });
@@ -330,6 +337,11 @@ describe("product groups: compare", () => {
     expect(packed.stores.map((s) => [s.chainName, s.total])).toEqual([["Osher Ad", 4], ["Shufersal", 4.5]]);
   });
 
+  it("prices a group whose products are spelled with a doubled yod", async () => {
+    const r = await compare({ groups: [{ ref: "סידר|l", amount: 1 }] });
+    expect(r.stores.map((s) => [s.chainName, s.total])).toEqual([["Shufersal", 8], ["Osher Ad", 9]]);
+  });
+
   it("returns no stores and the group unmatched when nothing is in it", async () => {
     expect(await compare({ groups: [{ ref: "אבגד|kg" }] })).toEqual({ stores: [], unmatched: ["אבגד|kg"] });
   });
@@ -340,7 +352,7 @@ describe("product groups: compare", () => {
   });
 
   it("400 on a malformed group ref or amount", async () => {
-    for (const ref of ["x|kg|3", "x|foo", "x", "|kg", "x|unit", "x|unit|0", "x|unit|1.5", "x|kg|1|2", "", "a\"b|kg", "a  b|kg", "a*|kg"])
+    for (const ref of ["x|kg|3", "x|foo", "x", "|kg", "x|unit", "x|unit|0", "x|unit|1.5", "x|kg|1|2", "", "a\"b|kg", "a  b|kg", "a*|kg", "א|kg", "א ב|kg"])
       expect((await post({ ...here, groups: [{ ref }] })).status, ref).toBe(400);
     for (const amount of [0, -1, "2"]) expect((await post({ ...here, groups: [{ ref: "בורגול|kg", amount }] })).status, String(amount)).toBe(400);
   });

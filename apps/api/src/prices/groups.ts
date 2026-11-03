@@ -51,12 +51,21 @@ export function nameWords(name: string): Word[] {
 export const withoutSizes = (words: string[]) =>
   words.filter((w, i) => !isUnit(w) && !(isNumber(w) && isUnit(words[i + 1] ?? "")));
 
+/** The spellings a stemmed word can have in a name: stem() folds "יי" to "י", so each of the first 3 "י" may be either. */
+function spellings(w: string) {
+  const [first = "", ...rest] = w.split("י");
+  return rest.reduce((forms, part, i) => forms.flatMap((f) => (i < 3 ? [`${f}י${part}`, `${f}יי${part}`] : [`${f}י${part}`])), [first]);
+}
+
 /** FTS5 prefix terms that find every product a group of these words can hold ("בננה" -> "בננ"* also finds בננות). */
 export const ftsMatch = (words: string[]) =>
   words
     .filter((w) => w !== "ארוז") // packed is also בשקית, ברשת...
-    .map((w) => `"${w.length >= 4 ? w.replace(/י?ה$/, "") : w}"*`)
-    .join(" ");
+    .map((w) => {
+      const terms = spellings(w.length >= 4 ? w.replace(/י?ה$/, "") : w).map((s) => `"${s}"*`);
+      return terms.length > 1 ? `(${terms.join(" OR ")})` : terms[0];
+    })
+    .join(" AND "); // FTS5 has no implicit AND next to a parenthesized group
 
 export type Measure = "kg" | "l" | "unit";
 /** Kilos, liters, or the pack count. */
@@ -119,6 +128,8 @@ export function parseRef(ref: string): { words: string[]; size: Size } | null {
   if (measure !== "unit" && count !== undefined) return null;
   // Words are what nameWords makes (letter runs, numbers): anything else would be FTS syntax.
   if (!words.split(" ").every((w) => /^[\p{L}\p{N}.]+$/u.test(w))) return null;
+  // A one-letter first word is a prefix search over a large share of the catalog in Compare.
+  if (words.split(" ")[0]!.length < 2) return null;
   return { words: words.split(" "), size: { measure: measure as Measure, size } };
 }
 
