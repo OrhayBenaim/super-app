@@ -260,7 +260,7 @@ export const he: Record<StringKey, string> = {
   "share.send": "שליחת הזמנה",
   "share.message": "הצטרפו לרשימת הקניות שלי ב-Grocer: {url} (קוד {code})",
   "share.join": "הצטרפות לרשימה אחרת",
-  "share.lists": "הרשימות",
+  "share.lists": "הרשימה שלי",
   "share.join.code": "קוד הזמנה",
   "share.join.button": "הצטרפות",
   "share.join.error": "הקוד לא נמצא. בדקו אותו ונסו שוב.",

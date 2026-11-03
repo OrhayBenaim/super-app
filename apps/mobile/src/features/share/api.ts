@@ -19,13 +19,10 @@ export function useShareMutations(listId: string | null) {
       selectList(list.id);
     },
   });
-  // Removing yourself = leaving; then fall back to the first remaining list.
+  // Removing yourself = leaving; useCurrentListId then falls back to the first remaining list.
   const removeMember = useMutation({
-    mutationFn: ({ userId }: { userId: string; self: boolean }) => api<void>(`api/lists/${listId}/members/${userId}`, { method: "DELETE" }),
-    onSuccess: async (_, { self }) => {
-      if (self) selectList(null);
-      await refresh();
-    },
+    mutationFn: (userId: string) => api<void>(`api/lists/${listId}/members/${userId}`, { method: "DELETE" }),
+    onSuccess: () => refresh(),
   });
   return { invite, join, removeMember };
 }
