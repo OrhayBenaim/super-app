@@ -74,6 +74,24 @@ describe("Password reset", () => {
     expect(mail.sent).toHaveLength(0);
   });
 
+  it("reset-password answers the same whether or not the email has a password account", async () => {
+    await signUp("real@reset.test");
+    deps.db.insert(user).values({ id: "g3", name: "G", email: "g3@reset.test" }).run();
+    deps.db
+      .insert(account)
+      .values({ id: "ga3", accountId: "google-sub-3", providerId: "google", userId: "g3", createdAt: new Date(), updatedAt: new Date() })
+      .run();
+    const emails = ["real@reset.test", "g3@reset.test", "nobody@reset.test"];
+    const answers = (code: string) => Promise.all(emails.map(async (e) => (await (await reset(e, code)).json()).code));
+
+    // No code requested: a stranger can't tell a password account from any other email.
+    expect(await answers("123456")).toEqual(["OTP_EXPIRED", "OTP_EXPIRED", "OTP_EXPIRED"]);
+    for (const e of emails) await requestReset(e);
+    await vi.waitFor(() => expect(mail.sent).toHaveLength(1));
+    // After a request (whose code the prober never sees), a wrong code reads the same for all three.
+    expect(await answers(wrong(codeFrom()))).toEqual(["INVALID_OTP", "INVALID_OTP", "INVALID_OTP"]);
+  });
+
   it("a Google-only User can't gain a password, even with the stored code", async () => {
     deps.db.insert(user).values({ id: "g2", name: "G", email: "g2@reset.test" }).run();
     deps.db

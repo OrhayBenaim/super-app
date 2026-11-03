@@ -47,6 +47,7 @@ export const signInStep = ({ google, error }: { google: boolean; error?: StepErr
     <button type="submit" class="secondary">כניסה עם Google</button>
   </form>`
     : ""}
+  <p data-note="apple">נכנסתם לאפליקציה עם Apple? עדיין אי אפשר להיכנס איתו כאן. אפשר למחוק את החשבון באפליקציה (הגדרות &gt; מחיקת חשבון), או לכתוב לנו ל-<a href="mailto:privacy@otterstory.club">privacy@otterstory.club</a>.</p>
 </div>`;
 
 const kindButton = (kind: DeletionKind) => html`<form hx-post="/deletion/code/send" hx-disabled-elt="find button">

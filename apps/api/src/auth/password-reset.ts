@@ -27,13 +27,15 @@ export function passwordReset(db: Db, otp: OtpService) {
         { method: "POST", body: z.object({ email: z.email() }) },
         async (ctx) => {
           const email = ctx.body.email.toLowerCase();
-          if (hasPassword(db, email)) otp.send(resetCodeEmail(email, otp.create("password-reset", email)));
+          // Every email gets a code, so reset-password answers an unknown email exactly like a real one; only real ones get it sent.
+          const code = otp.create("password-reset", email);
+          if (hasPassword(db, email)) otp.send(resetCodeEmail(email, code));
           return ctx.json({ success: true });
         },
       ),
       resetPassword: createAuthEndpoint(
         "/email-otp/reset-password",
-        // Any string: a malformed email just finds no User and gets INVALID_OTP, as with emailOTP.
+        // Any string: a malformed email just has no code, like any email nobody requested one for.
         { method: "POST", body: z.object({ email: z.string(), otp: z.string(), password: z.string() }) },
         async (ctx) => {
           const email = ctx.body.email.toLowerCase();
@@ -44,10 +46,11 @@ export function passwordReset(db: Db, otp: OtpService) {
           if (password.length > passwords.config.maxPasswordLength)
             throw APIError.from("BAD_REQUEST", { code: "PASSWORD_TOO_LONG", message: "Password too long" });
 
-          const found = hasPassword(db, email) ? await internalAdapter.findUserByEmail(email) : null;
-          if (!found) throw otpError.wrong();
+          // The code first: its answer is the same whether or not the email has a password account.
           const result = otp.verify("password-reset", email, ctx.body.otp);
           if (result !== "ok") throw otpError[result]();
+          const found = hasPassword(db, email) ? await internalAdapter.findUserByEmail(email) : null;
+          if (!found) throw otpError.wrong();
 
           const { id, emailVerified } = found.user;
           const hash = await passwords.hash(password);

@@ -99,6 +99,8 @@ describe("deletion page", () => {
     expect(page).toContain('hx-on::send-error="busy.hidden = false"');
     expect(page).toMatch(/<label for="email">/);
     expect(page).toMatch(/<label for="password">/);
+    // No Apple sign-in yet (#92): Apple users are told where else to delete.
+    expect(page).toContain('data-note="apple"');
     const htmx = await app.request("/assets/htmx.min.js");
     expect(htmx.status).toBe(200);
     expect(htmx.headers.get("content-type")).toMatch(/javascript/);
