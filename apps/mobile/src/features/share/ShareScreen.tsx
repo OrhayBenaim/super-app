@@ -58,7 +58,7 @@ function Members({ onDone, onJoin }: { onDone: () => void; onJoin: () => void })
     await Share.share({ message: fmt(t("share.message"), { code: c, url }) });
   };
   const copy = async () => {
-    await Clipboard.setStringAsync((await code()).url);
+    await Clipboard.setStringAsync((await code()).code);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

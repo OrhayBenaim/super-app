@@ -8,6 +8,7 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "@/features/geofence/task"; // registers the background geofence task at startup
 import { useNearbyNotificationTap } from "@/features/geofence/useNearbyNotificationTap";
+import { usePendingInvite } from "@/features/share/usePendingInvite";
 import { useAnalytics } from "@/lib/useAnalytics";
 import { authClient } from "@/lib/auth-client";
 import { useTheme } from "@/theme";
@@ -29,6 +30,7 @@ function RootLayout() {
   if (!isPending) loaded.current = true;
   // Navigate only once the navigator is mounted and the (tabs) group is reachable.
   useNearbyNotificationTap(loaded.current && !!session);
+  usePendingInvite(loaded.current && !!session);
   const ready = loaded.current;
   useEffect(() => {
     if (ready) SplashScreen.hide();
@@ -51,7 +53,6 @@ function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false }}>
-          {/* shortcut: a signed-out join/share deep link lands on onboarding and the invite code is lost after sign-in; stash it if users complain. */}
           <Stack.Protected guard={!!session}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen
