@@ -40,9 +40,9 @@ describe("lists", () => {
     expect((await app.request("/api/lists")).status).toBe(401);
   });
 
-  it("auto-creates My list on first GET, once", async () => {
+  it("auto-creates הרשימה שלי on first GET, once", async () => {
     const lists = await (await call(dana, "GET", "")).json();
-    expect(lists).toMatchObject([{ name: "My list", role: "owner", memberCount: 1 }]);
+    expect(lists).toMatchObject([{ name: "הרשימה שלי", role: "owner", memberCount: 1 }]);
     listId = lists[0].id;
     expect(await (await call(dana, "GET", "")).json()).toHaveLength(1);
   });

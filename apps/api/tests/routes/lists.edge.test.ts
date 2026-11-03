@@ -138,7 +138,7 @@ describe("cross-user isolation", () => {
   it("GET /lists only returns the caller's lists", async () => {
     const lists = await json(await call(third, "GET", ""));
     expect(lists).toHaveLength(1);
-    expect(lists[0]).toMatchObject({ name: "My list", role: "owner", memberCount: 1 });
+    expect(lists[0]).toMatchObject({ name: "הרשימה שלי", role: "owner", memberCount: 1 });
   });
 });
 
@@ -380,8 +380,11 @@ describe("sharing", () => {
   it("owner rename validates the name and returns the updated list", async () => {
     const listId = await newList(owner);
     expect((await call(owner, "PATCH", `/${listId}`, { name: "" })).status).toBe(400);
+    expect((await call(owner, "PATCH", `/${listId}`, { name: "   " })).status).toBe(400);
     expect((await call(owner, "PATCH", `/${listId}`, { name: "x".repeat(201) })).status).toBe(400);
+    expect((await detail(owner, listId)).list.name).toBe("L");
     expect(await json(await call(owner, "PATCH", `/${listId}`, { name: " New " }))).toMatchObject({ id: listId, name: "New", role: "owner" });
+    expect((await detail(owner, listId)).list.name).toBe("New");
   });
 });
 
@@ -432,11 +435,11 @@ describe("GET /lists", () => {
     expect(lists.map((l: any) => l.id)).toEqual([a, b]);
   });
 
-  it("auto-creates My list once for a brand-new user", async () => {
+  it("auto-creates one הרשימה שלי, owned by a brand-new user", async () => {
     const fresh = await signUp("fresh2@edge.test", "Fresh2");
     const first = await json(await call(fresh, "GET", ""));
     const second = await json(await call(fresh, "GET", ""));
-    expect(first).toHaveLength(1);
+    expect(first).toMatchObject([{ name: "הרשימה שלי", role: "owner", memberCount: 1 }]);
     expect(second).toEqual(first);
   });
 });

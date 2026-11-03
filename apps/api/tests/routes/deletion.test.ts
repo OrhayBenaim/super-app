@@ -369,4 +369,15 @@ describe("Data deletion", () => {
     expect(await sessionWorks(a.cookie)).toBe(true);
     expect(await step(await app.request("/delete-data", { headers: { cookie: a.cookie } }))).toBe("choose");
   });
+
+  it("leaves the User a fresh empty הרשימה שלי on their next GET /lists", async () => {
+    const { a } = await shared();
+    await sendCode(a.cookie, "data");
+    await vi.waitFor(() => expect(mail.sent).toHaveLength(1));
+    expect(await step(await deleteWith(a.cookie, "data", codeFrom()))).toBe("done");
+
+    const lists = await (await listsCall(a.cookie)).json();
+    expect(lists).toMatchObject([{ name: "הרשימה שלי", role: "owner", memberCount: 1 }]);
+    expect((await (await listsCall(a.cookie, "GET", `/${lists[0].id}`)).json()).items).toEqual([]);
+  });
 });

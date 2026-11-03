@@ -37,7 +37,21 @@ export function SheetHeader({ title, start, end }: { title: string; start?: NavA
   );
 }
 
-export type SheetTextFieldProps = TextInputProps & { label: string; ref?: Ref<TextInputInstance> };
+/** The one centered field of a view pushed inside a sheet (Join's code, Rename's name), focused on open. */
+export function SheetField({ style, ...rest }: TextInputProps) {
+  const { colors, radius } = useTheme();
+  return (
+    <TextInput
+      placeholderTextColor={colors.labelSecondary}
+      selectionColor={colors.tint}
+      autoFocus
+      {...rest}
+      style={[text("body"), { minHeight: 56, textAlign: "center", color: colors.label, backgroundColor: colors.surface, borderRadius: radius.group }, style]}
+    />
+  );
+}
+
+export type SheetTextFieldProps =TextInputProps & { label: string; ref?: Ref<TextInputInstance> };
 
 /** Form row inside a Sheet group: label at the leading end, the input fills the rest. */
 export function SheetTextField({ label, style, ref, ...rest }: SheetTextFieldProps) {

@@ -1,42 +1,44 @@
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import { Check, UserMinus } from "lucide-react-native";
+import { UserMinus } from "lucide-react-native";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Platform, Share, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Share, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { fmt } from "@/features/compare/format";
-import { listName, selectList, useCurrentListId, useList, useLists } from "@/features/lists/api";
+import { useCurrentListId, useList } from "@/features/lists/api";
 import { Avatar } from "@/features/lists/Avatars";
 import { Taps } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/strings";
-import { text, useTheme } from "@/theme";
-import { Button, Group, IconButton, Row, Screen, SheetHeader, Text } from "@/ui";
+import { useTheme } from "@/theme";
+import { Button, Group, IconButton, Row, Screen, SheetField, SheetHeader, Text } from "@/ui";
 import { useShareMutations } from "./api";
 
 const CODE_IN = FadeIn.duration(200);
 
-/** Share sheet (modal route): members, invite code, switching lists, and "join another list" pushed inside. */
+/** Share sheet (modal route): the List's members, the invite, and one action: Leave (Member) or Rename, pushed inside (Owner). */
 export function ShareScreen() {
   const router = useRouter();
   const { space } = useTheme();
-  const [joining, setJoining] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  // Held here, not in Members: Rename unmounts Members, and asking for a code again would rotate the one already sent.
+  const share = useShareMutations(useCurrentListId());
   const close = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)"));
   // The modal is full screen on Android, so it needs the top safe-area inset; on iOS it is a page sheet already below the status bar.
   return (
     <Screen scroll edges={Platform.OS === "ios" ? ["bottom"] : ["top", "bottom"]} style={{ paddingTop: space[3], paddingBottom: space[9] }}>
-      {joining ? <Join onBack={() => setJoining(false)} onJoined={close} /> : <Members onDone={close} onJoin={() => setJoining(true)} />}
+      {renaming ? <Rename onDone={() => setRenaming(false)} /> : <Members share={share} onDone={close} onRename={() => setRenaming(true)} />}
     </Screen>
   );
 }
 
-function Members({ onDone, onJoin }: { onDone: () => void; onJoin: () => void }) {
+function Members({ share, onDone, onRename }: { share: ReturnType<typeof useShareMutations>; onDone: () => void; onRename: () => void }) {
   const { colors, space } = useTheme();
   const me = authClient.useSession().data?.user.id;
   const listId = useCurrentListId();
   const { data } = useList(listId);
-  const { invite, removeMember } = useShareMutations(listId);
+  const { invite, removeMember } = share;
   const [copied, setCopied] = useState(false);
   const isOwner = data?.list.role === "owner";
   const fail = () => Alert.alert(t("common.error"));
@@ -66,7 +68,7 @@ function Members({ onDone, onJoin }: { onDone: () => void; onJoin: () => void })
 
   return (
     <>
-      <SheetHeader title={data ? fmt(t("share.titleNamed"), { name: listName(data.list) }) : t("share.title")} end={{ title: t("common.done"), analyticsName: Taps.commonDone, onPress: onDone }} />
+      <SheetHeader title={data ? fmt(t("share.titleNamed"), { name: data.list.name }) : t("share.title")} end={{ title: t("common.done"), analyticsName: Taps.commonDone, onPress: onDone }} />
       {!data ? (
         <ActivityIndicator color={colors.labelSecondary} style={{ marginTop: space[7] }} />
       ) : (
@@ -105,88 +107,50 @@ function Members({ onDone, onJoin }: { onDone: () => void; onJoin: () => void })
         </View>
       </Group>
 
-      <Lists current={listId} onPicked={onDone} onJoin={onJoin} />
-
-      {data && !isOwner && (
+      {data && (
         <Group style={{ marginTop: space[6] }}>
-          <Row title={t("share.leave")} analyticsName={Taps.shareLeave} titleColor="danger" onPress={() => me && confirmRemove(me, "", true)} />
+          {isOwner ? (
+            <Row title={t("share.rename")} analyticsName={Taps.shareRename} chevron onPress={onRename} />
+          ) : (
+            <Row title={t("share.leave")} analyticsName={Taps.shareLeave} titleColor="danger" onPress={() => me && confirmRemove(me, "", true)} />
+          )}
         </Group>
       )}
     </>
   );
 }
 
-/** "Your lists" (only with more than one) to switch the selected list, then "Join another list". */
-function Lists({ current, onPicked, onJoin }: { current: string | null; onPicked: () => void; onJoin: () => void }) {
-  const { colors, space } = useTheme();
-  const lists = useLists().data ?? [];
-  const many = lists.length > 1;
-  // The section header brings its own top spacing.
-  return (
-    <Group title={many ? t("share.lists") : undefined} style={many ? undefined : { marginTop: space[6] }}>
-      {many &&
-        lists.map((l) => (
-          <Row
-            key={l.id}
-            title={listName(l)}
-            accessibilityState={{ selected: l.id === current }}
-            trailing={l.id === current ? <Check size={20} color={colors.tint} strokeWidth={2} /> : undefined}
-            analyticsName={Taps.shareSwitchList}
-            onPress={() => {
-              selectList(l.id);
-              onPicked();
-            }}
-          />
-        ))}
-      <Row title={t("share.join")} analyticsName={Taps.shareJoin} chevron onPress={onJoin} />
-    </Group>
-  );
-}
-
-function Join({ onBack, onJoined }: { onBack: () => void; onJoined: () => void }) {
-  const { colors, radius, space } = useTheme();
-  const { join } = useShareMutations(null);
-  const [code, setCode] = useState("");
-  const submit = () => code.trim() && !join.isPending && join.mutate(code, { onSuccess: onJoined });
+/**
+ * Owner's rename, pushed inside the sheet like Join: the field starts with the current name. Saving returns at once (the
+ * rename is optimistic, and the mutation itself rolls back and alerts on failure, even after this view is gone).
+ */
+function Rename({ onDone }: { onDone: () => void }) {
+  const { space } = useTheme();
+  const listId = useCurrentListId();
+  const { data } = useList(listId);
+  const { rename } = useShareMutations(listId);
+  const [name, setName] = useState(data?.list.name ?? "");
+  const save = () => {
+    if (!name.trim()) return;
+    rename.mutate(name);
+    onDone();
+  };
   return (
     <View style={{ gap: space[4] }}>
-      <SheetHeader title={t("share.join")} start={{ title: t("common.back"), analyticsName: Taps.commonBack, onPress: onBack }} end={{ title: t("share.join.button"), analyticsName: Taps.shareJoinButton, onPress: submit, disabled: !code.trim() || join.isPending }} />
-      <Text variant="subhead" color="labelSecondary" style={{ paddingHorizontal: space[5] }}>
-        {t("share.join.hint")}
-      </Text>
-      <TextInput
-        accessibilityLabel={t("share.join.code")}
-        accessibilityHint={join.isError ? t("share.join.error") : undefined}
-        placeholder={t("share.join.code")}
-        placeholderTextColor={colors.labelSecondary}
-        selectionColor={colors.tint}
-        value={code}
-        onChangeText={setCode}
-        autoFocus
-        autoCapitalize="characters"
-        autoCorrect={false}
-        returnKeyType="go"
-        onSubmitEditing={submit}
-        style={[
-          text("title3"),
-          {
-            minHeight: 56,
-            letterSpacing: 4,
-            textAlign: "center",
-            color: colors.label,
-            backgroundColor: colors.surface,
-            borderRadius: radius.group,
-            borderWidth: join.isError ? 1 : 0,
-            borderColor: colors.danger,
-          },
-        ]}
+      <SheetHeader
+        title={t("share.rename.title")}
+        start={{ title: t("common.back"), analyticsName: Taps.commonBack, onPress: onDone }}
+        end={{ title: t("common.save"), analyticsName: Taps.shareRenameSave, onPress: save, disabled: !name.trim() }}
       />
-      {join.isPending && <ActivityIndicator color={colors.labelSecondary} />}
-      {join.isError && (
-        <Text variant="footnote" color="danger" accessibilityLiveRegion="polite" style={{ paddingHorizontal: space[5] }}>
-          {t("share.join.error")}
-        </Text>
-      )}
+      <SheetField
+        accessibilityLabel={t("share.rename.field")}
+        placeholder={t("share.rename.field")}
+        value={name}
+        onChangeText={setName}
+        returnKeyType="done"
+        onSubmitEditing={save}
+        style={{ minHeight: 64, paddingHorizontal: space[5] }}
+      />
     </View>
   );
 }
