@@ -16,9 +16,10 @@ export function createAuth(db: Db, config: Config, otp: OtpService) {
     rateLimit: { enabled: false }, // the API's rateLimit middleware covers every route, auth included
     // Account deletion: schema cascades remove owned Lists and memberships; sessions older than freshAge get SESSION_EXPIRED.
     user: { deleteUser: { enabled: true } },
+    // Google and Apple sign up only when asked (the app passes requestSignUp), so the deletion page can't create a User.
     socialProviders: {
       ...(config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
-        ? { google: { clientId: config.GOOGLE_CLIENT_ID, clientSecret: config.GOOGLE_CLIENT_SECRET } }
+        ? { google: { clientId: config.GOOGLE_CLIENT_ID, clientSecret: config.GOOGLE_CLIENT_SECRET, disableImplicitSignUp: true } }
         : {}),
       ...(config.APPLE_CLIENT_ID && config.APPLE_CLIENT_SECRET
         ? {
@@ -26,6 +27,7 @@ export function createAuth(db: Db, config: Config, otp: OtpService) {
               clientId: config.APPLE_CLIENT_ID,
               clientSecret: config.APPLE_CLIENT_SECRET,
               appBundleIdentifier: config.APPLE_APP_BUNDLE_IDENTIFIER,
+              disableImplicitSignUp: true,
             },
           }
         : {}),

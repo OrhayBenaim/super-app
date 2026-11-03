@@ -14,18 +14,19 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/app.ts              createApp(deps): deps on the context, CORS, /api/auth/*, /health, onError; mounts routers
   src/deps.ts             Deps + buildDeps(config, overrides): the composition root
   src/middleware.ts       AppEnv type (c.var.deps, c.var.user), requireUser, rateLimit (per-IP, mounted for every route in app.ts)
-  src/services/           vendor-neutral services (config, error-handler, geocoder, price-portal)
+  src/services/           vendor-neutral services (config, error-handler, geocoder, mailer, otp, price-portal)
   src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, price-portals, resend, sentry)
   src/jobs/               fetch-prices, ingest-prices, geocode-stores, price-sync (one Price sync), sync-worker (once-a-minute check)
   src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts)
-  src/auth.ts             createAuth(db, config, mailer): better-auth (email+password, optional Google/Apple, expo plugin)
-  src/auth/               one auth feature per file as better-auth plugins (password-reset.ts: emailOTP for Password reset only)
-  src/emails/             one file per email (reset-code.ts) + layout.ts (Hebrew-first bilingual text and HTML)
+  src/auth.ts             createAuth(db, config, otp): better-auth (email+password, optional Google/Apple, expo plugin)
+  src/auth/               one auth feature per file as better-auth plugins (password-reset.ts: Reset codes from the OtpService)
+  src/deletion/           web page for Account deletion and Data deletion (/delete-account, /delete-data): logic + htmx steps
+  src/emails/             one file per email (reset-code.ts, deletion-code.ts) + layout.ts (Hebrew-first bilingual text and HTML)
   src/db/index.ts         openDb(path): better-sqlite3 + Drizzle; WAL; runs migrations, seeds chains
   src/db/schema.ts        better-auth tables (generated) + re-export of appSchema.ts
   src/db/appSchema.ts     app tables (lists, items, stores, prices...)
   src/db/users.ts         queries about Users that no single route owns (hasPassword)
-  src/routes/*.ts         feature routers (lists.ts, prices.ts)
+  src/routes/*.ts         feature routers (lists.ts, prices.ts, privacy.ts, deletion.ts)
   src/utils/clock.ts      Clock, systemClock, fakeClock
   tests/                  all API tests, mirroring src/; fixtures in tests/__fixtures__/
   drizzle/                generated SQL migrations (committed)

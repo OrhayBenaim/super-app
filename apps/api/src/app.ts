@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import type { Deps } from "#/deps.ts";
 import { rateLimit, type AppEnv } from "#/middleware.ts";
+import { deletionRoutes } from "#/routes/deletion.ts";
 import { listsRoutes } from "#/routes/lists.ts";
 import { pricesRoutes } from "#/routes/prices.ts";
 import { privacyRoutes } from "#/routes/privacy.ts";
@@ -17,10 +18,12 @@ export function createApp(deps: Deps) {
       await next();
     })
     .use(rateLimit({ max: 300, windowMs: MINUTE }))
-    // Stricter where a password or a Reset code can be guessed.
+    // Stricter where a password, a Reset code or a Deletion code can be guessed.
     .use("/api/auth/sign-in/*", rateLimit({ max: 10, windowMs: MINUTE }))
+    .use("/deletion/sign-in/*", rateLimit({ max: 10, windowMs: MINUTE }))
     .use("/api/auth/sign-up/*", rateLimit({ max: 10, windowMs: MINUTE }))
     .use("/api/auth/email-otp/*", rateLimit({ max: 5, windowMs: MINUTE }))
+    .use("/deletion/code/*", rateLimit({ max: 5, windowMs: MINUTE }))
     .use("/api/lists/join", rateLimit({ max: 10, windowMs: MINUTE }))
     // Every JSON body is a few KB at most; without a cap, one unauthenticated sign-up could buffer gigabytes.
     .use(bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: "too_large" }, 413) }))
@@ -40,6 +43,8 @@ export function createApp(deps: Deps) {
     .route("/api", pricesRoutes)
     // Public page for the store listings (Google Play requires a privacy policy URL).
     .route("/privacy", privacyRoutes)
+    // Public Account deletion and Data deletion page (Google Play's Data safety links /delete-account and /delete-data).
+    .route("/", deletionRoutes)
     .onError((error, c) => {
       if (error instanceof HTTPException) return error.getResponse();
       console.error(error);
