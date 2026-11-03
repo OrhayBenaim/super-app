@@ -189,20 +189,22 @@ export function GoNearby() {
   const { colors, space } = useTheme();
   return (
     <View style={{ flex: 1, paddingTop: 36 }}>
-      {/* Scene geometry is the design's, in points from the stage's top-left. */}
-      <View style={{ position: "absolute", left: -110, top: -500, width: 1108.8, height: 1204.56, direction: "ltr" }}>
-        <Image source={art.road} style={{ position: "absolute", left: -73.5, top: 0, width: 1260, height: 1204.56 }} contentFit="fill" />
-        <View style={{ position: "absolute", left: 199.92, top: 675.97, width: 164.97, height: 154.85, alignItems: "center", justifyContent: "center" }}>
-          <View style={{ width: 154.56, height: 72.45, transform: [{ rotate: "-40deg" }] }}>
-            {carPart(art.carBody, ["14.01%", "20.5%", "55.32%", "18.25%"])}
-            <Image source={art.driver} style={{ position: "absolute", left: 13.59, top: -49.41, width: 123.53, height: 123.53 }} contentFit="fill" />
-            {carPart(art.carSide, ["42.67%", "3.75%", "22.67%", "3.75%"])}
-            {carPart(art.carSill, ["64%", "3.75%", "22.67%", "3.75%"])}
-            {carPart(art.tyre, ["60%", "65%", "5.33%", "18.75%"])}
-            {carPart(art.hub, ["70%", "69.69%", "15.33%", "23.44%"])}
-            {carPart(art.tyre, ["60%", "17.5%", "5.33%", "66.25%"])}
-            {carPart(art.hub, ["70%", "22.19%", "15.33%", "70.94%"])}
-            {carPart(art.light, ["49.33%", "2.5%", "41.33%", "91.25%"])}
+      {/* Scene geometry is the design's, in points from the stage's top-left. LTR so `left` is not flipped to `right` in RTL. */}
+      <View style={{ position: "absolute", top: 0, bottom: 0, start: 0, end: 0, direction: "ltr" }}>
+        <View style={{ position: "absolute", left: -110, top: -500, width: 1108.8, height: 1204.56 }}>
+          <Image source={art.road} style={{ position: "absolute", left: -73.5, top: 0, width: 1260, height: 1204.56 }} contentFit="fill" />
+          <View style={{ position: "absolute", left: 199.92, top: 675.97, width: 164.97, height: 154.85, alignItems: "center", justifyContent: "center" }}>
+            <View style={{ width: 154.56, height: 72.45, transform: [{ rotate: "-40deg" }] }}>
+              {carPart(art.carBody, ["14.01%", "20.5%", "55.32%", "18.25%"])}
+              <Image source={art.driver} style={{ position: "absolute", left: 13.59, top: -49.41, width: 123.53, height: 123.53 }} contentFit="fill" />
+              {carPart(art.carSide, ["42.67%", "3.75%", "22.67%", "3.75%"])}
+              {carPart(art.carSill, ["64%", "3.75%", "22.67%", "3.75%"])}
+              {carPart(art.tyre, ["60%", "65%", "5.33%", "18.75%"])}
+              {carPart(art.hub, ["70%", "69.69%", "15.33%", "23.44%"])}
+              {carPart(art.tyre, ["60%", "17.5%", "5.33%", "66.25%"])}
+              {carPart(art.hub, ["70%", "22.19%", "15.33%", "70.94%"])}
+              {carPart(art.light, ["49.33%", "2.5%", "41.33%", "91.25%"])}
+            </View>
           </View>
         </View>
       </View>
