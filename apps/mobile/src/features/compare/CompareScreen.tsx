@@ -168,7 +168,7 @@ export function CompareScreen() {
                 missing={missingCount(items, open)}
                 saving={open === byPrice[0] ? saving(byPrice) : null}
                 listText={listText}
-                onShowBreakdown={() => router.push("/breakdown")}
+                onShowBreakdown={() => router.push({ pathname: "/breakdown", params: { storeId: open.storeId } })}
               />
             </Animated.View>
             {below.length > 0 && (

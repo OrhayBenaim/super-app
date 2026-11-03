@@ -1,22 +1,23 @@
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScrollView } from "react-native";
 import { lineDetail } from "@/features/items/labels";
 import { missingItems, useCurrentListId, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { Button, Group, Row, Sheet, SheetHeader, Text } from "@/ui";
-import { useBestStore } from "./useBestStore";
+import { useCompareStores } from "./useBestStore";
 import { breakdown } from "./breakdown";
 import { fmt, shekels } from "./format";
 
 /**
- * Sheet route app/breakdown: the Basket breakdown of the best branch. A line per priced item (quantity × price, line
+ * Sheet route app/breakdown: the Basket breakdown of the branch open on Compare (param `storeId`). A line per priced item (quantity × price, line
  * total), the total, then the items it doesn't price and the unmatched ones (with Match).
  */
 export function BreakdownSheet() {
   const router = useRouter();
+  const { storeId } = useLocalSearchParams<{ storeId: string }>();
   const list = useList(useCurrentListId(), { poll: false }).data;
-  const store = useBestStore(list); // Compare's cached result: the store its card shows
+  const store = useCompareStores(list).find((s) => s.storeId === storeId); // Compare's cached result
   if (!store) return null;
   const { priced, notHere, unmatched } = breakdown(missingItems(list), store);
   const missing = notHere.length + unmatched.length;

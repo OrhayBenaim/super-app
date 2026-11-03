@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api", () => ({ api: vi.fn() }));
+vi.mock("expo-secure-store", () => ({ getItem: () => null, setItemAsync: vi.fn(), deleteItemAsync: vi.fn() }));
 vi.mock("@/lib/analytics", () => ({ Events: {}, track: vi.fn() }));
 vi.mock("@/lib/strings", () => ({ t: (k: string) => k }));
 
