@@ -6,6 +6,7 @@
   "exports": {
     "./lists": "./src/lists.ts",
     "./otp": "./src/otp.ts",
+    "./quantity": "./src/quantity.ts",
     "./sentry": "./src/sentry.ts"
   },
   "scripts": {
