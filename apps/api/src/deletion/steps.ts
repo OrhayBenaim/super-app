@@ -28,7 +28,7 @@ const ERRORS = {
   tooManyTries: `הוזן קוד שגוי ${RESET_CODE.maxTries} פעמים, ולכן הקוד בוטל.`,
   expired: "הקוד כבר לא בתוקף.",
 } as const;
-type StepError = keyof typeof ERRORS;
+export type StepError = keyof typeof ERRORS;
 
 const alert = (error?: StepError) => (error ? html`<p class="error" role="alert" data-error="${error}">${ERRORS[error]}</p>` : "");
 const hidden = (name: string, value: string) => html`<input type="hidden" name="${name}" value="${value}">`;

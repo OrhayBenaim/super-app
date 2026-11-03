@@ -5,7 +5,7 @@ import { Hono, type Context } from "hono";
 import { csrf } from "hono/csrf";
 import { z } from "zod";
 import { DELETION_KINDS, sendDeletionCode, verifyAndDelete } from "#/deletion/deletion.ts";
-import { chooseStep, codeStep, doneStep, PAGES, signInStep } from "#/deletion/steps.ts";
+import { chooseStep, codeStep, doneStep, PAGES, signInStep, type StepError } from "#/deletion/steps.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
 
 // Read once at startup. htmx is served from here, so the page loads no third-party script.
@@ -25,20 +25,19 @@ const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.iss
 const passCookies = (c: Context<AppEnv>, headers: Headers) => {
   for (const cookie of headers.getSetCookie()) c.header("set-cookie", cookie, { append: true });
 };
-const hasGoogle = (c: Context<AppEnv>) => !!(c.var.deps.config.GOOGLE_CLIENT_ID && c.var.deps.config.GOOGLE_CLIENT_SECRET);
 /** The sign-in step. Google needs the page to come back to: the path, or for an htmx step the page it was sent from. */
-function signInFor(c: Context<AppEnv>, error?: Parameters<typeof signInStep>[0]["error"]) {
+function signInFor(c: Context<AppEnv>, error?: StepError) {
   const from = URL.parse(c.req.header("hx-current-url") ?? c.req.url)?.pathname;
   const page = PAGES.find((p) => p === from) ?? PAGES[0];
-  return signInStep({ page, google: hasGoogle(c), error });
+  return signInStep({ page, google: "google" in c.var.deps.auth.options.socialProviders, error });
 }
 
 /** The public deletion page (Google Play's Data safety links): sign in like the app, then one htmx step per request. */
 export const deletionRoutes = new Hono<AppEnv>()
   // Every step POST carries the session cookie, so only the page's own origin may send one.
-  .use("/deletion/*", async (c, next) => csrf({ origin: new URL(c.var.deps.config.BETTER_AUTH_URL ?? c.req.url).origin })(c, next))
+  .use("/deletion/*", csrf({ origin: (origin, c) => origin === new URL(c.var.deps.config.BETTER_AUTH_URL ?? c.req.url).origin }))
   .get("/assets/htmx.min.js", (c) => c.body(htmx, 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=86400" }))
-  .get("/:page{delete-account|delete-data}", async (c) => {
+  .on("GET", [...PAGES], async (c) => {
     const session = await c.var.deps.auth.api.getSession({ headers: c.req.raw.headers });
     // better-auth sends an OAuth failure back here as ?error=<code>; with implicit sign-up off, "no account" is signup_disabled.
     const error = c.req.query("error");
