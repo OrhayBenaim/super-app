@@ -115,14 +115,14 @@ describe("product groups in search", () => {
 
   it("returns a group's fields and a product's fields", async () => {
     const [group, product] = await search("בננה");
-    expect(Object.keys(group!).sort()).toEqual(["kind", "measure", "minPrice", "name", "productCount", "ref", "refinements", "size", "storeCount"]);
-    expect(Object.keys(product!).sort()).toEqual(["code", "kind", "manufacturer", "measure", "minPrice", "name", "size", "storeCount", "unitQty"]);
+    expect(Object.keys(group!).sort()).toEqual(["kind", "measure", "minPrice", "name", "productCount", "ref", "refinements", "size", "soldBy", "storeCount"]);
+    expect(Object.keys(product!).sort()).toEqual(["code", "kind", "manufacturer", "measure", "minPrice", "name", "size", "soldBy", "storeCount", "unitQty"]);
     expect(product).toMatchObject({ measure: expect.any(String), size: expect.any(Number) });
   });
 
   it("leaves barcode search as products only, the exact code", async () => {
     expect(await search(milk)).toEqual([
-      { kind: "product", code: milk, name: "חלב 3% 1 ליטר", manufacturer: null, unitQty: "1 יחידה", storeCount: 2, minPrice: 5, measure: "l", size: 1 },
+      { kind: "product", code: milk, name: "חלב 3% 1 ליטר", manufacturer: null, unitQty: "1 יחידה", storeCount: 2, minPrice: 5, measure: "l", size: 1, soldBy: "unit" },
     ]);
   });
 });

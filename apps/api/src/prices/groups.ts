@@ -2,6 +2,8 @@
 // query time and never stored. A group is named by its "group ref": normalized words + measure (+ the pack count when
 // counted by the unit), e.g. "בורגול|kg", "ביצ|unit|12".
 import { z } from "zod";
+import type { SoldBy } from "@grocer/shared/quantity";
+import type { Db } from "#/db/index.ts";
 
 /** Words that never tell two products apart: origin, grade, "by weight", "loose" (loose is the default). */
 const NOISE = new Set(["במשקל", "משקל", "שקיל", "תפזורת", "בתפזורת", "ישראל", "ישראלי", "ישראלית", "מובחר", "מובחרת", "מובחרים", "טרי", "טריה", "טריים", "לקג"]);
@@ -109,6 +111,17 @@ export function measureOf(p: Sized): Size | null {
   return count ? { measure: "unit", size: count } : null;
 }
 
+/**
+ * Sold by weight: the price file flags the product as weighted and its unit is a weight (kilos or grams), so its price
+ * is per kilo. A weighted product counted in "יחידות" is sold by the unit, as is everything else.
+ */
+export const soldByOf = (p: Pick<Sized, "unitQty" | "isWeighted">): SoldBy =>
+  p.isWeighted && rawWords(p.unitQty ?? "").some((w) => w in WEIGHT) ? "weight" : "unit";
+
+/** A group is sold by weight when it is measured by the kilo and most of its products are sold by weight (produce). */
+const groupSoldBy = (measure: Measure, products: Sized[]): SoldBy =>
+  measure === "kg" && commonest(products.map(soldByOf)) === "weight" ? "weight" : "unit";
+
 const startsWith = (words: Word[], group: string[]) => group.every((w, i) => words[i]?.norm === w);
 
 /** True when a name with these words starts with the group's words and has no qualifier the group's words lack. */
@@ -192,10 +205,27 @@ export function searchGroups(group: string[], candidates: Candidate[]) {
       ref: groupRef(group, size),
       name: commonest(inGroup.map((p) => p.words.slice(0, group.length).map((w) => w.raw).join(" ")))!,
       measure,
+      soldBy: groupSoldBy(measure, inGroup),
       size: measure === "unit" ? count : commonest(inGroup.map((p) => p.size!.size))!,
       minPrice: Math.min(...inGroup.map((p) => (measure === "unit" ? p.minPrice : p.minPrice / p.size!.size))),
       refinements: refinementsOf(prefixed.filter((p) => sameMeasure(p.size, size)).map((p) => p.words), group.length),
       codes: inGroup.map((p) => p.code),
     }];
   });
+}
+
+/** Every product in the group the ref names, with its size (kilos, liters or pack count), and how the group is sold. */
+export function groupMembers(db: Db, ref: string) {
+  const { words, size } = parseRef(ref)!;
+  const match = ftsMatch(words);
+  const rows = (match
+    ? db.$client
+        .prepare("SELECT p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted FROM products_fts f JOIN products p ON p.code = f.code WHERE products_fts MATCH ?")
+        .all(match)
+    : []) as { code: string; name: string; unitQty: string | null; isWeighted: number }[];
+  const members = rows.flatMap((p) => {
+    const own = measureOf(p);
+    return own && sameMeasure(own, size) && startsGroup(nameWords(p.name), words) ? [{ ...p, size: own.size }] : [];
+  });
+  return { members, soldBy: groupSoldBy(size.measure, members) };
 }

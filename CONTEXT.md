@@ -26,6 +26,18 @@ _Avoid_: Collaborator, guest
 A List that has at least one Member besides its Owner.
 _Avoid_: Group list, joint list
 
+**Quantity**:
+The amount of an item to buy: a count of units, or kilos when the item is Sold by weight. It starts at 1 (1 ק"ג for weight), stays on the item when it is checked off or taken off the List, and comes back when the item is added again. Changing the item's match to one Sold by the other way starts it over at 1.
+_Avoid_: Amount (in code), count, size (a product's pack size is something else)
+
+**Sold by**:
+How an item's Quantity is measured, `unit` or `weight`, taken from what it is matched to: a product the Chain prices per kilo, or a Product group of such products (produce), is Sold by weight; everything else, unmatched items included, is Sold by unit.
+_Avoid_: Unit type, measure (a product's measure is kilo, liter or unit)
+
+**Basket breakdown**:
+The per-line view of one store's Compare total: each item's Quantity × its price there, then the items that store does not price and the items with no match.
+_Avoid_: Receipt, what's missing
+
 ### Prices
 
 **Price sync**:
@@ -57,7 +69,7 @@ A picture of a Product, found by its barcode in outside sources (a Chain's onlin
 _Avoid_: Photo, thumbnail, picture (as separate terms)
 
 **Product group**:
-Products that are the same thing to a shopper, whatever their brand, pack size or Chain label: סוגת's, מיה's and Rami Levy's own bulgur are all the Product group "בורגול". More words make a narrower Product group: a word that changes what the product is (a variety, organic, fat percent, lactose-free) narrows it ("בורגול דק", "בורגול אורגני"), while brand, size and Chain label never split one. A dish made from the product is not in its group ("בורגול עם גרגירי חומוס" is not bulgur). Produce follows the same rules: names match once origin, grade, "by weight" and "loose" words, spellings and plurals are evened out ("בננות ישראל" and "בננה מובחרת" are both "בננה"), and packed and loose are different groups ("גזר ארוז" vs "גזר"). A product is in a group only when its name starts with the group's words ("שוקולד חלב" is not milk). A product made "with" something, or a substitute for the real thing, is only in a group whose words say so: "קוטג עם זיתים" is not in "קוטג", and neither is "קוטג' טבעוני". Every product in a group is measured the same way: by kilo, by liter or by the unit. Produce is always by kilo. Sweetened condensed milk is sold by weight, so it is not in "חלב". Things counted by the unit are a different product for each pack count: a carton of 12 eggs and a carton of 30 are not one group. A User matches an Item to a Product group by picking it, the same way they pick a single product; nothing is matched for them. For a group measured by kilo or liter, Compare picks each store's cheapest product by price per kilo or liter, so a 1 ק"ג bag at ₪6.80 beats a 500 גרם bag at ₪3.70, and the Item's amount is a weight or a volume. For a group counted by the unit, every product is the same pack (a carton of 12 eggs). Compare picks the cheapest pack, and the Item's amount is a number of packs. Compare names the product each store's price comes from.
+Products that are the same thing to a shopper, whatever their brand, pack size or Chain label: סוגת's, מיה's and Rami Levy's own bulgur are all the Product group "בורגול". More words make a narrower Product group: a word that changes what the product is (a variety, organic, fat percent, lactose-free) narrows it ("בורגול דק", "בורגול אורגני"), while brand, size and Chain label never split one. A dish made from the product is not in its group ("בורגול עם גרגירי חומוס" is not bulgur). Produce follows the same rules: names match once origin, grade, "by weight" and "loose" words, spellings and plurals are evened out ("בננות ישראל" and "בננה מובחרת" are both "בננה"), and packed and loose are different groups ("גזר ארוז" vs "גזר"). A product is in a group only when its name starts with the group's words ("שוקולד חלב" is not milk). A product made "with" something, or a substitute for the real thing, is only in a group whose words say so: "קוטג עם זיתים" is not in "קוטג", and neither is "קוטג' טבעוני". Every product in a group is measured the same way: by kilo, by liter or by the unit. Produce is always by kilo. Sweetened condensed milk is sold by weight, so it is not in "חלב". Things counted by the unit are a different product for each pack count: a carton of 12 eggs and a carton of 30 are not one group. A User matches an Item to a Product group by picking it, the same way they pick a single product; nothing is matched for them. For a group measured by kilo or liter, Compare picks each store's cheapest product by price per kilo or liter, so a 1 ק"ג bag at ₪6.80 beats a 500 גרם bag at ₪3.70, and the Item's Quantity is kilos when the group is Sold by weight (produce), or else a number of the group's commonest pack size. For a group counted by the unit, every product is the same pack (a carton of 12 eggs). Compare picks the cheapest pack, and the Item's Quantity is a number of packs. Compare names the product each store's price comes from.
 _Avoid_: Generic product, canonical product, Produce group, kind, category (an Item's category is something else)
 
 ### Account lifecycle

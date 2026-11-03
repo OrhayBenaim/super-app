@@ -73,6 +73,7 @@ beforeAll(async () => {
     ["112", "בננה מובחרת", 5, W],
     ["121", "גזר תפזורת", 3, W],
     ["122", "גזר ארוז", 4, W],
+    ["131", "אבטיח שלם", 20, { w: true }], // weighted, but counted in יחידות
     // stemmed to "סידר": the index keeps "יי"
     ["s1", "סיידר תפוחים 1 ליטר", 9, litre],
   ]);
@@ -108,8 +109,8 @@ beforeAll(async () => {
 });
 
 type Row = { kind: "group" | "product"; ref?: string; code?: string; name: string; measure: string | null; size: number | null; productCount?: number; storeCount: number; minPrice: number; refinements?: string[]; unitQty?: string | null };
-type GroupItem = { ref: string; code: string; name: string; size: number; unitPrice?: number; price: number };
-type Store = { chainName: string; total: number; matched: number; missingCodes: string[]; items: ({ code: string; price: number } | GroupItem)[] };
+type GroupItem = { ref: string; code: string; name: string; size: number; unitPrice?: number; price: number; quantity: number; lineTotal: number };
+type Store = { chainName: string; total: number; matched: number; missingCodes: string[]; items: ({ code: string; price: number; quantity: number; lineTotal: number } | GroupItem)[] };
 const search = async (q: string) => (await (await app.request(`/api/products/search?q=${encodeURIComponent(q)}`, { headers: { cookie } })).json()) as Row[];
 const groups = async (q: string) => (await search(q)).filter((r) => r.kind === "group");
 const post = (body: unknown, auth = true) =>
@@ -118,7 +119,9 @@ const post = (body: unknown, auth = true) =>
     headers: { "content-type": "application/json", ...(auth ? { cookie } : {}) },
     body: JSON.stringify(body),
   });
-const compare = async (body: { codes?: string[]; groups?: { ref: string; amount?: number }[] }) => {
+/** Compare body items, each at quantity 1. */
+const q = (codes: unknown) => (Array.isArray(codes) ? codes.map((code) => ({ code, quantity: 1 })) : codes);
+const compare = async (body: { items?: unknown; groups?: { ref: string; quantity?: number }[] }) => {
   const res = await post({ ...here, ...body });
   expect(res.status).toBe(200);
   return (await res.json()) as { stores: Store[]; unmatched: string[] };
@@ -226,9 +229,18 @@ describe("product groups: search", () => {
     expect(packed).toMatchObject({ ref: "גזר ארוז|kg", productCount: 2, minPrice: 4 });
   });
 
+  it("says how each result is sold: weighted kilos by weight, weighted units and packs by the unit", async () => {
+    expect((await groups("בננה"))[0]).toMatchObject({ ref: "בננה|kg", soldBy: "weight" });
+    expect((await groups("בורגול"))[0]).toMatchObject({ ref: "בורגול|kg", soldBy: "unit" });
+    const product = async (q: string, name: string) => (await search(q)).find((r) => r.name === name);
+    expect(await product("בננה", "בננה מובחרת")).toMatchObject({ soldBy: "weight", minPrice: 5 });
+    expect(await product("אבטיח", "אבטיח שלם")).toMatchObject({ soldBy: "unit" });
+    expect(await product("בורגול", "בורגול דק סוגת")).toMatchObject({ soldBy: "unit" });
+  });
+
   it("leaves barcode search as the exact product, never a group", async () => {
     expect(await search(milk3)).toEqual([
-      { kind: "product", code: milk3, name: "חלב 3% 1 ליטר", manufacturer: null, unitQty: "1 ליטר", storeCount: 2, minPrice: 5.5, measure: "l", size: 1 },
+      { kind: "product", code: milk3, name: "חלב 3% 1 ליטר", manufacturer: null, unitQty: "1 ליטר", storeCount: 2, minPrice: 5.5, measure: "l", size: 1, soldBy: "unit" },
     ]);
   });
 
@@ -266,25 +278,25 @@ describe("product groups: compare", () => {
     expect((await post({ ...here, groups: [{ ref: "בורגול|kg" }] }, false)).status).toBe(401);
   });
 
-  it("charges each store its cheapest price per kilo, so 1 kg at 6.80 beats 500 g at 3.70", async () => {
-    const r = await compare({ groups: [{ ref: "בורגול|kg", amount: 1 }] });
+  it("charges each store its cheapest price per kilo for one commonest pack, so 1 kg at 6.80 beats 500 g at 3.70", async () => {
+    const r = await compare({ groups: [{ ref: "בורגול|kg" }] }); // three of five bulgurs are 500 g
     const osher = groupItem(store(r, "Osher Ad"));
-    expect(osher).toMatchObject({ ref: "בורגול|kg", code: sugatThick, name: "בורגול עבה סוגת", size: 1, unitPrice: 6.8, price: 6.8 });
-    expect(store(r, "Osher Ad").total).toBe(6.8);
-    expect(store(r, "Shufersal").total).toBe(7); // 3.50 for 500 g is 7/kg
+    expect(osher).toMatchObject({ ref: "בורגול|kg", code: sugatThick, name: "בורגול עבה סוגת", size: 1, unitPrice: 6.8, price: 3.4, quantity: 1, lineTotal: 3.4 });
+    expect(store(r, "Osher Ad").total).toBe(3.4);
+    expect(store(r, "Shufersal").total).toBe(3.5); // 3.50 for 500 g is 7/kg
     expect(r.stores.map((s) => s.chainName)).toEqual(["Osher Ad", "Shufersal"]);
   });
 
-  it("multiplies the price per kilo by the amount", async () => {
-    const r = await compare({ groups: [{ ref: "בורגול|kg", amount: 2.5 }] });
+  it("multiplies a pack group's price by the quantity of packs", async () => {
+    const r = await compare({ groups: [{ ref: "בורגול|kg", quantity: 5 }] });
     expect(store(r, "Osher Ad").total).toBe(17);
-    expect(groupItem(store(r, "Shufersal")).price).toBe(17.5);
+    expect(groupItem(store(r, "Shufersal"))).toMatchObject({ price: 3.5, quantity: 5, lineTotal: 17.5 });
   });
 
-  it("defaults the amount to the commonest pack size", async () => {
-    const r = await compare({ groups: [{ ref: "בורגול|kg" }] }); // three of five bulgurs are 500 g
-    expect(store(r, "Osher Ad").total).toBe(3.4);
-    expect(store(r, "Shufersal").total).toBe(3.5);
+  it("charges a group sold by weight its cheapest price per kilo times the kilos", async () => {
+    const r = await compare({ groups: [{ ref: "בננה|kg", quantity: 1.5 }] });
+    expect(groupItem(store(r, "Osher Ad"))).toMatchObject({ unitPrice: 5, price: 5, quantity: 1.5, lineTotal: 7.5 });
+    expect(r.stores.map((s) => [s.chainName, s.total])).toEqual([["Osher Ad", 7.5], ["Rami Levy", 9.75], ["Shufersal", 10.5]]);
   });
 
   it("charges liters the same way, and keeps condensed milk and plant drinks out of the choice", async () => {
@@ -294,10 +306,10 @@ describe("product groups: compare", () => {
   });
 
   it("charges a unit group its cheapest pack times the number of packs, with no price per kilo", async () => {
-    const r = await compare({ groups: [{ ref: "ביצ|unit|12", amount: 2 }] });
+    const r = await compare({ groups: [{ ref: "ביצ|unit|12", quantity: 2 }] });
     expect(r.stores.map((s) => [s.chainName, s.total])).toEqual([["Shufersal", 26], ["Osher Ad", 27], ["Rami Levy", 30]]);
     const osher = groupItem(store(r, "Osher Ad"));
-    expect(osher).toMatchObject({ code: eggOsherM, name: "ביצים M 12 יח", size: 12, price: 27 });
+    expect(osher).toMatchObject({ code: eggOsherM, name: "ביצים M 12 יח", size: 12, price: 13.5, quantity: 2, lineTotal: 27 });
     expect(osher).not.toHaveProperty("unitPrice");
     expect((await compare({ groups: [{ ref: "ביצ|unit|12" }] })).stores[0]!.total).toBe(13); // one pack by default
   });
@@ -308,52 +320,67 @@ describe("product groups: compare", () => {
   });
 
   it("reports a store with no product of the group as missing it", async () => {
-    const r = await compare({ codes: [milk1], groups: [{ ref: "בורגול|kg" }] });
+    const r = await compare({ items: q([milk1]), groups: [{ ref: "בורגול|kg" }] });
     expect(store(r, "Rami Levy")).toMatchObject({ matched: 1, total: 6.2, missingCodes: ["בורגול|kg"] });
     expect(store(r, "Osher Ad")).toMatchObject({ matched: 2 });
     expect(r.unmatched).toEqual([]);
   });
 
   it("keeps a flavoured cottage out of the broad group: a store with only that is missing the group", async () => {
-    const r = await compare({ codes: [milk1], groups: [{ ref: "קוטג|kg" }] });
+    const r = await compare({ items: q([milk1]), groups: [{ ref: "קוטג|kg" }] });
     expect(store(r, "Rami Levy").missingCodes).toEqual(["קוטג|kg"]);
     expect(groupItem(store(r, "Osher Ad")).name).not.toContain("זיתים");
   });
 
   it("mixes codes and groups in one body, with missing and unmatched naming both", async () => {
-    const r = await compare({ codes: [milk3, nobody], groups: [{ ref: "בננה|kg", amount: 1 }, { ref: "גזר|kg", amount: 1 }, { ref: "אבגד|kg" }] });
+    const r = await compare({ items: q([milk3, nobody]), groups: [{ ref: "בננה|kg" }, { ref: "גזר|kg" }, { ref: "אבגד|kg" }] });
     expect(store(r, "Osher Ad")).toMatchObject({ total: 6 + 5 + 3, matched: 3, missingCodes: [nobody, "אבגד|kg"] });
     expect(store(r, "Shufersal")).toMatchObject({ total: 5.5 + 7 + 2.5, matched: 3 });
     expect(store(r, "Rami Levy")).toMatchObject({ total: 6.5, matched: 1, missingCodes: [milk3, nobody, "גזר|kg", "אבגד|kg"] });
     expect(r.unmatched).toEqual([nobody, "אבגד|kg"]);
-    expect(store(r, "Osher Ad").items[0]).toEqual({ code: milk3, price: 6 });
+    expect(store(r, "Osher Ad").items[0]).toEqual({ code: milk3, price: 6, quantity: 1, lineTotal: 6 });
   });
 
   it("charges packed carrots only to packed carrot groups", async () => {
-    const loose = await compare({ groups: [{ ref: "גזר|kg", amount: 1 }] });
+    const loose = await compare({ groups: [{ ref: "גזר|kg" }] });
     expect(loose.stores.map((s) => [s.chainName, s.total])).toEqual([["Shufersal", 2.5], ["Osher Ad", 3]]);
     expect(groupItem(store(loose, "Osher Ad")).name).toBe("גזר תפזורת");
-    const packed = await compare({ groups: [{ ref: "גזר ארוז|kg", amount: 1 }] });
+    const packed = await compare({ groups: [{ ref: "גזר ארוז|kg" }] });
     expect(packed.stores.map((s) => [s.chainName, s.total])).toEqual([["Osher Ad", 4], ["Shufersal", 4.5]]);
   });
 
   it("prices a group whose products are spelled with a doubled yod", async () => {
-    const r = await compare({ groups: [{ ref: "סידר|l", amount: 1 }] });
+    const r = await compare({ groups: [{ ref: "סידר|l" }] });
     expect(r.stores.map((s) => [s.chainName, s.total])).toEqual([["Shufersal", 8], ["Osher Ad", 9]]);
+  });
+
+  it("totals price times quantity, summing two items matched to one product", async () => {
+    const r = await compare({ items: [{ code: milk3, quantity: 1 }, { code: milk3, quantity: 2 }] });
+    expect(store(r, "Osher Ad")).toMatchObject({ total: 18, matched: 1, items: [{ code: milk3, price: 6, quantity: 3, lineTotal: 18 }] });
+    expect(store(r, "Shufersal").total).toBe(16.5);
+  });
+
+  it("ranks by the basket's quantities: a store dearer per kilo loses once more kilos are bought", async () => {
+    const ranked = async (kilos: number) =>
+      (await compare({ items: [{ code: milk3, quantity: 4 }], groups: [{ ref: "בננה|kg", quantity: kilos }] })).stores
+        .filter((s) => s.matched === 2)
+        .map((s) => [s.chainName, s.total]);
+    expect(await ranked(0.5)).toEqual([["Shufersal", 25.5], ["Osher Ad", 26.5]]); // milk 5.50 vs 6
+    expect(await ranked(3)).toEqual([["Osher Ad", 39], ["Shufersal", 43]]); // bananas 5 vs 7 a kilo
   });
 
   it("returns no stores and the group unmatched when nothing is in it", async () => {
     expect(await compare({ groups: [{ ref: "אבגד|kg" }] })).toEqual({ stores: [], unmatched: ["אבגד|kg"] });
   });
 
-  it("400 on a body with neither codes nor groups", async () => {
+  it("400 on a body with neither items nor groups", async () => {
     expect((await post({ ...here })).status).toBe(400);
-    expect((await post({ ...here, codes: [], groups: [] })).status).toBe(400);
+    expect((await post({ ...here, items: [], groups: [] })).status).toBe(400);
   });
 
-  it("400 on a malformed group ref or amount", async () => {
+  it("400 on a malformed group ref or quantity", async () => {
     for (const ref of ["x|kg|3", "x|foo", "x", "|kg", "x|unit", "x|unit|0", "x|unit|1.5", "x|kg|1|2", "", "a\"b|kg", "a  b|kg", "a*|kg", "א|kg", "א ב|kg"])
       expect((await post({ ...here, groups: [{ ref }] })).status, ref).toBe(400);
-    for (const amount of [0, -1, "2"]) expect((await post({ ...here, groups: [{ ref: "בורגול|kg", amount }] })).status, String(amount)).toBe(400);
+    for (const quantity of [0, -1, "2", 100]) expect((await post({ ...here, groups: [{ ref: "בורגול|kg", quantity }] })).status, String(quantity)).toBe(400);
   });
 });
