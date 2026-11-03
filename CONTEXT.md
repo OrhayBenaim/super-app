@@ -41,7 +41,7 @@ A Price sync started by hand from the internal dashboard. It is ignored if a Pri
 _Avoid_: Force sync, refresh
 
 **Interrupted sync**:
-A Price sync that stopped before every Chain was done, because the worker was shut down or crashed. Chains it already finished keep their new prices. It never causes a Skipped sync.
+A Price sync that stopped before every Chain was done, because the worker was shut down, crashed or lost contact; a Price sync still running 4 hours after it started counts as interrupted too. Chains it already finished keep their new prices. It never causes a Skipped sync.
 _Avoid_: Failed sync, aborted sync
 
 **Skipped sync**:
@@ -49,8 +49,12 @@ A Scheduled sync that does not run, because a Price sync was running at its time
 _Avoid_: Cancelled sync
 
 **Chain failure**:
-A Chain whose files could not be downloaded or loaded during a Price sync, including one whose price files all name stores missing from its Stores file. It is logged and recorded. Stores it loaded before failing keep their new prices; the rest keep their previous prices until a later Price sync succeeds for that Chain.
+A Chain that could not be brought up to date during a Price sync: its Stores file could not be downloaded or loaded, none of its price files could be loaded (failed, or all name stores missing from its Stores file), or its prices could not be saved. It is logged and recorded. Stores whose prices were saved before the failure keep them; the rest keep their previous prices until a later Price sync succeeds for that Chain. A single price file that cannot be downloaded or loaded is not a Chain failure: that store keeps its previous prices and the rest of the Chain still updates.
 _Avoid_: Sync failure (the Price sync itself still finishes)
+
+**Product image**:
+A picture of a Product, found by its barcode in outside sources (a Chain's online shop first, Open Food Facts second). Users cannot set or change it. A Product without a barcode, or one no source knows, has no Product image, and nothing is shown in its place. It is shown when picking a Product for an item and when editing an item.
+_Avoid_: Photo, thumbnail, picture (as separate terms)
 
 **Product group**:
 Products that are the same thing to a shopper, whatever their brand, pack size or Chain label: סוגת's, מיה's and Rami Levy's own bulgur are all the Product group "בורגול". More words make a narrower Product group: a word that changes what the product is (a variety, organic, fat percent, lactose-free) narrows it ("בורגול דק", "בורגול אורגני"), while brand, size and Chain label never split one. A dish made from the product is not in its group ("בורגול עם גרגירי חומוס" is not bulgur). Produce follows the same rules: names match once origin, grade, "by weight" and "loose" words, spellings and plurals are evened out ("בננות ישראל" and "בננה מובחרת" are both "בננה"), and packed and loose are different groups ("גזר ארוז" vs "גזר"). A product is in a group only when its name starts with the group's words ("שוקולד חלב" is not milk). A product made "with" something, or a substitute for the real thing, is only in a group whose words say so: "קוטג עם זיתים" is not in "קוטג", and neither is "קוטג' טבעוני". Every product in a group is measured the same way: by kilo, by liter or by the unit. Produce is always by kilo. Sweetened condensed milk is sold by weight, so it is not in "חלב". Things counted by the unit are a different product for each pack count: a carton of 12 eggs and a carton of 30 are not one group. A User matches an Item to a Product group by picking it, the same way they pick a single product; nothing is matched for them. For a group measured by kilo or liter, Compare picks each store's cheapest product by price per kilo or liter, so a 1 ק"ג bag at ₪6.80 beats a 500 גרם bag at ₪3.70, and the Item's amount is a weight or a volume. For a group counted by the unit, every product is the same pack (a carton of 12 eggs). Compare picks the cheapest pack, and the Item's amount is a number of packs. Compare names the product each store's price comes from.
