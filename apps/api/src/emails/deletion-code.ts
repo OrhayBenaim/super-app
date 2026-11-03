@@ -1,11 +1,11 @@
-import { RESET_CODE } from "@grocer/shared/reset-code";
+import { OTP } from "@grocer/shared/otp";
 import type { DeletionKind } from "#/deletion/deletion.ts";
 import { bilingualEmail } from "#/emails/layout.ts";
 
 const what = { account: { he: "החשבון", en: "account" }, data: { he: "הנתונים", en: "data" } } as const;
 
 export function deletionCodeEmail(to: string, code: string, kind: DeletionKind) {
-  const { minutes } = RESET_CODE;
+  const { minutes } = OTP;
   const { he, en } = what[kind];
   return bilingualEmail({
     to,

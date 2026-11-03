@@ -74,10 +74,14 @@ _Avoid_: Reset, wipe, clear data
 A User who signs in with email and password proves they own that email with a Reset code, then sets a new password and is signed in. Users who only sign in with Google or Apple have no password and cannot reset one.
 _Avoid_: Password recovery, forgot password (except as the link text)
 
+**OTP**:
+A one-time code emailed to a User: a Reset code or a Deletion code. Every OTP is 6 digits, valid for 5 minutes, dies after 3 wrong tries, and works only for what it was sent for. A new one replaces the last one sent for the same thing.
+_Avoid_: PIN, token, one-time password
+
 **Reset code**:
-A 6-digit code emailed to the User for a Password reset. It is valid for 5 minutes and dies after 3 wrong tries.
-_Avoid_: OTP, PIN, token
+The OTP emailed to the User for a Password reset.
+_Avoid_: PIN, token
 
 **Deletion code**:
-A 6-digit code emailed to a signed-in User before an Account deletion or a Data deletion done on the web. A correct code commits that deletion. It works only for the deletion it was requested for, is valid for 5 minutes and dies after 3 wrong tries.
-_Avoid_: OTP, PIN, Reset code (that one is only for Password reset)
+The OTP emailed to a signed-in User before an Account deletion or a Data deletion done on the web. A correct code leads to a last confirmation, and confirming commits that deletion. It works only for the deletion it was requested for; cancelling kills it.
+_Avoid_: PIN, Reset code (that one is only for Password reset)

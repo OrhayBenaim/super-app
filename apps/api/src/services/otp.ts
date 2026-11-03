@@ -1,6 +1,6 @@
 import { randomInt, randomUUID, timingSafeEqual } from "node:crypto";
 import { eq, lte } from "drizzle-orm";
-import { RESET_CODE } from "@grocer/shared/reset-code";
+import { OTP } from "@grocer/shared/otp";
 import type { Db } from "#/db/index.ts";
 import { verification } from "#/db/schema.ts";
 import type { ErrorHandler } from "#/services/error-handler.ts";
@@ -13,7 +13,7 @@ export type OtpPurpose = "password-reset" | "delete-account" | "delete-data";
 export type OtpResult = "ok" | "wrong" | "tooManyTries" | "expired";
 
 /**
- * Emailed one-time codes: the Reset code and the Deletion code (CONTEXT.md). Every code follows RESET_CODE: 6 digits,
+ * Emailed one-time codes: the Reset code and the Deletion code (CONTEXT.md). Every code follows the shared OTP rule: 6 digits,
  * valid 5 minutes, dead after 3 wrong tries. One live code per purpose and email, stored in better-auth's verification
  * table as "<code>:<wrong tries>"; each call is one SQLite transaction, so concurrent tries can't outrun the count.
  */
@@ -35,7 +35,7 @@ export class OtpService {
    * row: codes for emails with no account are never used again, so nothing else would remove them.
    */
   create(purpose: OtpPurpose, email: string): string {
-    const code = String(randomInt(10 ** RESET_CODE.length)).padStart(RESET_CODE.length, "0");
+    const code = String(randomInt(10 ** OTP.length)).padStart(OTP.length, "0");
     const now = this.#clock.now();
     const identifier = key(purpose, email);
     // this.revoke inside the transaction is safe: better-sqlite3 has one connection, so it runs in the open transaction.
@@ -47,7 +47,7 @@ export class OtpService {
           id: randomUUID(),
           identifier,
           value: `${code}:0`,
-          expiresAt: new Date(now.getTime() + RESET_CODE.minutes * 60_000),
+          expiresAt: new Date(now.getTime() + OTP.minutes * 60_000),
           createdAt: now,
           updatedAt: now,
         })
@@ -61,6 +61,15 @@ export class OtpService {
    * ("tooManyTries"). A code that is past its time, used up or revoked, or was never sent, is "expired".
    */
   verify(purpose: OtpPurpose, email: string, code: string): OtpResult {
+    return this.#try(purpose, email, code, true);
+  }
+
+  /** Like verify, but the right code stays live: for a step that checks it before a later step uses it up. */
+  check(purpose: OtpPurpose, email: string, code: string): OtpResult {
+    return this.#try(purpose, email, code, false);
+  }
+
+  #try(purpose: OtpPurpose, email: string, code: string, useUp: boolean): OtpResult {
     const identifier = key(purpose, email);
     const now = this.#clock.now().getTime();
     return this.#db.transaction((tx) => {
@@ -75,11 +84,11 @@ export class OtpService {
       // Byte lengths: timingSafeEqual throws on unequal buffers, and a multi-byte "code" can match in characters.
       const [a, b] = [Buffer.from(stored), Buffer.from(code)];
       if (a.length === b.length && timingSafeEqual(a, b)) {
-        revoke();
+        if (useUp) revoke();
         return "ok";
       }
       const wrongTries = Number(tries) + 1;
-      if (wrongTries >= RESET_CODE.maxTries) {
+      if (wrongTries >= OTP.maxTries) {
         revoke();
         return "tooManyTries";
       }

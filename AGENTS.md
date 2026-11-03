@@ -20,7 +20,7 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts)
   src/auth.ts             createAuth(db, config, otp): better-auth (email+password, optional Google/Apple, expo plugin)
   src/auth/               one auth feature per file as better-auth plugins (password-reset.ts: Reset codes from the OtpService)
-  src/deletion/           web page for Account deletion and Data deletion (/delete-account, /delete-data): logic + htmx steps
+  src/deletion/           web page for Account deletion and Data deletion (/account; /delete-account, /delete-data lead there): logic + htmx steps
   src/emails/             one file per email (reset-code.ts, deletion-code.ts) + layout.ts (Hebrew-first bilingual text and HTML)
   src/db/index.ts         openDb(path): better-sqlite3 + Drizzle; WAL; runs migrations, seeds chains
   src/db/schema.ts        better-auth tables (generated) + re-export of appSchema.ts
@@ -44,8 +44,8 @@ apps/mobile/              Expo SDK 58 + expo-router app
                           (sheet route body) (import from "@/ui")
   src/theme/              useTheme(), springs, text() (imports docs/design/tokens.json directly; import from "@/theme")
   tests/                  all mobile tests, mirroring src/ (vitest.config.ts maps "@/" to src/)
-packages/shared/          @grocer/shared: rules both apps share, as plain TS with no build (reset-code.ts: RESET_CODE,
-                          codeStatus). Import by subpath: "@grocer/shared/reset-code". Tests in packages/shared/tests/
+packages/shared/          @grocer/shared: rules both apps share, as plain TS with no build (otp.ts: OTP,
+                          codeStatus). Import by subpath: "@grocer/shared/otp". Tests in packages/shared/tests/
 docs/                     research and design notes (docs/research/, docs/design/)
 ```
 

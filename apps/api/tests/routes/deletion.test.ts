@@ -52,6 +52,12 @@ const form = (path: string, body: Record<string, string>, { cookie, origin = ORI
 const step = async (res: Response) => (await res.text()).match(/data-step="([^"]+)"/)?.[1];
 const sendCode = (cookie: string, kind: string, extra: Record<string, string> = {}) => form("/deletion/code/send", { kind, ...extra }, { cookie });
 const verify = (cookie: string, kind: string, code: string) => form("/deletion/code/verify", { kind, code }, { cookie });
+const confirm = (cookie: string, kind: string, code: string) => form("/deletion/code/confirm", { kind, code }, { cookie });
+/** The right code, then the last confirmation. */
+async function deleteWith(cookie: string, kind: string, code: string) {
+  expect(await step(await verify(cookie, kind, code))).toBe("confirm");
+  return confirm(cookie, kind, code);
+}
 const listsCall = (cookie: string, method = "GET", path = "", body?: unknown) =>
   app.request(`/api/lists${path}`, { method, headers: { cookie, "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
 
@@ -79,8 +85,8 @@ const membersOf = (list: string) =>
 const sessionWorks = async (cookie: string) => (await (await app.request("/api/auth/get-session", { headers: { cookie } })).json()) !== null;
 
 describe("deletion page", () => {
-  it.each(["/delete-account", "/delete-data"])("%s is a public Hebrew RTL page that loads htmx from the API", async (path) => {
-    const res = await app.request(path);
+  it("/account is a public Hebrew RTL sign-in page that loads htmx from the API", async () => {
+    const res = await app.request("/account");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/^text\/html/);
     const page = await res.text();
@@ -98,15 +104,21 @@ describe("deletion page", () => {
     expect(htmx.headers.get("content-type")).toMatch(/javascript/);
   });
 
-  it("offers Google only when it is configured", async () => {
-    expect(await (await app.request("/delete-account")).text()).not.toContain("/deletion/sign-in/google");
-    setup({ GOOGLE_CLIENT_ID: "google-id", GOOGLE_CLIENT_SECRET: "google-secret" });
-    expect(await (await app.request("/delete-account")).text()).toContain("/deletion/sign-in/google");
+  it.each(["/delete-account", "/delete-data"])("signed out, %s redirects to the start of the flow", async (path) => {
+    const res = await app.request(path);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/account");
   });
 
-  it("signed in, goes straight to the account email, sign-out and both buttons", async () => {
+  it("offers Google only when it is configured", async () => {
+    expect(await (await app.request("/account")).text()).not.toContain("/deletion/sign-in/google");
+    setup({ GOOGLE_CLIENT_ID: "google-id", GOOGLE_CLIENT_SECRET: "google-secret" });
+    expect(await (await app.request("/account")).text()).toContain("/deletion/sign-in/google");
+  });
+
+  it.each(["/account", "/delete-account", "/delete-data"])("signed in, %s shows the account email, sign-out and both buttons", async (path) => {
     const { cookie } = await signUp("a@delete.test");
-    const page = await (await app.request("/delete-data", { headers: { cookie } })).text();
+    const page = await (await app.request(path, { headers: { cookie } })).text();
     expect(page).toContain('data-step="choose"');
     expect(page).toContain("a@delete.test");
     expect(page).toContain('hx-post="/deletion/sign-out"');
@@ -114,10 +126,10 @@ describe("deletion page", () => {
     expect(page).toContain('value="data"');
   });
 
-  it("shows an OAuth error that comes back to the page, and a no-account one by name", async () => {
-    expect(await (await app.request("/delete-account?error=signup_disabled")).text()).toContain('data-error="noAccount"');
-    expect(await (await app.request("/delete-account?error=state_mismatch")).text()).toContain('data-error="oauth"');
-    expect(await (await app.request("/delete-account?error=<script>")).text()).not.toContain("<script>alert");
+  it("shows an OAuth error that comes back to the start, and a no-account one by name", async () => {
+    expect(await (await app.request("/account?error=signup_disabled")).text()).toContain('data-error="noAccount"');
+    expect(await (await app.request("/account?error=state_mismatch")).text()).toContain('data-error="oauth"');
+    expect(await (await app.request("/account?error=<script>")).text()).not.toContain("<script>alert");
   });
 });
 
@@ -148,16 +160,14 @@ describe("sign-in", () => {
     expect(deps.db.select().from(user).all()).toEqual([]);
   });
 
-  it("Google redirects through better-auth and comes back to the page it started on", async () => {
+  it("Google redirects through better-auth", async () => {
     setup({ GOOGLE_CLIENT_ID: "google-id", GOOGLE_CLIENT_SECRET: "google-secret" });
-    const res = await form("/deletion/sign-in/google", { page: "/delete-data" });
+    const res = await form("/deletion/sign-in/google", {});
     expect(res.status).toBe(302);
     const to = new URL(res.headers.get("location")!);
     expect(to.origin).toBe("https://accounts.google.com");
     expect(to.searchParams.get("redirect_uri")).toBe(`${ORIGIN}/api/auth/callback/google`);
     expect(res.headers.getSetCookie().join()).toContain("state");
-    // The callback's redirect targets come from the stored state; this one only names the page.
-    expect((await form("/deletion/sign-in/google", { page: "https://evil.test" })).status).toBe(400);
   });
 
   it("Google and Apple never sign up implicitly; the app asks for sign-up explicitly", async () => {
@@ -167,10 +177,11 @@ describe("sign-in", () => {
     expect(providers.apple?.disableImplicitSignUp).toBe(true);
   });
 
-  it("sign-out ends the session and shows the sign-in step", async () => {
+  it("sign-out ends the session and sends the page back to the start", async () => {
     const { cookie } = await signUp("a@delete.test");
     const res = await form("/deletion/sign-out", {}, { cookie });
-    expect(await step(res)).toBe("sign-in");
+    expect(res.headers.get("hx-redirect")).toBe("/account");
+    expect(res.headers.getSetCookie().join()).toMatch(/session_token=;/);
     expect(await sessionWorks(cookie)).toBe(false);
   });
 
@@ -187,7 +198,8 @@ describe("Deletion code", () => {
   it("the code endpoints answer 401 without a session", async () => {
     expect((await form("/deletion/code/send", { kind: "account" })).status).toBe(401);
     expect((await form("/deletion/code/verify", { kind: "account", code: "123456" })).status).toBe(401);
-    expect((await app.request("/deletion/choose")).status).toBe(401);
+    expect((await form("/deletion/code/confirm", { kind: "account", code: "123456" })).status).toBe(401);
+    expect((await form("/deletion/cancel", { kind: "account" })).status).toBe(401);
     expect(mail.sent).toHaveLength(0);
   });
 
@@ -223,8 +235,21 @@ describe("Deletion code", () => {
 
     await sendCode(cookie, "account");
     await vi.waitFor(() => expect(mail.sent).toHaveLength(2));
-    expect(await step(await verify(cookie, "account", codeFrom()))).toBe("done");
+    expect(await step(await deleteWith(cookie, "account", codeFrom()))).toBe("done");
     expect(deps.db.select().from(user).where(eq(user.id, id)).get()).toBeUndefined();
+  });
+
+  it("a right code only reaches the last confirmation; nothing is deleted until it is confirmed", async () => {
+    const { cookie, id } = await signUp("a@delete.test");
+    await sendCode(cookie, "account");
+    await vi.waitFor(() => expect(mail.sent).toHaveLength(1));
+    const body = await (await verify(cookie, "account", codeFrom())).text();
+    expect(body).toContain('data-step="confirm"');
+    expect(body).toContain('hx-post="/deletion/code/confirm"');
+    expect(deps.db.select().from(user).where(eq(user.id, id)).get()).toBeDefined();
+    // Confirming checks the code again: a wrong one deletes nothing.
+    expect(await (await confirm(cookie, "account", wrong(codeFrom()))).text()).toContain('data-error="wrong"');
+    expect(deps.db.select().from(user).where(eq(user.id, id)).get()).toBeDefined();
   });
 
   it("a code older than 5 minutes is rejected", async () => {
@@ -238,13 +263,15 @@ describe("Deletion code", () => {
     expect(deps.db.select().from(user).where(eq(user.id, id)).get()).toBeDefined();
   });
 
-  it("cancel goes back to the signed-in step and deletes nothing", async () => {
+  it.each(["code", "confirm"])("cancel at the %s step kills the code, deletes nothing and goes back to choose", async (at) => {
     const { cookie } = await signUp("a@delete.test");
     await listsCall(cookie);
     const body = await (await sendCode(cookie, "account")).text();
-    expect(body).toContain('hx-get="/deletion/choose"');
-    const res = await app.request("/deletion/choose", { headers: { cookie } });
-    expect(await step(res)).toBe("choose");
+    expect(body).toContain('hx-post="/deletion/cancel"');
+    await vi.waitFor(() => expect(mail.sent).toHaveLength(1));
+    if (at === "confirm") expect(await (await verify(cookie, "account", codeFrom())).text()).toContain('hx-post="/deletion/cancel"');
+    expect(await step(await form("/deletion/cancel", { kind: "account" }, { cookie }))).toBe("choose");
+    expect(await (await confirm(cookie, "account", codeFrom())).text()).toContain('data-error="expired"');
     expect(await sessionWorks(cookie)).toBe(true);
     expect(listIds()).toHaveLength(1);
   });
@@ -292,6 +319,8 @@ describe("Deletion code", () => {
     expect((await form("/deletion/code/send", { kind: "everything" }, { cookie })).status).toBe(400);
     expect((await form("/deletion/code/send", {}, { cookie })).status).toBe(400);
     expect((await form("/deletion/code/verify", { kind: "account" }, { cookie })).status).toBe(400);
+    expect((await form("/deletion/code/confirm", { kind: "data" }, { cookie })).status).toBe(400);
+    expect((await form("/deletion/cancel", {}, { cookie })).status).toBe(400);
     expect((await form("/deletion/sign-in", { email: "a@delete.test" })).status).toBe(400);
     expect(mail.sent).toHaveLength(0);
   });
@@ -310,7 +339,7 @@ describe("Account deletion", () => {
     const { a, b, aList, bList } = await shared();
     await sendCode(a.cookie, "account");
     await vi.waitFor(() => expect(mail.sent).toHaveLength(1));
-    const res = await verify(a.cookie, "account", codeFrom());
+    const res = await deleteWith(a.cookie, "account", codeFrom());
     expect(await step(res)).toBe("done");
     expect(res.headers.getSetCookie().join()).toMatch(/session_token=;/);
 
@@ -328,7 +357,7 @@ describe("Data deletion", () => {
     const { a, b, bList } = await shared();
     await sendCode(a.cookie, "data");
     await vi.waitFor(() => expect(mail.sent).toHaveLength(1));
-    const res = await verify(a.cookie, "data", codeFrom());
+    const res = await deleteWith(a.cookie, "data", codeFrom());
     expect(await step(res)).toBe("done");
     expect(res.headers.getSetCookie()).toEqual([]);
 

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { codeStatus } from "@grocer/shared/reset-code";
+import { codeStatus } from "@grocer/shared/otp";
 
 const sentAt = 1_000_000;
 const at = (s: number) => sentAt + s * 1000;

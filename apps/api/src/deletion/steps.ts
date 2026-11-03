@@ -1,10 +1,8 @@
 import { html } from "hono/html";
-import { RESET_CODE } from "@grocer/shared/reset-code";
+import { OTP } from "@grocer/shared/otp";
 import type { DeletionKind } from "#/deletion/deletion.ts";
 
 /** The deletion page's steps as HTML fragments: htmx posts each form and swaps the answer into #step. Hebrew only. */
-
-export const PAGES = ["/delete-account", "/delete-data"] as const;
 
 const COPY = {
   account: {
@@ -25,7 +23,7 @@ const ERRORS = {
   noAccount: "אין חשבון Grocer לחשבון הזה. הדף הזה לא יוצר חשבונות.",
   oauth: "הכניסה לא הצליחה. נסו שוב.",
   wrong: "הקוד שגוי. נסו שוב.",
-  tooManyTries: `הוזן קוד שגוי ${RESET_CODE.maxTries} פעמים, ולכן הקוד בוטל.`,
+  tooManyTries: `הוזן קוד שגוי ${OTP.maxTries} פעמים, ולכן הקוד בוטל.`,
   expired: "הקוד כבר לא בתוקף.",
 } as const;
 export type StepError = keyof typeof ERRORS;
@@ -34,7 +32,7 @@ const alert = (error?: StepError) => (error ? html`<p class="error" role="alert"
 const hidden = (name: string, value: string) => html`<input type="hidden" name="${name}" value="${value}">`;
 
 /** Signed out. Google is a plain form post: the browser follows better-auth's redirect, so no third-party script loads. */
-export const signInStep = ({ page, google, error }: { page: string; google: boolean; error?: StepError }) => html`<div data-step="sign-in">
+export const signInStep = ({ google, error }: { google: boolean; error?: StepError }) => html`<div data-step="sign-in">
   ${alert(error)}
   <form hx-post="/deletion/sign-in" hx-disabled-elt="find button">
     <label for="email">אימייל</label>
@@ -46,7 +44,6 @@ export const signInStep = ({ page, google, error }: { page: string; google: bool
   ${google
     ? html`<p class="or">או</p>
   <form method="post" action="/deletion/sign-in/google">
-    ${hidden("page", page)}
     <button type="submit" class="secondary">כניסה עם Google</button>
   </form>`
     : ""}
@@ -65,6 +62,12 @@ export const chooseStep = (email: string) => html`<div data-step="choose">
   ${kindButton("account")}
 </div>`;
 
+/** Backing out kills the code and returns to the choose step. */
+const cancel = (kind: DeletionKind) => html`<form hx-post="/deletion/cancel">
+    ${hidden("kind", kind)}
+    <button type="submit" class="secondary">ביטול</button>
+  </form>`;
+
 /** The warning and the code input. A dead code (too many tries, expired) offers "send again" instead of the input. */
 export const codeStep = (kind: DeletionKind, email: string, error?: "wrong" | "tooManyTries" | "expired") => html`<div data-step="code" class="danger-zone">
   <h2>בטוחים?</h2>
@@ -75,15 +78,26 @@ export const codeStep = (kind: DeletionKind, email: string, error?: "wrong" | "t
     ${hidden("kind", kind)}
     <button type="submit" autofocus>שליחת קוד חדש</button>
   </form>`
-    : html`<p id="sent">שלחנו קוד בן ${RESET_CODE.length} ספרות אל <bdi dir="ltr">${email}</bdi>. הקוד בתוקף ל-${RESET_CODE.minutes} דקות.</p>
+    : html`<p id="sent">שלחנו קוד בן ${OTP.length} ספרות אל <bdi dir="ltr">${email}</bdi>. הקוד בתוקף ל-${OTP.minutes} דקות.</p>
   <form hx-post="/deletion/code/verify" hx-disabled-elt="find button">
     ${hidden("kind", kind)}
     <label for="code">הקוד מהאימייל</label>
-    <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{${RESET_CODE.length}}"
-      maxlength="${RESET_CODE.length}" dir="ltr" required autofocus aria-describedby="sent warning">
-    <button type="submit" class="danger">${COPY[kind].button}</button>
+    <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{${OTP.length}}"
+      maxlength="${OTP.length}" dir="ltr" required autofocus aria-describedby="sent warning">
+    <button type="submit">המשך</button>
   </form>`}
-  <button type="button" class="secondary" hx-get="/deletion/choose">ביטול</button>
+  ${cancel(kind)}
+</div>`;
+
+/** The last confirmation after a right code. The code goes along again, and only this button deletes. */
+export const confirmStep = (kind: DeletionKind, code: string) => html`<div data-step="confirm" class="danger-zone">
+  <h2>זה הרגע האחרון לבטל</h2>
+  <p id="final">${COPY[kind].warning}</p>
+  <form hx-post="/deletion/code/confirm" hx-disabled-elt="find button">
+    ${hidden("kind", kind)} ${hidden("code", code)}
+    <button type="submit" class="danger" aria-describedby="final">${COPY[kind].button}</button>
+  </form>
+  ${cancel(kind)}
 </div>`;
 
 export const doneStep = (kind: DeletionKind) => html`<div data-step="done">

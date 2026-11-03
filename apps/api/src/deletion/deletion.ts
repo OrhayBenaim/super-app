@@ -17,12 +17,18 @@ export function sendDeletionCode({ otp }: Deps, kind: DeletionKind, { email }: S
   otp.send(deletionCodeEmail(email, otp.create(purpose(kind), email), kind));
 }
 
-/** Checks the Deletion code; the right one commits the deletion in the same call. */
-export function verifyAndDelete(deps: Deps, kind: DeletionKind, signedIn: SignedIn, code: string): OtpResult {
+/** Checks the Deletion code before the last confirmation. The right one stays live; each wrong try counts. */
+export const checkDeletionCode = ({ otp }: Deps, kind: DeletionKind, { email }: SignedIn, code: string) => otp.check(purpose(kind), email, code);
+
+/** The last confirmation: the code is checked again and used up, and the right one commits the deletion. */
+export function confirmDeletion(deps: Deps, kind: DeletionKind, signedIn: SignedIn, code: string): OtpResult {
   const result = deps.otp.verify(purpose(kind), signedIn.email, code);
   if (result === "ok") (kind === "account" ? deleteAccount : deleteData)(deps, signedIn.id);
   return result;
 }
+
+/** Backing out kills the code, so it can't be used later. */
+export const cancelDeletion = ({ otp }: Deps, kind: DeletionKind, { email }: SignedIn) => otp.revoke(purpose(kind), email);
 
 /** Account deletion: removing the User; schema cascades remove owned Lists, memberships, sessions and sign-in accounts. */
 function deleteAccount({ db }: Deps, userId: string) {

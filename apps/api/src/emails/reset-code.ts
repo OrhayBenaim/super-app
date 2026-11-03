@@ -1,8 +1,8 @@
-import { RESET_CODE } from "@grocer/shared/reset-code";
+import { OTP } from "@grocer/shared/otp";
 import { bilingualEmail } from "#/emails/layout.ts";
 
 export function resetCodeEmail(to: string, code: string) {
-  const { minutes } = RESET_CODE;
+  const { minutes } = OTP;
   return bilingualEmail({
     to,
     subject: "קוד לאיפוס הסיסמה · Your Grocer reset code",

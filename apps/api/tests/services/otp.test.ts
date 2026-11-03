@@ -32,6 +32,16 @@ describe("OtpService", () => {
     expect(otp.verify("password-reset", "a@otp.test", code)).toBe("expired");
   });
 
+  it("check leaves a right code live and counts wrong tries like verify", () => {
+    const code = otp.create("delete-data", "a@otp.test");
+    expect(otp.check("delete-data", "a@otp.test", code)).toBe("ok");
+    expect(otp.check("delete-data", "a@otp.test", wrong(code))).toBe("wrong");
+    expect(otp.check("delete-data", "a@otp.test", code)).toBe("ok");
+    expect(otp.check("delete-data", "a@otp.test", wrong(code))).toBe("wrong");
+    expect(otp.check("delete-data", "a@otp.test", wrong(code))).toBe("tooManyTries");
+    expect(otp.verify("delete-data", "a@otp.test", code)).toBe("expired");
+  });
+
   it("keeps purposes and emails apart", () => {
     const code = otp.create("delete-data", "a@otp.test");
     expect(otp.verify("delete-account", "a@otp.test", code)).toBe("expired");
