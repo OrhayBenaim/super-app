@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api", () => ({ api: vi.fn() }));
+vi.mock("expo-image", () => ({ Image: { prefetch: vi.fn() } }));
 
 import { splitResults, type SearchResult } from "@/features/items/products";
 

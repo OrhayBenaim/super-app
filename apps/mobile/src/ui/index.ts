@@ -9,6 +9,7 @@ export { Screen } from "./Screen";
 export { SearchField } from "./SearchField";
 export { ShoppingLoader } from "./ShoppingLoader";
 export { Sheet, SheetHeader, SheetTextField } from "./Sheet";
+export { Skeleton } from "./Skeleton";
 export { SwipeRow } from "./SwipeRow";
 export { Tap } from "./Tap";
 export { Text } from "./Text";

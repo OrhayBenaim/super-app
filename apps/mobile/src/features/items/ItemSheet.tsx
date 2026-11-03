@@ -10,7 +10,8 @@ import { Group, Row, SearchField, Sheet, SheetHeader, SheetTextField } from "@/u
 import { requestDelete } from "./pendingDelete";
 import { GroupResult } from "./GroupResult";
 import { groupTitle, productDetail } from "./labels";
-import { splitResults, useProductSearch } from "./products";
+import { ProductImage } from "./ProductImage";
+import { splitResults, useProductImage, useProductSearch } from "./products";
 
 export type ItemPage = "form" | "category" | "product";
 
@@ -36,6 +37,7 @@ export function ItemSheet() {
   const [query, setQuery] = useState("");
   const search = useProductSearch(page === "product" ? query : "");
   const found = splitResults(search.data);
+  const productImage = useProductImage(productCode);
 
   // Seed the form once the item is known; keyed on the id because refetches hand us a fresh `item` object.
   useEffect(() => {
@@ -80,6 +82,7 @@ export function ItemSheet() {
             <Row
               title={t("items.product")}
               analyticsName={Taps.itemsProduct}
+              leading={<ProductImage url={productImage} />}
               value={productName ?? (productCode ? t("items.matched") : groupRef ? t("items.matchedGroup") : t("items.product.optional"))}
               chevron
               onPress={() => setPage("product")}
@@ -157,6 +160,7 @@ export function ItemSheet() {
                   detail={productDetail(p, t, true)}
                   accessibilityState={{ selected: p.code === productCode }}
                   analyticsName={Taps.itemsProductPick}
+                  leading={<ProductImage url={p.imageUrl} />}
                   trailing={<Barcode size={20} color={colors.labelSecondary} strokeWidth={1.75} />}
                   onPress={() => pick(p.code, null, p.name)}
                 />

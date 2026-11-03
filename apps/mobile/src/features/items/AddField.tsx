@@ -13,6 +13,7 @@ import { suggestItems } from "./autocomplete";
 import { GroupResult } from "./GroupResult";
 import { AddBadge, ItemRow } from "./ItemRow";
 import { groupTitle, productDetail } from "./labels";
+import { ProductImage } from "./ProductImage";
 import { splitResults, useProductSearch, type Product, type ProductGroup } from "./products";
 
 type Props = {
@@ -71,6 +72,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
       detail={productDetail(p, t)}
       accessibilityLabel={fmt(t(from === "list" ? "items.addToList" : "items.add.createInItems"), { name: p.name })}
       analyticsName={Taps.itemsAddProduct}
+      leading={<ProductImage url={p.imageUrl} />}
       trailing={<AddBadge />}
       onPress={() => createItem(p.name, { productCode: p.code })}
     />

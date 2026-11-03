@@ -200,6 +200,7 @@ export const en = {
   "settings.deleteBody": "Lists you own will be deleted for everyone you shared them with. This can't be undone.",
   "settings.deleteReauth": "For your security, sign in again to delete your account.",
   "settings.deleteFailed": "Your account wasn't deleted. Check your connection and try again.",
+  "settings.imageCredit": "Some product images come from Open Food Facts (CC BY-SA).",
 };
 
 export type StringKey = keyof typeof en;
@@ -404,6 +405,7 @@ export const he: Record<StringKey, string> = {
   "settings.deleteBody": "רשימות שבבעלותכם יימחקו לכל מי ששיתפתם איתם. אי אפשר לבטל את הפעולה.",
   "settings.deleteReauth": "מטעמי אבטחה, התחברו שוב כדי למחוק את החשבון.",
   "settings.deleteFailed": "החשבון לא נמחק. בדקו את החיבור ונסו שוב.",
+  "settings.imageCredit": "חלק מתמונות המוצרים מגיעות מ-Open Food Facts ‏(CC BY-SA).",
 };
 
 // Read once: changing the device language restarts the app on both platforms.
