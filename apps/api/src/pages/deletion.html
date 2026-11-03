@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="robots" content="noindex">
+<title>Grocer · {{title}}</title>
+<style>
+  /* Values from docs/design/tokens.json, like privacy.html, so the page looks like the app (light-only, like the app). */
+  :root {
+    --grouped-bg: #F2F2F7;
+    --surface: #FFFFFF;
+    --fill-control: #E3E3E8;
+    --label: #000000;
+    --label-secondary: #5F5F64;
+    --control-outline: #8A8A8F;
+    --tint: #3446D6;
+    --tint-on: #FFFFFF;
+    --danger: #D70015;
+    --on-danger: #FFFFFF;
+    --radius-control: 10px;
+    --radius-group: 12px;
+    --radius-button: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--grouped-bg);
+    color: var(--label);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Hebrew", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 22px;
+    letter-spacing: -0.4px;
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 480px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { margin: 0 4px 24px; }
+  h1 { margin: 0 0 8px; font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: 0.4px; }
+  h2 { margin: 0 0 8px; font-size: 20px; line-height: 25px; font-weight: 600; letter-spacing: 0; }
+  p { margin: 0; }
+  #step { padding: 16px; background: var(--surface); border-radius: var(--radius-group); }
+  #step > div > * + * { margin-top: 16px; }
+  form { display: flex; flex-direction: column; gap: 8px; }
+  label { font-weight: 600; }
+  .hint { color: var(--label-secondary); font-size: 15px; line-height: 20px; letter-spacing: -0.2px; }
+  input {
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--control-outline);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    color: var(--label);
+    font: inherit;
+  }
+  #code { letter-spacing: 4px; text-align: center; }
+  button, .button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 50px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: var(--radius-button);
+    background: var(--tint);
+    color: var(--tint-on);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .button.secondary { background: var(--fill-control); color: var(--tint); }
+  button.danger { background: var(--danger); color: var(--on-danger); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  :focus-visible { outline: 3px solid var(--tint); outline-offset: 2px; }
+  .danger-zone h2, .error { color: var(--danger); }
+  #busy { margin-top: 16px; }
+</style>
+</head>
+<!-- 429s and network failures swap nothing, so say something went wrong instead of doing nothing. -->
+<body hx-on::before-request="busy.hidden = true" hx-on::response-error="busy.hidden = false" hx-on::send-error="busy.hidden = false">
+<main>
+  <header>
+    <h1>{{title}}</h1>
+    <p>{{intro}}</p>
+  </header>
+  <div id="step" hx-target="this">{{step}}</div>
+  <p id="busy" class="error" role="alert" hidden>משהו השתבש. נסו שוב בעוד דקה.</p>
+</main>
+<script src="/assets/htmx.min.js"></script>
+</body>
+</html>

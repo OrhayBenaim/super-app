@@ -13,6 +13,8 @@ describe("GET /privacy", () => {
     expect(page.indexOf('<article id="he">')).toBeLessThan(page.indexOf('<article id="en" lang="en" dir="ltr">'));
     for (const vendor of ["Sentry", "PostHog", "Resend"]) expect(page).toContain(vendor);
     expect(page).toContain("mailto:privacy@otterstory.club");
+    // Google Play's Data safety form links these pages; the policy links them in both languages.
+    for (const path of ["/delete-account", "/delete-data"]) expect(page.match(new RegExp(`href="${path}"`, "g"))).toHaveLength(2);
   });
 
   it("is rate limited like every route", async () => {

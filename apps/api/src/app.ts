@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import type { Deps } from "#/deps.ts";
 import { rateLimit, type AppEnv } from "#/middleware.ts";
+import { deletionRoutes } from "#/routes/deletion.ts";
 import { listsRoutes } from "#/routes/lists.ts";
 import { pricesRoutes } from "#/routes/prices.ts";
 import { privacyRoutes } from "#/routes/privacy.ts";
@@ -21,6 +22,7 @@ export function createApp(deps: Deps) {
     .use("/api/auth/sign-in/*", rateLimit({ max: 10, windowMs: MINUTE }))
     .use("/api/auth/sign-up/*", rateLimit({ max: 10, windowMs: MINUTE }))
     .use("/api/auth/email-otp/*", rateLimit({ max: 5, windowMs: MINUTE }))
+    .use("/deletion/*", rateLimit({ max: 5, windowMs: MINUTE })) // Deletion codes, like Reset codes
     .use("/api/lists/join", rateLimit({ max: 10, windowMs: MINUTE }))
     // Every JSON body is a few KB at most; without a cap, one unauthenticated sign-up could buffer gigabytes.
     .use(bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: "too_large" }, 413) }))
@@ -40,6 +42,8 @@ export function createApp(deps: Deps) {
     .route("/api", pricesRoutes)
     // Public page for the store listings (Google Play requires a privacy policy URL).
     .route("/privacy", privacyRoutes)
+    // Public Account deletion and Data deletion pages (Google Play's Data safety form links them).
+    .route("/", deletionRoutes)
     .onError((error, c) => {
       if (error instanceof HTTPException) return error.getResponse();
       console.error(error);
