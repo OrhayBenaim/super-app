@@ -33,6 +33,7 @@ export function passwordReset(db: Db, otp: OtpService) {
       ),
       resetPassword: createAuthEndpoint(
         "/email-otp/reset-password",
+        // Any string: a malformed email just finds no User and gets INVALID_OTP, as with emailOTP.
         { method: "POST", body: z.object({ email: z.string(), otp: z.string(), password: z.string() }) },
         async (ctx) => {
           const email = ctx.body.email.toLowerCase();

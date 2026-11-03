@@ -35,8 +35,9 @@ export class OtpService {
     const code = String(randomInt(10 ** RESET_CODE.length)).padStart(RESET_CODE.length, "0");
     const now = this.#clock.now();
     const identifier = key(purpose, email);
+    // this.revoke inside the transaction is safe: better-sqlite3 has one connection, so it runs in the open transaction.
     this.#db.transaction((tx) => {
-      tx.delete(verification).where(eq(verification.identifier, identifier)).run();
+      this.revoke(purpose, email);
       tx.insert(verification)
         .values({
           id: randomUUID(),
@@ -61,7 +62,7 @@ export class OtpService {
     return this.#db.transaction((tx) => {
       const row = tx.select().from(verification).where(eq(verification.identifier, identifier)).get();
       if (!row) return "expired";
-      const revoke = () => tx.delete(verification).where(eq(verification.identifier, identifier)).run();
+      const revoke = () => this.revoke(purpose, email);
       if (row.expiresAt.getTime() <= now) {
         revoke();
         return "expired";

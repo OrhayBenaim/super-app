@@ -12,13 +12,13 @@ import type { OtpResult } from "#/services/otp.ts";
 export const DELETION_KINDS = ["account", "data"] as const;
 export type DeletionKind = (typeof DELETION_KINDS)[number];
 
-/** A Deletion code follows the same rules as a Reset code (CONTEXT.md). */
+/** A Deletion code follows the same rules as a Reset code (CONTEXT.md). The OtpService enforces them; this only names them. */
 export const DELETION_CODE = RESET_CODE;
 
 /** How long a proven Deletion code gives to confirm. */
 export const CONFIRM_MINUTES = 3;
 
-const verifications = async ({ auth }: Deps) => (await auth.$context).internalAdapter;
+const authAdapter = async ({ auth }: Deps) => (await auth.$context).internalAdapter;
 // The secret better-auth signs with (BETTER_AUTH_SECRET, or its own fallback in development).
 const secret = async ({ auth }: Deps) => (await auth.$context).secret;
 const purpose = (kind: DeletionKind) => `delete-${kind}` as const;
@@ -59,8 +59,8 @@ export async function redeemToken(deps: Deps, kind: DeletionKind, token: string)
     deps.errorHandler.report(new Error(`deletion: confirmation token expired (${CONFIRM_MINUTES} minutes)`));
     return { error: "expiredToken" };
   }
-  const store = await verifications(deps);
-  const used = !(await store.reserveVerificationValue({
+  // reserveVerificationValue is first-writer-wins on a key derived from the identifier: a race can't redeem twice.
+  const used = !(await (await authAdapter(deps)).reserveVerificationValue({
     identifier: `deletion-token-${token.split(".")[2]}`, // the signature: unique per token
     value: kind,
     expiresAt: new Date(payload.data.exp * 1000),
