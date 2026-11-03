@@ -12,13 +12,14 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { Illustration } from "@/features/onboarding/Illustration";
+import { SLIDES, SlideTip } from "@/features/onboarding/slides";
 import { Taps } from "@/lib/analytics";
-import { t, type StringKey } from "@/lib/strings";
+import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Button, Screen, Text } from "@/ui";
 
-const SLIDES = [1, 2, 3].map((n) => ({ title: `onboarding.${n}.title` as StringKey, body: `onboarding.${n}.body` as StringKey }));
 const N = SLIDES.length;
+const STAGES = SLIDES.map((s) => s.Stage);
 const RTL = I18nManager.isRTL;
 
 // The pager is forced LTR so offsets mean the same on iOS and Android; in RTL the slides are
@@ -29,7 +30,7 @@ export default function Onboarding() {
   const { width, height } = useWindowDimensions();
   const { space, motion } = useTheme();
   const reduced = useReducedMotion();
-  const stage = Math.min(height * 0.5, 440);
+  const stage = Math.min(height * 0.45, 380);
   const scrollX = useSharedValue(physical(0) * width);
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const [index, setIndex] = useState(0);
@@ -52,7 +53,7 @@ export default function Onboarding() {
 
   return (
     <Screen style={{ paddingHorizontal: 0 }}>
-      <View style={{ alignItems: "flex-end", paddingHorizontal: space[3], minHeight: 50 }}>
+      <View style={{ alignItems: "flex-end", paddingHorizontal: space[3], minHeight: 44 }}>
         <Animated.View
           pointerEvents={last ? "none" : "auto"}
           accessibilityElementsHidden={last}
@@ -76,17 +77,18 @@ export default function Onboarding() {
           style={{ direction: "ltr" }}
         >
           {(RTL ? [...SLIDES].reverse() : SLIDES).map((slide) => (
-            <View key={slide.title} style={{ width, paddingTop: stage, paddingHorizontal: space[7], gap: space[3] }}>
+            <View key={slide.title} style={{ width, paddingTop: stage + space[7], paddingHorizontal: space[8], gap: space[3] }}>
               <Text variant="title2" accessibilityRole="header" style={{ textAlign: "center" }}>
-                {t(slide.title)}
+                {slide.title}
               </Text>
               <Text variant="callout" color="labelSecondary" style={{ textAlign: "center" }}>
-                {t(slide.body)}
+                {slide.body}
               </Text>
+              {slide.tip && <SlideTip {...slide.tip} />}
             </View>
           ))}
         </Animated.ScrollView>
-        <Illustration scrollX={scrollX} width={width} height={stage} pages={N} rtl={RTL} />
+        <Illustration scrollX={scrollX} width={width} height={stage} rtl={RTL} stages={STAGES} />
       </View>
 
       <View style={{ alignItems: "center", gap: space[6], padding: space[5] }}>
@@ -111,5 +113,5 @@ function Dot({ i, scrollX, width }: { i: number; scrollX: SharedValue<number>; w
       backgroundColor: interpolateColor(page, range, [colors.controlOutline, colors.tint, colors.controlOutline]),
     };
   });
-  return <Animated.View style={[{ width: 7, height: 7, borderRadius: 3.5 }, style]} />;
+  return <Animated.View style={[{ width: 8, height: 8, borderRadius: 4 }, style]} />;
 }
