@@ -24,6 +24,12 @@ const order: Record<Sort, (a: StoreResult, b: StoreResult) => number> = {
 export const sortStores = (stores: StoreResult[], sort: Sort) =>
   [...stores].sort((a, b) => order[sort](a, b) || diff(a.distanceKm, b.distanceKm));
 
+/** Compare's accordion: the open store (else the first) as the card, and the sorted stores above and below it. */
+export function openSplit(sorted: StoreResult[], openId: string | null) {
+  const at = Math.max(0, sorted.findIndex((s) => s.storeId === openId));
+  return { open: sorted[at], above: sorted.slice(0, at), below: sorted.slice(at + 1) };
+}
+
 /**
  * The green "₪x less than <chain>" line for the cheapest store: only against the next store with the same
  * coverage (otherwise the totals price different baskets), and only when it is actually cheaper.

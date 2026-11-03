@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { saving, sortStores, type StoreResult } from "@/features/compare/sort";
+import { openSplit, saving, sortStores, type StoreResult } from "@/features/compare/sort";
 
 const store = (storeId: string, total: number, distanceKm: number, missing: number): StoreResult => ({
   storeId, chainId: "c", chainName: "C", storeName: storeId, address: "", city: "", lat: 0, lng: 0,
@@ -34,4 +34,12 @@ it("saving compares the cheapest store against the next one with the same covera
   expect(saving([store("x", 21.7, 1, 1), store("y", 20, 1, 2), store("z", 22.9, 1, 1)])).toEqual({ amount: 1.2, chainName: "C" });
   expect(saving([store("x", 10, 1, 0)])).toBeNull();
   expect(saving([])).toBeNull();
+});
+
+it("openSplit puts the open store as the card between the stores above and below it", () => {
+  const [a, b, c] = [store("a", 1, 1, 0), store("b", 2, 2, 0), store("c", 3, 3, 0)];
+  expect(openSplit([a, b, c], "b")).toEqual({ open: b, above: [a], below: [c] });
+  expect(openSplit([a, b, c], "gone")).toEqual({ open: a, above: [], below: [b, c] }); // refetched away: back to the first
+  expect(openSplit([a, b, c], null)).toEqual({ open: a, above: [], below: [b, c] });
+  expect(openSplit([], null)).toEqual({ open: undefined, above: [], below: [] });
 });

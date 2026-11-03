@@ -6,7 +6,7 @@ import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { openWaze } from "@/lib/waze";
 import { useTheme } from "@/theme";
-import { Button, Group, Row, Text } from "@/ui";
+import { Button, Group, Row, Tap, Text } from "@/ui";
 import { fmt, formatDistance, shekels } from "./format";
 import type { StoreResult } from "./sort";
 
@@ -91,12 +91,21 @@ export function BestStore({ store, basketSize, saving, listText, onShowMissing }
   );
 }
 
-/** "Other branches" row: chain, branch · distance, amber missing count when partial, trailing tabular price. */
-export function StoreRow({ store, basketSize }: { store: StoreResult; basketSize: number }) {
+/** "Other branches" row: chain, branch · distance, amber missing count when partial, trailing tabular price. Tap opens it as the card. */
+export function StoreRow({ store, basketSize, onPress }: { store: StoreResult; basketSize: number; onPress: () => void }) {
   const { space, size } = useTheme();
   const missing = basketSize - store.matched;
   return (
-    <View accessible style={{ flexDirection: "row", alignItems: "center", gap: space[3], minHeight: size.row, paddingHorizontal: space[5], paddingVertical: space[3] }}>
+    <Tap
+      // The label replaces the row's text for screen readers, so it must keep the missing count (honest coverage).
+      accessibilityLabel={[`${store.chainName} ${store.storeName}`, formatDistance(store.distanceKm, t), shekels(store.total), missing > 0 && fmt(t("compare.missingCount"), { n: missing })]
+        .filter(Boolean)
+        .join(", ")}
+      analyticsName={Taps.compareStore}
+      onPress={onPress}
+      scaleTo={1}
+      style={{ flexDirection: "row", alignItems: "center", gap: space[3], minHeight: size.row, paddingHorizontal: space[5], paddingVertical: space[3] }}
+    >
       <View style={{ flex: 1, gap: space[1] }}>
         <Text numberOfLines={1}>{store.chainName}</Text>
         <Text variant="subhead" color="labelSecondary" numberOfLines={1}>
@@ -109,6 +118,6 @@ export function StoreRow({ store, basketSize }: { store: StoreResult; basketSize
         </Text>
       )}
       <Text variant="priceRow">{shekels(store.total)}</Text>
-    </View>
+    </Tap>
   );
 }

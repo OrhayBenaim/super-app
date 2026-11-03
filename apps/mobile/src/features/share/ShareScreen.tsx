@@ -1,36 +1,33 @@
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import { UserMinus } from "lucide-react-native";
+import { Check, UserMinus } from "lucide-react-native";
 import { useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Share, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Share, TextInput, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { fmt } from "@/features/compare/format";
-import { listName, useCurrentListId, useList } from "@/features/lists/api";
+import { listName, selectList, useCurrentListId, useList, useLists } from "@/features/lists/api";
 import { Avatar } from "@/features/lists/Avatars";
 import { Taps } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/strings";
 import { text, useTheme } from "@/theme";
-import { Button, Group, IconButton, Row, SheetHeader, Text } from "@/ui";
+import { Button, Group, IconButton, Row, Screen, SheetHeader, Text } from "@/ui";
 import { useShareMutations } from "./api";
 
 const CODE_IN = FadeIn.duration(200);
 
-/** Share sheet (modal route): members, invite code, and "join another list" pushed inside. */
+/** Share sheet (modal route): members, invite code, switching lists, and "join another list" pushed inside. */
 export function ShareScreen() {
   const router = useRouter();
-  const { colors, space } = useTheme();
+  const { space } = useTheme();
   const [joining, setJoining] = useState(false);
   const close = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)"));
+  // The modal is full screen on Android, so it needs the top safe-area inset; on iOS it is a page sheet already below the status bar.
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.groupedBg }}
-      contentContainerStyle={{ paddingHorizontal: space[5], paddingTop: space[3], paddingBottom: space[9] }}
-      keyboardShouldPersistTaps="handled"
-    >
+    <Screen scroll edges={Platform.OS === "ios" ? ["bottom"] : ["top", "bottom"]} style={{ paddingTop: space[3], paddingBottom: space[9] }}>
       {joining ? <Join onBack={() => setJoining(false)} onJoined={close} /> : <Members onDone={close} onJoin={() => setJoining(true)} />}
-    </ScrollView>
+    </Screen>
   );
 }
 
@@ -50,7 +47,7 @@ function Members({ onDone, onJoin }: { onDone: () => void; onJoin: () => void })
       {
         text: t(self ? "share.leave" : "common.remove"),
         style: "destructive",
-        onPress: () => removeMember.mutate({ userId, self }, { onSuccess: () => self && onDone(), onError: fail }),
+        onPress: () => removeMember.mutate(userId, { onSuccess: () => self && onDone(), onError: fail }),
       },
     ]);
 
@@ -108,9 +105,7 @@ function Members({ onDone, onJoin }: { onDone: () => void; onJoin: () => void })
         </View>
       </Group>
 
-      <Group style={{ marginTop: space[6] }}>
-        <Row title={t("share.join")} analyticsName={Taps.shareJoin} chevron onPress={onJoin} />
-      </Group>
+      <Lists current={listId} onPicked={onDone} onJoin={onJoin} />
 
       {data && !isOwner && (
         <Group style={{ marginTop: space[6] }}>
@@ -118,6 +113,33 @@ function Members({ onDone, onJoin }: { onDone: () => void; onJoin: () => void })
         </Group>
       )}
     </>
+  );
+}
+
+/** "Your lists" (only with more than one) to switch the selected list, then "Join another list". */
+function Lists({ current, onPicked, onJoin }: { current: string | null; onPicked: () => void; onJoin: () => void }) {
+  const { colors, space } = useTheme();
+  const lists = useLists().data ?? [];
+  const many = lists.length > 1;
+  // The section header brings its own top spacing.
+  return (
+    <Group title={many ? t("share.lists") : undefined} style={many ? undefined : { marginTop: space[6] }}>
+      {many &&
+        lists.map((l) => (
+          <Row
+            key={l.id}
+            title={listName(l)}
+            accessibilityState={{ selected: l.id === current }}
+            trailing={l.id === current ? <Check size={20} color={colors.tint} strokeWidth={2} /> : undefined}
+            analyticsName={Taps.shareSwitchList}
+            onPress={() => {
+              selectList(l.id);
+              onPicked();
+            }}
+          />
+        ))}
+      <Row title={t("share.join")} analyticsName={Taps.shareJoin} chevron onPress={onJoin} />
+    </Group>
   );
 }
 

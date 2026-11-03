@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/api", () => ({ api: vi.fn() }));
 vi.mock("@/lib/analytics", () => ({ Events: {}, track: vi.fn() }));
 vi.mock("@/lib/strings", () => ({ t: (k: string) => k }));
+vi.mock("expo-secure-store", () => ({ getItem: () => null, setItemAsync: vi.fn(), deleteItemAsync: vi.fn() }));
 
-import { basketSize, matchKey, missingBasket, type Item, type ListDetail } from "@/features/lists/api";
+import { basketSize, currentListId, matchKey, missingBasket, type Item, type ListDetail } from "@/features/lists/api";
 
 const item = (id: string, over: Partial<Item> = {}): Item => ({
   id, listId: "l", name: id, category: "c", productCode: null, groupRef: null, missing: true, createdAt: "", updatedAt: "", ...over,
@@ -40,5 +41,20 @@ describe("basketSize", () => {
     expect(basketSize({ codes: [], groups: [] })).toBe(0);
     expect(basketSize({ codes: ["1", "2"], groups: ["g|kg"] })).toBe(3);
     expect(basketSize({ codes: [], groups: ["g|kg"] })).toBe(1);
+  });
+});
+
+describe("currentListId", () => {
+  const lists = [{ id: "a" }, { id: "b" }];
+  it("keeps the stored pick while it is still one of the lists", () => {
+    expect(currentListId("b", lists)).toBe("b");
+  });
+  it("falls back to the first list when the pick was left or removed, or nothing is stored", () => {
+    expect(currentListId("gone", lists)).toBe("a");
+    expect(currentListId(null, lists)).toBe("a");
+    expect(currentListId("gone", [])).toBeNull();
+  });
+  it("trusts the stored pick until the lists load", () => {
+    expect(currentListId("b", undefined)).toBe("b");
   });
 });

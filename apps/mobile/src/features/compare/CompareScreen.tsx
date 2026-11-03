@@ -2,7 +2,7 @@ import { useIsFocused, useRouter } from "expo-router";
 import { MapPin, SearchX, ShoppingBasket, TriangleAlert } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshControl, ScrollView } from "react-native";
-import Animated, { LinearTransition } from "react-native-reanimated";
+import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
 import { basketSize, missingBasket, missingItems, useCurrentListId, useList } from "@/features/lists/api";
 import { syncGeofences, useNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
@@ -16,7 +16,7 @@ import { BestStore, StoreRow } from "./BestStore";
 import { fmt } from "./format";
 import type { MissingStore } from "./MissingSheet";
 import { RadiusMenu } from "./RadiusMenu";
-import { saving, sortStores, type Sort } from "./sort";
+import { openSplit, saving, sortStores, type Sort } from "./sort";
 import { SortControl } from "./SortControl";
 
 // Rows glide to their new slot when the sort changes; snappy matches the segmented thumb.
@@ -43,8 +43,10 @@ function useMinDuration(on: boolean, ms: number) {
 
 export function CompareScreen() {
   const router = useRouter();
-  const { space, colors } = useTheme();
+  const { space, colors, motion } = useTheme();
   const [sort, setSort] = useState<Sort>("price");
+  // The store shown as the big card; null = the first one in the current sort.
+  const [openId, setOpenId] = useState<string | null>(null);
   const { km: radiusKm, set: setRadiusKm } = useRadius();
   const [pulling, setPulling] = useState(false);
 
@@ -60,8 +62,11 @@ export function CompareScreen() {
   const { toast } = useDeleteWithUndo(listId);
 
   const byPrice = useMemo(() => sortStores(compare.data?.stores ?? [], "price"), [compare.data]);
-  const best = byPrice[0];
-  const others = useMemo(() => sortStores(byPrice.slice(1), sort), [byPrice, sort]);
+  const sorted = useMemo(() => sortStores(byPrice, sort), [byPrice, sort]);
+  // Accordion: the open store sits in its sorted slot as the card, the rest stay rows around it.
+  const { open, above, below } = openSplit(sorted, openId);
+  // With rows above the card, the rows below are no longer "the others", so they lose the header.
+  const headed = above.length === 0;
   const listText = items.map((i) => i.name).join("\n");
 
   // Deps are only the fetch stamp and the flag: re-sync per fetch, not per render.
@@ -73,8 +78,8 @@ export function CompareScreen() {
   // Once per visit with results (tabs stay mounted, so focus marks a visit); the $screen event counts every visit.
   const focused = useIsFocused();
   useEffect(() => {
-    if (focused && best) track(Events.compareViewed, { stores: byPrice.length, radiusKm, items: items.length, matched });
-  }, [focused, !!best]);
+    if (focused && open) track(Events.compareViewed, { stores: byPrice.length, radiusKm, items: items.length, matched });
+  }, [focused, !!open]);
 
   const loading = useMinDuration(
     list.isPending || location.status === "checking" || location.status === "locating" || (location.status === "ready" && matched > 0 && compare.isPending),
@@ -105,7 +110,7 @@ export function CompareScreen() {
       );
     if (location.status === "error") return <EmptyState icon={TriangleAlert} title={t("compare.location.error")} action={{ title: t("compare.retry"), analyticsName: Taps.compareRetryLocation, onPress: location.refresh }} />;
     if (compare.isError) return <EmptyState icon={TriangleAlert} title={t("compare.error.title")} action={{ title: t("compare.retry"), analyticsName: Taps.compareRetryCompare, onPress: () => compare.refetch() }} />;
-    if (!best) {
+    if (!open) {
       const wider = RADII.find((r) => r > radiusKm);
       return (
         <EmptyState
@@ -118,6 +123,13 @@ export function CompareScreen() {
     }
     return null;
   })();
+
+  const rows = (stores: typeof sorted) =>
+    stores.map((s) => (
+      <Animated.View key={s.storeId} layout={reorder}>
+        <StoreRow store={s} basketSize={items.length} onPress={() => setOpenId(s.storeId)} />
+      </Animated.View>
+    ));
 
   const subtitle = loading ? t("compare.searching") : matched ? fmt(t("compare.summary"), { items: items.length, matched }) : undefined;
 
@@ -137,22 +149,34 @@ export function CompareScreen() {
         }
       >
         <LargeTitle title={t("tabs.compare")} subtitle={subtitle} nav={location.status !== "denied" && <RadiusMenu value={radiusKm} onChange={setRadiusKm} />} />
-        {location.status !== "denied" && matched > 0 && <SortControl value={sort} onChange={setSort} />}
+        {location.status !== "denied" && matched > 0 && (
+          <SortControl
+            value={sort}
+            onChange={(s) => {
+              setSort(s);
+              setOpenId(null);
+            }}
+          />
+        )}
         {body ?? (
           <>
-            <BestStore store={best} basketSize={items.length} saving={saving(byPrice)} listText={listText} onShowMissing={() => {
-                const { chainName, total, matched, missingCodes: codesHere } = best;
-                const store: MissingStore = { chainName, total, matched, missingCodes: codesHere };
-                router.push({ pathname: "/missing", params: { store: JSON.stringify(store) } });
-              }}
-            />
-            {others.length > 0 && (
-              <Group title={t("compare.others")} count={others.length}>
-                {others.map((s) => (
-                  <Animated.View key={s.storeId} layout={reorder}>
-                    <StoreRow store={s} basketSize={items.length} />
-                  </Animated.View>
-                ))}
+            {!headed && <Group style={{ marginTop: space[4] }}>{rows(above)}</Group>}
+            <Animated.View key={open.storeId} layout={reorder} entering={FadeIn.duration(motion.duration.fast)}>
+              <BestStore
+                store={open}
+                basketSize={items.length}
+                saving={open === byPrice[0] ? saving(byPrice) : null}
+                listText={listText}
+                onShowMissing={() => {
+                  const { chainName, total, matched, missingCodes: codesHere } = open;
+                  const store: MissingStore = { chainName, total, matched, missingCodes: codesHere };
+                  router.push({ pathname: "/missing", params: { store: JSON.stringify(store) } });
+                }}
+              />
+            </Animated.View>
+            {below.length > 0 && (
+              <Group title={headed ? t("compare.others") : undefined} count={headed ? below.length : undefined} style={headed ? undefined : { marginTop: space[4] }}>
+                {rows(below)}
               </Group>
             )}
           </>
