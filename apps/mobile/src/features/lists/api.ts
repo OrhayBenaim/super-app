@@ -4,8 +4,6 @@ import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { Events, track } from "@/lib/analytics";
 import { api } from "@/lib/api";
-import { t } from "@/lib/strings";
-import { DEFAULT_LIST_NAME } from "@grocer/shared/lists";
 import type { SoldBy } from "@grocer/shared/quantity";
 
 export type List = { id: string; name: string; ownerId: string; role: "owner" | "member"; memberCount: number; updatedAt: string };
@@ -19,9 +17,6 @@ export type Item = {
 };
 export type ListDetail = { list: List; members: Member[]; items: Item[] };
 
-/** A list's display name: the auto-created default list reads in the device language. */
-export const listName = (list: List) => (list.name === DEFAULT_LIST_NAME ? t("list.defaultName") : list.name);
-
 export const listKeys = {
   all: ["lists"] as const,
   detail: (id: string) => ["lists", id] as const,
@@ -30,7 +25,7 @@ export const listKeys = {
 
 export const useLists = () => useQuery({ queryKey: listKeys.all, queryFn: () => api<List[]>("api/lists") });
 
-// Selected list, kept across app restarts; defaults to the first list the server returns (it auto-creates "My list").
+// Selected list, kept across app restarts; defaults to the first list the server returns (it auto-creates one, oldest first).
 const SELECTED_KEY = "selectedListId";
 const useSelectedList = create<{ id: string | null }>(() => ({ id: SecureStore.getItem(SELECTED_KEY) }));
 /** The stored pick while it is still one of the user's lists (not left or removed), else the first list. */

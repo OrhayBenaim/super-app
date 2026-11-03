@@ -60,6 +60,7 @@ function RootLayout() {
               options={{ headerShown: true, title: "", headerTintColor: colors.tint, headerShadowVisible: false, headerStyle: { backgroundColor: colors.groupedBg } }}
             />
             <Stack.Screen name="share" options={{ presentation: "modal" }} />
+            <Stack.Screen name="lists" options={sheet} />
             {/* Snap points, not fitToContents: product search results loading in resized it off-screen on Android. */}
             <Stack.Screen name="item/[id]" options={{ ...sheet, sheetAllowedDetents: [0.4, 0.9] }} />
             <Stack.Screen name="quantity/[id]" options={sheet} />
