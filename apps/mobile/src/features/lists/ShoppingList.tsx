@@ -18,7 +18,7 @@ import { useBestStore } from "@/features/compare/useBestStore";
 import { fmt, shekels } from "@/features/compare/format";
 import { AddField } from "@/features/items/AddField";
 import { QuantityPill } from "@/features/items/QuantityPill";
-import { showPill } from "@/features/items/quantity";
+import { showPill } from "@/features/items/labels";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
 import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";

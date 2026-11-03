@@ -6,10 +6,10 @@ import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Tap, Text } from "@/ui";
-import { formatQuantity } from "./quantity";
+import { formatQuantity, type ListScreen } from "./labels";
 
 /** The item's Quantity ("×2", "500 g") at the end of a List or My items row; opens the Quantity sheet. 44pt target. */
-export function QuantityPill({ item, screen }: { item: Item; screen: "list" | "items" }) {
+export function QuantityPill({ item, screen }: { item: Item; screen: ListScreen }) {
   const router = useRouter();
   const { colors, space, size, radius } = useTheme();
   const label = formatQuantity(item.quantity, item.soldBy, t);

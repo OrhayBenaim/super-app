@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("expo-localization", () => ({ getLocales: () => [{ languageCode: "en" }] }));
 
 import { en, he, type StringKey } from "@/lib/strings";
-import { formatQuantity, lineDetail, priceLabel, showPill } from "@/features/items/quantity";
+import { formatQuantity, lineDetail, priceLabel, showPill } from "@/features/items/labels";
 
 const tEn = (k: StringKey) => en[k];
 const tHe = (k: StringKey) => he[k];

@@ -84,11 +84,11 @@ type PriceRow = {
 type Line = { code: string; price: number; quantity: number; lineTotal: number };
 type GroupLine = Line & { ref: string; name: string; size: number; unitPrice?: number };
 
-/** Sums the quantities of entries with the same key (two items matched to one product), keeping first-seen order. */
-const merged = (entries: { key: string; quantity: number }[]) => {
+/** Quantities summed per key (two items matched to one product), in first-seen order. */
+const sumByKey = (entries: { key: string; quantity: number }[]) => {
   const sums = new Map<string, number>();
   for (const { key, quantity } of entries) sums.set(key, (sums.get(key) ?? 0) + quantity);
-  return [...sums];
+  return sums;
 };
 
 /**
@@ -100,15 +100,15 @@ const merged = (entries: { key: string; quantity: number }[]) => {
  */
 export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
   const { lat, lng, radiusKm, sort, limit } = query;
-  const codes = merged(query.items.map((i) => ({ key: i.code, quantity: i.quantity })));
-  const groups = merged(query.groups.map((g) => ({ key: g.ref, quantity: g.quantity }))).map(([ref, quantity]) => {
+  const codes = sumByKey(query.items.map((i) => ({ key: i.code, quantity: i.quantity })));
+  const groups = [...sumByKey(query.groups.map((g) => ({ key: g.ref, quantity: g.quantity })))].map(([ref, quantity]) => {
     const { members, soldBy } = groupMembers(db, ref);
     const byQuantity = parseRef(ref)!.size.measure !== "unit"; // priced per kilo or liter
     const perStep = byQuantity && soldBy === "unit" ? (commonest(members.map((m) => m.size)) ?? 1) : 1; // kilos or liters in one of `quantity`
     return { ref, byQuantity, members, quantity, perStep };
   });
-  const asked = [...codes.map(([code]) => code), ...groups.map((g) => g.ref)];
-  const priced = [...new Set([...codes.map(([code]) => code), ...groups.flatMap((g) => g.members.map((m) => m.code))])];
+  const asked = [...codes.keys(), ...groups.map((g) => g.ref)];
+  const priced = [...new Set([...codes.keys(), ...groups.flatMap((g) => g.members.map((m) => m.code))])];
   const dLat = radiusKm / KM_PER_DEG;
   const dLng = radiusKm / (KM_PER_DEG * Math.max(Math.cos(rad(lat)), 0.01));
   const rows = db.$client
@@ -134,7 +134,7 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
   const carried = new Set<string>();
   const stores = [...byStore.values()].map(({ row, distanceKm, prices }) => {
     let sum = 0;
-    const items: (Line | GroupLine)[] = codes.flatMap(([code, quantity]) => {
+    const items: (Line | GroupLine)[] = [...codes].flatMap(([code, quantity]) => {
       const price = prices.get(code);
       if (price === undefined) return [];
       sum += price * quantity;

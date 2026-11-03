@@ -11,11 +11,11 @@ import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Group, IconButton, Sheet, SheetHeader, Text } from "@/ui";
-import { formatQuantity, priceLabel } from "./quantity";
+import { formatQuantity, priceLabel, type ListScreen } from "./labels";
 
 /** Sheet route app/quantity/[id]: a − / + stepper for an item's Quantity, with its price at the cheapest store. */
 export function QuantitySheet() {
-  const { id, from = "list" } = useLocalSearchParams<{ id: string; from?: "list" | "items" }>();
+  const { id, from = "list" } = useLocalSearchParams<{ id: string; from?: ListScreen }>();
   const router = useRouter();
   const { space, colors, radius } = useTheme();
   const listId = useCurrentListId();
@@ -57,7 +57,7 @@ export function QuantitySheet() {
             analyticsName={Taps.quantityLess}
             disabled={min}
             onPress={() => step(-1)}
-            style={{ borderRadius: radius.full, backgroundColor: colors.tintSoft, opacity: min ? 0.4 : 1 }}
+            style={{ borderRadius: radius.full, backgroundColor: colors.tintSoft }}
           />
           <View style={{ flex: 1, alignItems: "center", gap: space[1] }} accessible accessibilityLiveRegion="polite" accessibilityLabel={label}>
             <Text variant="title2" tabular>
@@ -75,7 +75,7 @@ export function QuantitySheet() {
             analyticsName={Taps.quantityMore}
             disabled={max}
             onPress={() => step(1)}
-            style={{ borderRadius: radius.full, backgroundColor: colors.tintSoft, opacity: max ? 0.4 : 1 }}
+            style={{ borderRadius: radius.full, backgroundColor: colors.tintSoft }}
           />
         </View>
       </Group>

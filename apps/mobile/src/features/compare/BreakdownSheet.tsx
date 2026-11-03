@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { ScrollView } from "react-native";
-import { lineDetail } from "@/features/items/quantity";
+import { lineDetail } from "@/features/items/labels";
 import { missingItems, useCurrentListId, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";

@@ -43,6 +43,26 @@ function soldByOfItem(db: Db, { productCode, groupRef }: Match): SoldBy {
   return p ? soldByOf(p) : "unit";
 }
 
+// shortcut: a group item's sold-by runs a group search on every poll (once per distinct match); cache it per group ref
+// if list polling shows up as slow.
+/** Items with their sold-by, worked out once per distinct match. */
+function withSoldBy<T extends Match>(db: Db, rows: T[]) {
+  const known = new Map<string, SoldBy>();
+  return rows.map((i) => {
+    const key = `${i.productCode}|${i.groupRef}`;
+    if (!known.has(key)) known.set(key, soldByOfItem(db, i));
+    return { ...i, soldBy: known.get(key)! };
+  });
+}
+
+/**
+ * An item's quantity after a patch. A quantity in kilos means nothing in units (and back), so a re-match to the other
+ * sold-by, or to one the stored quantity doesn't fit, starts over, unless the patch sends a quantity.
+ * `soldByBefore` is given only when the patch re-matches the item.
+ */
+const patchedQuantity = (stored: number, sent: number | undefined, soldBy: SoldBy, soldByBefore?: SoldBy) =>
+  sent ?? (soldByBefore && (soldBy !== soldByBefore || !isValidQuantity(stored, soldBy)) ? QUANTITY.start : stored);
+
 const listSelect = {
   id: lists.id,
   name: lists.name,
@@ -115,16 +135,8 @@ export const listsRoutes = new Hono<AppEnv>()
       .innerJoin(user, eq(user.id, listMembers.userId))
       .where(eq(listMembers.listId, id))
       .all();
-    // shortcut: a group item's sold-by runs a group search on every poll (once per distinct match); cache it per
-    // group ref if list polling shows up as slow.
-    const soldBy = new Map<string, SoldBy>();
     const rows = db.select().from(items).where(eq(items.listId, id)).orderBy(asc(items.createdAt)).all();
-    const withSoldBy = rows.map((i) => {
-      const key = `${i.productCode}|${i.groupRef}`;
-      if (!soldBy.has(key)) soldBy.set(key, soldByOfItem(db, i));
-      return { ...i, soldBy: soldBy.get(key)! };
-    });
-    return c.json({ list, members, items: withSoldBy });
+    return c.json({ list, members, items: withSoldBy(db, rows) });
   })
   .patch("/:id", async (c) => {
     const { db, clock } = c.var.deps;
@@ -164,10 +176,8 @@ export const listsRoutes = new Hono<AppEnv>()
     const next = { ...before, ...p.data, ...other };
     const rematched = next.productCode !== before.productCode || next.groupRef !== before.groupRef;
     const soldBy = soldByOfItem(db, next);
-    // A quantity in kilos means nothing in units (and back): a change of sold-by starts over, unless the patch sets one.
+    const quantity = patchedQuantity(before.quantity, p.data.quantity, soldBy, rematched ? soldByOfItem(db, before) : undefined);
     // Only a sent quantity is checked, so a stored one can never block checking the item off.
-    const reset = rematched && (soldBy !== soldByOfItem(db, before) || !isValidQuantity(before.quantity, soldBy));
-    const quantity = p.data.quantity ?? (reset ? QUANTITY.start : before.quantity);
     if (p.data.quantity !== undefined && !isValidQuantity(quantity, soldBy)) return badQuantity(c, soldBy);
     const item = db
       .update(items)

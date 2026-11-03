@@ -4,6 +4,7 @@
 import { z } from "zod";
 import type { SoldBy } from "@grocer/shared/quantity";
 import type { Db } from "#/db/index.ts";
+import { productsMatching } from "#/db/products.ts";
 
 /** Words that never tell two products apart: origin, grade, "by weight", "loose" (loose is the default). */
 const NOISE = new Set(["במשקל", "משקל", "שקיל", "תפזורת", "בתפזורת", "ישראל", "ישראלי", "ישראלית", "מובחר", "מובחרת", "מובחרים", "טרי", "טריה", "טריים", "לקג"]);
@@ -218,12 +219,7 @@ export function searchGroups(group: string[], candidates: Candidate[]) {
 export function groupMembers(db: Db, ref: string) {
   const { words, size } = parseRef(ref)!;
   const match = ftsMatch(words);
-  const rows = (match
-    ? db.$client
-        .prepare("SELECT p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted FROM products_fts f JOIN products p ON p.code = f.code WHERE products_fts MATCH ?")
-        .all(match)
-    : []) as { code: string; name: string; unitQty: string | null; isWeighted: number }[];
-  const members = rows.flatMap((p) => {
+  const members = (match ? productsMatching(db, match) : []).flatMap((p) => {
     const own = measureOf(p);
     return own && sameMeasure(own, size) && startsGroup(nameWords(p.name), words) ? [{ ...p, size: own.size }] : [];
   });
