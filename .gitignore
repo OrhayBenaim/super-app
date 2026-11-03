@@ -26,3 +26,4 @@ apps/mobile/.impeccable/questions/
 
 # Local git worktrees
 .worktree/
+.claude/worktrees/

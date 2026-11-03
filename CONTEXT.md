@@ -19,8 +19,16 @@ The User who created a List. Only the Owner can rename it or remove Members, and
 _Avoid_: Admin, creator
 
 **Member**:
-A User other than the Owner who joined a List through its invite code.
+A User other than the Owner who joined a List through its Invite code.
 _Avoid_: Collaborator, guest
+
+**Invite code**:
+A short code that lets a User join a List as a Member. A List has one Invite code at a time: each time someone in the List shares it, a new code is made and the previous one stops working.
+_Avoid_: Join code, share code
+
+**Invite link**:
+A link that carries a List's Invite code and opens Grocer on joining that List. If the recipient has Grocer but is signed out, they join after they sign in. If they don't have Grocer, the link does not survive installing it; they join by typing the Invite code.
+_Avoid_: Share link, deep link (as a domain term)
 
 **Shared list**:
 A List that has at least one Member besides its Owner.
