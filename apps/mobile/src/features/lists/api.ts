@@ -36,9 +36,9 @@ export function useCurrentListId() {
   const selected = useSelectedList((s) => s.id);
   return currentListId(selected, useLists().data);
 }
-export function selectList(id: string | null) {
+export function selectList(id: string) {
   useSelectedList.setState({ id });
-  void (id ? SecureStore.setItemAsync(SELECTED_KEY, id) : SecureStore.deleteItemAsync(SELECTED_KEY)).catch(() => {}); // best-effort: lost on failure, the list still works this session
+  SecureStore.setItemAsync(SELECTED_KEY, id).catch(() => {}); // best-effort: lost on failure, the list still works this session
 }
 
 // Polling keeps a shared list in sync with the spouse; screens pass poll: useIsFocused() so hidden tabs stay quiet.

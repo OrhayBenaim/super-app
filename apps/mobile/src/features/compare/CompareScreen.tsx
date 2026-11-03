@@ -16,7 +16,7 @@ import { BestStore, StoreRow } from "./BestStore";
 import { fmt } from "./format";
 import type { MissingStore } from "./MissingSheet";
 import { RadiusMenu } from "./RadiusMenu";
-import { saving, sortStores, type Sort } from "./sort";
+import { openSplit, saving, sortStores, type Sort } from "./sort";
 import { SortControl } from "./SortControl";
 
 // Rows glide to their new slot when the sort changes; snappy matches the segmented thumb.
@@ -64,10 +64,9 @@ export function CompareScreen() {
   const byPrice = useMemo(() => sortStores(compare.data?.stores ?? [], "price"), [compare.data]);
   const sorted = useMemo(() => sortStores(byPrice, sort), [byPrice, sort]);
   // Accordion: the open store sits in its sorted slot as the card, the rest stay rows around it.
-  const best = sorted.find((s) => s.storeId === openId) ?? sorted[0];
-  const at = sorted.indexOf(best);
-  const above = sorted.slice(0, at);
-  const below = sorted.slice(at + 1);
+  const { open, above, below } = openSplit(sorted, openId);
+  // With rows above the card, the rows below are no longer "the others", so they lose the header.
+  const headed = above.length === 0;
   const listText = items.map((i) => i.name).join("\n");
 
   // Deps are only the fetch stamp and the flag: re-sync per fetch, not per render.
@@ -79,8 +78,8 @@ export function CompareScreen() {
   // Once per visit with results (tabs stay mounted, so focus marks a visit); the $screen event counts every visit.
   const focused = useIsFocused();
   useEffect(() => {
-    if (focused && best) track(Events.compareViewed, { stores: byPrice.length, radiusKm, items: items.length, matched });
-  }, [focused, !!best]);
+    if (focused && open) track(Events.compareViewed, { stores: byPrice.length, radiusKm, items: items.length, matched });
+  }, [focused, !!open]);
 
   const loading = useMinDuration(
     list.isPending || location.status === "checking" || location.status === "locating" || (location.status === "ready" && matched > 0 && compare.isPending),
@@ -111,7 +110,7 @@ export function CompareScreen() {
       );
     if (location.status === "error") return <EmptyState icon={TriangleAlert} title={t("compare.location.error")} action={{ title: t("compare.retry"), analyticsName: Taps.compareRetryLocation, onPress: location.refresh }} />;
     if (compare.isError) return <EmptyState icon={TriangleAlert} title={t("compare.error.title")} action={{ title: t("compare.retry"), analyticsName: Taps.compareRetryCompare, onPress: () => compare.refetch() }} />;
-    if (!best) {
+    if (!open) {
       const wider = RADII.find((r) => r > radiusKm);
       return (
         <EmptyState
@@ -161,22 +160,22 @@ export function CompareScreen() {
         )}
         {body ?? (
           <>
-            {above.length > 0 && <Group style={{ marginTop: space[4] }}>{rows(above)}</Group>}
-            <Animated.View key={best.storeId} layout={reorder} entering={FadeIn.duration(motion.duration.fast)}>
+            {!headed && <Group style={{ marginTop: space[4] }}>{rows(above)}</Group>}
+            <Animated.View key={open.storeId} layout={reorder} entering={FadeIn.duration(motion.duration.fast)}>
               <BestStore
-                store={best}
+                store={open}
                 basketSize={items.length}
-                saving={best === byPrice[0] ? saving(byPrice) : null}
+                saving={open === byPrice[0] ? saving(byPrice) : null}
                 listText={listText}
                 onShowMissing={() => {
-                  const { chainName, total, matched, missingCodes: codesHere } = best;
+                  const { chainName, total, matched, missingCodes: codesHere } = open;
                   const store: MissingStore = { chainName, total, matched, missingCodes: codesHere };
                   router.push({ pathname: "/missing", params: { store: JSON.stringify(store) } });
                 }}
               />
             </Animated.View>
             {below.length > 0 && (
-              <Group title={above.length ? undefined : t("compare.others")} count={above.length ? undefined : below.length} style={above.length ? { marginTop: space[4] } : undefined}>
+              <Group title={headed ? t("compare.others") : undefined} count={headed ? below.length : undefined} style={headed ? undefined : { marginTop: space[4] }}>
                 {rows(below)}
               </Group>
             )}
