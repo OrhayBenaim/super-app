@@ -2,7 +2,6 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import { DEFAULT_LIST_NAME } from "@grocer/shared/lists";
 import { isValidQuantity, QUANTITY, type SoldBy } from "@grocer/shared/quantity";
 import type { Db } from "#/db/index.ts";
 import { items, listMembers, lists, products, user } from "#/db/schema.ts";
@@ -27,6 +26,8 @@ const oneMatch = [(b: { productCode?: string | null; groupRef?: string | null })
 const itemBody = itemFields.refine(...oneMatch);
 const itemPatch = itemFields.partial().refine(...oneMatch);
 const joinBody = z.object({ code: z.string().trim().min(1).max(32) });
+/** Name of the List a User gets automatically, stored as is and shown the same on every phone. */
+const DEFAULT_LIST_NAME = "הרשימה שלי";
 
 async function parse<T extends z.ZodType>(c: Context<AppEnv>, schema: T) {
   return schema.safeParse(await c.req.json().catch(() => undefined));

@@ -4,7 +4,7 @@ Base: `/api`. Auth: better-auth session cookie (mobile sends `Cookie` from `auth
 
 ## Lists, items, categories, sharing (`routes/lists.ts`)
 
-Model: a **list** is shared; **items** belong to a list (not a user). A user's first `GET /lists` auto-creates "My list" and makes them owner.
+Model: a **list** is shared; **items** belong to a list (not a user). A user's first `GET /lists` auto-creates "הרשימה שלי" and makes them owner.
 
 | Method | Path | Body / query | Returns |
 |---|---|---|---|
@@ -27,7 +27,7 @@ type SoldBy = "unit" | "weight"   // @grocer/shared/quantity
 type Item = { id; listId; name; category; productCode: string|null; groupRef: string|null; missing: boolean; quantity: number; soldBy: SoldBy; createdAt; updatedAt }
 ```
 **Quantity** (CONTEXT.md): a count for `unit` items, kilos for `weight` items. `soldBy` is derived on read from the matched product (weighted with a weight unit: `weight`) or Product group (by the kilo and mostly weighed products: `weight`); unmatched items are `unit`. A sent `quantity` must pass `isValidQuantity` for the item's sold-by after the patch (units: whole, 1-99; weight: steps of 0.5, 0.5-99), else 400. A patch that re-matches the item to a different sold-by resets `quantity` to 1 unless it sends one. Toggling `missing` never changes `quantity`.
-Any member may rotate the invite code. "My list" is auto-created only when the user has no lists. Categories are case-sensitive (client autocomplete mitigates). Any item/list mutation bumps `list.updatedAt`. Realtime: the mobile app polls `GET /lists/:id` (refetchInterval ~5s while focused). `shortcut: polling instead of websockets, upgrade when >2 members per list is common`.
+Any member may rotate the invite code. "הרשימה שלי" is auto-created only when the user has no lists. Categories are case-sensitive (client autocomplete mitigates). Any item/list mutation bumps `list.updatedAt`. Realtime: the mobile app polls `GET /lists/:id` (refetchInterval ~5s while focused). `shortcut: polling instead of websockets, upgrade when >2 members per list is common`.
 
 ## Products, stores, compare (`routes/prices.ts`)
 
