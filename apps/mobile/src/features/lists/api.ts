@@ -1,5 +1,6 @@
 // Shared list data layer (types mirror docs/api.md). Both the list screens and Compare build on this.
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { Events, track } from "@/lib/analytics";
 import { api } from "@/lib/api";
@@ -25,17 +26,20 @@ export const listKeys = {
 
 export const useLists = () => useQuery({ queryKey: listKeys.all, queryFn: () => api<List[]>("api/lists") });
 
-// Selected list; defaults to the first list the server returns (it auto-creates "My list").
-const useSelectedList = create<{ id: string | null; select: (id: string | null) => void }>((set) => ({
-  id: null,
-  select: (id) => set({ id }),
-}));
+// Selected list, kept across app restarts; defaults to the first list the server returns (it auto-creates "My list").
+const SELECTED_KEY = "selectedListId";
+const useSelectedList = create<{ id: string | null }>(() => ({ id: SecureStore.getItem(SELECTED_KEY) }));
+/** The stored pick while it is still one of the user's lists (not left or removed), else the first list. */
+export const currentListId = (selected: string | null, lists?: Pick<List, "id">[]) =>
+  !lists ? selected : lists.some((l) => l.id === selected) ? selected : (lists[0]?.id ?? null);
 export function useCurrentListId() {
   const selected = useSelectedList((s) => s.id);
-  const { data } = useLists();
-  return selected ?? data?.[0]?.id ?? null;
+  return currentListId(selected, useLists().data);
 }
-export const selectList = (id: string | null) => useSelectedList.getState().select(id);
+export function selectList(id: string | null) {
+  useSelectedList.setState({ id });
+  void (id ? SecureStore.setItemAsync(SELECTED_KEY, id) : SecureStore.deleteItemAsync(SELECTED_KEY)).catch(() => {}); // best-effort: lost on failure, the list still works this session
+}
 
 // Polling keeps a shared list in sync with the spouse; screens pass poll: useIsFocused() so hidden tabs stay quiet.
 // shortcut: polling, not websockets (see docs/api.md).
