@@ -42,7 +42,9 @@ export const selectList = (id: string | null) => useSelectedList.getState().sele
 export const useList = (id: string | null, { poll = true } = {}) =>
   useQuery({
     queryKey: listKeys.detail(id ?? ""),
-    queryFn: () => api<ListDetail>(`api/lists/${id}`),
+    // The API repeats a group item's ref as its productCode for app builds from before Product groups; this build reads groupRef.
+    queryFn: () =>
+      api<ListDetail>(`api/lists/${id}`).then((d) => ({ ...d, items: d.items.map((i) => (i.groupRef ? { ...i, productCode: null } : i)) })),
     enabled: !!id,
     refetchInterval: poll ? 5000 : false,
     refetchOnWindowFocus: true,
