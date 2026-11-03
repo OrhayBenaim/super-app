@@ -24,7 +24,8 @@ export function ListsSheet() {
   return (
     <Sheet>
       <SheetHeader title={t("lists.title")} end={{ title: t("common.done"), analyticsName: Taps.commonDone, onPress: close }} />
-      <Group>
+      {/* The sheet fits its content, so many Lists scroll inside the group and Join stays on screen. */}
+      <Group maxRows={6}>
         {lists.map((l) => (
           <ListRow
             key={l.id}

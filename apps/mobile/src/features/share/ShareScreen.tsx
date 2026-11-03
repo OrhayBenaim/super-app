@@ -22,21 +22,23 @@ export function ShareScreen() {
   const router = useRouter();
   const { space } = useTheme();
   const [renaming, setRenaming] = useState(false);
+  // Held here, not in Members: Rename unmounts Members, and asking for a code again would rotate the one already sent.
+  const share = useShareMutations(useCurrentListId());
   const close = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)"));
   // The modal is full screen on Android, so it needs the top safe-area inset; on iOS it is a page sheet already below the status bar.
   return (
     <Screen scroll edges={Platform.OS === "ios" ? ["bottom"] : ["top", "bottom"]} style={{ paddingTop: space[3], paddingBottom: space[9] }}>
-      {renaming ? <Rename onDone={() => setRenaming(false)} /> : <Members onDone={close} onRename={() => setRenaming(true)} />}
+      {renaming ? <Rename onDone={() => setRenaming(false)} /> : <Members share={share} onDone={close} onRename={() => setRenaming(true)} />}
     </Screen>
   );
 }
 
-function Members({ onDone, onRename }: { onDone: () => void; onRename: () => void }) {
+function Members({ share, onDone, onRename }: { share: ReturnType<typeof useShareMutations>; onDone: () => void; onRename: () => void }) {
   const { colors, space } = useTheme();
   const me = authClient.useSession().data?.user.id;
   const listId = useCurrentListId();
   const { data } = useList(listId);
-  const { invite, removeMember } = useShareMutations(listId);
+  const { invite, removeMember } = share;
   const [copied, setCopied] = useState(false);
   const isOwner = data?.list.role === "owner";
   const fail = () => Alert.alert(t("common.error"));
