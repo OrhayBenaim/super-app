@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { ActivityIndicator, TextInput, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { text, useTheme } from "@/theme";
-import { SheetHeader, Text } from "@/ui";
+import { SheetField, SheetHeader, Text } from "@/ui";
 import { useShareMutations } from "./api";
 
 /** "Join another list", pushed inside a sheet: enter an Invite code. Joining selects the joined List. */
 export function Join({ onBack, onJoined }: { onBack: () => void; onJoined: () => void }) {
-  const { colors, radius, space } = useTheme();
+  const { colors, space } = useTheme();
   const { join } = useShareMutations(null);
   const [code, setCode] = useState("");
   const submit = () => code.trim() && !join.isPending && join.mutate(code, { onSuccess: onJoined });
@@ -18,32 +18,17 @@ export function Join({ onBack, onJoined }: { onBack: () => void; onJoined: () =>
       <Text variant="subhead" color="labelSecondary" style={{ paddingHorizontal: space[5] }}>
         {t("share.join.hint")}
       </Text>
-      <TextInput
+      <SheetField
         accessibilityLabel={t("share.join.code")}
         accessibilityHint={join.isError ? t("share.join.error") : undefined}
         placeholder={t("share.join.code")}
-        placeholderTextColor={colors.labelSecondary}
-        selectionColor={colors.tint}
         value={code}
         onChangeText={setCode}
-        autoFocus
         autoCapitalize="characters"
         autoCorrect={false}
         returnKeyType="go"
         onSubmitEditing={submit}
-        style={[
-          text("title3"),
-          {
-            minHeight: 56,
-            letterSpacing: 4,
-            textAlign: "center",
-            color: colors.label,
-            backgroundColor: colors.surface,
-            borderRadius: radius.group,
-            borderWidth: join.isError ? 1 : 0,
-            borderColor: colors.danger,
-          },
-        ]}
+        style={[text("title3"), { letterSpacing: 4, borderWidth: join.isError ? 1 : 0, borderColor: colors.danger }]}
       />
       {join.isPending && <ActivityIndicator color={colors.labelSecondary} />}
       {join.isError && (

@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { UserMinus } from "lucide-react-native";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Platform, Share, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Share, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { fmt } from "@/features/compare/format";
 import { useCurrentListId, useList } from "@/features/lists/api";
@@ -11,8 +11,8 @@ import { Avatar } from "@/features/lists/Avatars";
 import { Taps } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/strings";
-import { text, useTheme } from "@/theme";
-import { Button, Group, IconButton, Row, Screen, SheetHeader, Text } from "@/ui";
+import { useTheme } from "@/theme";
+import { Button, Group, IconButton, Row, Screen, SheetField, SheetHeader, Text } from "@/ui";
 import { useShareMutations } from "./api";
 
 const CODE_IN = FadeIn.duration(200);
@@ -22,16 +22,11 @@ export function ShareScreen() {
   const router = useRouter();
   const { space } = useTheme();
   const [renaming, setRenaming] = useState(false);
-  const { rename } = useShareMutations(useCurrentListId());
   const close = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)"));
-  const save = (name: string) => {
-    setRenaming(false);
-    rename.mutate(name);
-  };
   // The modal is full screen on Android, so it needs the top safe-area inset; on iOS it is a page sheet already below the status bar.
   return (
     <Screen scroll edges={Platform.OS === "ios" ? ["bottom"] : ["top", "bottom"]} style={{ paddingTop: space[3], paddingBottom: space[9] }}>
-      {renaming ? <Rename onBack={() => setRenaming(false)} onSave={save} /> : <Members onDone={close} onRename={() => setRenaming(true)} />}
+      {renaming ? <Rename onDone={() => setRenaming(false)} /> : <Members onDone={close} onRename={() => setRenaming(true)} />}
     </Screen>
   );
 }
@@ -123,30 +118,36 @@ function Members({ onDone, onRename }: { onDone: () => void; onRename: () => voi
   );
 }
 
-/** Owner's rename, pushed inside the sheet like Join: the field starts with the current name. */
-function Rename({ onBack, onSave }: { onBack: () => void; onSave: (name: string) => void }) {
-  const { colors, radius, space } = useTheme();
-  const { data } = useList(useCurrentListId());
+/**
+ * Owner's rename, pushed inside the sheet like Join: the field starts with the current name. Saving returns at once (the
+ * rename is optimistic, and the mutation itself rolls back and alerts on failure, even after this view is gone).
+ */
+function Rename({ onDone }: { onDone: () => void }) {
+  const { space } = useTheme();
+  const listId = useCurrentListId();
+  const { data } = useList(listId);
+  const { rename } = useShareMutations(listId);
   const [name, setName] = useState(data?.list.name ?? "");
-  const save = () => name.trim() && onSave(name);
+  const save = () => {
+    if (!name.trim()) return;
+    rename.mutate(name);
+    onDone();
+  };
   return (
     <View style={{ gap: space[4] }}>
       <SheetHeader
         title={t("share.rename.title")}
-        start={{ title: t("common.back"), analyticsName: Taps.commonBack, onPress: onBack }}
+        start={{ title: t("common.back"), analyticsName: Taps.commonBack, onPress: onDone }}
         end={{ title: t("common.save"), analyticsName: Taps.shareRenameSave, onPress: save, disabled: !name.trim() }}
       />
-      <TextInput
+      <SheetField
         accessibilityLabel={t("share.rename.field")}
         placeholder={t("share.rename.field")}
-        placeholderTextColor={colors.labelSecondary}
-        selectionColor={colors.tint}
         value={name}
         onChangeText={setName}
-        autoFocus
         returnKeyType="done"
         onSubmitEditing={save}
-        style={[text("body"), { minHeight: 64, paddingHorizontal: space[5], textAlign: "center", color: colors.label, backgroundColor: colors.surface, borderRadius: radius.group }]}
+        style={{ minHeight: 64, paddingHorizontal: space[5] }}
       />
     </View>
   );
