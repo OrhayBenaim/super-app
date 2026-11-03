@@ -172,6 +172,12 @@ describe("compare validation", () => {
       expect((await post({ ...pos, items: q([P1]) })).status, JSON.stringify(pos)).toBe(200);
   });
 
+  it("caps the basket at 200 entries, each Product group counting as one", async () => {
+    const items = q(Array.from({ length: 199 }, (_, i) => `NOPE${i}`));
+    expect((await post({ ...here, items, groups: [{ ref: "בורגול|kg" }] })).status).toBe(200);
+    expect((await post({ ...here, items, groups: [{ ref: "בורגול|kg" }, { ref: "אורז|kg" }] })).status).toBe(400);
+  });
+
   it("ignores unknown body keys", async () => {
     expect((await post({ ...here, items: q([P1]), extra: true })).status).toBe(200);
   });

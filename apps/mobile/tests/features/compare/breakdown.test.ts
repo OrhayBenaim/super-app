@@ -4,7 +4,7 @@ vi.mock("@/lib/api", () => ({ api: vi.fn() }));
 vi.mock("@/lib/analytics", () => ({ Events: {}, track: vi.fn() }));
 vi.mock("@/lib/strings", () => ({ t: (k: string) => k }));
 
-import { breakdown } from "@/features/compare/breakdown";
+import { breakdown, missingCount } from "@/features/compare/breakdown";
 import type { StoreResult } from "@/features/compare/sort";
 import type { Item } from "@/features/lists/api";
 
@@ -47,5 +47,18 @@ describe("breakdown", () => {
     const none = item("none");
     const r = breakdown([none, here, gone], store([{ code: "1", price: 1, quantity: 1, lineTotal: 1 }], ["2"]));
     expect(r).toEqual({ priced: [{ item: here, price: 1, lineTotal: 1 }], notHere: [gone], unmatched: [none] });
+  });
+});
+
+describe("missingCount", () => {
+  it("counts List items, so two items matched to one priced product are both priced", () => {
+    const a = item("a", { productCode: "111" });
+    const b = item("b", { productCode: "111" });
+    expect(missingCount([a, b], store([{ code: "111", price: 5, quantity: 2, lineTotal: 10 }]))).toBe(0);
+  });
+
+  it("counts items the store doesn't price and unmatched items", () => {
+    const items = [item("a", { productCode: "1" }), item("b", { productCode: "2" }), item("c")];
+    expect(missingCount(items, store([{ code: "1", price: 1, quantity: 1, lineTotal: 1 }]))).toBe(2);
   });
 });

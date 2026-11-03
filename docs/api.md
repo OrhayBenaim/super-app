@@ -37,7 +37,7 @@ Product codes: an `ItemCode` that is a valid GS1 barcode (8, 12, 13 or 14 digits
 | Method | Path | Body / query | Returns |
 |---|---|---|---|
 | GET | `/products/search` | `?q=<text>&limit=20` | `(ProductGroup \| Product)[]`: the Product groups the query's words name, then up to `limit` products (a digits-only `q` of 8+ chars is a barcode lookup: exact code, then code prefix, products only) |
-| POST | `/compare` | `{ lat, lng, radiusKm?=10, items?: { code, quantity }[], groups?: { ref, quantity? = 1 }[], sort?: "price"\|"distance"\|"coverage", limit?=20 }` (at least one item or group; quantity > 0 and <= 99) | `{ stores: StoreResult[], unmatched: string[] }` |
+| POST | `/compare` | `{ lat, lng, radiusKm?=10, items?: { code, quantity }[], groups?: { ref, quantity? = 1 }[], sort?: "price"\|"distance"\|"coverage", limit?=20 }` (1 to 200 items and groups together, a group counting as one; quantity > 0 and <= 99) | `{ stores: StoreResult[], unmatched: string[] }` |
 | GET | `/chains` | (public) | `Chain[]` |
 
 ```ts

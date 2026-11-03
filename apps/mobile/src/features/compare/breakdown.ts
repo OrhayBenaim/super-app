@@ -22,3 +22,6 @@ export function breakdown(items: Item[], store: Pick<StoreResult, "items">) {
   }
   return { priced, notHere, unmatched };
 }
+
+/** On-list items this store leaves out of its total, counted per item (its `matched` counts products, not items). */
+export const missingCount = (items: Item[], store: Pick<StoreResult, "items">) => items.length - breakdown(items, store).priced.length;

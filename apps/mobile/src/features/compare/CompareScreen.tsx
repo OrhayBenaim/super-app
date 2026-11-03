@@ -13,6 +13,7 @@ import { springs, useTheme } from "@/theme";
 import { EmptyState, Group, LargeTitle, Screen, ShoppingLoader } from "@/ui";
 import { RADII, useCompare, useRadius } from "./api";
 import { BestStore, StoreRow } from "./BestStore";
+import { missingCount } from "./breakdown";
 import { fmt } from "./format";
 import { RadiusMenu } from "./RadiusMenu";
 import { openSplit, saving, sortStores, type Sort } from "./sort";
@@ -126,7 +127,7 @@ export function CompareScreen() {
   const rows = (stores: typeof sorted) =>
     stores.map((s) => (
       <Animated.View key={s.storeId} layout={reorder}>
-        <StoreRow store={s} basketSize={items.length} onPress={() => setOpenId(s.storeId)} />
+        <StoreRow store={s} missing={missingCount(items, s)} onPress={() => setOpenId(s.storeId)} />
       </Animated.View>
     ));
 
@@ -164,6 +165,7 @@ export function CompareScreen() {
               <BestStore
                 store={open}
                 basketSize={items.length}
+                missing={missingCount(items, open)}
                 saving={open === byPrice[0] ? saving(byPrice) : null}
                 listText={listText}
                 onShowBreakdown={() => router.push("/breakdown")}

@@ -174,7 +174,7 @@ export function Cheapest() {
   const store: StoreResult = { ...sampleStore, chainName: t("onboarding.sample.chain"), storeName: t("onboarding.sample.branch") };
   return (
     <View style={{ flex: 1, paddingTop: space[3] }}>
-      <BestStore store={store} basketSize={4} saving={{ amount: 1.2, chainName: t("onboarding.sample.other") }} listText="" onShowBreakdown={noop} />
+      <BestStore store={store} basketSize={4} missing={1} saving={{ amount: 1.2, chainName: t("onboarding.sample.other") }} listText="" onShowBreakdown={noop} />
       <PriceMascot />
     </View>
   );

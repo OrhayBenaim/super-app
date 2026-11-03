@@ -15,12 +15,13 @@ const compareBody = z
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180),
     radiusKm: z.number().min(1).max(50).default(10),
-    items: z.array(z.object({ code: z.string().trim().min(1).max(64), quantity })).max(200).default([]),
-    groups: z.array(z.object({ ref: groupRefSchema, quantity: quantity.default(QUANTITY.start) })).max(200).default([]),
+    items: z.array(z.object({ code: z.string().trim().min(1).max(64), quantity })).default([]),
+    groups: z.array(z.object({ ref: groupRefSchema, quantity: quantity.default(QUANTITY.start) })).default([]),
     sort: z.enum(["price", "distance", "coverage"]).default("price"),
     limit: z.number().int().min(1).max(100).default(20),
   })
-  .refine((b) => b.items.length + b.groups.length > 0, "items or groups required");
+  .refine((b) => b.items.length + b.groups.length > 0, "items or groups required")
+  .refine((b) => b.items.length + b.groups.length <= 200, "at most 200 items and groups"); // a group is one entry, however many products it holds
 
 const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
 const round2 = (n: number) => Math.round(n * 100) / 100;

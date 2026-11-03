@@ -14,6 +14,8 @@ type Props = {
   store: StoreResult;
   /** Items on the list (the whole basket, priced or not). */
   basketSize: number;
+  /** Of those, the items this store does not price (missingCount). */
+  missing: number;
   saving: { amount: number; chainName: string } | null;
   /** Shopping-list item names, copied for pasting into the shop's search. */
   listText: string;
@@ -21,14 +23,13 @@ type Props = {
 };
 
 /** The app's answer: cheapest branch, its total in Price Hero, the saving, honest coverage, Navigate and Order online. */
-export function BestStore({ store, basketSize, saving, listText, onShowBreakdown }: Props) {
+export function BestStore({ store, basketSize, missing, saving, listText, onShowBreakdown }: Props) {
   const { space, motion } = useTheme();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
-  const missing = basketSize - store.matched;
   const coverage = missing
-    ? fmt(t("compare.coverage.partial"), { n: store.matched, m: basketSize, missing })
+    ? fmt(t("compare.coverage.partial"), { n: basketSize - missing, m: basketSize, missing })
     : fmt(t("compare.breakdown.row"), { n: basketSize });
 
   const selected = (action: "navigate" | "order") => track(Events.compareStoreSelected, { chainId: store.chainId, action });
@@ -90,9 +91,8 @@ export function BestStore({ store, basketSize, saving, listText, onShowBreakdown
 }
 
 /** "Other branches" row: chain, branch · distance, amber missing count when partial, trailing tabular price. Tap opens it as the card. */
-export function StoreRow({ store, basketSize, onPress }: { store: StoreResult; basketSize: number; onPress: () => void }) {
+export function StoreRow({ store, missing, onPress }: { store: StoreResult; missing: number; onPress: () => void }) {
   const { space, size } = useTheme();
-  const missing = basketSize - store.matched;
   return (
     <Tap
       // The label replaces the row's text for screen readers, so it must keep the missing count (honest coverage).
