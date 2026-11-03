@@ -3,6 +3,7 @@ import { Plus } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import { SEARCH } from "@grocer/shared/search";
 import { fmt } from "@/features/compare/format";
 import { useItemMutations, type Item } from "@/features/lists/api";
 import { Events, Taps, track, trackTap } from "@/lib/analytics";
@@ -37,7 +38,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
   const linked = new Set(items.flatMap((i) => [i.productCode, i.groupRef]));
   const search = useProductSearch(query);
   // The search is debounced, so hide its last results as soon as the field is cleared.
-  const searchable = query.trim().length >= 2;
+  const searchable = query.trim().length >= SEARCH.minLength;
   const searching = searchable && search.isFetching;
   const found = splitResults(searchable ? search.data : []);
   const groups = found.groups.filter((g) => !linked.has(g.ref));

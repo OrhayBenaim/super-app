@@ -245,12 +245,12 @@ describe("product groups: search", () => {
   });
 
   it("does not error on punctuation and does not match everything", async () => {
-    for (const q of ["%", "_", "'", '"', "קוטג'%", "בורגול_"]) {
+    for (const q of ["%%", "__", "''", '""', "קוטג'%", "בורגול_"]) {
       const res = await app.request(`/api/products/search?q=${encodeURIComponent(q)}`, { headers: { cookie } });
       expect(res.status, q).toBe(200);
       expect(((await res.json()) as Row[]).length, q).toBeLessThan(20);
     }
-    expect(await search("%")).toEqual([]);
+    expect(await search("%%")).toEqual([]);
   });
 
   it("401 without a session", async () => {

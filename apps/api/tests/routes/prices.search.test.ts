@@ -45,6 +45,8 @@ beforeAll(async () => {
     [chips, "בננה ציפס", 2, 14],
     ...["חציל קלוי", "חציל במיונז", "חציל בטחינה", "חציל פיקנטי"].map((name, i): [string, string, number, number] => [gtin(`72900000667${i}`), name, 4, 15]),
     ...["גזר מגורד", "גזר גמדי", "גזר בתבלינים", "גזר חמוץ"].map((name, i): [string, string, number, number] => [gtin(`72900000668${i}`), name, 4, 16]),
+    [gtin("729000006702"), "סבון נוזלי", 2, 20], // same name and store count as the next one, listed first: code order breaks the tie
+    [gtin("729000006701"), "סבון נוזלי", 2, 21],
     [gtin("729000006691"), "Milk", 1, 17],
     [gtin("729000006692"), "Milk chocolate", 2, 18],
   ];
@@ -87,6 +89,19 @@ describe("product search ranking", () => {
 
   it("requires every token to match and orders by the first token's tier", async () => {
     expect(await names("חלב תנובה")).toEqual(["חלב תנובה", "שוקולד חלב תנובה", "חלבה תנובה"]);
+  });
+
+  it("orders products tied on tier, store count and name by code", async () => {
+    expect((await products("סבון")).map((r) => r.code)).toEqual([gtin("729000006701"), gtin("729000006702")]);
+  });
+
+  it("rejects a one-letter q (after trim) with 400 and accepts two letters", async () => {
+    for (const q of ["x", "ח", " ח "]) {
+      const res = await get(`/api/products/search?q=${encodeURIComponent(q)}`);
+      expect(res.status, q).toBe(400);
+      expect(typeof ((await res.json()) as { error: string }).error).toBe("string");
+    }
+    expect((await get("/api/products/search?q=%D7%97%D7%9C")).status).toBe(200);
   });
 
   it("limit cuts the specific products, never the group rows", async () => {
