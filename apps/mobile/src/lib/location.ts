@@ -11,7 +11,15 @@ type State =
 
 const toCoords = (l: Location.LocationObject): Coords => ({ lat: l.coords.latitude, lng: l.coords.longitude });
 
-/** Foreground location: checks permission on mount, `request()` asks (or opens Settings when the OS won't ask again). */
+let pendingPrompt: Promise<Location.LocationPermissionResponse> | undefined;
+/** Reads the foreground permission; if it was never answered, asks. The list is the first signed-in screen, so that's where the prompt shows. Concurrent callers share one prompt. */
+export async function foregroundPermission() {
+  const p = await Location.getForegroundPermissionsAsync();
+  if (p.status !== Location.PermissionStatus.UNDETERMINED) return p;
+  return (pendingPrompt ??= Location.requestForegroundPermissionsAsync().finally(() => (pendingPrompt = undefined)));
+}
+
+/** Foreground location: checks permission on mount (asking the first time), `request()` asks (or opens Settings when the OS won't ask again). */
 export function useLocation() {
   const [state, setState] = useState<State>({ status: "checking" });
 
@@ -35,7 +43,7 @@ export function useLocation() {
   );
 
   useEffect(() => {
-    Location.getForegroundPermissionsAsync().then(handle, (e) => setState({ status: "error", error: String(e) }));
+    foregroundPermission().then(handle, (e) => setState({ status: "error", error: String(e) }));
   }, [handle]);
 
   const request = useCallback(async () => {

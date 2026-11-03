@@ -77,7 +77,7 @@ export default function Onboarding() {
           style={{ direction: "ltr" }}
         >
           {(RTL ? [...SLIDES].reverse() : SLIDES).map((slide) => (
-            <View key={slide.title} style={{ width, paddingTop: stage + space[7], paddingHorizontal: space[8], gap: space[3] }}>
+            <View key={slide.title} style={{ width, paddingTop: stage + space[7], paddingHorizontal: space[8], gap: space[3], direction: RTL ? "rtl" : "ltr" }}>
               <Text variant="title2" accessibilityRole="header" style={{ textAlign: "center" }}>
                 {slide.title}
               </Text>

@@ -56,6 +56,8 @@ export function CompareScreen() {
   const basket = missingBasket(list.data);
   const matched = basketSize(basket);
   const location = useLocation();
+  // Radius and sort only mean something once location is (or will be) available.
+  const showControls = location.status !== "checking" && location.status !== "denied";
   const compare = useCompare(location.coords, radiusKm, basket);
   const { enabled: alertsOn } = useNearbyAlerts();
   // Owns the Undo toast for a delete made in the item sheet opened from the breakdown sheet.
@@ -81,8 +83,9 @@ export function CompareScreen() {
     if (focused && open) track(Events.compareViewed, { stores: byPrice.length, radiusKm, items: items.length, matched });
   }, [focused, !!open]);
 
+  // Not while the permission is read: without location the message shows at once, never after the mascot's trip.
   const loading = useMinDuration(
-    list.isPending || location.status === "checking" || location.status === "locating" || (location.status === "ready" && matched > 0 && compare.isPending),
+    list.isPending || location.status === "locating" || (location.status === "ready" && matched > 0 && compare.isPending),
     MIN_LOADER_MS,
   );
   const body = (() => {
@@ -99,6 +102,8 @@ export function CompareScreen() {
         />
       );
     if (!matched) return <EmptyState icon={ShoppingBasket} title={t("compare.noBasket.title")} body={t("compare.noBasket.body")} />;
+    // Reading the permission takes milliseconds (or waits on the first-time prompt): show nothing rather than a loader that flashes.
+    if (location.status === "checking") return <></>;
     if (location.status === "denied")
       return (
         <EmptyState
@@ -148,8 +153,8 @@ export function CompareScreen() {
           />
         }
       >
-        <LargeTitle title={t("tabs.compare")} subtitle={subtitle} nav={location.status !== "denied" && <RadiusMenu value={radiusKm} onChange={setRadiusKm} />} />
-        {location.status !== "denied" && matched > 0 && (
+        <LargeTitle title={t("tabs.compare")} subtitle={subtitle} nav={showControls && <RadiusMenu value={radiusKm} onChange={setRadiusKm} />} />
+        {showControls && matched > 0 && (
           <SortControl
             value={sort}
             onChange={(s) => {
