@@ -12,6 +12,8 @@ import { privacyRoutes } from "#/routes/privacy.ts";
 const MINUTE = 60_000;
 
 export function createApp(deps: Deps) {
+  // One bucket for both places a password is tried: the app's sign-in and the deletion page's.
+  const signInLimit = rateLimit({ max: 10, windowMs: MINUTE });
   return new Hono<AppEnv>()
     .use(async (c, next) => {
       c.set("deps", deps);
@@ -19,8 +21,8 @@ export function createApp(deps: Deps) {
     })
     .use(rateLimit({ max: 300, windowMs: MINUTE }))
     // Stricter where a password, a Reset code or a Deletion code can be guessed.
-    .use("/api/auth/sign-in/*", rateLimit({ max: 10, windowMs: MINUTE }))
-    .use("/deletion/sign-in/*", rateLimit({ max: 10, windowMs: MINUTE }))
+    .use("/api/auth/sign-in/*", signInLimit)
+    .use("/deletion/sign-in/*", signInLimit)
     .use("/api/auth/sign-up/*", rateLimit({ max: 10, windowMs: MINUTE }))
     .use("/api/auth/email-otp/*", rateLimit({ max: 5, windowMs: MINUTE }))
     .use("/deletion/code/*", rateLimit({ max: 5, windowMs: MINUTE }))

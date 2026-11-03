@@ -174,11 +174,12 @@ describe("sign-in", () => {
     expect(await sessionWorks(cookie)).toBe(false);
   });
 
-  it("email sign-in keeps the sign-in limit: 10 a minute per client", async () => {
-    const statuses = [];
-    for (let i = 0; i < 11; i++) statuses.push((await form("/deletion/sign-in", { email: "a@delete.test", password: "x" }, { ip: "203.0.113.7" })).status);
-    expect(statuses.at(-2)).toBe(200);
-    expect(statuses.at(-1)).toBe(429);
+  it("email sign-in shares the app's sign-in limit: 10 a minute per client across both", async () => {
+    const env = { incoming: { socket: { remoteAddress: "203.0.113.7" } } };
+    const json = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "a@delete.test", password: "x" }) };
+    for (let i = 0; i < 9; i++) expect((await app.request("/api/auth/sign-in/email", json, env)).status).not.toBe(429);
+    expect((await form("/deletion/sign-in", { email: "a@delete.test", password: "x" }, { ip: "203.0.113.7" })).status).toBe(200);
+    expect((await form("/deletion/sign-in", { email: "a@delete.test", password: "x" }, { ip: "203.0.113.7" })).status).toBe(429);
   });
 });
 
