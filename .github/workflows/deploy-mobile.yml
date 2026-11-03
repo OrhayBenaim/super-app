@@ -45,6 +45,16 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+      # The release tag (v1.2.3) is the app version, so nothing is committed back to main.
+      # versionCode needs no commit either: EAS keeps it remotely (appVersionSource: remote) and autoIncrement bumps it.
+      - name: Set the app version from the release tag
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="${TAG#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Release tag $TAG is not vX.Y.Z"; exit 1; }
+          jq --arg v "$version" '.expo.version = $v' app.json > app.json.tmp && mv app.json.tmp app.json
       - name: Start EAS builds
         run: |
           if [ "$DEPLOY_ENV" = production ]; then
