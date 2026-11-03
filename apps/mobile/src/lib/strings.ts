@@ -52,7 +52,7 @@ export const en = {
   "share.rename.title": "Rename",
   "share.rename.field": "List name",
   "lists.title": "Switch list",
-  "lists.members": "{n} members",
+  "lists.members": "{n} people",
   "share.leave.confirm": "Leave this list? You'll need a new invite to come back.",
   "share.remove.confirm": "Remove {name} from this list?",
   "onboarding.1.title": "Nice to meet you, I'm Grocer",

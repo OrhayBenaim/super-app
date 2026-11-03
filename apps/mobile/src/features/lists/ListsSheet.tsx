@@ -40,7 +40,7 @@ export function ListsSheet() {
         ))}
       </Group>
       <Group>
-        <Row title={t("share.join")} analyticsName={Taps.shareJoin} chevron onPress={() => setJoining(true)} />
+        <Row title={t("share.join")} analyticsName={Taps.listsJoin} chevron onPress={() => setJoining(true)} />
       </Group>
     </Sheet>
   );

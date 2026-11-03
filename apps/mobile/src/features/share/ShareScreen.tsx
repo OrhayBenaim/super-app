@@ -22,12 +22,11 @@ export function ShareScreen() {
   const router = useRouter();
   const { space } = useTheme();
   const [renaming, setRenaming] = useState(false);
-  // Here, not in Rename: the view is gone by the time a failed save answers.
   const { rename } = useShareMutations(useCurrentListId());
   const close = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)"));
   const save = (name: string) => {
     setRenaming(false);
-    rename.mutate(name, { onError: () => Alert.alert(t("common.error")) });
+    rename.mutate(name);
   };
   // The modal is full screen on Android, so it needs the top safe-area inset; on iOS it is a page sheet already below the status bar.
   return (
@@ -144,7 +143,6 @@ function Rename({ onBack, onSave }: { onBack: () => void; onSave: (name: string)
         selectionColor={colors.tint}
         value={name}
         onChangeText={setName}
-        maxLength={200}
         autoFocus
         returnKeyType="done"
         onSubmitEditing={save}

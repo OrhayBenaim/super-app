@@ -1,7 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Alert } from "react-native";
 import { listKeys, selectList, type List, type ListDetail } from "@/features/lists/api";
 import { Events, track } from "@/lib/analytics";
 import { api } from "@/lib/api";
+import { t } from "@/lib/strings";
 
 export function useShareMutations(listId: string | null) {
   const qc = useQueryClient();
@@ -31,7 +33,8 @@ export function useShareMutations(listId: string | null) {
     qc.setQueryData<List[]>(listKeys.all, (ls) => ls?.map((l) => (l.id === listId ? { ...l, name } : l)));
     qc.setQueryData<ListDetail>(detailKey, (d) => (d ? { ...d, list: { ...d.list, name } } : d));
   };
-  // Owner only. Optimistic; cancel first so an in-flight poll can't overwrite the new name.
+  // Owner only. Optimistic; cancel first so an in-flight poll can't overwrite the new name. The alert lives here, not in
+  // a mutate() callback, so it still shows when the sheet is closed before the save fails.
   const rename = useMutation({
     mutationFn: (name: string) => api<List>(`api/lists/${listId}`, { method: "PATCH", body: JSON.stringify({ name }) }),
     onMutate: async (name) => {
@@ -43,6 +46,7 @@ export function useShareMutations(listId: string | null) {
     onError: (_e, _name, previous) => {
       if (previous?.lists) qc.setQueryData(listKeys.all, previous.lists);
       if (previous?.detail) qc.setQueryData(detailKey, previous.detail);
+      Alert.alert(t("common.error"));
     },
     onSettled: refresh,
   });
