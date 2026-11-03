@@ -50,6 +50,7 @@ export const items = sqliteTable(
     productCode: text("product_code"),
     groupRef: text("group_ref"), // a Product group (src/prices/groups.ts); never set with productCode
     missing: integer("missing", { mode: "boolean" }).notNull().default(true),
+    quantity: real("quantity").notNull().default(1), // a count, or kilos when the item is sold by weight (@grocer/shared/quantity)
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

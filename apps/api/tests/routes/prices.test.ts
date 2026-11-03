@@ -34,6 +34,8 @@ beforeAll(async () => {
 });
 
 const get = (path: string, auth = true) => app.request(path, auth ? { headers: { cookie } } : {});
+/** Compare body items, each at quantity 1. */
+const q = (codes: unknown) => (Array.isArray(codes) ? codes.map((code) => ({ code, quantity: 1 })) : codes);
 const compare = (body: unknown, auth = true) =>
   app.request("/api/compare", {
     method: "POST",
@@ -54,7 +56,7 @@ describe("prices", () => {
     const res = await get(`/api/products/search?q=${encodeURIComponent("חל תנו")}`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([
-      { kind: "product", code: A, name: "חלב תנובה 3%", manufacturer: "תנובה", unitQty: "1 ליטר", storeCount: 3, minPrice: 4, measure: "l", size: 1 },
+      { kind: "product", code: A, name: "חלב תנובה 3%", manufacturer: "תנובה", unitQty: "1 ליטר", storeCount: 3, minPrice: 4, measure: "l", size: 1, soldBy: "unit" },
     ]);
   });
 
@@ -75,14 +77,14 @@ describe("prices", () => {
   });
 
   it("401 without a session, 400 on a bad body", async () => {
-    expect((await compare({ ...here, codes: [A] }, false)).status).toBe(401);
-    expect((await compare({ ...here, codes: [] })).status).toBe(400);
-    expect((await compare({ lat: 91, lng: 0, codes: [A] })).status).toBe(400);
-    expect((await compare({ ...here, codes: [A], radiusKm: 51 })).status).toBe(400);
+    expect((await compare({ ...here, items: q([A]) }, false)).status).toBe(401);
+    expect((await compare({ ...here, items: q([]) })).status).toBe(400);
+    expect((await compare({ lat: 91, lng: 0, items: q([A]) })).status).toBe(400);
+    expect((await compare({ ...here, items: q([A]), radiusKm: 51 })).status).toBe(400);
   });
 
   it("compares by price, excluding the out-of-radius store", async () => {
-    const r = await (await compare({ ...here, codes: [A, B, C, D, E, A] })).json();
+    const r = await (await compare({ ...here, items: q([A, B, C, D, E]) })).json();
     expect(ids(r)).toEqual(["1", "2"]);
     expect(r.stores[0]).toMatchObject({
       chainName: "Osher Ad",
@@ -98,10 +100,10 @@ describe("prices", () => {
   });
 
   it("sorts by distance and by coverage, and honours limit and radius", async () => {
-    expect(ids(await (await compare({ ...here, codes: [A, B, C], sort: "distance" })).json())).toEqual(["2", "1"]);
-    expect(ids(await (await compare({ ...here, codes: [A, B, C], sort: "coverage", limit: 1 })).json())).toEqual(["1"]);
+    expect(ids(await (await compare({ ...here, items: q([A, B, C]), sort: "distance" })).json())).toEqual(["2", "1"]);
+    expect(ids(await (await compare({ ...here, items: q([A, B, C]), sort: "coverage", limit: 1 })).json())).toEqual(["1"]);
     // Among equal coverage the cheaper store wins.
-    expect(ids(await (await compare({ ...here, codes: [A, C], sort: "coverage" })).json())).toEqual(["2", "1"]);
-    expect(ids(await (await compare({ ...here, codes: [A], radiusKm: 15, sort: "price" })).json())).toEqual(["3", "2", "1"]);
+    expect(ids(await (await compare({ ...here, items: q([A, C]), sort: "coverage" })).json())).toEqual(["2", "1"]);
+    expect(ids(await (await compare({ ...here, items: q([A]), radiusKm: 15, sort: "price" })).json())).toEqual(["3", "2", "1"]);
   });
 });

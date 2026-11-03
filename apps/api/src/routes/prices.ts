@@ -1,9 +1,11 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
+import { QUANTITY } from "@grocer/shared/quantity";
 import type { Db } from "#/db/index.ts";
-import { commonest, ftsMatch, groupRefSchema, measureOf, nameWords, parseRef, sameMeasure, searchGroups, startsGroup, withoutSizes } from "#/prices/groups.ts";
+import { commonest, ftsMatch, groupMembers, groupRefSchema, measureOf, nameWords, parseRef, searchGroups, soldByOf, withoutSizes } from "#/prices/groups.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
 
+const quantity = z.number().positive().max(QUANTITY.max);
 const searchQuery = z.object({
   q: z.string().trim().min(1).max(100),
   limit: z.coerce.number().int().min(1).max(50).default(20),
@@ -13,12 +15,13 @@ const compareBody = z
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180),
     radiusKm: z.number().min(1).max(50).default(10),
-    codes: z.array(z.string().trim().min(1).max(64)).max(200).default([]),
-    groups: z.array(z.object({ ref: groupRefSchema, amount: z.number().positive().max(1000).optional() })).max(200).default([]),
+    items: z.array(z.object({ code: z.string().trim().min(1).max(64), quantity })).default([]),
+    groups: z.array(z.object({ ref: groupRefSchema, quantity: quantity.default(QUANTITY.start) })).default([]),
     sort: z.enum(["price", "distance", "coverage"]).default("price"),
     limit: z.number().int().min(1).max(100).default(20),
   })
-  .refine((b) => b.codes.length + b.groups.length > 0, "codes or groups required");
+  .refine((b) => b.items.length + b.groups.length > 0, "items or groups required")
+  .refine((b) => b.items.length + b.groups.length <= 200, "at most 200 items and groups"); // a group is one entry, however many products it holds
 
 const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -37,7 +40,12 @@ const FTS_SEARCH = `SELECT ${productCols},
 const CODE_SEARCH = `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
    WHERE p.code = ? OR (p.code LIKE ? AND instr(p.code, ':') = 0) GROUP BY p.code ORDER BY p.code = ? DESC, storeCount DESC LIMIT ?`;
 
-const productResult = ({ isWeighted, ...p }: Found) => ({ kind: "product" as const, ...p, ...(measureOf({ ...p, isWeighted }) ?? { measure: null, size: null }) });
+const productResult = ({ isWeighted, ...p }: Found) => ({
+  kind: "product" as const,
+  ...p,
+  ...(measureOf({ ...p, isWeighted }) ?? { measure: null, size: null }),
+  soldBy: soldByOf({ ...p, isWeighted }),
+});
 
 /**
  * Product search: the Product groups the query's words name come first (most stores first), then specific products.
@@ -62,20 +70,6 @@ export function searchProducts(db: Db, q: string, limit: number) {
   return [...groups, ...found.slice(0, limit).map(({ tier: _, ...p }) => productResult(p))];
 }
 
-/** Every product in the group the ref names, with its size (kilos, liters or pack count). */
-function groupMembers(db: Db, ref: string) {
-  const { words, size } = parseRef(ref)!;
-  const match = ftsMatch(words);
-  if (!match) return [];
-  const rows = db.$client
-    .prepare("SELECT p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted FROM products_fts f JOIN products p ON p.code = f.code WHERE products_fts MATCH ?")
-    .all(match) as { code: string; name: string; unitQty: string | null; isWeighted: number }[];
-  return rows.flatMap((p) => {
-    const own = measureOf(p);
-    return own && sameMeasure(own, size) && startsGroup(nameWords(p.name), words) ? [{ code: p.code, name: p.name, size: own.size }] : [];
-  });
-}
-
 const R = 6371;
 const KM_PER_DEG = 111; // below R*pi/180 = 111.195 so the bounding box always contains the circle
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -88,24 +82,34 @@ type PriceRow = {
   storeId: string; chainId: string; chainName: string; orderUrl: string | null; storeName: string;
   address: string; city: string; lat: number; lng: number; code: string; price: number;
 };
-type GroupItem = { ref: string; code: string; name: string; size: number; unitPrice?: number; price: number };
+type Line = { code: string; price: number; quantity: number; lineTotal: number };
+type GroupLine = Line & { ref: string; name: string; size: number; unitPrice?: number };
+
+/** Quantities summed per key (two items matched to one product), in first-seen order. */
+const sumByKey = (entries: { key: string; quantity: number }[]) => {
+  const sums = new Map<string, number>();
+  for (const { key, quantity } of entries) sums.set(key, (sums.get(key) ?? 0) + quantity);
+  return sums;
+};
 
 /**
  * What the list costs at each store within `radiusKm`, sorted and cut to `limit`, plus codes and group refs no store
- * carries (`missingCodes` and `unmatched` hold both). Each store is charged, per group, its cheapest product of the
- * group: by price per kilo or liter times the amount (kilos or liters, by default the group's commonest pack size), or
- * for a unit group the cheapest pack times the amount (packs, by default 1).
+ * carries (`missingCodes` and `unmatched` hold both). Each line is a price times a quantity. A product's price is its
+ * shelf price (per kilo when sold by weight). A group's price is its cheapest product at that store: for a group sold
+ * by weight, per kilo; for another kilo or liter group, the price per kilo or liter of the group's commonest pack size,
+ * so the quantity counts those packs; for a unit group, the cheapest pack.
  */
 export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
   const { lat, lng, radiusKm, sort, limit } = query;
-  const codes = [...new Set(query.codes)];
-  const groups = [...new Map(query.groups.map((g) => [g.ref, g])).values()].map(({ ref, amount }) => {
-    const members = groupMembers(db, ref);
+  const codes = sumByKey(query.items.map((i) => ({ key: i.code, quantity: i.quantity })));
+  const groups = [...sumByKey(query.groups.map((g) => ({ key: g.ref, quantity: g.quantity })))].map(([ref, quantity]) => {
+    const { members, soldBy } = groupMembers(db, ref);
     const byQuantity = parseRef(ref)!.size.measure !== "unit"; // priced per kilo or liter
-    return { ref, byQuantity, members, amount: amount ?? (byQuantity ? (commonest(members.map((m) => m.size)) ?? 1) : 1) };
+    const perStep = byQuantity && soldBy === "unit" ? (commonest(members.map((m) => m.size)) ?? 1) : 1; // kilos or liters in one of `quantity`
+    return { ref, byQuantity, members, quantity, perStep };
   });
-  const asked = [...codes, ...groups.map((g) => g.ref)];
-  const priced = [...new Set([...codes, ...groups.flatMap((g) => g.members.map((m) => m.code))])];
+  const asked = [...codes.keys(), ...groups.map((g) => g.ref)];
+  const priced = [...new Set([...codes.keys(), ...groups.flatMap((g) => g.members.map((m) => m.code))])];
   const dLat = radiusKm / KM_PER_DEG;
   const dLng = radiusKm / (KM_PER_DEG * Math.max(Math.cos(rad(lat)), 0.01));
   const rows = db.$client
@@ -130,7 +134,13 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
 
   const carried = new Set<string>();
   const stores = [...byStore.values()].map(({ row, distanceKm, prices }) => {
-    const items: ({ code: string; price: number } | GroupItem)[] = codes.flatMap((code) => (prices.has(code) ? [{ code, price: prices.get(code)! }] : []));
+    let sum = 0;
+    const items: (Line | GroupLine)[] = [...codes].flatMap(([code, quantity]) => {
+      const price = prices.get(code);
+      if (price === undefined) return [];
+      sum += price * quantity;
+      return [{ code, price, quantity, lineTotal: round2(price * quantity) }];
+    });
     for (const g of groups) {
       let best: { code: string; name: string; size: number; each: number } | undefined;
       for (const m of g.members) {
@@ -139,8 +149,10 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
         if (each < (best?.each ?? Infinity)) best = { ...m, each };
       }
       if (best) {
-        const { each, ...product } = best;
-        items.push({ ref: g.ref, ...product, ...(g.byQuantity ? { unitPrice: round2(each) } : {}), price: round2(each * g.amount) });
+        const { each, code, name, size } = best;
+        const line = each * g.perStep * g.quantity;
+        sum += line;
+        items.push({ ref: g.ref, code, name, size, ...(g.byQuantity ? { unitPrice: round2(each) } : {}), price: round2(each * g.perStep), quantity: g.quantity, lineTotal: round2(line) });
       }
     }
     const have = new Set(items.map((i) => ("ref" in i ? i.ref : i.code)));
@@ -149,7 +161,7 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
     return {
       ...store,
       distanceKm: round2(distanceKm),
-      total: round2(items.reduce((sum, i) => sum + i.price, 0)),
+      total: round2(sum),
       matched: items.length,
       missingCodes: asked.filter((k) => !have.has(k)),
       items,

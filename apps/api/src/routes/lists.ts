@@ -3,10 +3,11 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { DEFAULT_LIST_NAME } from "@grocer/shared/lists";
+import { isValidQuantity, QUANTITY, type SoldBy } from "@grocer/shared/quantity";
 import type { Db } from "#/db/index.ts";
-import { items, listMembers, lists, user } from "#/db/schema.ts";
+import { items, listMembers, lists, products, user } from "#/db/schema.ts";
 import type { Deps } from "#/deps.ts";
-import { groupRefSchema } from "#/prices/groups.ts";
+import { groupMembers, groupRefSchema, soldByOf } from "#/prices/groups.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32 chars, no 0/O/1/I; 256 % 32 == 0 so no modulo bias
@@ -19,6 +20,7 @@ const itemFields = z.object({
   productCode: z.string().trim().min(1).max(64).nullable().optional(),
   groupRef: groupRefSchema.nullable().optional(),
   missing: z.boolean().optional(),
+  quantity: z.number().positive().max(QUANTITY.max).optional(), // checked against the item's sold-by in the handler
 });
 // An item is matched to one product or one Product group, never both.
 const oneMatch = [(b: { productCode?: string | null; groupRef?: string | null }) => !(b.productCode && b.groupRef), "send productCode or groupRef, not both"] as const;
@@ -31,6 +33,35 @@ async function parse<T extends z.ZodType>(c: Context<AppEnv>, schema: T) {
 }
 const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid body" }, 400);
 const notFound = (c: Context<AppEnv>) => c.json({ error: "not found" }, 404);
+const badQuantity = (c: Context<AppEnv>, soldBy: SoldBy) => c.json({ error: `invalid quantity for an item sold by ${soldBy}` }, 400);
+
+type Match = { productCode: string | null; groupRef: string | null };
+/** How an item is sold, from its matched product or Product group; unmatched items (and unknown codes) by the unit. */
+function soldByOfItem(db: Db, { productCode, groupRef }: Match): SoldBy {
+  if (groupRef) return groupMembers(db, groupRef).soldBy;
+  const p = productCode && db.select({ unitQty: products.unitQty, isWeighted: products.isWeighted }).from(products).where(eq(products.code, productCode)).get();
+  return p ? soldByOf(p) : "unit";
+}
+
+// shortcut: a group item's sold-by runs a group search on every poll (once per distinct match); cache it per group ref
+// if list polling shows up as slow.
+/** Items with their sold-by, worked out once per distinct match. */
+function withSoldBy<T extends Match>(db: Db, rows: T[]) {
+  const known = new Map<string, SoldBy>();
+  return rows.map((i) => {
+    const key = `${i.productCode}|${i.groupRef}`;
+    if (!known.has(key)) known.set(key, soldByOfItem(db, i));
+    return { ...i, soldBy: known.get(key)! };
+  });
+}
+
+/**
+ * An item's quantity after a patch. A quantity in kilos means nothing in units (and back), so a re-match to the other
+ * sold-by, or to one the stored quantity doesn't fit, starts over, unless the patch sends a quantity.
+ * `soldByBefore` is given only when the patch re-matches the item.
+ */
+const patchedQuantity = (stored: number, sent: number | undefined, soldBy: SoldBy, soldByBefore?: SoldBy) =>
+  sent ?? (soldByBefore && (soldBy !== soldByBefore || !isValidQuantity(stored, soldBy)) ? QUANTITY.start : stored);
 
 const listSelect = {
   id: lists.id,
@@ -105,7 +136,7 @@ export const listsRoutes = new Hono<AppEnv>()
       .where(eq(listMembers.listId, id))
       .all();
     const rows = db.select().from(items).where(eq(items.listId, id)).orderBy(asc(items.createdAt)).all();
-    return c.json({ list, members, items: rows });
+    return c.json({ list, members, items: withSoldBy(db, rows) });
   })
   .patch("/:id", async (c) => {
     const { db, clock } = c.var.deps;
@@ -125,10 +156,12 @@ export const listsRoutes = new Hono<AppEnv>()
     if (!roleOf(db, listId, c.var.user.id)) return notFound(c);
     const p = await parse(c, itemBody);
     if (!p.success) return bad(c, p.error);
-    const { name, category, productCode = null, groupRef = null, missing = true } = p.data;
-    const item = db.insert(items).values({ id: randomUUID(), listId, name, category, productCode, groupRef, missing }).returning().get();
+    const { name, category, productCode = null, groupRef = null, missing = true, quantity = QUANTITY.start } = p.data;
+    const soldBy = soldByOfItem(db, { productCode, groupRef });
+    if (!isValidQuantity(quantity, soldBy)) return badQuantity(c, soldBy);
+    const item = db.insert(items).values({ id: randomUUID(), listId, name, category, productCode, groupRef, missing, quantity }).returning().get();
     touch(c.var.deps, listId);
-    return c.json(item);
+    return c.json({ ...item, soldBy });
   })
   .patch("/:id/items/:itemId", async (c) => {
     const { db, clock } = c.var.deps;
@@ -136,16 +169,25 @@ export const listsRoutes = new Hono<AppEnv>()
     if (!roleOf(db, listId, c.var.user.id)) return notFound(c);
     const p = await parse(c, itemPatch);
     if (!p.success) return bad(c, p.error);
+    const where = and(eq(items.id, itemId), eq(items.listId, listId));
+    const before = db.select().from(items).where(where).get();
+    if (!before) return notFound(c);
     const other = p.data.productCode ? { groupRef: null } : p.data.groupRef ? { productCode: null } : {}; // matching one unmatches the other
+    const next = { ...before, ...p.data, ...other };
+    const rematched = next.productCode !== before.productCode || next.groupRef !== before.groupRef;
+    const soldBy = soldByOfItem(db, next);
+    const quantity = patchedQuantity(before.quantity, p.data.quantity, soldBy, rematched ? soldByOfItem(db, before) : undefined);
+    // Only a sent quantity is checked, so a stored one can never block checking the item off.
+    if (p.data.quantity !== undefined && !isValidQuantity(quantity, soldBy)) return badQuantity(c, soldBy);
     const item = db
       .update(items)
-      .set({ ...p.data, ...other, updatedAt: clock.now() })
-      .where(and(eq(items.id, itemId), eq(items.listId, listId)))
+      .set({ ...p.data, ...other, quantity, updatedAt: clock.now() })
+      .where(where)
       .returning()
       .get();
     if (!item) return notFound(c);
     touch(c.var.deps, listId);
-    return c.json(item);
+    return c.json({ ...item, soldBy });
   })
   .delete("/:id/items/:itemId", (c) => {
     const { db } = c.var.deps;

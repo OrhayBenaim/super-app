@@ -90,7 +90,7 @@ describe("auth boundary", () => {
     const res = await app.request("/api/compare", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ lat: 32, lng: 34, codes: ["1"] }),
+      body: JSON.stringify({ lat: 32, lng: 34, items: [{ code: "1", quantity: 1 }] }),
     });
     expect(res.status).toBe(401);
   });

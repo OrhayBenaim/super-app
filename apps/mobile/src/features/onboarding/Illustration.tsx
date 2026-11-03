@@ -99,7 +99,7 @@ export function Hello() {
   );
 }
 
-const sampleItem = (name: string, missing: boolean): Item => ({ id: name, listId: "", name, category: "", productCode: null, groupRef: null, missing, createdAt: "", updatedAt: "" });
+const sampleItem = (name: string, missing: boolean): Item => ({ id: name, listId: "", name, category: "", productCode: null, groupRef: null, missing, quantity: 1, soldBy: "unit", createdAt: "", updatedAt: "" });
 const noop = () => {};
 
 /** Clone of the + add field with a typed query, as the list screen shows it. */
@@ -174,7 +174,7 @@ export function Cheapest() {
   const store: StoreResult = { ...sampleStore, chainName: t("onboarding.sample.chain"), storeName: t("onboarding.sample.branch") };
   return (
     <View style={{ flex: 1, paddingTop: space[3] }}>
-      <BestStore store={store} basketSize={4} saving={{ amount: 1.2, chainName: t("onboarding.sample.other") }} listText="" onShowMissing={noop} />
+      <BestStore store={store} basketSize={4} missing={1} saving={{ amount: 1.2, chainName: t("onboarding.sample.other") }} listText="" onShowBreakdown={noop} />
       <PriceMascot />
     </View>
   );
