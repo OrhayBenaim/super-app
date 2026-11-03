@@ -11,6 +11,7 @@ import { useTheme } from "@/theme";
 import { Group, Row, SearchField, Tap, Text } from "@/ui";
 import { suggestItems } from "./autocomplete";
 import { AddBadge, ItemRow } from "./ItemRow";
+import { ProductImage } from "./ProductImage";
 import { useProductSearch, type Product } from "./products";
 
 type Props = {
@@ -66,6 +67,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
       detail={[fmt(t("items.product.from"), { price: shekels(p.minPrice) }), fmt(t("items.product.stores"), { n: p.storeCount })].join(" · ")}
       accessibilityLabel={fmt(t(from === "list" ? "items.addToList" : "items.add.createInItems"), { name: p.name })}
       analyticsName={Taps.itemsAddProduct}
+      leading={<ProductImage url={p.imageUrl} />}
       trailing={<AddBadge />}
       onPress={() => createItem(p.name, p.code)}
     />
