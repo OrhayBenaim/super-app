@@ -48,6 +48,7 @@ export const items = sqliteTable(
     name: text("name").notNull(),
     category: text("category").notNull(),
     productCode: text("product_code"),
+    groupRef: text("group_ref"), // a Product group (src/prices/groups.ts); never set with productCode
     missing: integer("missing", { mode: "boolean" }).notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -82,19 +83,14 @@ export const stores = sqliteTable(
   (t) => [index("stores_lat_lng_idx").on(t.lat, t.lng)],
 );
 
-export const products = sqliteTable(
-  "products",
-  {
-    code: text("code").primaryKey(), // ItemCode if a valid GTIN, else `${chainId}:${ItemCode}`
-    itemCode: text("item_code"), // raw ItemCode as published
-    name: text("name").notNull(),
-    manufacturer: text("manufacturer"),
-    unitQty: text("unit_qty"),
-    isWeighted: integer("is_weighted", { mode: "boolean" }).notNull().default(false),
-    groupKey: text("group_key"), // Produce group (src/ingest/produce.ts); null for barcoded products
-  },
-  (t) => [index("products_group_key_idx").on(t.groupKey)],
-);
+export const products = sqliteTable("products", {
+  code: text("code").primaryKey(), // ItemCode if a valid GTIN, else `${chainId}:${ItemCode}`
+  itemCode: text("item_code"), // raw ItemCode as published
+  name: text("name").notNull(),
+  manufacturer: text("manufacturer"),
+  unitQty: text("unit_qty"),
+  isWeighted: integer("is_weighted", { mode: "boolean" }).notNull().default(false),
+});
 
 export const prices = sqliteTable(
   "prices",

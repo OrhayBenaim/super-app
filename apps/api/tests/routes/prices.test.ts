@@ -54,11 +54,11 @@ describe("prices", () => {
     const res = await get(`/api/products/search?q=${encodeURIComponent("חל תנו")}`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([
-      { code: A, name: "חלב תנובה 3%", manufacturer: "תנובה", unitQty: "1 ליטר", storeCount: 3, minPrice: 4 },
+      { kind: "product", code: A, name: "חלב תנובה 3%", manufacturer: "תנובה", unitQty: "1 ליטר", storeCount: 3, minPrice: 4, measure: "l", size: 1 },
     ]);
   });
 
-  it("falls back to LIKE for FTS-special characters and validates the query", async () => {
+  it("searches the number in a name through FTS and validates the query", async () => {
     const rows = await (await get(`/api/products/search?q=${encodeURIComponent("3%")}`)).json();
     expect(rows.map((r: { code: string }) => r.code)).toEqual([A]);
     expect((await get("/api/products/search?q=")).status).toBe(400);

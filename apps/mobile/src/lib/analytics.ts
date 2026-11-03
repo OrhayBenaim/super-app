@@ -71,6 +71,8 @@ export const Taps = {
   itemsCategoryPick: "items.category.pick",
   itemsDelete: "items.delete",
   itemsEmptyCta: "items.empty.cta",
+  itemsGroupPick: "items.group.pick",
+  itemsGroupRefine: "items.group.refine",
   itemsProduct: "items.product",
   itemsProductNoMatch: "items.product.noMatch",
   itemsProductPick: "items.product.pick",

@@ -310,10 +310,10 @@ describe("products search", () => {
 
   it("reports storeCount and the minimum price", async () => {
     const rows = (await (await search("חלב תנובה")).json()) as any[];
-    expect(rows).toEqual([{ code: S1, name: "חלב תנובה 3%", manufacturer: null, unitQty: null, storeCount: 2, minPrice: 5 }]);
+    expect(rows).toEqual([{ kind: "product", code: S1, name: "חלב תנובה 3%", manufacturer: null, unitQty: null, storeCount: 2, minPrice: 5, measure: null, size: null }]);
   });
 
-  it("FTS-special characters fall back to LIKE without a 500", async () => {
+  it("FTS-special characters never cause a 500", async () => {
     for (const q of ['"', '"hello"', "*", "(", ")", "(world)", "-", "--", "a-b", ":", "name:חלב", "^", "'", "\\", "%", "_", "a OR", "~", "{", "}", "[", "]", "NEAR(", "\u0000x"]) {
       const res = await search(q);
       expect(res.status, `q=${JSON.stringify(q)}`).toBe(200);
@@ -330,18 +330,19 @@ describe("products search", () => {
     expect(await searchCodes("NEAR the")).toEqual([S6]);
   });
 
-  it("LIKE fallback matches the special character literally", async () => {
+  it("punctuation is dropped, the words around it still match", async () => {
     expect(await searchCodes("100%")).toEqual([S7]);
     expect(await searchCodes("snack_bar")).toEqual([S8]);
     expect(await searchCodes("Coca-Cola")).toEqual([S4]);
     expect(await searchCodes('"hello"')).toEqual([S9]);
   });
 
-  it("LIKE wildcards are escaped: % and _ do not match everything", async () => {
-    expect(await searchCodes("%")).toEqual([S1, S7]); // only names containing a literal %
-    expect(await searchCodes("snack_bar")).toEqual([S8]);
+  it("% and _ in q are plain punctuation: they do not match everything", async () => {
+    expect(await searchCodes("%")).toEqual([]); // no words left
+    expect(await searchCodes("_")).toEqual([]);
+    expect(await searchCodes("'")).toEqual([]);
+    expect(await searchCodes("s_ack")).toEqual([]); // "s" and "ack" are separate words, no product has both
     expect(await searchCodes("snackxbar")).toEqual([]);
-    expect(await searchCodes("s_ack-")).toEqual([]);
   });
 
   it("is consistent on empty input: missing, empty, blank and overlong q are all 400", async () => {

@@ -1,87 +1,79 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { Db } from "#/db/index.ts";
-import { produceName, stem } from "#/ingest/produce.ts";
+import { commonest, ftsMatch, groupRefSchema, measureOf, nameWords, parseRef, sameMeasure, searchGroups, startsGroup, withoutSizes } from "#/prices/groups.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
 
 const searchQuery = z.object({
   q: z.string().trim().min(1).max(100),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
-const compareBody = z.object({
-  lat: z.number().min(-90).max(90),
-  lng: z.number().min(-180).max(180),
-  radiusKm: z.number().min(1).max(50).default(10),
-  codes: z.array(z.string().trim().min(1).max(64)).min(1).max(200),
-  sort: z.enum(["price", "distance", "coverage"]).default("price"),
-  limit: z.number().int().min(1).max(100).default(20),
-});
+const compareBody = z
+  .object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    radiusKm: z.number().min(1).max(50).default(10),
+    codes: z.array(z.string().trim().min(1).max(64)).max(200).default([]),
+    groups: z.array(z.object({ ref: groupRefSchema, amount: z.number().positive().max(1000).optional() })).max(200).default([]),
+    sort: z.enum(["price", "distance", "coverage"]).default("price"),
+    limit: z.number().int().min(1).max(100).default(20),
+  })
+  .refine((b) => b.codes.length + b.groups.length > 0, "codes or groups required");
 
 const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
-const productCols = `p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.group_key AS groupKey, count(pr.store_id) AS storeCount, min(pr.price) AS minPrice`;
-// The product named exactly the first word comes first ("חציל" before "חציל קלוי": a Produce group's members are each
-// priced in few stores, so store count alone would cut it), a Produce group whose shown name is the word too ("גזר במשקל"
-// shows as "גזר"), then products named after the word ("חלב 3%" before "שוקולד חלב", both before "חלבה"), then the
-// most widely priced. LIKE matches ASCII case-insensitively, as the FTS tokenizer does. One row per group (its best
-// member, ranked by the group's summed store count) so one group's many members never crowd out the rest. Min price is
-// read for the kept rows only.
-const FTS_SEARCH = `SELECT c.code, c.name, c.manufacturer, c.unitQty, c.groupKey, c.storeCount, c.tier,
-     (SELECT min(price) FROM prices WHERE code = c.code) AS minPrice FROM (
-     SELECT m.*, row_number() OVER g AS nth, sum(m.storeCount) OVER g AS reach FROM (
-       SELECT p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.group_key AS groupKey, f.rank,
-         (SELECT count(*) FROM prices pr WHERE pr.code = p.code) AS storeCount,
-         CASE WHEN p.name LIKE @first OR p.group_key LIKE @key || '|%' THEN 0 WHEN p.name LIKE @first || ' %' THEN 1
-           WHEN ' ' || p.name || ' ' LIKE '% ' || @first || ' %' THEN 2 ELSE 3 END AS tier
-       FROM products_fts f JOIN products p ON p.code = f.code WHERE products_fts MATCH @match AND storeCount > 0
-     ) m WINDOW g AS (PARTITION BY coalesce(m.groupKey, m.code) ORDER BY m.tier, m.storeCount DESC, m.rank
-       RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
-   ) c WHERE c.nth = 1 ORDER BY c.tier, c.reach DESC, c.rank LIMIT @limit`;
-const LIKE_SEARCH = `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
-   WHERE p.name LIKE ? ESCAPE '\\' OR p.code = ? GROUP BY p.code ORDER BY storeCount DESC LIMIT ?`;
+type Found = { code: string; name: string; manufacturer: string | null; unitQty: string | null; isWeighted: number; storeCount: number; minPrice: number };
+const productCols = `p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.is_weighted AS isWeighted, count(pr.store_id) AS storeCount, min(pr.price) AS minPrice`;
+// The product named exactly the first word comes first, then products named after the word ("חלב 3%" before "שוקולד
+// חלב", both before "חלבה"), then the most widely priced. LIKE matches ASCII case-insensitively, as the FTS tokenizer does.
+// shortcut: candidates are capped at 3000; a group's members rank in the first tiers, so only a bigger group loses some.
+// Raise the cap or count members in SQL when one real search hits it.
+const FTS_SEARCH = `SELECT ${productCols},
+     CASE WHEN p.name LIKE @first THEN 0 WHEN p.name LIKE @first || ' %' THEN 1
+       WHEN ' ' || p.name || ' ' LIKE '% ' || @first || ' %' THEN 2 ELSE 3 END AS tier
+   FROM products_fts f JOIN products p ON p.code = f.code JOIN prices pr ON pr.code = p.code
+   WHERE products_fts MATCH @match GROUP BY p.code ORDER BY tier, storeCount DESC, min(f.rank) LIMIT 3000`;
 const CODE_SEARCH = `SELECT ${productCols} FROM products p JOIN prices pr ON pr.code = p.code
    WHERE p.code = ? OR (p.code LIKE ? AND instr(p.code, ':') = 0) GROUP BY p.code ORDER BY p.code = ? DESC, storeCount DESC LIMIT ?`;
 
-const GROUP_TOTALS = `SELECT count(DISTINCT pr.store_id) AS storeCount, min(pr.price) AS minPrice,
-     CASE WHEN count(DISTINCT coalesce(p.manufacturer, '')) = 1 THEN max(p.manufacturer) END AS manufacturer
-   FROM products p JOIN prices pr ON pr.code = p.code WHERE p.group_key = ?`;
-const GROUP_TOP = `SELECT p.code, p.name, p.unit_qty AS unitQty FROM products p JOIN prices pr ON pr.code = p.code
-   WHERE p.group_key = ? GROUP BY p.code ORDER BY count(*) DESC, p.code LIMIT 1`;
-
-type Found = { code: string; name: string; manufacturer: string | null; unitQty: string | null; groupKey: string | null; storeCount: number; minPrice: number; tier?: number };
+const productResult = ({ isWeighted, ...p }: Found) => ({ kind: "product" as const, ...p, ...(measureOf({ ...p, isWeighted }) ?? { measure: null, size: null }) });
 
 /**
- * Product search with one result per Produce group: its most widely priced product's code, its name without noise
- * words, the group's store count and lowest price, and a manufacturer only when all its products share one.
+ * Product search: the Product groups the query's words name come first (most stores first), then specific products.
+ * A barcode (8+ digits) returns products only: the exact code, then code prefixes.
  */
 export function searchProducts(db: Db, q: string, limit: number) {
   const sqlite = db.$client;
-  const seen = new Set<string>();
-  const results: Omit<Found, "groupKey">[] = [];
-  for (const { groupKey, ...product } of findProducts(db, q, limit * 4) as Found[]) { // a group can fill several rows
-    if (results.length === limit) break;
-    if (!groupKey) results.push(product);
-    else if (!seen.has(groupKey)) {
-      seen.add(groupKey);
-      const top = sqlite.prepare(GROUP_TOP).get(groupKey) as Pick<Found, "code" | "name" | "unitQty">;
-      const totals = sqlite.prepare(GROUP_TOTALS).get(groupKey) as Pick<Found, "storeCount" | "minPrice" | "manufacturer">;
-      results.push({ ...top, name: produceName(top.name), ...totals, tier: product.tier }); // manufacturer only when every product agrees
-    }
-  }
-  // Name searches rank by store count, which for a group is only known now ("בננה" across chains beats banana chips).
-  if (results[0]?.tier !== undefined) results.sort((a, b) => a.tier! - b.tier! || b.storeCount - a.storeCount);
-  return results.map(({ tier: _, ...product }) => product);
+  if (/^\d{8,}$/.test(q)) return (sqlite.prepare(CODE_SEARCH).all(q, `${q}%`, q, limit) as Found[]).map(productResult);
+  // Quoted prefix terms keep AND/OR/NOT/NEAR literal; punctuation never reaches FTS (words are letter runs and numbers).
+  const typed = nameWords(q);
+  const words = typed.map((w) => w.norm);
+  const find = (match: string) => (match ? sqlite.prepare(FTS_SEARCH).all({ match, first: typed[0]!.raw }) : []) as (Found & { tier: number })[];
+  const found = find(ftsMatch(words));
+  // A typed size narrows the products but never the group ("בורגול 500 גרם" names all of "בורגול").
+  const groupWords = withoutSizes(words);
+  const pool = groupWords.length === words.length ? found : find(ftsMatch(groupWords));
+  const groups = searchGroups(groupWords, pool).map(({ codes, minPrice, ...g }) => {
+    const { n } = sqlite.prepare("SELECT count(DISTINCT store_id) AS n FROM prices WHERE code IN (SELECT value FROM json_each(?))").get(JSON.stringify(codes)) as { n: number };
+    return { kind: "group" as const, ...g, minPrice: round2(minPrice), productCount: codes.length, storeCount: n };
+  });
+  groups.sort((a, b) => b.storeCount - a.storeCount);
+  return [...groups, ...found.slice(0, limit).map(({ tier: _, ...p }) => productResult(p))];
 }
 
-/** Barcode, name prefix (FTS) or free text (LIKE) search over products that some store prices. */
-function findProducts(db: Db, q: string, limit: number) {
-  const sqlite = db.$client;
-  const tokens = q.split(/\s+/);
-  // Letters/digits only go to FTS as quoted prefix terms (quotes keep AND/OR/NOT/NEAR literal); anything else (quotes, %, -) would be FTS syntax, so use LIKE.
-  if (/^\d{8,}$/.test(q)) return sqlite.prepare(CODE_SEARCH).all(q, `${q}%`, q, limit); // barcode: exact code first, then code prefix
-  if (tokens.every((t) => /^[\p{L}\p{N}]+$/u.test(t)))
-    return sqlite.prepare(FTS_SEARCH).all({ match: tokens.map((t) => `"${t}"*`).join(" "), first: tokens[0], key: stem(tokens[0]!), limit });
-  return sqlite.prepare(LIKE_SEARCH).all(`%${q.replace(/[\\%_]/g, "\\$&")}%`, q, limit);
+/** Every product in the group the ref names, with its size (kilos, liters or pack count). */
+function groupMembers(db: Db, ref: string) {
+  const { words, size } = parseRef(ref)!;
+  const match = ftsMatch(words);
+  if (!match) return [];
+  const rows = db.$client
+    .prepare("SELECT p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted FROM products_fts f JOIN products p ON p.code = f.code WHERE products_fts MATCH ?")
+    .all(match) as { code: string; name: string; unitQty: string | null; isWeighted: number }[];
+  return rows.flatMap((p) => {
+    const own = measureOf(p);
+    return own && sameMeasure(own, size) && startsGroup(nameWords(p.name), words) ? [{ code: p.code, name: p.name, size: own.size }] : [];
+  });
 }
 
 const R = 6371;
@@ -91,26 +83,29 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 }
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 type PriceRow = {
   storeId: string; chainId: string; chainName: string; orderUrl: string | null; storeName: string;
   address: string; city: string; lat: number; lng: number; code: string; price: number;
 };
+type GroupItem = { ref: string; code: string; name: string; size: number; unitPrice?: number; price: number };
 
 /**
- * What the list costs at each store within `radiusKm`, sorted and cut to `limit`, plus codes no store carries.
- * A code in a Produce group stands for the whole group: each store is charged its cheapest product of the group.
+ * What the list costs at each store within `radiusKm`, sorted and cut to `limit`, plus codes and group refs no store
+ * carries (`missingCodes` and `unmatched` hold both). Each store is charged, per group, its cheapest product of the
+ * group: by price per kilo or liter times the amount (kilos or liters, by default the group's commonest pack size), or
+ * for a unit group the cheapest pack times the amount (packs, by default 1).
  */
 export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
   const { lat, lng, radiusKm, sort, limit } = query;
   const codes = [...new Set(query.codes)];
-  const askedFor = new Map(codes.map((code) => [code, new Set([code])])); // priced code -> list codes it prices
-  const members = db.$client
-    .prepare(`SELECT p.code, m.code AS member FROM products p JOIN products m ON m.group_key = p.group_key WHERE p.code IN (${codes.map(() => "?").join(",")})`)
-    .all(...codes) as { code: string; member: string }[];
-  for (const { code, member } of members) askedFor.set(member, (askedFor.get(member) ?? new Set()).add(code));
-  const priced = [...askedFor.keys()];
+  const groups = [...new Map(query.groups.map((g) => [g.ref, g])).values()].map(({ ref, amount }) => {
+    const members = groupMembers(db, ref);
+    const byQuantity = parseRef(ref)!.size.measure !== "unit"; // priced per kilo or liter
+    return { ref, byQuantity, members, amount: amount ?? (byQuantity ? (commonest(members.map((m) => m.size)) ?? 1) : 1) };
+  });
+  const asked = [...codes, ...groups.map((g) => g.ref)];
+  const priced = [...new Set([...codes, ...groups.flatMap((g) => g.members.map((m) => m.code))])];
   const dLat = radiusKm / KM_PER_DEG;
   const dLng = radiusKm / (KM_PER_DEG * Math.max(Math.cos(rad(lat)), 0.01));
   const rows = db.$client
@@ -118,9 +113,9 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
       `SELECT s.id AS storeId, s.chain_id AS chainId, ch.name AS chainName, ch.order_url AS orderUrl, s.name AS storeName,
          s.address, s.city, s.lat, s.lng, pr.code, pr.price
        FROM prices pr JOIN stores s ON s.id = pr.store_id JOIN chains ch ON ch.id = s.chain_id
-       WHERE s.lat BETWEEN ? AND ? AND s.lng BETWEEN ? AND ? AND pr.code IN (${priced.map(() => "?").join(",")})`,
+       WHERE s.lat BETWEEN ? AND ? AND s.lng BETWEEN ? AND ? AND pr.code IN (SELECT value FROM json_each(?))`,
     )
-    .all(lat - dLat, lat + dLat, lng - dLng, lng + dLng, ...priced) as PriceRow[];
+    .all(lat - dLat, lat + dLat, lng - dLng, lng + dLng, JSON.stringify(priced)) as PriceRow[];
 
   const byStore = new Map<string, { row: PriceRow; distanceKm: number; prices: Map<string, number> }>();
   for (const r of rows) {
@@ -130,21 +125,33 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
       if (distanceKm > radiusKm) continue;
       byStore.set(r.storeId, (s = { row: r, distanceKm, prices: new Map() }));
     }
-    for (const code of askedFor.get(r.code)!) s.prices.set(code, Math.min(r.price, s.prices.get(code) ?? Infinity));
+    s.prices.set(r.code, r.price);
   }
 
   const carried = new Set<string>();
   const stores = [...byStore.values()].map(({ row, distanceKm, prices }) => {
-    const items = [...prices].map(([code, price]) => ({ code, price }));
-    const have = new Set(items.map((i) => i.code));
-    have.forEach((code) => carried.add(code));
+    const items: ({ code: string; price: number } | GroupItem)[] = codes.flatMap((code) => (prices.has(code) ? [{ code, price: prices.get(code)! }] : []));
+    for (const g of groups) {
+      let best: { code: string; name: string; size: number; each: number } | undefined;
+      for (const m of g.members) {
+        const price = prices.get(m.code);
+        const each = price === undefined ? Infinity : g.byQuantity ? price / m.size : price;
+        if (each < (best?.each ?? Infinity)) best = { ...m, each };
+      }
+      if (best) {
+        const { each, ...product } = best;
+        items.push({ ref: g.ref, ...product, ...(g.byQuantity ? { unitPrice: round2(each) } : {}), price: round2(each * g.amount) });
+      }
+    }
+    const have = new Set(items.map((i) => ("ref" in i ? i.ref : i.code)));
+    have.forEach((k) => carried.add(k));
     const { code: _c, price: _p, orderUrl, ...store } = row;
     return {
       ...store,
       distanceKm: round2(distanceKm),
       total: round2(items.reduce((sum, i) => sum + i.price, 0)),
       matched: items.length,
-      missingCodes: codes.filter((code) => !have.has(code)),
+      missingCodes: asked.filter((k) => !have.has(k)),
       items,
       orderUrl: orderUrl?.replace("{code}", encodeURIComponent(items[0]!.code)) ?? null,
     };
@@ -157,7 +164,7 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
     coverage: (a, b) => b.matched - a.matched || a.total - b.total,
   };
   stores.sort((a, b) => order[sort](a, b) || a.distanceKm - b.distanceKm);
-  return { stores: stores.slice(0, limit), unmatched: codes.filter((code) => !carried.has(code)) };
+  return { stores: stores.slice(0, limit), unmatched: asked.filter((k) => !carried.has(k)) };
 }
 
 export const pricesRoutes = new Hono<AppEnv>()

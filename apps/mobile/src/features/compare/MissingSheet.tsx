@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { missingItems, useCurrentListId, useList } from "@/features/lists/api";
+import { matchKey, missingItems, useCurrentListId, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { Button, Group, Row, Sheet, SheetHeader } from "@/ui";
@@ -16,13 +16,13 @@ export function MissingSheet() {
   const store = JSON.parse(params.store) as MissingStore;
   const items = missingItems(useList(useCurrentListId(), { poll: false }).data);
   const notHere = new Set(store.missingCodes);
-  const missing = items.filter((i) => !i.productCode || notHere.has(i.productCode));
+  const missing = items.filter((i) => !matchKey(i) || notHere.has(matchKey(i)!));
   return (
     <Sheet>
       <SheetHeader title={fmt(t("compare.missing.title"), { store: store.chainName })} end={{ title: t("common.done"), analyticsName: Taps.commonDone, onPress: () => router.back() }} />
       <Group footer={fmt(t("compare.missing.footer"), { total: shekels(store.total), n: store.matched })}>
         {missing.map((item) =>
-          item.productCode ? (
+          matchKey(item) ? (
             <Row key={item.id} title={item.name} detail={t("compare.missing.notHere")} />
           ) : (
             <Row

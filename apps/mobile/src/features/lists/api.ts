@@ -10,7 +10,7 @@ export type List = { id: string; name: string; ownerId: string; role: "owner" | 
 export type Member = { userId: string; name: string; email: string; role: "owner" | "member" };
 export type Item = {
   id: string; listId: string; name: string; category: string;
-  productCode: string | null; missing: boolean; createdAt: string; updatedAt: string;
+  productCode: string | null; groupRef: string | null; missing: boolean; createdAt: string; updatedAt: string;
 };
 export type ListDetail = { list: List; members: Member[]; items: Item[] };
 
@@ -52,9 +52,17 @@ export const useCategories = (id: string | null) =>
   useQuery({ queryKey: listKeys.categories(id ?? ""), queryFn: () => api<string[]>(`api/lists/${id}/categories`), enabled: !!id });
 
 export const missingItems = (d?: ListDetail) => (d?.items ?? []).filter((i) => i.missing);
-export const missingCodes = (d?: ListDetail) => missingItems(d).flatMap((i) => (i.productCode ? [i.productCode] : []));
+/** What an item is matched to, as Compare reports it in missingCodes: its product code or its Product group ref. */
+export const matchKey = (i: Item) => i.productCode ?? i.groupRef;
+/** What Compare prices: the missing items matched to a product, and those matched to a Product group. */
+export type Basket = { codes: string[]; groups: string[] };
+export const missingBasket = (d?: ListDetail): Basket => {
+  const items = missingItems(d);
+  return { codes: items.flatMap((i) => (i.productCode ? [i.productCode] : [])), groups: items.flatMap((i) => (i.groupRef ? [i.groupRef] : [])) };
+};
+export const basketSize = (b: Basket) => b.codes.length + b.groups.length;
 
-type ItemPatch = Partial<Pick<Item, "name" | "category" | "productCode" | "missing">>;
+type ItemPatch = Partial<Pick<Item, "name" | "category" | "productCode" | "groupRef" | "missing">>;
 
 // Optimistic item mutations so toggles feel instant; the poll reconciles with the server.
 export function useItemMutations(listId: string | null) {
@@ -76,7 +84,7 @@ export function useItemMutations(listId: string | null) {
   };
 
   const add = useMutation({
-    mutationFn: (body: { name: string; category: string; productCode?: string | null; missing?: boolean }) =>
+    mutationFn: (body: { name: string; category: string; productCode?: string | null; groupRef?: string | null; missing?: boolean }) =>
       api<Item>(`api/lists/${listId}/items`, { method: "POST", body: JSON.stringify(body) }),
     onSettled: invalidate,
   });

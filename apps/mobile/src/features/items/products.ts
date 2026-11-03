@@ -4,8 +4,29 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { hasBarcode, lookupProductImage } from "./imageLookup";
 
-/** `imageUrl`: undefined while looking up (skeleton), a URL when found, null when there is none. */
-export type Product = { code: string; name: string; manufacturer: string | null; unitQty: string | null; storeCount: number; minPrice: number; imageUrl?: string | null };
+export type Measure = "kg" | "l" | "unit";
+/** One product. `size` is in kilos or liters, or a pack count; null when it can't be read. */
+export type Product = {
+  kind: "product"; code: string; name: string; manufacturer: string | null; unitQty: string | null;
+  measure: Measure | null; size: number | null; storeCount: number; minPrice: number;
+  /** undefined while looking up (skeleton), a URL when found, null when there is none. */
+  imageUrl?: string | null;
+};
+/**
+ * A Product group (CONTEXT.md): `minPrice` is per kilo or liter, or per pack for a unit group; `size` is its commonest
+ * pack (kilos or liters) or its pack count. `refinements` are next words that narrow it.
+ */
+export type ProductGroup = {
+  kind: "group"; ref: string; name: string; measure: Measure; size: number;
+  productCount: number; storeCount: number; minPrice: number; refinements: string[];
+};
+export type SearchResult = Product | ProductGroup;
+
+/** Splits a search response into its group rows and its specific products. */
+export const splitResults = (results: SearchResult[] = []) => ({
+  groups: results.filter((r): r is ProductGroup => r.kind === "group"),
+  products: results.filter((r): r is Product => r.kind === "product"),
+});
 
 /**
  * Each code is looked up once per app session; a found image starts downloading into expo-image's cache right away.
@@ -41,10 +62,16 @@ export function useProductSearch(q: string) {
   }, [q]);
   const search = useQuery({
     queryKey: ["products", "search", debounced],
-    queryFn: () => api<Product[]>(`api/products/search?q=${encodeURIComponent(debounced)}`),
+    queryFn: () => api<SearchResult[]>(`api/products/search?q=${encodeURIComponent(debounced)}`),
     enabled: debounced.length >= 2,
     staleTime: 60_000,
   });
-  const images = useQueries({ queries: (search.data ?? []).map((p) => imageQuery(p.code)) });
-  return { isFetching: search.isFetching, data: search.data?.map((p, i) => ({ ...p, imageUrl: images[i].data })) };
+  // Only specific products have a barcode to look up; group rows pass through untouched.
+  const { products } = splitResults(search.data);
+  const images = useQueries({ queries: products.map((p) => imageQuery(p.code)) });
+  const imageOf = new Map(products.map((p, i) => [p.code, images[i].data]));
+  return {
+    isFetching: search.isFetching,
+    data: search.data?.map((r): SearchResult => (r.kind === "product" ? { ...r, imageUrl: imageOf.get(r.code) } : r)),
+  };
 }
