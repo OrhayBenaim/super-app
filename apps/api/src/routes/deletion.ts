@@ -40,7 +40,7 @@ export const deletionRoutes = new Hono<AppEnv>()
   .post("/deletion/send", async (c) => {
     const body = await parse(c, sendBody);
     if (!body.success) return bad(c, body.error);
-    await sendDeletionCode(c.var.deps, body.data.kind, body.data.email);
+    sendDeletionCode(c.var.deps, body.data.kind, body.data.email);
     return c.html(codeStep(body.data.kind, body.data.email));
   })
   .post("/deletion/verify", async (c) => {

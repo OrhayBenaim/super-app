@@ -1,4 +1,3 @@
-import { randomInt, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { sign, verify } from "hono/jwt";
 import { z } from "zod";
@@ -7,6 +6,7 @@ import { listMembers, lists, user } from "#/db/schema.ts";
 import { userIdByEmail } from "#/db/users.ts";
 import type { Deps } from "#/deps.ts";
 import { deletionCodeEmail } from "#/emails/deletion-code.ts";
+import type { OtpResult } from "#/services/otp.ts";
 
 /** Account deletion or Data deletion (CONTEXT.md). Fixed by the page, it travels with the Deletion code and the token. */
 export const DELETION_KINDS = ["account", "data"] as const;
@@ -18,59 +18,30 @@ export const DELETION_CODE = RESET_CODE;
 /** How long a proven Deletion code gives to confirm. */
 export const CONFIRM_MINUTES = 3;
 
-// Its own identifier per kind and email, so a Reset code ("forget-password-otp-…") never verifies here and the reverse.
-const identifier = (kind: DeletionKind, email: string) => `delete-${kind}-otp-${email}`;
 const verifications = async ({ auth }: Deps) => (await auth.$context).internalAdapter;
 // The secret better-auth signs with (BETTER_AUTH_SECRET, or its own fallback in development).
 const secret = async ({ auth }: Deps) => (await auth.$context).secret;
+const purpose = (kind: DeletionKind) => `delete-${kind}` as const;
 
 /**
- * Stores a new Deletion code for `email` (replacing any earlier one) and emails it if a User has that email. The code is
- * stored either way, so an unknown email behaves exactly like a real one at every step. Not awaited, like Password reset.
+ * A new Deletion code for `email`, emailed if a User has that email. The code is created either way, so an unknown
+ * email behaves exactly like a real one at every step.
  */
-export async function sendDeletionCode(deps: Deps, kind: DeletionKind, email: string) {
-  const code = String(randomInt(10 ** DELETION_CODE.length)).padStart(DELETION_CODE.length, "0");
-  const store = await verifications(deps);
-  await store.deleteVerificationByIdentifier(identifier(kind, email));
-  await store.createVerificationValue({
-    identifier: identifier(kind, email),
-    value: `${code}:0`, // "<code>:<wrong tries>"
-    expiresAt: new Date(deps.clock.now().getTime() + DELETION_CODE.minutes * 60_000),
-  });
-  if (!userIdByEmail(deps.db, email)) return;
-  deps.mailer.send(deletionCodeEmail(email, code, kind)).catch((error: unknown) => {
-    console.error("deletion: Deletion code email not sent", error);
-    deps.errorHandler.report(error);
-  });
+export function sendDeletionCode({ db, otp }: Deps, kind: DeletionKind, email: string) {
+  const code = otp.create(purpose(kind), email);
+  if (userIdByEmail(db, email)) otp.send(deletionCodeEmail(email, code, kind));
 }
 
-type CodeResult = { token: string } | { error: "wrong" | "tooManyTries" | "expired" };
-
 /** Checks a Deletion code. The right one is used up and traded for a confirmation token; each wrong try counts. */
-export async function verifyDeletionCode(deps: Deps, kind: DeletionKind, email: string, code: string): Promise<CodeResult> {
-  const store = await verifications(deps);
-  const id = identifier(kind, email);
-  const row = await store.findVerificationValue(id);
-  const now = deps.clock.now().getTime();
-  // No row: never sent, used up, or killed by wrong tries; to the User it is as dead as an expired one.
-  if (!row || row.expiresAt.getTime() <= now) {
-    if (row) await store.deleteVerificationByIdentifier(id);
-    return { error: "expired" };
-  }
-  const [stored = "", tries] = row.value.split(":");
-  // Byte lengths: timingSafeEqual throws on unequal buffers, and a multi-byte "code" can match in characters.
-  const [a, b] = [Buffer.from(stored), Buffer.from(code)];
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    const wrongTries = Number(tries) + 1;
-    if (wrongTries >= DELETION_CODE.maxTries) {
-      await store.deleteVerificationByIdentifier(id);
-      return { error: "tooManyTries" };
-    }
-    await store.updateVerificationByIdentifier(id, { value: `${stored}:${wrongTries}` });
-    return { error: "wrong" };
-  }
-  await store.deleteVerificationByIdentifier(id);
-  const exp = Math.floor(now / 1000) + CONFIRM_MINUTES * 60;
+export async function verifyDeletionCode(
+  deps: Deps,
+  kind: DeletionKind,
+  email: string,
+  code: string,
+): Promise<{ token: string } | { error: Exclude<OtpResult, "ok"> }> {
+  const result = deps.otp.verify(purpose(kind), email, code);
+  if (result !== "ok") return { error: result };
+  const exp = Math.floor(deps.clock.now().getTime() / 1000) + CONFIRM_MINUTES * 60;
   return { token: await sign({ email, kind, exp }, await secret(deps), "HS256") };
 }
 

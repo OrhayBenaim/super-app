@@ -15,10 +15,10 @@ How the code inside `apps/api` is organised.
 | `src/routes/<resource>.ts` | One router per resource. |
 | `src/deps.ts` | Composition root: `buildDeps(config, overrides)` builds every dependency once. |
 | `src/auth.ts` | `createAuth(db, config, mailer)`: the better-auth instance. It wires features; each feature's own rules live in `src/auth/`. |
-| `src/auth/<feature>.ts` | One auth feature as better-auth plugins, e.g. `password-reset.ts`: `passwordReset(db, mailer)` (emailOTP plus the hook that lets only Users with a password in) and `unusedOtpPaths`. |
+| `src/auth/<feature>.ts` | One auth feature as a better-auth plugin, e.g. `password-reset.ts`: `passwordReset(db, otp)`, its own endpoints at emailOTP's paths and error codes (the app uses better-auth's `emailOTPClient`), with Reset codes from the `OtpService`. |
 | `src/emails/<email>.ts` | One function per email that builds it from its data (e.g. `resetCodeEmail(to, code)`). `emails/layout.ts` turns Hebrew and English paragraphs into the text and HTML every email shares. Send through the `MailerService` (`deps.mailer`, or the `mailer` that `createAuth` receives). |
 | `src/pages/` | Public pages, read once at startup: `privacy.html` (`GET /privacy`, served as-is by `routes/privacy.ts`) and `deletion.html` (the shell `routes/deletion.ts` fills with each deletion page's title, intro and first step). Styles take their values from `docs/design/tokens.json`. |
-| `src/deletion/` | Account deletion and Data deletion on the web (`GET /delete-account`, `GET /delete-data`, `routes/deletion.ts`): `deletion.ts` sends and checks Deletion codes (better-auth's verification storage), issues the 3-minute confirmation token and deletes; `steps.ts` renders each step as an htmx fragment with Hono's `html` helper. The page shell is `pages/deletion.html`; the API serves htmx itself at `/assets/htmx.min.js`. |
+| `src/deletion/` | Account deletion and Data deletion on the web (`GET /delete-account`, `GET /delete-data`, `routes/deletion.ts`): `deletion.ts` sends and checks Deletion codes through the `OtpService`, issues the 3-minute confirmation token and deletes; `steps.ts` renders each step as an htmx fragment with Hono's `html` helper. The page shell is `pages/deletion.html`; the API serves htmx itself at `/assets/htmx.min.js`. |
 | `src/services/` | One file per vendor-neutral service (see [Services and providers](#services-and-providers)). |
 | `src/providers/<vendor>/` | Each vendor's implementation of a service, and its fake. |
 | `src/ingest/` | Price-file rules: chain seeds, file names, XML parsing, writing stores and prices. |
@@ -56,6 +56,7 @@ src/providers/<vendor>/fake.ts     its fake
 | `error-handler.ts` | `ErrorHandler` | `sentry/` (its fake when `SENTRY_DSN` is unset) |
 | `geocoder.ts` | `Geocoder` | `nominatim/` |
 | `mailer.ts` | `MailerService` (facade over `MailerProvider`) | `resend/` |
+| `otp.ts` | `OtpService`: emailed one-time codes (Reset code, Deletion code): create, verify, revoke, send | none: codes live in better-auth's `verification` table; emails go through `MailerService` |
 | `price-portal.ts` | `PricePortal` | `price-portals/` (the chains' price-transparency portals) |
 
 ## Routers
