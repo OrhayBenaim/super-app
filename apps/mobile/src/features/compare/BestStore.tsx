@@ -17,17 +17,19 @@ type Props = {
   saving: { amount: number; chainName: string } | null;
   /** Shopping-list item names, copied for pasting into the shop's search. */
   listText: string;
-  onShowMissing: () => void;
+  onShowBreakdown: () => void;
 };
 
 /** The app's answer: cheapest branch, its total in Price Hero, the saving, honest coverage, Navigate and Order online. */
-export function BestStore({ store, basketSize, saving, listText, onShowMissing }: Props) {
+export function BestStore({ store, basketSize, saving, listText, onShowBreakdown }: Props) {
   const { space, motion } = useTheme();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
   const missing = basketSize - store.matched;
-  const coverage = fmt(t(missing ? "compare.coverage.partial" : "compare.coverage.full"), { n: store.matched, m: basketSize, missing });
+  const coverage = missing
+    ? fmt(t("compare.coverage.partial"), { n: store.matched, m: basketSize, missing })
+    : fmt(t("compare.breakdown.row"), { n: basketSize });
 
   const selected = (action: "navigate" | "order") => track(Events.compareStoreSelected, { chainId: store.chainId, action });
   const order = async () => {
@@ -62,11 +64,7 @@ export function BestStore({ store, basketSize, saving, listText, onShowMissing }
             {shekels(store.total)}
           </Text>
         </View>
-        {missing > 0 ? (
-          <Row title={coverage} titleColor="warning" chevron accessibilityHint={t("compare.missing.hint")} analyticsName={Taps.compareMissing} onPress={onShowMissing} />
-        ) : (
-          <Row title={coverage} titleColor="labelSecondary" />
-        )}
+        <Row title={coverage} titleColor={missing ? "warning" : "tint"} chevron accessibilityHint={t("compare.breakdown.hint")} analyticsName={Taps.compareBreakdown} onPress={onShowBreakdown} />
         <View style={{ gap: space[2], padding: space[5], paddingTop: space[2] }}>
           <Button title={t("compare.navigate")} analyticsName={Taps.compareNavigate} accessibilityLabel={fmt(t("compare.navigateTo"), { store: `${store.chainName} ${store.storeName}` })} haptic onPress={() => {
             selected("navigate");

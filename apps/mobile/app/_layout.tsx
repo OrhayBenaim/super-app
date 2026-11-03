@@ -61,7 +61,9 @@ function RootLayout() {
             <Stack.Screen name="share" options={{ presentation: "modal" }} />
             {/* Snap points, not fitToContents: product search results loading in resized it off-screen on Android. */}
             <Stack.Screen name="item/[id]" options={{ ...sheet, sheetAllowedDetents: [0.4, 0.9] }} />
-            <Stack.Screen name="missing" options={sheet} />
+            <Stack.Screen name="quantity/[id]" options={sheet} />
+            {/* Snap points: a long basket scrolls inside the sheet instead of running off-screen. */}
+            <Stack.Screen name="breakdown" options={{ ...sheet, sheetAllowedDetents: [0.6, 0.95] }} />
             <Stack.Screen name="join/[code]" />
           </Stack.Protected>
           <Stack.Protected guard={!session}>

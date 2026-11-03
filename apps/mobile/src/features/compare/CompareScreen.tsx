@@ -14,7 +14,7 @@ import { EmptyState, Group, LargeTitle, Screen, ShoppingLoader } from "@/ui";
 import { RADII, useCompare, useRadius } from "./api";
 import { BestStore, StoreRow } from "./BestStore";
 import { fmt } from "./format";
-import type { MissingStore } from "./MissingSheet";
+import type { BreakdownStore } from "./BreakdownSheet";
 import { RadiusMenu } from "./RadiusMenu";
 import { openSplit, saving, sortStores, type Sort } from "./sort";
 import { SortControl } from "./SortControl";
@@ -58,7 +58,7 @@ export function CompareScreen() {
   const location = useLocation();
   const compare = useCompare(location.coords, radiusKm, basket);
   const { enabled: alertsOn } = useNearbyAlerts();
-  // Owns the Undo toast for a delete made in the item sheet opened from the missing sheet.
+  // Owns the Undo toast for a delete made in the item sheet opened from the breakdown sheet.
   const { toast } = useDeleteWithUndo(listId);
 
   const byPrice = useMemo(() => sortStores(compare.data?.stores ?? [], "price"), [compare.data]);
@@ -167,10 +167,9 @@ export function CompareScreen() {
                 basketSize={items.length}
                 saving={open === byPrice[0] ? saving(byPrice) : null}
                 listText={listText}
-                onShowMissing={() => {
-                  const { chainName, total, matched, missingCodes: codesHere } = open;
-                  const store: MissingStore = { chainName, total, matched, missingCodes: codesHere };
-                  router.push({ pathname: "/missing", params: { store: JSON.stringify(store) } });
+                onShowBreakdown={() => {
+                  const store: BreakdownStore = { chainName: open.chainName, total: open.total, items: open.items };
+                  router.push({ pathname: "/breakdown", params: { store: JSON.stringify(store) } });
                 }}
               />
             </Animated.View>

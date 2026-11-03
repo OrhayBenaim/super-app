@@ -6,12 +6,16 @@ import { Events, track } from "@/lib/analytics";
 import { api } from "@/lib/api";
 import { t } from "@/lib/strings";
 import { DEFAULT_LIST_NAME } from "@grocer/shared/lists";
+import type { SoldBy } from "@grocer/shared/quantity";
 
 export type List = { id: string; name: string; ownerId: string; role: "owner" | "member"; memberCount: number; updatedAt: string };
 export type Member = { userId: string; name: string; email: string; role: "owner" | "member" };
 export type Item = {
   id: string; listId: string; name: string; category: string;
-  productCode: string | null; groupRef: string | null; missing: boolean; createdAt: string; updatedAt: string;
+  productCode: string | null; groupRef: string | null; missing: boolean;
+  /** A count, or kilos when sold by weight (@grocer/shared/quantity). Kept when the item leaves the list. */
+  quantity: number; soldBy: SoldBy;
+  createdAt: string; updatedAt: string;
 };
 export type ListDetail = { list: List; members: Member[]; items: Item[] };
 
@@ -58,15 +62,21 @@ export const useCategories = (id: string | null) =>
 export const missingItems = (d?: ListDetail) => (d?.items ?? []).filter((i) => i.missing);
 /** What an item is matched to, as Compare reports it in missingCodes: its product code or its Product group ref. */
 export const matchKey = (i: Item) => i.productCode ?? i.groupRef;
-/** What Compare prices: the missing items matched to a product, and those matched to a Product group. */
-export type Basket = { codes: string[]; groups: string[] };
+/**
+ * What Compare prices: the missing items matched to a product, and those matched to a Product group, each with its
+ * quantity. Two items matched to one product stay two entries; the API sums them.
+ */
+export type Basket = { items: { code: string; quantity: number }[]; groups: { ref: string; quantity: number }[] };
 export const missingBasket = (d?: ListDetail): Basket => {
   const items = missingItems(d);
-  return { codes: items.flatMap((i) => (i.productCode ? [i.productCode] : [])), groups: items.flatMap((i) => (i.groupRef ? [i.groupRef] : [])) };
+  return {
+    items: items.flatMap((i) => (i.productCode ? [{ code: i.productCode, quantity: i.quantity }] : [])),
+    groups: items.flatMap((i) => (i.groupRef ? [{ ref: i.groupRef, quantity: i.quantity }] : [])),
+  };
 };
-export const basketSize = (b: Basket) => b.codes.length + b.groups.length;
+export const basketSize = (b: Basket) => b.items.length + b.groups.length;
 
-type ItemPatch = Partial<Pick<Item, "name" | "category" | "productCode" | "groupRef" | "missing">>;
+type ItemPatch = Partial<Pick<Item, "name" | "category" | "productCode" | "groupRef" | "missing" | "quantity">>;
 
 // Optimistic item mutations so toggles feel instant; the poll reconciles with the server.
 export function useItemMutations(listId: string | null) {

@@ -2,6 +2,7 @@
 import { fmt, shekels } from "@/features/compare/format";
 import type { t as translate } from "@/lib/strings";
 import type { Measure, Product, ProductGroup } from "./products";
+import { priceLabel } from "./quantity";
 
 type T = typeof translate;
 const num = (n: number) => String(Number(n.toFixed(2)));
@@ -24,12 +25,12 @@ export const groupFacts = (g: ProductGroup, t: T) => [
   fmt(t("items.product.stores"), { n: g.storeCount }),
 ];
 
-/** A product row's detail: pack size, manufacturer (when asked), lowest price and branches. */
+/** A product row's detail: pack size ("by weight" when sold by weight), manufacturer (when asked), lowest price and branches. */
 export const productDetail = (p: Product, t: T, manufacturer = false) =>
   [
-    p.measure && p.size ? sizeLabel(p.measure, p.size, t) : null,
+    p.soldBy === "weight" ? t("items.product.byWeight") : p.measure && p.size ? sizeLabel(p.measure, p.size, t) : null,
     manufacturer ? p.manufacturer : null,
-    fmt(t("items.product.from"), { price: shekels(p.minPrice) }),
+    fmt(t("items.product.from"), { price: priceLabel(p.minPrice, p.soldBy, t) }),
     fmt(t("items.product.stores"), { n: p.storeCount }),
   ]
     .filter(Boolean)

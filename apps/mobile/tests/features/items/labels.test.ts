@@ -12,7 +12,7 @@ const group = (over: Partial<ProductGroup> = {}): ProductGroup => ({
   kind: "group", ref: "בורגול|kg", name: "בורגול", measure: "kg", size: 0.5, productCount: 63, storeCount: 120, minPrice: 6.8, refinements: [], ...over,
 });
 const product = (over: Partial<Product> = {}): Product => ({
-  kind: "product", code: "1", name: "x", manufacturer: "סוגת", unitQty: null, measure: "kg", size: 0.5, storeCount: 4, minPrice: 3.7, ...over,
+  kind: "product", code: "1", name: "x", manufacturer: "סוגת", unitQty: null, measure: "kg", size: 0.5, soldBy: "unit", storeCount: 4, minPrice: 3.7, ...over,
 });
 
 describe("sizeLabel", () => {
@@ -60,6 +60,10 @@ describe("productDetail", () => {
   it("adds the manufacturer only when asked and when there is one", () => {
     expect(productDetail(product(), t, true)).toBe("500 g · סוגת · from ₪3.70 · in 4 branches");
     expect(productDetail(product({ manufacturer: null }), t, true)).toBe("500 g · from ₪3.70 · in 4 branches");
+  });
+
+  it("marks a product sold by weight and gives its price per kilo, in place of its size", () => {
+    expect(productDetail(product({ soldBy: "weight", size: 1, minPrice: 8.9 }), t)).toBe("by weight · from ₪8.90/kg · in 4 branches");
   });
 
   it("leaves the size out when it cannot be read", () => {

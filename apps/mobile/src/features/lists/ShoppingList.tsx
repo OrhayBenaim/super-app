@@ -18,6 +18,8 @@ import { useCompare, useRadius } from "@/features/compare/api";
 import { fmt, shekels } from "@/features/compare/format";
 import { sortStores } from "@/features/compare/sort";
 import { AddField } from "@/features/items/AddField";
+import { AmountPill } from "@/features/items/AmountPill";
+import { showPill } from "@/features/items/quantity";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
 import { Events, Taps, track } from "@/lib/analytics";
 import { useLocation } from "@/lib/location";
@@ -208,6 +210,11 @@ function CheckRow({ item, onBought, onEdit }: { item: Item; onBought: (id: strin
           {item.name}
         </Text>
       </Tap>
+      {showPill(item.quantity, item.soldBy, "list") && (
+        <View style={{ paddingEnd: space[5] }}>
+          <AmountPill item={item} screen="list" />
+        </View>
+      )}
     </Animated.View>
   );
 }
