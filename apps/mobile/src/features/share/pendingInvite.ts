@@ -7,11 +7,6 @@ export function inviteCodeOf(path: string): string | undefined {
   return /^(?:grocer:\/\/)?\/*join\/([^/?#]+)$/.exec(path)?.[1];
 }
 
-/** Remembers one Invite code; a newer one replaces it. */
-export function savePendingInvite(code: string) {
-  pending = code;
-}
-
 /** Returns the pending Invite code and forgets it, so it is used once. */
 export function takePendingInvite(): string | undefined {
   const code = pending;
@@ -19,9 +14,8 @@ export function takePendingInvite(): string | undefined {
   return code;
 }
 
-/** expo-router's +native-intent hook: runs for every incoming link. Saves an Invite link's code and keeps routing as is. */
-export function redirectSystemPath({ path }: { path: string; initial: boolean }): string {
-  const code = inviteCodeOf(path);
-  if (code) savePendingInvite(code);
+/** expo-router's +native-intent hook: runs for every incoming link. Remembers an Invite link's code (the newest wins) and keeps routing as is. */
+export function redirectSystemPath({ path }: { path: string }): string {
+  pending = inviteCodeOf(path) ?? pending;
   return path;
 }
