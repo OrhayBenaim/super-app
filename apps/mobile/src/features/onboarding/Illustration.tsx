@@ -99,7 +99,7 @@ export function Hello() {
   );
 }
 
-const sampleItem = (name: string, missing: boolean): Item => ({ id: name, listId: "", name, category: "", productCode: null, missing, createdAt: "", updatedAt: "" });
+const sampleItem = (name: string, missing: boolean): Item => ({ id: name, listId: "", name, category: "", productCode: null, groupRef: null, missing, createdAt: "", updatedAt: "" });
 const noop = () => {};
 
 /** Clone of the + add field with a typed query, as the list screen shows it. */
