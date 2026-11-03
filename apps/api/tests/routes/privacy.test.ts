@@ -10,8 +10,7 @@ describe("GET /privacy", () => {
     expect(res.headers.get("content-type")).toMatch(/^text\/html/);
     const page = await res.text();
     expect(page).toContain('<html lang="he" dir="rtl">');
-    expect(page.indexOf("מדיניות פרטיות")).toBeLessThan(page.indexOf("Privacy policy"));
-    expect(page).toContain('<section lang="en" dir="ltr">');
+    expect(page.indexOf('<article id="he">')).toBeLessThan(page.indexOf('<article id="en" lang="en" dir="ltr">'));
     for (const vendor of ["Sentry", "PostHog", "Resend"]) expect(page).toContain(vendor);
     expect(page).toContain("mailto:privacy@otterstory.club");
   });
