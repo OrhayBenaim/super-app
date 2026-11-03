@@ -3,12 +3,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Minus, Plus } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, View } from "react-native";
-import { useCompare, useRadius } from "@/features/compare/api";
+import { useBestStore } from "@/features/compare/useBestStore";
 import { fmt, shekels } from "@/features/compare/format";
-import { sortStores } from "@/features/compare/sort";
-import { matchKey, missingBasket, useCurrentListId, useItemMutations, useList } from "@/features/lists/api";
+import { lineKey } from "@/features/compare/sort";
+import { matchKey, useCurrentListId, useItemMutations, useList } from "@/features/lists/api";
 import { Events, Taps, track } from "@/lib/analytics";
-import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Group, IconButton, Sheet, SheetHeader, Text } from "@/ui";
@@ -24,8 +23,7 @@ export function QuantitySheet() {
   const item = list?.items.find((i) => i.id === id) ?? null;
   const { update } = useItemMutations(listId);
   const [quantity, setQuantity] = useState(item?.quantity ?? QUANTITY.start);
-  // Same query key as Compare and the "cheapest now" row, so this reads their cached result.
-  const compare = useCompare(useLocation().coords, useRadius((s) => s.km), missingBasket(list));
+  const best = useBestStore(list);
 
   if (!item) return null;
   const { soldBy } = item;
@@ -37,13 +35,9 @@ export function QuantitySheet() {
     }
     close();
   };
-  const amount = formatQuantity(quantity, soldBy, t);
-  const best = sortStores(compare.data?.stores ?? [], "price")[0];
-  const line = best?.items.find((l) => ("ref" in l ? l.ref : l.code) === matchKey(item));
-  const footer =
-    best && line
-      ? fmt(t("quantity.footer"), { price: priceLabel(line.price, soldBy, t), store: best.chainName, estimate: shekels(Math.round(line.price * quantity * 100) / 100) })
-      : undefined;
+  const label = formatQuantity(quantity, soldBy, t);
+  const line = best?.items.find((l) => lineKey(l) === matchKey(item));
+  const footer = best && line ? fmt(t("quantity.footer"), { price: priceLabel(line.price, soldBy, t), store: best.chainName, estimate: shekels(line.price * quantity) }) : undefined;
   const step = (dir: 1 | -1) => setQuantity((q) => stepQuantity(q, soldBy, dir));
   const min = quantity <= QUANTITY.step[soldBy];
   const max = quantity >= QUANTITY.max;
@@ -59,25 +53,25 @@ export function QuantitySheet() {
         <View style={{ flexDirection: "row", alignItems: "center", gap: space[4], padding: space[4] }}>
           <IconButton
             icon={Minus}
-            accessibilityLabel={`${t("quantity.less")}, ${amount}`}
+            accessibilityLabel={`${t("quantity.less")}, ${label}`}
             analyticsName={Taps.quantityLess}
             disabled={min}
             onPress={() => step(-1)}
             style={{ borderRadius: radius.full, backgroundColor: colors.tintSoft, opacity: min ? 0.4 : 1 }}
           />
-          <View style={{ flex: 1, alignItems: "center", gap: space[1] }} accessible accessibilityLiveRegion="polite" accessibilityLabel={amount}>
+          <View style={{ flex: 1, alignItems: "center", gap: space[1] }} accessible accessibilityLiveRegion="polite" accessibilityLabel={label}>
             <Text variant="title2" tabular>
-              {amount}
+              {label}
             </Text>
             {soldBy === "weight" && (
               <Text variant="footnote" color="labelSecondary">
-                {t("quantity.step")}
+                {fmt(t("quantity.step"), { n: QUANTITY.step.weight })}
               </Text>
             )}
           </View>
           <IconButton
             icon={Plus}
-            accessibilityLabel={`${t("quantity.more")}, ${amount}`}
+            accessibilityLabel={`${t("quantity.more")}, ${label}`}
             analyticsName={Taps.quantityMore}
             disabled={max}
             onPress={() => step(1)}

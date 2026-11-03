@@ -14,7 +14,6 @@ import { EmptyState, Group, LargeTitle, Screen, ShoppingLoader } from "@/ui";
 import { RADII, useCompare, useRadius } from "./api";
 import { BestStore, StoreRow } from "./BestStore";
 import { fmt } from "./format";
-import type { BreakdownStore } from "./BreakdownSheet";
 import { RadiusMenu } from "./RadiusMenu";
 import { openSplit, saving, sortStores, type Sort } from "./sort";
 import { SortControl } from "./SortControl";
@@ -167,10 +166,7 @@ export function CompareScreen() {
                 basketSize={items.length}
                 saving={open === byPrice[0] ? saving(byPrice) : null}
                 listText={listText}
-                onShowBreakdown={() => {
-                  const store: BreakdownStore = { chainName: open.chainName, total: open.total, items: open.items };
-                  router.push({ pathname: "/breakdown", params: { store: JSON.stringify(store) } });
-                }}
+                onShowBreakdown={() => router.push("/breakdown")}
               />
             </Animated.View>
             {below.length > 0 && (

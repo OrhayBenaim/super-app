@@ -28,6 +28,13 @@ describe("stepQuantity", () => {
     expect(stepQuantity(QUANTITY.max, "weight", 1)).toBe(QUANTITY.max);
   });
 
+  it("snaps an off-step value onto the step (a weight item whose match became sold by unit)", () => {
+    expect(stepQuantity(1.5, "unit", 1)).toBe(2);
+    expect(stepQuantity(1.5, "unit", -1)).toBe(1);
+    expect(stepQuantity(1.25, "weight", 1)).toBe(1.5);
+    expect(stepQuantity(1.25, "weight", -1)).toBe(1);
+  });
+
   it("starts at 1 for both", () => {
     expect(QUANTITY.start).toBe(1);
   });

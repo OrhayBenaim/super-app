@@ -18,8 +18,9 @@ export function sizeLabel(measure: Measure, size: number, t: T) {
 /** A group's name, plus the pack count of a unit group ("ביצים · 12 יח׳"). */
 export const groupTitle = (g: ProductGroup, t: T) => (g.measure === "unit" ? `${g.name} · ${sizeLabel("unit", g.size, t)}` : g.name);
 
-/** "63 products", "from ₪6.80 a kilo" (a unit group: its cheapest pack), "in 120 branches". */
+/** "by weight" for produce, "63 products", "from ₪6.80 a kilo" (a unit group: its cheapest pack), "in 120 branches". */
 export const groupFacts = (g: ProductGroup, t: T) => [
+  ...(g.soldBy === "weight" ? [t("items.product.byWeight")] : []),
   fmt(t("items.group.products"), { n: g.productCount }),
   fmt(t(g.measure === "kg" ? "items.group.perKg" : g.measure === "l" ? "items.group.perL" : "items.product.from"), { price: shekels(g.minPrice) }),
   fmt(t("items.product.stores"), { n: g.storeCount }),

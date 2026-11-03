@@ -14,7 +14,7 @@ export const fetchCompare = (body: Coords & Basket & { radiusKm: number; sort: S
   api<CompareResponse>("api/compare", { method: "POST", body: JSON.stringify(body) });
 
 // Sort is applied client-side (see sortStores), so it is not part of the key: re-sorting never refetches.
-// Quantities are: changing an amount refetches.
+// Quantities are: changing one refetches.
 // We fetch the max page (100) so the client sort sees every store a server sort would.
 export function useCompare(coords: Coords | null, radiusKm: number, { items, groups }: Basket) {
   // ~100 m rounding keeps GPS jitter from refetching.

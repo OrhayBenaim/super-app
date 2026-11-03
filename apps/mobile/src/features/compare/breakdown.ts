@@ -1,6 +1,6 @@
 // Pure (no RN imports) so vitest can load it.
 import { matchKey, type Item } from "@/features/lists/api";
-import type { StoreResult } from "./sort";
+import { lineKey, type StoreResult } from "./sort";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -10,7 +10,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  * the server) show as two.
  */
 export function breakdown(items: Item[], store: Pick<StoreResult, "items">) {
-  const price = new Map(store.items.map((l) => ["ref" in l ? l.ref : l.code, l.price]));
+  const price = new Map(store.items.map((l) => [lineKey(l), l.price]));
   const priced: { item: Item; price: number; lineTotal: number }[] = [];
   const notHere: Item[] = [];
   const unmatched: Item[] = [];

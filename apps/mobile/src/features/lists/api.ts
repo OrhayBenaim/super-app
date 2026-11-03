@@ -107,7 +107,9 @@ export function useItemMutations(listId: string | null) {
       api<Item>(`api/lists/${listId}/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
     onMutate: ({ id, ...patch }) => patchCache((items) => items.map((i) => (i.id === id ? { ...i, ...patch } : i))),
     onError: rollback,
-    onSuccess: (_item, { missing }) => {
+    onSuccess: (item, { missing }) => {
+      // The server may reset the quantity on a re-match and owns soldBy: show its item now, not at the next poll.
+      qc.setQueryData<ListDetail>(key, (d) => (d ? { ...d, items: d.items.map((i) => (i.id === item.id ? item : i)) } : d));
       if (missing === true) track(Events.listItemAdded, { existing: true });
     },
     onSettled: invalidate,

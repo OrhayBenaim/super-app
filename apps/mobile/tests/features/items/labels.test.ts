@@ -9,7 +9,7 @@ import type { Product, ProductGroup } from "@/features/items/products";
 const t = (k: StringKey) => en[k];
 
 const group = (over: Partial<ProductGroup> = {}): ProductGroup => ({
-  kind: "group", ref: "בורגול|kg", name: "בורגול", measure: "kg", size: 0.5, productCount: 63, storeCount: 120, minPrice: 6.8, refinements: [], ...over,
+  kind: "group", ref: "בורגול|kg", name: "בורגול", measure: "kg", size: 0.5, soldBy: "unit", productCount: 63, storeCount: 120, minPrice: 6.8, refinements: [], ...over,
 });
 const product = (over: Partial<Product> = {}): Product => ({
   kind: "product", code: "1", name: "x", manufacturer: "סוגת", unitQty: null, measure: "kg", size: 0.5, soldBy: "unit", storeCount: 4, minPrice: 3.7, ...over,
@@ -44,6 +44,10 @@ describe("groupTitle", () => {
 describe("groupFacts", () => {
   it("lists product count, lowest price per kilo and branches", () => {
     expect(groupFacts(group(), t)).toEqual(["63 products", "from ₪6.80 a kilo", "in 120 branches"]);
+  });
+
+  it("marks a group sold by weight, so picking it is known to switch the item to kilos", () => {
+    expect(groupFacts(group({ soldBy: "weight", size: 1 }), t)).toEqual(["by weight", "63 products", "from ₪6.80 a kilo", "in 120 branches"]);
   });
 
   it("says per liter for liquids and the pack price for a unit group", () => {

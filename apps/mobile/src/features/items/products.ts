@@ -20,7 +20,7 @@ export type Product = {
  * pack (kilos or liters) or its pack count. `refinements` are next words that narrow it.
  */
 export type ProductGroup = {
-  kind: "group"; ref: string; name: string; measure: Measure; size: number;
+  kind: "group"; ref: string; name: string; measure: Measure; size: number; soldBy: SoldBy;
   productCount: number; storeCount: number; minPrice: number; refinements: string[];
 };
 export type SearchResult = Product | ProductGroup;

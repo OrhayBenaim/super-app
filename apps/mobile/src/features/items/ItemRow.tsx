@@ -7,12 +7,12 @@ import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Tap, Text } from "@/ui";
-import { AmountPill } from "./AmountPill";
+import { QuantityPill } from "./QuantityPill";
 
 /**
  * My items row: tap toggles the item onto / off the list, long-press edits. Off the list it shows the add
  * button; on the list a static "On the list" tag sits after the name (status, not a button) and the add button's
- * slot holds the amount pill, a sibling of the row so VoiceOver reaches both.
+ * slot holds the quantity pill, a sibling of the row so VoiceOver reaches both.
  */
 export function ItemRow({ item, onToggle, onEdit }: { item: Item; onToggle: (missing: boolean) => void; onEdit?: () => void }) {
   const { colors, space, size } = useTheme();
@@ -47,7 +47,7 @@ export function ItemRow({ item, onToggle, onEdit }: { item: Item; onToggle: (mis
       </Tap>
       {item.missing && (
         <View style={{ paddingEnd: space[5] }}>
-          <AmountPill item={item} screen="items" />
+          <QuantityPill item={item} screen="items" />
         </View>
       )}
     </View>

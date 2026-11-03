@@ -1,26 +1,24 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { ScrollView } from "react-native";
 import { lineDetail } from "@/features/items/quantity";
 import { missingItems, useCurrentListId, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { Button, Group, Row, Sheet, SheetHeader, Text } from "@/ui";
+import { useBestStore } from "./useBestStore";
 import { breakdown } from "./breakdown";
 import { fmt, shekels } from "./format";
-import type { StoreResult } from "./sort";
-
-/** The slice of the best store the sheet shows; Compare passes it as the JSON `store` param. */
-export type BreakdownStore = Pick<StoreResult, "chainName" | "total" | "items">;
 
 /**
  * Sheet route app/breakdown: the Basket breakdown of the best branch. A line per priced item (quantity × price, line
  * total), the total, then the items it doesn't price and the unmatched ones (with Match).
  */
 export function BreakdownSheet() {
-  const params = useLocalSearchParams<{ store: string }>();
   const router = useRouter();
-  const store = JSON.parse(params.store) as BreakdownStore;
-  const { priced, notHere, unmatched } = breakdown(missingItems(useList(useCurrentListId(), { poll: false }).data), store);
+  const list = useList(useCurrentListId(), { poll: false }).data;
+  const store = useBestStore(list); // Compare's cached result: the store its card shows
+  if (!store) return null;
+  const { priced, notHere, unmatched } = breakdown(missingItems(list), store);
   const missing = notHere.length + unmatched.length;
   const price = (n: number) => (
     <Text variant="priceRow" tabular>

@@ -13,6 +13,9 @@ export type StoreResult = {
   items: (Line | (Line & { ref: string; name: string; size: number; unitPrice?: number }))[];
   orderUrl: string | null;
 };
+/** What a line prices, as the List's items name it (matchKey): a group line by its ref, a product line by its code. */
+export const lineKey = (l: StoreResult["items"][number]) => ("ref" in l ? l.ref : l.code);
+
 export type CompareResponse = { stores: StoreResult[]; unmatched: string[] };
 
 // Same order as the API (routes/prices.ts), so a client re-sort matches a server sort.

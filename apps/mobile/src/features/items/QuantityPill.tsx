@@ -9,13 +9,13 @@ import { Tap, Text } from "@/ui";
 import { formatQuantity } from "./quantity";
 
 /** The item's Quantity ("×2", "500 g") at the end of a List or My items row; opens the Quantity sheet. 44pt target. */
-export function AmountPill({ item, screen }: { item: Item; screen: "list" | "items" }) {
+export function QuantityPill({ item, screen }: { item: Item; screen: "list" | "items" }) {
   const router = useRouter();
   const { colors, space, size, radius } = useTheme();
-  const amount = formatQuantity(item.quantity, item.soldBy, t);
+  const label = formatQuantity(item.quantity, item.soldBy, t);
   return (
     <Tap
-      accessibilityLabel={`${fmt(t("quantity.label"), { amount })}, ${item.name}`}
+      accessibilityLabel={`${fmt(t("quantity.label"), { quantity: label })}, ${item.name}`}
       accessibilityHint={t("quantity.hint")}
       analyticsName={screen === "list" ? Taps.listQuantity : Taps.itemsQuantity}
       onPress={() => router.push({ pathname: "/quantity/[id]", params: { id: item.id, from: screen } })}
@@ -24,7 +24,7 @@ export function AmountPill({ item, screen }: { item: Item; screen: "list" | "ite
     >
       <View style={{ minWidth: 30, height: 30, paddingHorizontal: space[3], borderRadius: radius.control, backgroundColor: colors.tintSoft, alignItems: "center", justifyContent: "center" }}>
         <Text variant="subhead" color="tint" tabular style={{ fontWeight: "600" }}>
-          {amount}
+          {label}
         </Text>
       </View>
     </Tap>

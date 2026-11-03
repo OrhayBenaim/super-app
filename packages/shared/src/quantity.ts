@@ -14,8 +14,10 @@ export function isValidQuantity(q: number, soldBy: SoldBy) {
   return Number.isFinite(q) && q >= step && q <= QUANTITY.max && Number.isInteger(q / step);
 }
 
-/** One step up (+1) or down (-1), kept between one step and the max. */
+/** To the next step up (+1) or down (-1), kept between one step and the max. An off-step value lands on the step. */
 export function stepQuantity(q: number, soldBy: SoldBy, dir: 1 | -1) {
   const step = QUANTITY.step[soldBy];
-  return Math.min(QUANTITY.max, Math.max(step, q + dir * step));
+  const steps = q / step;
+  const next = dir === 1 ? Math.floor(steps) + 1 : Math.ceil(steps) - 1;
+  return Math.min(QUANTITY.max, Math.max(step, next * step));
 }
