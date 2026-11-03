@@ -11,13 +11,14 @@ How the code inside `apps/api` is organised.
 | `src/jobs/<job>.ts` | One handler per job. |
 | `src/app.ts` | `createApp(deps)`: app-wide middleware and error handling, and mounts the routers. No route logic. |
 | `src/internal-app.ts` | `createInternalApp(deps)`: the private trigger (`POST /sync`), served by `api.ts` on its own internal port. |
-| `src/middleware.ts` | `AppEnv` (the context variables), `requireUser`, and `rateLimit({ max, windowMs })`: per client IP, in memory. `createApp` mounts it for every route, with stricter limits on sign-in, sign-up and `/api/auth/email-otp/*`. |
+| `src/middleware.ts` | `AppEnv` (the context variables), `requireUser`, and `rateLimit({ max, windowMs })`: per client IP, in memory. `createApp` mounts it for every route, with stricter limits on sign-in (also `/deletion/sign-in/*`), sign-up, `/api/auth/email-otp/*` and `/deletion/code/*`. |
 | `src/routes/<resource>.ts` | One router per resource. |
 | `src/deps.ts` | Composition root: `buildDeps(config, overrides)` builds every dependency once. |
-| `src/auth.ts` | `createAuth(db, config, mailer)`: the better-auth instance. It wires features; each feature's own rules live in `src/auth/`. |
-| `src/auth/<feature>.ts` | One auth feature as better-auth plugins, e.g. `password-reset.ts`: `passwordReset(db, mailer)` (emailOTP plus the hook that lets only Users with a password in) and `unusedOtpPaths`. |
-| `src/emails/<email>.ts` | One function per email that builds it from its data (e.g. `resetCodeEmail(to, code)`). `emails/layout.ts` turns Hebrew and English paragraphs into the text and HTML every email shares. Send through the `MailerService` (`deps.mailer`, or the `mailer` that `createAuth` receives). |
-| `src/pages/` | Static public pages served as-is, e.g. `privacy.html` (`GET /privacy`, read once by `routes/privacy.ts`). Styles take their values from `docs/design/tokens.json`. |
+| `src/auth.ts` | `createAuth(db, config, otp)`: the better-auth instance. It wires features; each feature's own rules live in `src/auth/`. |
+| `src/auth/<feature>.ts` | One auth feature as a better-auth plugin, e.g. `password-reset.ts`: `passwordReset(db, otp)`, its own endpoints at emailOTP's paths and error codes (the app uses better-auth's `emailOTPClient`), with Reset codes from the `OtpService`. |
+| `src/emails/<email>.ts` | One function per email that builds it from its data (e.g. `resetCodeEmail(to, code)`). `emails/layout.ts` turns Hebrew and English paragraphs into the text and HTML every email shares. Send through the `MailerService` (`deps.mailer`), or, for one-time codes, `OtpService.send` (`deps.otp`). |
+| `src/pages/` | Public pages, read once at startup: `privacy.html` (`GET /privacy`, served as-is by `routes/privacy.ts`) and `deletion.html` (the shell `routes/deletion.ts` fills with the first step). Styles take their values from `docs/design/tokens.json`. |
+| `src/deletion/` | The web page for Account deletion and Data deletion (`routes/deletion.ts`): `GET /account` signs in like the app, then choose, Deletion code, last confirmation. `GET /delete-account` and `GET /delete-data` (Google Play's Data safety links) show the choose step, or redirect to `/account` when signed out. `deletion.ts` sends, checks, confirms and cancels the code through the `OtpService`; `steps.ts` renders each step as an htmx fragment with Hono's `html` helper. The API serves htmx itself at `/assets/htmx.min.js`. Sign-in offers email and password, and Google when configured. Sign in with Apple is not on the page yet (#92: it needs an Apple Services ID with a web return URL); the sign-in step tells Apple users to delete in the app or write to the privacy address. |
 | `src/services/` | One file per vendor-neutral service (see [Services and providers](#services-and-providers)). |
 | `src/providers/<vendor>/` | Each vendor's implementation of a service, and its fake. |
 | `src/ingest/` | Price-file rules: chain seeds, file names, XML parsing, writing stores and prices. |
@@ -32,7 +33,7 @@ Import anything in `src/` through the `#/` alias, never with relative paths: `im
 
 Node runs the TypeScript directly (type stripping, Node 24.14+), so there is no build step: `npm start` is `node src/api.ts`. That is why imports end in `.ts`, type-only imports use `import type`, and `tsconfig.json` sets `erasableSyntaxOnly` (no `enum`, `namespace` or constructor parameter properties).
 
-Rules the app must agree with (e.g. how long a Reset code lasts) come from the `@grocer/shared` workspace package (`packages/shared`): `import { RESET_CODE } from "@grocer/shared/reset-code"`. It is plain TypeScript too; Node strips its types because the workspace link resolves outside `node_modules`.
+Rules the app must agree with (e.g. how long a Reset code lasts) come from the `@grocer/shared` workspace package (`packages/shared`): `import { OTP } from "@grocer/shared/otp"`. It is plain TypeScript too; Node strips its types because the workspace link resolves outside `node_modules`.
 
 ## Services and providers
 
@@ -55,6 +56,7 @@ src/providers/<vendor>/fake.ts     its fake
 | `error-handler.ts` | `ErrorHandler` | `sentry/` (its fake when `SENTRY_DSN` is unset) |
 | `geocoder.ts` | `Geocoder` | `nominatim/` |
 | `mailer.ts` | `MailerService` (facade over `MailerProvider`) | `resend/` |
+| `otp.ts` | `OtpService`: emailed one-time codes (Reset code, Deletion code): create, verify, check (leaves a right code live), revoke, send | none: codes live in better-auth's `verification` table; emails go through `MailerService` |
 | `price-portal.ts` | `PricePortal` | `price-portals/` (the chains' price-transparency portals) |
 
 ## Routers

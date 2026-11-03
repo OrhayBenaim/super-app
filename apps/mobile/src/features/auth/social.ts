@@ -21,6 +21,7 @@ export async function signInWithApple(): Promise<string | null> {
   if (!cred.identityToken) return t("auth.error.generic");
   const { error } = await authClient.signIn.social({
     provider: "apple",
+    requestSignUp: true, // the server turns implicit sign-up off for its deletion page
     // Apple sends the name only on the first sign-in.
     idToken: {
       token: cred.identityToken,
@@ -33,6 +34,6 @@ export async function signInWithApple(): Promise<string | null> {
 
 /** Google through browser OAuth (expo-web-browser); offered on Android. */
 export async function signInWithGoogle(): Promise<string | null> {
-  const { error } = await authClient.signIn.social({ provider: "google", callbackURL: "/" });
+  const { error } = await authClient.signIn.social({ provider: "google", callbackURL: "/", requestSignUp: true });
   return error ? (error.message ?? t("auth.error.generic")) : null;
 }

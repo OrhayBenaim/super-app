@@ -5,7 +5,7 @@
   "type": "module",
   "exports": {
     "./lists": "./src/lists.ts",
-    "./reset-code": "./src/reset-code.ts",
+    "./otp": "./src/otp.ts",
     "./sentry": "./src/sentry.ts"
   },
   "scripts": {

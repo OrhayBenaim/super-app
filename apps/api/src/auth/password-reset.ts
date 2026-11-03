@@ -1,58 +1,65 @@
 import type { BetterAuthPlugin } from "better-auth";
-import { APIError, createAuthMiddleware } from "better-auth/api";
-import { emailOTP } from "better-auth/plugins";
-import { RESET_CODE } from "@grocer/shared/reset-code";
+import { APIError, createAuthEndpoint } from "better-auth/api";
+import { z } from "zod";
 import type { Db } from "#/db/index.ts";
 import { hasPassword } from "#/db/users.ts";
 import { resetCodeEmail } from "#/emails/reset-code.ts";
-import type { ErrorHandler } from "#/services/error-handler.ts";
-import type { MailerService } from "#/services/mailer.ts";
+import type { OtpResult, OtpService } from "#/services/otp.ts";
 
-const REQUEST_PATH = "/email-otp/request-password-reset";
-const RESET_PATH = "/email-otp/reset-password";
-
-/** emailOTP paths Password reset doesn't use (OTP sign-in, email verification, the deprecated request). For betterAuth's `disabledPaths`. */
-export const unusedOtpPaths = ["/sign-in/email-otp", "/email-otp/send-verification-otp", "/email-otp/verify-email", "/forget-password/email-otp"];
+// The codes better-auth's emailOTP plugin answers with; the app's emailOTPClient and its messages rely on them.
+const otpError: Record<Exclude<OtpResult, "ok">, () => APIError> = {
+  wrong: () => APIError.from("BAD_REQUEST", { code: "INVALID_OTP", message: "Invalid OTP" }),
+  expired: () => APIError.from("BAD_REQUEST", { code: "OTP_EXPIRED", message: "OTP expired" }),
+  tooManyTries: () => APIError.from("FORBIDDEN", { code: "TOO_MANY_ATTEMPTS", message: "Too many attempts" }),
+};
 
 /**
- * Password reset with an emailed Reset code, as better-auth plugins. Only Users with a password take part:
- * others get the same answer as a real request but no code, and can't use a code to gain a password.
+ * Password reset with an emailed Reset code from the OtpService, as a better-auth plugin at emailOTP's paths
+ * (`/email-otp/request-password-reset`, `/email-otp/reset-password`). Only Users with a password take part: others get
+ * the same answer as a real request but no code, and can't use a code to gain a password.
  */
-export function passwordReset(db: Db, mailer: MailerService, errorHandler: ErrorHandler) {
-  const withoutPassword = (email: unknown) => typeof email === "string" && !hasPassword(db, email.toLowerCase());
-  const policy = {
+export function passwordReset(db: Db, otp: OtpService) {
+  return {
     id: "password-reset",
-    hooks: {
-      before: [
-        {
-          matcher: (ctx) => ctx.path === REQUEST_PATH,
-          handler: createAuthMiddleware(async (ctx) => {
-            if (withoutPassword(ctx.body?.email)) return ctx.json({ success: true });
-          }),
+    endpoints: {
+      requestPasswordReset: createAuthEndpoint(
+        "/email-otp/request-password-reset",
+        { method: "POST", body: z.object({ email: z.email() }) },
+        async (ctx) => {
+          const email = ctx.body.email.toLowerCase();
+          // Every email gets a code, so reset-password answers an unknown email exactly like a real one; only real ones get it sent.
+          const code = otp.create("password-reset", email);
+          if (hasPassword(db, email)) otp.send(resetCodeEmail(email, code));
+          return ctx.json({ success: true });
         },
-        {
-          matcher: (ctx) => ctx.path === RESET_PATH,
-          handler: createAuthMiddleware(async (ctx) => {
-            if (withoutPassword(ctx.body?.email)) throw APIError.from("BAD_REQUEST", { code: "INVALID_OTP", message: "Invalid OTP" });
-          }),
+      ),
+      resetPassword: createAuthEndpoint(
+        "/email-otp/reset-password",
+        // Any string: a malformed email just has no code, like any email nobody requested one for.
+        { method: "POST", body: z.object({ email: z.string(), otp: z.string(), password: z.string() }) },
+        async (ctx) => {
+          const email = ctx.body.email.toLowerCase();
+          const { password } = ctx.body;
+          const { internalAdapter, password: passwords } = ctx.context;
+          if (password.length < passwords.config.minPasswordLength)
+            throw APIError.from("BAD_REQUEST", { code: "PASSWORD_TOO_SHORT", message: "Password too short" });
+          if (password.length > passwords.config.maxPasswordLength)
+            throw APIError.from("BAD_REQUEST", { code: "PASSWORD_TOO_LONG", message: "Password too long" });
+
+          // The code first: its answer is the same whether or not the email has a password account.
+          const result = otp.verify("password-reset", email, ctx.body.otp);
+          if (result !== "ok") throw otpError[result]();
+          const found = hasPassword(db, email) ? await internalAdapter.findUserByEmail(email) : null;
+          if (!found) throw otpError.wrong();
+
+          const { id, emailVerified } = found.user;
+          const hash = await passwords.hash(password);
+          await internalAdapter.deleteUserSessions(id); // sessions from before the reset end
+          await internalAdapter.updatePassword(id, hash);
+          if (!emailVerified) await internalAdapter.updateUser(id, { emailVerified: true }); // the code proved the email
+          return ctx.json({ success: true });
         },
-      ],
+      ),
     },
   } satisfies BetterAuthPlugin;
-
-  const otp = emailOTP({
-    otpLength: RESET_CODE.length,
-    expiresIn: RESET_CODE.minutes * 60,
-    allowedAttempts: RESET_CODE.maxTries,
-    // The policy hook has already turned away Users without a password. Not awaited, so a real account answers as fast
-    // as any other email, and a failed send can't turn into an error only real accounts see.
-    async sendVerificationOTP({ email, otp }) {
-      mailer.send(resetCodeEmail(email, otp)).catch((error: unknown) => {
-        console.error("password reset: Reset code email not sent", error);
-        errorHandler.report(error);
-      });
-    },
-  });
-
-  return [otp, policy] as const;
 }

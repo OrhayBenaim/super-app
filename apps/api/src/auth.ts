@@ -1,26 +1,25 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { expo } from "@better-auth/expo";
-import { passwordReset, unusedOtpPaths } from "#/auth/password-reset.ts";
+import { passwordReset } from "#/auth/password-reset.ts";
 import type { Db } from "#/db/index.ts";
 import * as schema from "#/db/schema.ts";
 import type { Config } from "#/services/config.ts";
-import type { ErrorHandler } from "#/services/error-handler.ts";
-import type { MailerService } from "#/services/mailer.ts";
+import type { OtpService } from "#/services/otp.ts";
 
-export function createAuth(db: Db, config: Config, mailer: MailerService, errorHandler: ErrorHandler) {
+export function createAuth(db: Db, config: Config, otp: OtpService) {
   return betterAuth({
     baseURL: config.BETTER_AUTH_URL,
     secret: config.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: "sqlite", schema }),
     emailAndPassword: { enabled: true, revokeSessionsOnPasswordReset: true },
-    disabledPaths: unusedOtpPaths,
     rateLimit: { enabled: false }, // the API's rateLimit middleware covers every route, auth included
     // Account deletion: schema cascades remove owned Lists and memberships; sessions older than freshAge get SESSION_EXPIRED.
     user: { deleteUser: { enabled: true } },
+    // Google and Apple sign up only when asked (the app passes requestSignUp), so the deletion page can't create a User.
     socialProviders: {
       ...(config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
-        ? { google: { clientId: config.GOOGLE_CLIENT_ID, clientSecret: config.GOOGLE_CLIENT_SECRET } }
+        ? { google: { clientId: config.GOOGLE_CLIENT_ID, clientSecret: config.GOOGLE_CLIENT_SECRET, disableImplicitSignUp: true } }
         : {}),
       ...(config.APPLE_CLIENT_ID && config.APPLE_CLIENT_SECRET
         ? {
@@ -28,6 +27,7 @@ export function createAuth(db: Db, config: Config, mailer: MailerService, errorH
               clientId: config.APPLE_CLIENT_ID,
               clientSecret: config.APPLE_CLIENT_SECRET,
               appBundleIdentifier: config.APPLE_APP_BUNDLE_IDENTIFIER,
+              disableImplicitSignUp: true,
             },
           }
         : {}),
@@ -40,7 +40,7 @@ export function createAuth(db: Db, config: Config, mailer: MailerService, errorH
     ],
     plugins: [
       expo(),
-      ...passwordReset(db, mailer, errorHandler),
+      passwordReset(db, otp),
     ],
   });
 }

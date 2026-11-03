@@ -2,7 +2,7 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { View, type TextInputInstance } from "react-native";
-import { codeStatus, RESET_CODE, type CodeLock, type SentCode } from "@grocer/shared/reset-code";
+import { codeStatus, OTP, type CodeLock, type SentCode } from "@grocer/shared/otp";
 import { formatCountdown } from "@/features/auth/countdown";
 import { authErrorKey, emailError, passwordError } from "@/features/auth/validate";
 import { fmt } from "@/features/compare/format";
@@ -15,7 +15,7 @@ import { Button, Group, Screen, Text, TextField } from "@/ui";
 type Busy = "send" | "reset" | null;
 
 // Strings that mention the code fill {length} from the shared rule.
-const say = (key: StringKey) => fmt(t(key), { length: RESET_CODE.length });
+const say = (key: StringKey) => fmt(t(key), { length: OTP.length });
 
 const lockMessage: Record<CodeLock, StringKey> = { expired: "auth.reset.expired", tooManyTries: "auth.reset.tooManyTries" };
 
@@ -80,7 +80,7 @@ export function PasswordResetScreen() {
   // On sign-in the session refetches and the root Stack.Protected swaps to (tabs); nothing to navigate here.
   function submit() {
     if (status?.lock) return;
-    if (code.length !== RESET_CODE.length) return fail("auth.reset.codeFormat");
+    if (code.length !== OTP.length) return fail("auth.reset.codeFormat");
     const invalid = passwordError(password);
     if (invalid) return fail(invalid);
     run("reset", async () => {
@@ -89,7 +89,7 @@ export function PasswordResetScreen() {
         const { error } = await authClient.emailOtp.resetPassword({ email: target, otp: code, password });
         if (error) {
           if (error.code === "INVALID_OTP") setSent((s) => s && { ...s, wrongTries: s.wrongTries + 1 });
-          if (error.code === "TOO_MANY_ATTEMPTS") setSent((s) => s && { ...s, wrongTries: RESET_CODE.maxTries });
+          if (error.code === "TOO_MANY_ATTEMPTS") setSent((s) => s && { ...s, wrongTries: OTP.maxTries });
           return authErrorKey(error.code);
         }
         passwordSet.current = password;
@@ -138,7 +138,7 @@ export function PasswordResetScreen() {
               keyboardType="number-pad"
               autoComplete="one-time-code"
               textContentType="oneTimeCode"
-              maxLength={RESET_CODE.length}
+              maxLength={OTP.length}
               returnKeyType="next"
               onSubmitEditing={() => passwordRef.current?.focus()}
             />
