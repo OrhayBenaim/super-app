@@ -36,9 +36,9 @@ beforeAll(async () => {
 describe("items matched to a Product group", () => {
   it("creates an item with a groupRef and returns it in list detail", async () => {
     const item = await addItem({ name: "Bulgur", groupRef: "בורגול|kg" });
-    expect(item).toMatchObject({ name: "Bulgur", groupRef: "בורגול|kg", productCode: null });
+    expect(item).toMatchObject({ name: "Bulgur", groupRef: "בורגול|kg", productCode: "בורגול|kg" });
     const detail = await (await call("GET", `/${listId}`)).json();
-    expect(detail.items.find((i: { id: string }) => i.id === item.id)).toMatchObject({ groupRef: "בורגול|kg", productCode: null });
+    expect(detail.items.find((i: { id: string }) => i.id === item.id)).toMatchObject({ groupRef: "בורגול|kg", productCode: "בורגול|kg" });
   });
 
   it("accepts a unit group ref and gives plain items a null groupRef", async () => {
@@ -64,7 +64,7 @@ describe("items matched to a Product group", () => {
   it("patching a groupRef clears the productCode, and patching a productCode clears the groupRef", async () => {
     const item = await addItem({ name: "Milk", productCode: milk });
     let res = await call("PATCH", `/${listId}/items/${item.id}`, { groupRef: "חלב|l" });
-    expect(await res.json()).toMatchObject({ groupRef: "חלב|l", productCode: null });
+    expect(await res.json()).toMatchObject({ groupRef: "חלב|l", productCode: "חלב|l" });
     res = await call("PATCH", `/${listId}/items/${item.id}`, { productCode: milk });
     expect(await res.json()).toMatchObject({ groupRef: null, productCode: milk });
     expect(row(item.id)).toEqual({ productCode: milk, groupRef: null });
@@ -78,6 +78,25 @@ describe("items matched to a Product group", () => {
 
   it("401 signed out", async () => {
     expect((await call("POST", `/${listId}/items`, { name: "x", category: "y", groupRef: "בורגול|kg" }, false)).status).toBe(401);
+  });
+});
+
+describe("app builds from before Product groups (productCode only)", () => {
+  it("stores a group ref sent as productCode as the item's groupRef", async () => {
+    const item = await addItem({ name: "Bulgur", productCode: "בורגול|kg" });
+    expect(row(item.id)).toEqual({ productCode: null, groupRef: "בורגול|kg" });
+    expect(item).toMatchObject({ productCode: "בורגול|kg", groupRef: "בורגול|kg" });
+  });
+
+  it("sets the whole match from productCode when a patch has no groupRef", async () => {
+    const item = await addItem({ name: "Milk", groupRef: "חלב|l" });
+    await call("PATCH", `/${listId}/items/${item.id}`, { name: "Milk", productCode: "חלב|l" });
+    expect(row(item.id)).toEqual({ productCode: null, groupRef: "חלב|l" });
+    await call("PATCH", `/${listId}/items/${item.id}`, { productCode: milk });
+    expect(row(item.id)).toEqual({ productCode: milk, groupRef: null });
+    await call("PATCH", `/${listId}/items/${item.id}`, { productCode: "חלב|l" });
+    await call("PATCH", `/${listId}/items/${item.id}`, { productCode: null });
+    expect(row(item.id)).toEqual({ productCode: null, groupRef: null });
   });
 });
 
@@ -113,6 +132,6 @@ describe("startup migration: former Produce-group items move to a group", () => 
 
   it("returns the moved item in list detail with its groupRef", async () => {
     const detail = await (await call("GET", `/${listId}`)).json();
-    expect(detail.items.find((i: { name: string }) => i.name === "Bananas")).toMatchObject({ groupRef: "בננה|kg", productCode: null });
+    expect(detail.items.find((i: { name: string }) => i.name === "Bananas")).toMatchObject({ groupRef: "בננה|kg", productCode: "בננה|kg" });
   });
 });

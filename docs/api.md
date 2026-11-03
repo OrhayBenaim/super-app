@@ -24,6 +24,9 @@ Model: a **list** is shared; **items** belong to a list (not a user). A user's f
 type List = { id; name; ownerId; role: "owner"|"member"; memberCount: number; updatedAt }
 type Member = { userId; name; email; role }
 type Item = { id; listId; name; category; productCode: string|null; groupRef: string|null; missing: boolean; createdAt; updatedAt }
+// Legacy: app builds from before Product groups (production 1.0.0) know only productCode. So a group item is returned with
+// productCode = its groupRef; an item body without groupRef sets the whole match from productCode (a group ref becomes the
+// groupRef); a group ref in /compare codes is priced as that group; group search results carry code = ref.
 ```
 Any member may rotate the invite code. "My list" is auto-created only when the user has no lists. Categories are case-sensitive (client autocomplete mitigates). Any item/list mutation bumps `list.updatedAt`. Realtime: the mobile app polls `GET /lists/:id` (refetchInterval ~5s while focused). `shortcut: polling instead of websockets, upgrade when >2 members per list is common`.
 

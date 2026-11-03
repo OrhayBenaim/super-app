@@ -6,7 +6,7 @@ import { DEFAULT_LIST_NAME } from "@grocer/shared/lists";
 import type { Db } from "#/db/index.ts";
 import { items, listMembers, lists, user } from "#/db/schema.ts";
 import type { Deps } from "#/deps.ts";
-import { groupRefSchema } from "#/prices/groups.ts";
+import { groupRefSchema, parseRef } from "#/prices/groups.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32 chars, no 0/O/1/I; 256 % 32 == 0 so no modulo bias
@@ -16,14 +16,23 @@ const nameBody = z.object({ name: z.string().trim().min(1).max(200) });
 const itemFields = z.object({
   name: z.string().trim().min(1).max(200),
   category: z.string().trim().min(1).max(100),
-  productCode: z.string().trim().min(1).max(64).nullable().optional(),
+  productCode: z.union([z.string().trim().min(1).max(64), groupRefSchema]).nullable().optional(),
   groupRef: groupRefSchema.nullable().optional(),
   missing: z.boolean().optional(),
 });
+type Match = { productCode?: string | null; groupRef?: string | null };
+// shortcut: app builds from before Product groups (production 1.0.0) know only productCode. They get a group item's
+// ref as its productCode (legacyItem) and send it back, so a body without groupRef sets the whole match from
+// productCode. Drop this, legacyItem and the ref-as-code in prices.ts once no such build calls the API.
+const legacyMatch = <T extends Match>(b: T): T =>
+  b.groupRef !== undefined || b.productCode === undefined
+    ? b
+    : { ...b, ...(b.productCode && parseRef(b.productCode) ? { productCode: null, groupRef: b.productCode } : { groupRef: null }) };
+const legacyItem = (i: typeof items.$inferSelect) => ({ ...i, productCode: i.productCode ?? i.groupRef });
 // An item is matched to one product or one Product group, never both.
-const oneMatch = [(b: { productCode?: string | null; groupRef?: string | null }) => !(b.productCode && b.groupRef), "send productCode or groupRef, not both"] as const;
-const itemBody = itemFields.refine(...oneMatch);
-const itemPatch = itemFields.partial().refine(...oneMatch);
+const oneMatch = [(b: Match) => !(b.productCode && b.groupRef), "send productCode or groupRef, not both"] as const;
+const itemBody = itemFields.transform(legacyMatch).refine(...oneMatch);
+const itemPatch = itemFields.partial().transform(legacyMatch).refine(...oneMatch);
 const joinBody = z.object({ code: z.string().trim().min(1).max(32) });
 
 async function parse<T extends z.ZodType>(c: Context<AppEnv>, schema: T) {
@@ -105,7 +114,7 @@ export const listsRoutes = new Hono<AppEnv>()
       .where(eq(listMembers.listId, id))
       .all();
     const rows = db.select().from(items).where(eq(items.listId, id)).orderBy(asc(items.createdAt)).all();
-    return c.json({ list, members, items: rows });
+    return c.json({ list, members, items: rows.map(legacyItem) });
   })
   .patch("/:id", async (c) => {
     const { db, clock } = c.var.deps;
@@ -128,7 +137,7 @@ export const listsRoutes = new Hono<AppEnv>()
     const { name, category, productCode = null, groupRef = null, missing = true } = p.data;
     const item = db.insert(items).values({ id: randomUUID(), listId, name, category, productCode, groupRef, missing }).returning().get();
     touch(c.var.deps, listId);
-    return c.json(item);
+    return c.json(legacyItem(item));
   })
   .patch("/:id/items/:itemId", async (c) => {
     const { db, clock } = c.var.deps;
@@ -145,7 +154,7 @@ export const listsRoutes = new Hono<AppEnv>()
       .get();
     if (!item) return notFound(c);
     touch(c.var.deps, listId);
-    return c.json(item);
+    return c.json(legacyItem(item));
   })
   .delete("/:id/items/:itemId", (c) => {
     const { db } = c.var.deps;

@@ -13,7 +13,8 @@ const compareBody = z
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180),
     radiusKm: z.number().min(1).max(50).default(10),
-    codes: z.array(z.string().trim().min(1).max(64)).max(200).default([]),
+    // A group ref among the codes comes from an app build from before Product groups (see legacyMatch in lists.ts).
+    codes: z.array(z.union([z.string().trim().min(1).max(64), groupRefSchema])).max(200).default([]),
     groups: z.array(z.object({ ref: groupRefSchema, amount: z.number().positive().max(1000).optional() })).max(200).default([]),
     sort: z.enum(["price", "distance", "coverage"]).default("price"),
     limit: z.number().int().min(1).max(100).default(20),
@@ -56,7 +57,8 @@ export function searchProducts(db: Db, q: string, limit: number) {
   const pool = groupWords.length === words.length ? found : find(ftsMatch(groupWords));
   const groups = searchGroups(groupWords, pool).map(({ codes, minPrice, ...g }) => {
     const { n } = sqlite.prepare("SELECT count(DISTINCT store_id) AS n FROM prices WHERE code IN (SELECT value FROM json_each(?))").get(JSON.stringify(codes)) as { n: number };
-    return { kind: "group" as const, ...g, minPrice: round2(minPrice), productCount: codes.length, storeCount: n };
+    // code: the ref, for app builds from before Product groups, which pick a result by its code.
+    return { kind: "group" as const, ...g, code: g.ref, minPrice: round2(minPrice), productCount: codes.length, storeCount: n };
   });
   groups.sort((a, b) => b.storeCount - a.storeCount);
   return [...groups, ...found.slice(0, limit).map(({ tier: _, ...p }) => productResult(p))];
@@ -98,8 +100,10 @@ type GroupItem = { ref: string; code: string; name: string; size: number; unitPr
  */
 export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
   const { lat, lng, radiusKm, sort, limit } = query;
-  const codes = [...new Set(query.codes)];
-  const groups = [...new Map(query.groups.map((g) => [g.ref, g])).values()].map(({ ref, amount }) => {
+  const isRef = (k: string) => parseRef(k) !== null;
+  const codes = [...new Set(query.codes.filter((k) => !isRef(k)))];
+  const legacyGroups = query.codes.filter(isRef).map((ref) => ({ ref, amount: undefined }));
+  const groups = [...new Map([...legacyGroups, ...query.groups].map((g) => [g.ref, g])).values()].map(({ ref, amount }) => {
     const members = groupMembers(db, ref);
     const byQuantity = parseRef(ref)!.size.measure !== "unit"; // priced per kilo or liter
     return { ref, byQuantity, members, amount: amount ?? (byQuantity ? (commonest(members.map((m) => m.size)) ?? 1) : 1) };

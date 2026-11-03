@@ -115,7 +115,7 @@ describe("product groups in search", () => {
 
   it("returns a group's fields and a product's fields", async () => {
     const [group, product] = await search("בננה");
-    expect(Object.keys(group!).sort()).toEqual(["kind", "measure", "minPrice", "name", "productCount", "ref", "refinements", "size", "storeCount"]);
+    expect(Object.keys(group!).sort()).toEqual(["code", "kind", "measure", "minPrice", "name", "productCount", "ref", "refinements", "size", "storeCount"]);
     expect(Object.keys(product!).sort()).toEqual(["code", "kind", "manufacturer", "measure", "minPrice", "name", "size", "storeCount", "unitQty"]);
     expect(product).toMatchObject({ measure: expect.any(String), size: expect.any(Number) });
   });

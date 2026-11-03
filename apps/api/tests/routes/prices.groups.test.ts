@@ -281,6 +281,19 @@ describe("product groups: compare", () => {
     expect(groupItem(store(r, "Shufersal")).price).toBe(17.5);
   });
 
+  it("prices a group ref sent as a code (app builds from before Product groups) as the group, and reports it by that ref", async () => {
+    const legacy = await compare({ codes: ["בורגול|kg", "ביצ|unit|404"] });
+    expect(legacy.stores).toEqual((await compare({ groups: [{ ref: "בורגול|kg" }, { ref: "ביצ|unit|404" }] })).stores);
+    expect(store(legacy, "Osher Ad").missingCodes).toEqual(["ביצ|unit|404"]);
+    expect(legacy.unmatched).toEqual(["ביצ|unit|404"]);
+    // The same ref in both counts once, with the group's amount.
+    expect(store(await compare({ codes: ["בורגול|kg"], groups: [{ ref: "בורגול|kg", amount: 1 }] }), "Osher Ad").total).toBe(6.8);
+  });
+
+  it("gives each group result its ref as code, for app builds from before Product groups", async () => {
+    for (const g of await groups("בורגול")) expect(g.code).toBe(g.ref);
+  });
+
   it("defaults the amount to the commonest pack size", async () => {
     const r = await compare({ groups: [{ ref: "בורגול|kg" }] }); // three of five bulgurs are 500 g
     expect(store(r, "Osher Ad").total).toBe(3.4);
