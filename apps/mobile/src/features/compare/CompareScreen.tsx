@@ -2,7 +2,7 @@ import { useIsFocused, useRouter } from "expo-router";
 import { MapPin, SearchX, ShoppingBasket, TriangleAlert } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshControl, ScrollView } from "react-native";
-import Animated, { LinearTransition } from "react-native-reanimated";
+import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
 import { basketSize, missingBasket, missingItems, useCurrentListId, useList } from "@/features/lists/api";
 import { syncGeofences, useNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
@@ -43,8 +43,10 @@ function useMinDuration(on: boolean, ms: number) {
 
 export function CompareScreen() {
   const router = useRouter();
-  const { space, colors } = useTheme();
+  const { space, colors, motion } = useTheme();
   const [sort, setSort] = useState<Sort>("price");
+  // The store shown as the big card; null = the first one in the current sort.
+  const [openId, setOpenId] = useState<string | null>(null);
   const { km: radiusKm, set: setRadiusKm } = useRadius();
   const [pulling, setPulling] = useState(false);
 
@@ -60,8 +62,12 @@ export function CompareScreen() {
   const { toast } = useDeleteWithUndo(listId);
 
   const byPrice = useMemo(() => sortStores(compare.data?.stores ?? [], "price"), [compare.data]);
-  const best = byPrice[0];
-  const others = useMemo(() => sortStores(byPrice.slice(1), sort), [byPrice, sort]);
+  const sorted = useMemo(() => sortStores(byPrice, sort), [byPrice, sort]);
+  // Accordion: the open store sits in its sorted slot as the card, the rest stay rows around it.
+  const best = sorted.find((s) => s.storeId === openId) ?? sorted[0];
+  const at = sorted.indexOf(best);
+  const above = sorted.slice(0, at);
+  const below = sorted.slice(at + 1);
   const listText = items.map((i) => i.name).join("\n");
 
   // Deps are only the fetch stamp and the flag: re-sync per fetch, not per render.
@@ -119,6 +125,13 @@ export function CompareScreen() {
     return null;
   })();
 
+  const rows = (stores: typeof sorted) =>
+    stores.map((s) => (
+      <Animated.View key={s.storeId} layout={reorder}>
+        <StoreRow store={s} basketSize={items.length} onPress={() => setOpenId(s.storeId)} />
+      </Animated.View>
+    ));
+
   const subtitle = loading ? t("compare.searching") : matched ? fmt(t("compare.summary"), { items: items.length, matched }) : undefined;
 
   return (
@@ -137,22 +150,34 @@ export function CompareScreen() {
         }
       >
         <LargeTitle title={t("tabs.compare")} subtitle={subtitle} nav={location.status !== "denied" && <RadiusMenu value={radiusKm} onChange={setRadiusKm} />} />
-        {location.status !== "denied" && matched > 0 && <SortControl value={sort} onChange={setSort} />}
+        {location.status !== "denied" && matched > 0 && (
+          <SortControl
+            value={sort}
+            onChange={(s) => {
+              setSort(s);
+              setOpenId(null);
+            }}
+          />
+        )}
         {body ?? (
           <>
-            <BestStore store={best} basketSize={items.length} saving={saving(byPrice)} listText={listText} onShowMissing={() => {
-                const { chainName, total, matched, missingCodes: codesHere } = best;
-                const store: MissingStore = { chainName, total, matched, missingCodes: codesHere };
-                router.push({ pathname: "/missing", params: { store: JSON.stringify(store) } });
-              }}
-            />
-            {others.length > 0 && (
-              <Group title={t("compare.others")} count={others.length}>
-                {others.map((s) => (
-                  <Animated.View key={s.storeId} layout={reorder}>
-                    <StoreRow store={s} basketSize={items.length} />
-                  </Animated.View>
-                ))}
+            {above.length > 0 && <Group style={{ marginTop: space[4] }}>{rows(above)}</Group>}
+            <Animated.View key={best.storeId} layout={reorder} entering={FadeIn.duration(motion.duration.fast)}>
+              <BestStore
+                store={best}
+                basketSize={items.length}
+                saving={best === byPrice[0] ? saving(byPrice) : null}
+                listText={listText}
+                onShowMissing={() => {
+                  const { chainName, total, matched, missingCodes: codesHere } = best;
+                  const store: MissingStore = { chainName, total, matched, missingCodes: codesHere };
+                  router.push({ pathname: "/missing", params: { store: JSON.stringify(store) } });
+                }}
+              />
+            </Animated.View>
+            {below.length > 0 && (
+              <Group title={above.length ? undefined : t("compare.others")} count={above.length ? undefined : below.length} style={above.length ? { marginTop: space[4] } : undefined}>
+                {rows(below)}
               </Group>
             )}
           </>
