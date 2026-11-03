@@ -24,16 +24,17 @@ export function LargeTitle({ title, subtitle, nav, menu }: LargeTitleProps) {
     <View style={{ paddingBottom: space[3] }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: space[2], minHeight: size.target }}>{nav}</View>
       {menu ? (
+        // Still the screen's heading for screen readers; it stays activatable, and the hint says what a tap opens.
         <Tap
+          accessibilityRole="header"
           accessibilityLabel={title}
           accessibilityHint={menu.hint}
           analyticsName={menu.analyticsName}
           onPress={menu.onPress}
-          scaleTo={1}
           style={{ flexDirection: "row", alignItems: "center", gap: space[2], alignSelf: "flex-start", maxWidth: "100%" }}
         >
           {heading}
-          <ChevronDown size={24} color={colors.tint} strokeWidth={2} />
+          <ChevronDown size={18} color={colors.tint} strokeWidth={1.75} />
         </Tap>
       ) : (
         heading
