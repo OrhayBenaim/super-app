@@ -94,6 +94,8 @@ beforeAll(async () => {
   cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
 });
 
+/** Compare body items, each at quantity 1. */
+const q = (codes: unknown) => (Array.isArray(codes) ? codes.map((code) => ({ code, quantity: 1 })) : codes);
 const post = (body: unknown, opts: { auth?: boolean; raw?: string; at?: typeof here } = {}) =>
   app.request("/api/compare", {
     method: "POST",
@@ -116,7 +118,7 @@ const searchCodes = async (q: string) => {
 
 describe("compare validation", () => {
   it("401 without a cookie, even for an otherwise valid body", async () => {
-    expect((await post({ ...here, codes: [P1] }, { auth: false })).status).toBe(401);
+    expect((await post({ ...here, items: q([P1]) }, { auth: false })).status).toBe(401);
   });
 
   it.each([
@@ -135,43 +137,55 @@ describe("compare validation", () => {
     ["limit 0", { limit: 0 }],
     ["limit 101", { limit: 101 }],
     ["limit fractional", { limit: 1.5 }],
-    ["codes empty", { codes: [] }],
-    ["codes not an array", { codes: P1 }],
-    ["codes with number", { codes: [123] }],
-    ["codes with empty string", { codes: [""] }],
-    ["codes with blank string", { codes: ["   "] }],
-    ["code of 65 chars", { codes: ["9".repeat(65)] }],
-    ["201 codes", { codes: Array.from({ length: 201 }, (_, i) => `C${i}`) }],
+    ["items empty", { items: q([]) }],
+    ["items not an array", { items: q(P1) }],
+    ["item code a number", { items: q([123]) }],
+    ["item code empty", { items: q([""]) }],
+    ["item code blank", { items: q(["   "]) }],
+    ["code of 65 chars", { items: q(["9".repeat(65)]) }],
+    ["201 items", { items: q(Array.from({ length: 201 }, (_, i) => `C${i}`)) }],
+    ["item without quantity", { items: [{ code: P1 }] }],
+    ["quantity 0", { items: [{ code: P1, quantity: 0 }] }],
+    ["quantity negative", { items: [{ code: P1, quantity: -1 }] }],
+    ["quantity above 99", { items: [{ code: P1, quantity: 99.5 }] }],
+    ["quantity as string", { items: [{ code: P1, quantity: "2" }] }],
+    ["the old codes body", { items: undefined, codes: [P1] }],
   ])("400: %s", async (_label, patch) => {
-    const res = await post({ ...here, codes: [P1], ...patch });
+    const res = await post({ ...here, items: q([P1]), ...patch });
     expect(res.status).toBe(400);
     expect(typeof ((await res.json()) as { error: string }).error).toBe("string");
   });
 
-  it("400 for malformed, empty, null and array bodies; missing lat/lng/codes", async () => {
+  it("400 for malformed, empty, null and array bodies; missing lat/lng/items", async () => {
     for (const raw of ["{nope", "", "null", "[]", "42"]) expect((await post(null, { raw })).status, raw).toBe(400);
-    expect((await post({ lng: 34, codes: [P1] })).status).toBe(400);
-    expect((await post({ lat: 32, codes: [P1] })).status).toBe(400);
+    expect((await post({ lng: 34, items: q([P1]) })).status).toBe(400);
+    expect((await post({ lat: 32, items: q([P1]) })).status).toBe(400);
     expect((await post({ lat: 32, lng: 34 })).status).toBe(400);
   });
 
-  it("accepts the boundary values: 200 codes, radius 1 and 50, limit 1 and 100, lat/lng extremes", async () => {
+  it("accepts the boundary values: 200 items, radius 1 and 50, limit 1 and 100, lat/lng extremes", async () => {
     const two = Array.from({ length: 200 }, (_, i) => `NOPE${i}`);
-    expect((await post({ ...here, codes: two })).status).toBe(200);
-    for (const radiusKm of [1, 50]) expect((await post({ ...here, codes: [P1], radiusKm })).status).toBe(200);
-    for (const limit of [1, 100]) expect((await post({ ...here, codes: [P1], limit })).status).toBe(200);
+    expect((await post({ ...here, items: q(two) })).status).toBe(200);
+    for (const radiusKm of [1, 50]) expect((await post({ ...here, items: q([P1]), radiusKm })).status).toBe(200);
+    for (const limit of [1, 100]) expect((await post({ ...here, items: q([P1]), limit })).status).toBe(200);
     for (const pos of [{ lat: 90, lng: 180 }, { lat: -90, lng: -180 }, { lat: 0, lng: 0 }])
-      expect((await post({ ...pos, codes: [P1] })).status, JSON.stringify(pos)).toBe(200);
+      expect((await post({ ...pos, items: q([P1]) })).status, JSON.stringify(pos)).toBe(200);
+  });
+
+  it("caps the basket at 200 entries, each Product group counting as one", async () => {
+    const items = q(Array.from({ length: 199 }, (_, i) => `NOPE${i}`));
+    expect((await post({ ...here, items, groups: [{ ref: "בורגול|kg" }] })).status).toBe(200);
+    expect((await post({ ...here, items, groups: [{ ref: "בורגול|kg" }, { ref: "אורז|kg" }] })).status).toBe(400);
   });
 
   it("ignores unknown body keys", async () => {
-    expect((await post({ ...here, codes: [P1], extra: true })).status).toBe(200);
+    expect((await post({ ...here, items: q([P1]), extra: true })).status).toBe(200);
   });
 });
 
 describe("compare semantics", () => {
   it("price: fewest missing first, then lowest total, then nearest", async () => {
-    const r = await compare({ codes: [P1, P2] });
+    const r = await compare({ items: q([P1, P2]) });
     // sA 100 (1km), sR 110 (3.5km), sD 120 (0.5km), sC 120 (3km), sT 140, then sB (1 missing, total 1)
     expect(names(r)).toEqual(["sA", "sR", "sD", "sC", "sT", "sB"]);
     expect(r.stores.map((s) => s.total)).toEqual([100, 110, 120, 120, 140, 1]);
@@ -179,96 +193,97 @@ describe("compare semantics", () => {
   });
 
   it("price ties on missing and total fall back to distance (sD before sC)", async () => {
-    const r = await compare({ codes: [P1, P2] });
+    const r = await compare({ items: q([P1, P2]) });
     expect(names(r).indexOf("sD")).toBeLessThan(names(r).indexOf("sC"));
   });
 
   it("coverage: most matched first, then lowest total", async () => {
-    const r = await compare({ codes: [P1, P2], sort: "coverage" });
+    const r = await compare({ items: q([P1, P2]), sort: "coverage" });
     expect(names(r)).toEqual(["sA", "sR", "sD", "sC", "sT", "sB"]);
     expect(r.stores.map((s) => s.matched)).toEqual([2, 2, 2, 2, 2, 1]);
   });
 
   it("distance: nearest first regardless of price or coverage", async () => {
-    const r = await compare({ codes: [P1, P2], sort: "distance" });
+    const r = await compare({ items: q([P1, P2]), sort: "distance" });
     expect(names(r)).toEqual(["sD", "sA", "sB", "sT", "sC", "sR"]);
     const d = r.stores.map((s) => s.distanceKm);
     expect(d).toEqual([...d].sort((a, b) => a - b));
   });
 
   it("defaults: sort=price, radius 10, limit 20", async () => {
-    const withDefaults = await compare({ codes: [P1, P2] });
-    const explicit = await compare({ codes: [P1, P2], sort: "price", radiusKm: 10, limit: 20 });
+    const withDefaults = await compare({ items: q([P1, P2]) });
+    const explicit = await compare({ items: q([P1, P2]), sort: "price", radiusKm: 10, limit: 20 });
     expect(withDefaults).toEqual(explicit);
   });
 
   it("excludes a store in range that carries none of the codes, and a store without coordinates", async () => {
-    const r = await compare({ codes: [P1, P2], radiusKm: 50 });
+    const r = await compare({ items: q([P1, P2]), radiusKm: 50 });
     expect(names(r)).not.toContain("sZero");
     expect(names(r)).not.toContain("sNoCoords");
-    expect((await compare({ codes: [Z1] })).stores.map((s) => s.storeName)).toEqual(["sZero"]);
+    expect((await compare({ items: q([Z1]) })).stores.map((s) => s.storeName)).toEqual(["sZero"]);
   });
 
   it("limit slices after sorting, and does not change unmatched", async () => {
-    const all = await compare({ codes: [P1, P2, P3, "NOPE"] });
-    const limited = await compare({ codes: [P1, P2, P3, "NOPE"], limit: 2 });
+    const all = await compare({ items: q([P1, P2, P3, "NOPE"]) });
+    const limited = await compare({ items: q([P1, P2, P3, "NOPE"]), limit: 2 });
     expect(limited.stores).toEqual(all.stores.slice(0, 2));
     expect(limited.unmatched).toEqual(["NOPE"]); // P3 is carried by sF, which the limit cut off
     expect(all.unmatched).toEqual(["NOPE"]);
   });
 
   it("totals are rounded to cents (0.1 + 0.2)", async () => {
-    const r = await compare({ codes: [P3, P4] });
+    const r = await compare({ items: q([P3, P4]) });
     expect(r.stores).toHaveLength(1);
     expect(r.stores[0]).toMatchObject({ storeName: "sF", total: 0.3, matched: 2 });
   });
 
-  it("deduplicates and trims codes; missingCodes keeps request order", async () => {
-    const r = await compare({ codes: [` ${P1} `, P1, P2, "NOPE2", "NOPE1", "NOPE2"] });
-    expect(r.stores[0]).toMatchObject({ storeName: "sA", matched: 2, total: 100, missingCodes: ["NOPE2", "NOPE1"] });
+  it("merges and trims duplicate codes; missingCodes keeps request order", async () => {
+    const r = await compare({ items: q([` ${P1} `, P1, P2, "NOPE2", "NOPE1", "NOPE2"]) });
+    // P1 twice is quantity 2: 2 x 50 + 50
+    expect(r.stores[0]).toMatchObject({ storeName: "sA", matched: 2, total: 150, missingCodes: ["NOPE2", "NOPE1"] });
     expect(r.unmatched).toEqual(["NOPE2", "NOPE1"]);
-    expect(r.stores[0].items.map((i: any) => i.code).sort()).toEqual([P1, P2]);
+    expect(r.stores[0].items.map((i: any) => [i.code, i.quantity, i.lineTotal]).sort()).toEqual([[P1, 2, 100], [P2, 1, 50]]);
   });
 
   it("unmatched is empty when every code is carried, and lists everything when nothing is", async () => {
-    expect((await compare({ codes: [P1, P2] })).unmatched).toEqual([]);
-    const none = await compare({ codes: ["X1", "X2"] });
+    expect((await compare({ items: q([P1, P2]) })).unmatched).toEqual([]);
+    const none = await compare({ items: q(["X1", "X2"]) });
     expect(none).toEqual({ stores: [], unmatched: ["X1", "X2"] });
   });
 
   it("a code only carried outside the radius is unmatched, and matched once the radius grows", async () => {
-    const small = await compare({ codes: [Q1] });
+    const small = await compare({ items: q([Q1]) });
     expect(small).toEqual({ stores: [], unmatched: [Q1] });
-    const big = await compare({ codes: [Q1], radiusKm: 50 });
+    const big = await compare({ items: q([Q1]), radiusKm: 50 });
     expect(big.unmatched).toEqual([]);
     expect(big.stores[0]).toMatchObject({ storeName: "sFar", total: 9 });
     expect(big.stores[0].distanceKm).toBeCloseTo(30, 1);
   });
 
   it("radius edge: 9.99 km is inside a 10 km radius, 10.01 km is outside", async () => {
-    expect(names(await compare({ codes: [R1] }))).toEqual(["sEdgeIn"]);
-    expect(names(await compare({ codes: [R2] }))).toEqual([]);
-    expect(names(await compare({ codes: [R2], radiusKm: 11 }))).toEqual(["sEdgeOut"]);
+    expect(names(await compare({ items: q([R1]) }))).toEqual(["sEdgeIn"]);
+    expect(names(await compare({ items: q([R2]) }))).toEqual([]);
+    expect(names(await compare({ items: q([R2]), radiusKm: 11 }))).toEqual(["sEdgeOut"]);
   });
 
   it("radius edge at the minimum (1 km)", async () => {
-    expect(names(await compare({ codes: [T1], radiusKm: 1 }))).toEqual(["sOneIn"]);
-    expect(names(await compare({ codes: [T2], radiusKm: 1 }))).toEqual([]);
+    expect(names(await compare({ items: q([T1]), radiusKm: 1 }))).toEqual(["sOneIn"]);
+    expect(names(await compare({ items: q([T2]), radiusKm: 1 }))).toEqual([]);
   });
 
   it("a store inside the bounding box but outside the circle is excluded", async () => {
-    expect(names(await compare({ codes: [R3] }))).toEqual([]);
-    expect(names(await compare({ codes: [R3], radiusKm: 12 }))).toEqual(["sCorner"]);
+    expect(names(await compare({ items: q([R3]) }))).toEqual([]);
+    expect(names(await compare({ items: q([R3]), radiusKm: 12 }))).toEqual(["sCorner"]);
   });
 
   it("finds stores south-west of the origin too", async () => {
-    const r = await compare({ codes: [R4] });
+    const r = await compare({ items: q([R4]) });
     expect(names(r)).toEqual(["sSouthWest"]);
     expect(r.stores[0].distanceKm).toBeCloseTo(7.07, 1);
   });
 
   it("returns the full StoreResult shape, and orderUrl is null for a chain without one", async () => {
-    const r = await compare({ codes: [P1, P2] });
+    const r = await compare({ items: q([P1, P2]) });
     const a = r.stores.find((s) => s.storeName === "sA");
     expect(a).toEqual({
       storeId: `${OSHER}-1`,
@@ -283,7 +298,7 @@ describe("compare semantics", () => {
       total: 100,
       matched: 2,
       missingCodes: [],
-      items: expect.arrayContaining([{ code: P1, price: 50 }, { code: P2, price: 50 }]),
+      items: expect.arrayContaining([{ code: P1, price: 50, quantity: 1, lineTotal: 50 }, { code: P2, price: 50, quantity: 1, lineTotal: 50 }]),
       orderUrl: "https://www.osherad.co.il/",
     });
     expect(r.stores.find((s) => s.storeName === "sT")).toMatchObject({ chainName: "Keshet Taamim", orderUrl: null });
@@ -310,7 +325,7 @@ describe("products search", () => {
 
   it("reports storeCount and the minimum price", async () => {
     const rows = (await (await search("חלב תנובה")).json()) as any[];
-    expect(rows).toEqual([{ kind: "product", code: S1, name: "חלב תנובה 3%", manufacturer: null, unitQty: null, storeCount: 2, minPrice: 5, measure: null, size: null }]);
+    expect(rows).toEqual([{ kind: "product", code: S1, name: "חלב תנובה 3%", manufacturer: null, unitQty: null, storeCount: 2, minPrice: 5, measure: null, size: null, soldBy: "unit" }]);
   });
 
   it("FTS-special characters never cause a 500", async () => {

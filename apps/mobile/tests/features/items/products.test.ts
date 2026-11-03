@@ -5,8 +5,8 @@ vi.mock("expo-image", () => ({ Image: { prefetch: vi.fn() } }));
 
 import { splitResults, type SearchResult } from "@/features/items/products";
 
-const g = (ref: string) => ({ kind: "group", ref, name: ref, measure: "kg", size: 1, productCount: 2, storeCount: 1, minPrice: 1, refinements: [] }) as SearchResult;
-const p = (code: string) => ({ kind: "product", code, name: code, manufacturer: null, unitQty: null, measure: null, size: null, storeCount: 1, minPrice: 1 }) as SearchResult;
+const g = (ref: string) => ({ kind: "group", ref, name: ref, measure: "kg", size: 1, soldBy: "unit", productCount: 2, storeCount: 1, minPrice: 1, refinements: [] }) as SearchResult;
+const p = (code: string) => ({ kind: "product", code, name: code, manufacturer: null, unitQty: null, measure: null, size: null, soldBy: "unit", storeCount: 1, minPrice: 1 }) as SearchResult;
 
 describe("splitResults", () => {
   it("separates group rows from products, keeping order", () => {

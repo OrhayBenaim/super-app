@@ -14,17 +14,17 @@ import Animated, {
   withSequence,
   withSpring,
 } from "react-native-reanimated";
-import { useCompare, useRadius } from "@/features/compare/api";
+import { useBestStore } from "@/features/compare/useBestStore";
 import { fmt, shekels } from "@/features/compare/format";
-import { sortStores } from "@/features/compare/sort";
 import { AddField } from "@/features/items/AddField";
+import { QuantityPill } from "@/features/items/QuantityPill";
+import { showPill } from "@/features/items/labels";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
 import { Events, Taps, track } from "@/lib/analytics";
-import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
 import { EmptyState, Group, IconButton, LargeTitle, Row, Screen, Tap, Text } from "@/ui";
-import { listName, missingBasket, missingItems, useCategories, useCurrentListId, useItemMutations, useList, type Basket, type Item } from "./api";
+import { listName, missingItems, useCategories, useCurrentListId, useItemMutations, useList, type Item } from "./api";
 import { Avatars } from "./Avatars";
 import { groupByCategory, RECENT_MS, recentlyBought } from "./group";
 
@@ -42,7 +42,7 @@ export function ShoppingList() {
   const categories = useCategories(listId).data ?? [];
   const { update } = useItemMutations(listId);
   const { deleteItem, toast } = useDeleteWithUndo(listId);
-  const cheapest = useCheapestNow(missingBasket(data));
+  const cheapest = useBestStore(data);
   const [refreshing, setRefreshing] = useState(false);
   const [adding, setAdding] = useState(false);
 
@@ -140,14 +140,6 @@ export function ShoppingList() {
   );
 }
 
-/** Cheapest nearby store for the basket, from the same query Compare uses; null until location and prices are in. Never asks for location. */
-function useCheapestNow(basket: Basket) {
-  const location = useLocation();
-  const radius = useRadius((s) => s.km);
-  const compare = useCompare(location.coords, radius, basket);
-  return sortStores(compare.data?.stores ?? [], "price")[0] ?? null;
-}
-
 /** Leading check circle (the only way to tick), name; long-press edits. Checked: strike-through, then the row leaves. */
 function CheckRow({ item, onBought, onEdit }: { item: Item; onBought: (id: string) => void; onEdit: () => void }) {
   const { colors, space, size, motion } = useTheme();
@@ -208,6 +200,11 @@ function CheckRow({ item, onBought, onEdit }: { item: Item; onBought: (id: strin
           {item.name}
         </Text>
       </Tap>
+      {showPill(item.quantity, item.soldBy, "list") && (
+        <View style={{ paddingEnd: space[5] }}>
+          <QuantityPill item={item} screen="list" />
+        </View>
+      )}
     </Animated.View>
   );
 }

@@ -1,6 +1,7 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
+import type { SoldBy } from "@grocer/shared/quantity";
 import { api } from "@/lib/api";
 import { hasBarcode, lookupProductImage } from "./imageLookup";
 
@@ -8,7 +9,9 @@ export type Measure = "kg" | "l" | "unit";
 /** One product. `size` is in kilos or liters, or a pack count; null when it can't be read. */
 export type Product = {
   kind: "product"; code: string; name: string; manufacturer: string | null; unitQty: string | null;
-  measure: Measure | null; size: number | null; storeCount: number; minPrice: number;
+  measure: Measure | null; size: number | null; storeCount: number;
+  /** Per kilo when sold by weight. */
+  minPrice: number; soldBy: SoldBy;
   /** undefined while looking up (skeleton), a URL when found, null when there is none. */
   imageUrl?: string | null;
 };
@@ -17,7 +20,7 @@ export type Product = {
  * pack (kilos or liters) or its pack count. `refinements` are next words that narrow it.
  */
 export type ProductGroup = {
-  kind: "group"; ref: string; name: string; measure: Measure; size: number;
+  kind: "group"; ref: string; name: string; measure: Measure; size: number; soldBy: SoldBy;
   productCount: number; storeCount: number; minPrice: number; refinements: string[];
 };
 export type SearchResult = Product | ProductGroup;

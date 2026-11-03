@@ -14,22 +14,23 @@ const base = { lat: 32.08, lng: 34.78, radiusKm: 10, sort: "price", limit: 100 }
 const sent = () => JSON.parse(m.api.mock.calls[0][1].body);
 
 describe("fetchCompare", () => {
-  it("posts to api/compare with each group ref as { ref }", async () => {
-    await fetchCompare({ ...base, codes: ["111"], groups: ["בורגול|kg", "ביצ|unit|12"] });
+  it("posts to api/compare with each item and group and its quantity", async () => {
+    const basket = { items: [{ code: "111", quantity: 2 }], groups: [{ ref: "בורגול|kg", quantity: 1 }, { ref: "ביצ|unit|12", quantity: 3 }] };
+    await fetchCompare({ ...base, ...basket });
     expect(m.api.mock.calls[0][0]).toBe("api/compare");
     expect(m.api.mock.calls[0][1].method).toBe("POST");
-    expect(sent()).toEqual({ ...base, codes: ["111"], groups: [{ ref: "בורגול|kg" }, { ref: "ביצ|unit|12" }] });
+    expect(sent()).toEqual({ ...base, ...basket });
   });
 
-  it("sends an empty groups list for a basket of codes only", async () => {
-    await fetchCompare({ ...base, codes: ["111"], groups: [] });
+  it("sends an empty groups list for a basket of products only", async () => {
+    await fetchCompare({ ...base, items: [{ code: "111", quantity: 1 }], groups: [] });
     expect(sent().groups).toEqual([]);
   });
 
   it("returns the API response and lets a failure through", async () => {
     m.api.mockResolvedValueOnce({ stores: [], unmatched: ["x|kg"] });
-    expect(await fetchCompare({ ...base, codes: [], groups: ["x|kg"] })).toEqual({ stores: [], unmatched: ["x|kg"] });
+    expect(await fetchCompare({ ...base, items: [], groups: [{ ref: "x|kg", quantity: 1 }] })).toEqual({ stores: [], unmatched: ["x|kg"] });
     m.api.mockRejectedValueOnce(new Error("500"));
-    await expect(fetchCompare({ ...base, codes: [], groups: ["x|kg"] })).rejects.toThrow("500");
+    await expect(fetchCompare({ ...base, items: [], groups: [{ ref: "x|kg", quantity: 1 }] })).rejects.toThrow("500");
   });
 });

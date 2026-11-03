@@ -42,14 +42,14 @@ beforeEach(() => {
 describe("syncGeofences", () => {
   it("does nothing when alerts are disabled (SecureStore flag not '1')", async () => {
     const { syncGeofences } = await load("0");
-    await syncGeofences(coords, { codes: ["a"], groups: [] });
+    await syncGeofences(coords, { items: [{ code: "a", quantity: 1 }], groups: [] });
     expect(m.fetchCompare).not.toHaveBeenCalled();
     expect(m.start).not.toHaveBeenCalled();
   });
 
   it("empty basket stops geofencing and does not hit the API", async () => {
     const { syncGeofences } = await load();
-    await syncGeofences(coords, { codes: [], groups: [] });
+    await syncGeofences(coords, { items: [], groups: [] });
     expect(m.fetchCompare).not.toHaveBeenCalled();
     expect(m.stop).toHaveBeenCalledWith("grocer-geofence");
   });
@@ -57,30 +57,30 @@ describe("syncGeofences", () => {
   it("empty basket does not call stop when nothing is running", async () => {
     m.hasStarted.mockResolvedValue(false);
     const { syncGeofences } = await load();
-    await syncGeofences(coords, { codes: [], groups: [] });
+    await syncGeofences(coords, { items: [], groups: [] });
     expect(m.stop).not.toHaveBeenCalled();
   });
 
-  it("requests price-sorted stores within 20 km, limit 20, with the coords and codes", async () => {
+  it("requests price-sorted stores within 20 km, limit 20, with the coords and items", async () => {
     m.fetchCompare.mockResolvedValue({ stores: [store("s1", 10)], unmatched: [] });
     const { syncGeofences } = await load();
-    await syncGeofences(coords, { codes: ["111", "222"], groups: [] });
-    expect(m.fetchCompare).toHaveBeenCalledWith({ lat: 32.08, lng: 34.78, radiusKm: 20, codes: ["111", "222"], groups: [], sort: "price", limit: 20 });
+    await syncGeofences(coords, { items: [{ code: "111", quantity: 1 }, { code: "222", quantity: 2 }], groups: [] });
+    expect(m.fetchCompare).toHaveBeenCalledWith({ lat: 32.08, lng: 34.78, radiusKm: 20, items: [{ code: "111", quantity: 1 }, { code: "222", quantity: 2 }], groups: [], sort: "price", limit: 20 });
   });
 
   it("a basket of only groups is not empty: it is compared with its groups", async () => {
     m.fetchCompare.mockResolvedValue({ stores: [store("s1", 10)], unmatched: [] });
     const { syncGeofences } = await load();
-    await syncGeofences(coords, { codes: [], groups: ["בורגול|kg"] });
+    await syncGeofences(coords, { items: [], groups: [{ ref: "בורגול|kg", quantity: 1 }] });
     expect(m.stop).not.toHaveBeenCalled();
-    expect(m.fetchCompare).toHaveBeenCalledWith({ lat: 32.08, lng: 34.78, radiusKm: 20, codes: [], groups: ["בורגול|kg"], sort: "price", limit: 20 });
+    expect(m.fetchCompare).toHaveBeenCalledWith({ lat: 32.08, lng: 34.78, radiusKm: 20, items: [], groups: [{ ref: "בורגול|kg", quantity: 1 }], sort: "price", limit: 20 });
     expect(m.start).toHaveBeenCalled();
   });
 
   it("stores [label, total] keyed by storeId in SecureStore, then arms 250 m regions", async () => {
     m.fetchCompare.mockResolvedValue({ stores: [store("s1", 10.5), store("s2", 12)], unmatched: [] });
     const { syncGeofences } = await load();
-    await syncGeofences(coords, { codes: ["1"], groups: [] });
+    await syncGeofences(coords, { items: [{ code: "1", quantity: 1 }], groups: [] });
     expect(m.setItem).toHaveBeenCalledWith("nearbyStores", JSON.stringify({ s1: ["Chain s1", 10.5], s2: ["Chain s2", 12] }));
     const [task, regions] = m.start.mock.calls[0];
     expect(task).toBe("grocer-geofence");
@@ -92,7 +92,7 @@ describe("syncGeofences", () => {
   it("no stores in range: stops geofencing and writes nothing", async () => {
     m.fetchCompare.mockResolvedValue({ stores: [], unmatched: ["1"] });
     const { syncGeofences } = await load();
-    await syncGeofences(coords, { codes: ["1"], groups: [] });
+    await syncGeofences(coords, { items: [{ code: "1", quantity: 1 }], groups: [] });
     expect(m.stop).toHaveBeenCalled();
     expect(m.setItem).not.toHaveBeenCalled();
     expect(m.start).not.toHaveBeenCalled();
@@ -101,14 +101,14 @@ describe("syncGeofences", () => {
   it("caps armed regions at 20 even if the API returns more", async () => {
     m.fetchCompare.mockResolvedValue({ stores: Array.from({ length: 30 }, (_, i) => store(`s${i}`, i)), unmatched: [] });
     const { syncGeofences } = await load();
-    await syncGeofences(coords, { codes: ["1"], groups: [] });
+    await syncGeofences(coords, { items: [{ code: "1", quantity: 1 }], groups: [] });
     expect(m.start.mock.calls[0][1]).toHaveLength(20);
   });
 
   it("API failure rejects without touching existing geofences", async () => {
     m.fetchCompare.mockRejectedValue(new Error("500"));
     const { syncGeofences } = await load();
-    await expect(syncGeofences(coords, { codes: ["1"], groups: [] })).rejects.toThrow("500");
+    await expect(syncGeofences(coords, { items: [{ code: "1", quantity: 1 }], groups: [] })).rejects.toThrow("500");
     expect(m.stop).not.toHaveBeenCalled();
     expect(m.start).not.toHaveBeenCalled();
   });

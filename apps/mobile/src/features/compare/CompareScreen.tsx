@@ -13,8 +13,8 @@ import { springs, useTheme } from "@/theme";
 import { EmptyState, Group, LargeTitle, Screen, ShoppingLoader } from "@/ui";
 import { RADII, useCompare, useRadius } from "./api";
 import { BestStore, StoreRow } from "./BestStore";
+import { missingCount } from "./breakdown";
 import { fmt } from "./format";
-import type { MissingStore } from "./MissingSheet";
 import { RadiusMenu } from "./RadiusMenu";
 import { openSplit, saving, sortStores, type Sort } from "./sort";
 import { SortControl } from "./SortControl";
@@ -58,7 +58,7 @@ export function CompareScreen() {
   const location = useLocation();
   const compare = useCompare(location.coords, radiusKm, basket);
   const { enabled: alertsOn } = useNearbyAlerts();
-  // Owns the Undo toast for a delete made in the item sheet opened from the missing sheet.
+  // Owns the Undo toast for a delete made in the item sheet opened from the breakdown sheet.
   const { toast } = useDeleteWithUndo(listId);
 
   const byPrice = useMemo(() => sortStores(compare.data?.stores ?? [], "price"), [compare.data]);
@@ -127,7 +127,7 @@ export function CompareScreen() {
   const rows = (stores: typeof sorted) =>
     stores.map((s) => (
       <Animated.View key={s.storeId} layout={reorder}>
-        <StoreRow store={s} basketSize={items.length} onPress={() => setOpenId(s.storeId)} />
+        <StoreRow store={s} missing={missingCount(items, s)} onPress={() => setOpenId(s.storeId)} />
       </Animated.View>
     ));
 
@@ -165,13 +165,10 @@ export function CompareScreen() {
               <BestStore
                 store={open}
                 basketSize={items.length}
+                missing={missingCount(items, open)}
                 saving={open === byPrice[0] ? saving(byPrice) : null}
                 listText={listText}
-                onShowMissing={() => {
-                  const { chainName, total, matched, missingCodes: codesHere } = open;
-                  const store: MissingStore = { chainName, total, matched, missingCodes: codesHere };
-                  router.push({ pathname: "/missing", params: { store: JSON.stringify(store) } });
-                }}
+                onShowBreakdown={() => router.push({ pathname: "/breakdown", params: { storeId: open.storeId } })}
               />
             </Animated.View>
             {below.length > 0 && (

@@ -89,7 +89,7 @@ describe("disableNearbyAlerts", () => {
     let respond!: (v: unknown) => void;
     m.fetchCompare.mockReturnValue(new Promise((r) => (respond = r)));
     const { disableNearbyAlerts, syncGeofences } = await load();
-    const sync = syncGeofences({ lat: 32.08, lng: 34.78 }, { codes: ["1"], groups: [] });
+    const sync = syncGeofences({ lat: 32.08, lng: 34.78 }, { items: [{ code: "1", quantity: 1 }], groups: [] });
     await disableNearbyAlerts();
     respond({ stores: [{ storeId: "s1", chainName: "C", storeName: "s1", total: 1, lat: 32, lng: 34 }], unmatched: [] });
     await sync;
@@ -103,7 +103,7 @@ describe("disableNearbyAlerts", () => {
   it("makes later syncGeofences a no-op", async () => {
     const { disableNearbyAlerts, syncGeofences } = await load();
     await disableNearbyAlerts();
-    await syncGeofences({ lat: 32.08, lng: 34.78 }, { codes: ["1"], groups: [] });
+    await syncGeofences({ lat: 32.08, lng: 34.78 }, { items: [{ code: "1", quantity: 1 }], groups: [] });
     expect(m.fetchCompare).not.toHaveBeenCalled();
   });
 });
