@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "#/app.ts";
 import { eq } from "drizzle-orm";
-import { account, user, verification } from "#/db/schema.ts";
+import { account, user } from "#/db/schema.ts";
 import { buildDeps } from "#/deps.ts";
 import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
 import { FakeMailerProvider } from "#/providers/resend/fake.ts";
@@ -80,14 +80,8 @@ describe("Password reset", () => {
       .insert(account)
       .values({ id: "ga2", accountId: "google-sub-2", providerId: "google", userId: "g2", createdAt: new Date(), updatedAt: new Date() })
       .run();
-    // No code is ever stored for this User; seed a valid one (better-auth stores "<code>:<wrong tries>") so only the guard can refuse it.
-    const now = new Date();
-    deps.db
-      .insert(verification)
-      .values({ id: "v-g2", identifier: "forget-password-otp-g2@reset.test", value: "123456:0", expiresAt: new Date(now.getTime() + 60_000), createdAt: now, updatedAt: now })
-      .run();
-
-    const res = await reset("g2@reset.test", "123456");
+    // No code is ever sent to this User; create a valid one so only the password check can refuse it.
+    const res = await reset("g2@reset.test", deps.otp.create("password-reset", "g2@reset.test"));
     expect(res.status).toBe(400);
     expect((await res.json()).code).toBe("INVALID_OTP");
     expect((await signIn("g2@reset.test", "new-password")).status).toBe(401);
@@ -106,18 +100,21 @@ describe("Password reset", () => {
     expect(await sessionOf(before)).toBeNull();
   });
 
-  it("after 3 wrong codes the right code fails too", async () => {
+  it("the 3rd wrong code kills the code, so the right one fails too", async () => {
     await signUp("c@reset.test");
     await requestReset("c@reset.test");
     const code = codeFrom();
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       const res = await reset("c@reset.test", wrong(code));
       expect(res.status).toBe(400);
       expect((await res.json()).code).toBe("INVALID_OTP");
     }
+    const third = await reset("c@reset.test", wrong(code));
+    expect(third.status).toBe(403);
+    expect((await third.json()).code).toBe("TOO_MANY_ATTEMPTS");
     const res = await reset("c@reset.test", code);
-    expect(res.status).toBe(403);
-    expect((await res.json()).code).toBe("TOO_MANY_ATTEMPTS");
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("OTP_EXPIRED");
     expect((await signIn("c@reset.test", "old-password")).status).toBe(200);
   });
 
@@ -126,8 +123,9 @@ describe("Password reset", () => {
     await signUp("d@reset.test");
     await requestReset("d@reset.test");
     vi.setSystemTime(Date.now() + 5 * 60_000 + 1000);
-    // better-auth hides expired rows, so this reads INVALID_OTP rather than OTP_EXPIRED.
-    expect((await reset("d@reset.test", codeFrom())).status).toBe(400);
+    const res = await reset("d@reset.test", codeFrom());
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("OTP_EXPIRED");
     expect((await signIn("d@reset.test", "new-password")).status).toBe(401);
   });
 
@@ -156,6 +154,15 @@ describe("Password reset", () => {
     fail(new Error("resend: HTTP 500"));
     await vi.waitFor(() => expect(errorHandler.reported).toHaveLength(1));
     expect(String(errorHandler.reported[0])).toContain("resend: HTTP 500");
+  });
+
+  it("a too-short new password is refused without spending the code", async () => {
+    await signUp("s@reset.test");
+    await requestReset("s@reset.test");
+    const res = await reset("s@reset.test", codeFrom(), "short");
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("PASSWORD_TOO_SHORT");
+    expect((await reset("s@reset.test", codeFrom())).status).toBe(200);
   });
 
   it("rejects an invalid request body with 400", async () => {
