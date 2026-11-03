@@ -174,6 +174,15 @@ describe("Deletion code", () => {
     expect(stepOf(await (await verify("account", "t@del.test", codeFrom())).text())).toBe("warning");
   });
 
+  it("a multi-byte code of the right length is just a wrong try", async () => {
+    await signUp("u@del.test");
+    await send("account", "u@del.test");
+    await flush();
+    const res = await verify("account", "u@del.test", "١٢٣٤٥٦"); // Arabic-Indic digits: 6 characters, 12 bytes
+    expect(res.status).toBe(200);
+    expect(errorOf(await res.text())).toBe("wrong");
+  });
+
   it("rejects a code older than 5 minutes", async () => {
     await signUp("e@del.test");
     await send("account", "e@del.test");
@@ -227,6 +236,16 @@ describe("confirmation token", () => {
     expect(errorOf(page)).toBe("expiredToken");
     expect(errors.reported).toHaveLength(1);
     expect(userId("x@del.test")).toBeDefined();
+  });
+
+  it("a token deletes once: a replay is rejected", async () => {
+    const cookie = await signUp("once@tok.test");
+    const token = await tokenFor("data", "once@tok.test");
+    expect(stepOf(await (await confirm("data", token)).text())).toBe("done");
+    const [fresh] = (await listsOf(cookie)).lists; // the default List an empty account gets
+    const replay = await (await confirm("data", token)).text();
+    expect(errorOf(replay)).toBe("invalidToken");
+    expect((await listsOf(cookie)).lists.map((l) => l.id)).toEqual([fresh!.id]);
   });
 
   it("rejects a tampered token, and one issued for the other kind", async () => {

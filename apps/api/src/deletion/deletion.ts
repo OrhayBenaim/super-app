@@ -2,7 +2,7 @@ import { randomInt, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { sign, verify } from "hono/jwt";
 import { z } from "zod";
-import { RESET_CODE } from "@grocer/shared/reset-code";
+import { codeStatus, RESET_CODE } from "@grocer/shared/reset-code";
 import { listMembers, lists, user } from "#/db/schema.ts";
 import type { Deps } from "#/deps.ts";
 import { deletionCodeEmail } from "#/emails/deletion-code.ts";
@@ -13,8 +13,6 @@ export type DeletionKind = (typeof DELETION_KINDS)[number];
 
 /** How long a proven Deletion code gives to confirm. */
 export const CONFIRM_MINUTES = 3;
-
-
 
 // Its own identifier per kind and email, so a Reset code ("forget-password-otp-…") never verifies here and the reverse.
 const identifier = (kind: DeletionKind, email: string) => `delete-${kind}-otp-${email}`;
@@ -51,15 +49,18 @@ export async function verifyDeletionCode(deps: Deps, kind: DeletionKind, email: 
   const id = identifier(kind, email);
   const row = await store.findVerificationValue(id);
   const now = deps.clock.now().getTime();
+  const sentAt = (row?.expiresAt.getTime() ?? 0) - RESET_CODE.minutes * 60_000;
   // No row: never sent, used up, or killed by wrong tries; to the User it is as dead as an expired one.
-  if (!row || row.expiresAt.getTime() <= now) {
+  if (!row || codeStatus({ sentAt, wrongTries: 0 }, now).lock) {
     if (row) await store.deleteVerificationByIdentifier(id);
     return { error: "expired" };
   }
   const [stored = "", tries] = row.value.split(":");
-  if (stored.length !== code.length || !timingSafeEqual(Buffer.from(stored), Buffer.from(code))) {
+  // Byte lengths: timingSafeEqual throws on unequal buffers, and a multi-byte "code" can match in characters.
+  const [a, b] = [Buffer.from(stored), Buffer.from(code)];
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     const wrongTries = Number(tries) + 1;
-    if (wrongTries >= RESET_CODE.maxTries) {
+    if (codeStatus({ sentAt, wrongTries }, now).lock === "tooManyTries") {
       await store.deleteVerificationByIdentifier(id);
       return { error: "tooManyTries" };
     }
@@ -73,8 +74,11 @@ export async function verifyDeletionCode(deps: Deps, kind: DeletionKind, email: 
 
 const tokenPayload = z.object({ email: z.string(), kind: z.enum(DELETION_KINDS), exp: z.number() });
 
-/** The email a confirmation token proves, if it was issued for this kind and has not expired. An expired one is reported. */
-export async function checkToken(deps: Deps, kind: DeletionKind, token: string): Promise<{ email: string } | { error: "invalidToken" | "expiredToken" }> {
+/**
+ * The email a confirmation token proves, if it was issued for this kind, has not expired and was not redeemed before
+ * (one deletion per token). An expired one is reported.
+ */
+export async function redeemToken(deps: Deps, kind: DeletionKind, token: string): Promise<{ email: string } | { error: "invalidToken" | "expiredToken" }> {
   // exp is checked below against the Clock, not by verify against the system time.
   const payload = tokenPayload.safeParse(await verify(token, await secret(deps), { alg: "HS256", exp: false }).catch(() => null));
   if (!payload.success || payload.data.kind !== kind) return { error: "invalidToken" };
@@ -82,6 +86,13 @@ export async function checkToken(deps: Deps, kind: DeletionKind, token: string):
     deps.errorHandler.report(new Error(`deletion: confirmation token expired (${CONFIRM_MINUTES} minutes)`));
     return { error: "expiredToken" };
   }
+  const store = await verifications(deps);
+  const used = !(await store.reserveVerificationValue({
+    identifier: `deletion-token-${token.split(".")[2]}`, // the signature: unique per token
+    value: kind,
+    expiresAt: new Date(payload.data.exp * 1000),
+  }));
+  if (used) return { error: "invalidToken" };
   return { email: payload.data.email };
 }
 

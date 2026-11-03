@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import {
-  checkToken,
+  redeemToken,
   deleteAccount,
   deleteData,
   DELETION_KINDS,
@@ -55,7 +55,7 @@ export const deletionRoutes = new Hono<AppEnv>()
     const body = await parse(c, confirmBody);
     if (!body.success) return bad(c, body.error);
     const { kind, token } = body.data;
-    const checked = await checkToken(c.var.deps, kind, token);
+    const checked = await redeemToken(c.var.deps, kind, token);
     if ("error" in checked) return c.html(emailStep(kind, checked.error));
     (kind === "account" ? deleteAccount : deleteData)(c.var.deps, checked.email);
     return c.html(doneStep(kind));
