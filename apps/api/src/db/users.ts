@@ -2,6 +2,8 @@ import { and, eq } from "drizzle-orm";
 import type { Db } from "#/db/index.ts";
 import { account, user } from "#/db/schema.ts";
 
+export const userIdByEmail = (db: Db, email: string) => db.select({ id: user.id }).from(user).where(eq(user.email, email)).get()?.id;
+
 /** Whether the User with this email signs in with email and password (Google- or Apple-only Users have no password). */
 export function hasPassword(db: Db, email: string) {
   return !!db

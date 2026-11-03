@@ -1,6 +1,5 @@
 import { html } from "hono/html";
-import { RESET_CODE } from "@grocer/shared/reset-code";
-import { CONFIRM_MINUTES, type DeletionKind } from "#/deletion/deletion.ts";
+import { CONFIRM_MINUTES, DELETION_CODE, type DeletionKind } from "#/deletion/deletion.ts";
 
 /** The deletion pages' steps as HTML fragments: htmx posts each form and swaps the answer into #step. Hebrew only. */
 
@@ -24,7 +23,7 @@ export const COPY = {
 
 const ERRORS = {
   wrong: "הקוד שגוי. נסו שוב.",
-  tooManyTries: `הוזן קוד שגוי ${RESET_CODE.maxTries} פעמים, ולכן הקוד בוטל.`,
+  tooManyTries: `הוזן קוד שגוי ${DELETION_CODE.maxTries} פעמים, ולכן הקוד בוטל.`,
   expired: "הקוד כבר לא בתוקף.",
   invalidToken: "משהו השתבש. נא להתחיל מחדש.",
   expiredToken: `עברו יותר מ-${CONFIRM_MINUTES} דקות מאז שהקוד אומת. נא להתחיל מחדש.`,
@@ -47,13 +46,13 @@ export const emailStep = (kind: DeletionKind, error?: "invalidToken" | "expiredT
 </div>`;
 
 export const codeStep = (kind: DeletionKind, email: string, error?: "wrong") => html`<div data-step="code">
-  <p id="sent">אם <bdi dir="ltr">${email}</bdi> שייך לחשבון Grocer, שלחנו אליו קוד בן ${RESET_CODE.length} ספרות. הקוד בתוקף ל-${RESET_CODE.minutes} דקות.</p>
+  <p id="sent">אם <bdi dir="ltr">${email}</bdi> שייך לחשבון Grocer, שלחנו אליו קוד בן ${DELETION_CODE.length} ספרות. הקוד בתוקף ל-${DELETION_CODE.minutes} דקות.</p>
   ${alert(error)}
   <form hx-post="/deletion/verify" hx-disabled-elt="find button">
     ${hidden("kind", kind)} ${hidden("email", email)}
     <label for="code">הקוד מהאימייל</label>
-    <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{${RESET_CODE.length}}"
-      maxlength="${RESET_CODE.length}" dir="ltr" required autofocus aria-describedby="sent">
+    <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{${DELETION_CODE.length}}"
+      maxlength="${DELETION_CODE.length}" dir="ltr" required autofocus aria-describedby="sent">
     <button type="submit">המשך</button>
   </form>
 </div>`;
