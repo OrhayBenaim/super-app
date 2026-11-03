@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { openDb } from "#/db/index.ts";
+import { openDb, type Db } from "#/db/index.ts";
+import { verification } from "#/db/schema.ts";
 import { FakeMailerProvider } from "#/providers/resend/fake.ts";
 import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
 import { MailerService } from "#/services/mailer.ts";
@@ -9,13 +10,15 @@ import { fakeClock } from "#/utils/clock.ts";
 let clock: ReturnType<typeof fakeClock>;
 let mail: FakeMailerProvider;
 let errorHandler: ReturnType<typeof fakeErrorHandler>;
+let db: Db;
 let otp: OtpService;
 
 beforeEach(() => {
   clock = fakeClock(new Date("2026-11-03T10:00:00Z"));
   mail = new FakeMailerProvider();
   errorHandler = fakeErrorHandler();
-  otp = new OtpService({ db: openDb(":memory:"), mailer: new MailerService(mail), clock, errorHandler });
+  db = openDb(":memory:");
+  otp = new OtpService({ db, mailer: new MailerService(mail), clock, errorHandler });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -58,6 +61,13 @@ describe("OtpService", () => {
     const code = otp.create("delete-account", "a@otp.test");
     clock.advance(5 * 60_000);
     expect(otp.verify("delete-account", "a@otp.test", code)).toBe("expired");
+  });
+
+  it("creating a code deletes every expired one, so codes for unknown emails don't pile up", () => {
+    otp.create("delete-data", "nobody@otp.test");
+    clock.advance(5 * 60_000);
+    otp.create("password-reset", "a@otp.test");
+    expect(db.select({ id: verification.identifier }).from(verification).all()).toEqual([{ id: "otp:password-reset:a@otp.test" }]);
   });
 
   it("revoke kills the live code", () => {

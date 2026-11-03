@@ -1,5 +1,5 @@
 import { randomInt, randomUUID, timingSafeEqual } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, lte } from "drizzle-orm";
 import { RESET_CODE } from "@grocer/shared/reset-code";
 import type { Db } from "#/db/index.ts";
 import { verification } from "#/db/schema.ts";
@@ -30,13 +30,17 @@ export class OtpService {
     this.#errorHandler = errorHandler;
   }
 
-  /** A new code for `email`, replacing any earlier one for the same purpose. */
+  /**
+   * A new code for `email`, replacing any earlier one for the same purpose. Also deletes every expired verification
+   * row: codes for emails with no account are never used again, so nothing else would remove them.
+   */
   create(purpose: OtpPurpose, email: string): string {
     const code = String(randomInt(10 ** RESET_CODE.length)).padStart(RESET_CODE.length, "0");
     const now = this.#clock.now();
     const identifier = key(purpose, email);
     // this.revoke inside the transaction is safe: better-sqlite3 has one connection, so it runs in the open transaction.
     this.#db.transaction((tx) => {
+      tx.delete(verification).where(lte(verification.expiresAt, now)).run();
       this.revoke(purpose, email);
       tx.insert(verification)
         .values({
