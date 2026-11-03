@@ -6,6 +6,7 @@ import type { Deps } from "#/deps.ts";
 import { rateLimit, type AppEnv } from "#/middleware.ts";
 import { listsRoutes } from "#/routes/lists.ts";
 import { pricesRoutes } from "#/routes/prices.ts";
+import { privacyRoutes } from "#/routes/privacy.ts";
 
 const MINUTE = 60_000;
 
@@ -37,6 +38,8 @@ export function createApp(deps: Deps) {
     })
     .route("/api/lists", listsRoutes)
     .route("/api", pricesRoutes)
+    // Public page for the store listings (Google Play requires a privacy policy URL).
+    .route("/privacy", privacyRoutes)
     .onError((error, c) => {
       if (error instanceof HTTPException) return error.getResponse();
       console.error(error);
