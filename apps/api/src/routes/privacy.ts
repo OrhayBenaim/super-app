@@ -33,10 +33,11 @@ const en: Section[] = [
   ["Contact", `Questions about privacy, or a request about your data: <a href="mailto:${CONTACT}">${CONTACT}</a>.`],
 ];
 
-const section = ([heading, ...paragraphs]: Section, level: 1 | 2) =>
-  `<h${level}>${heading}</h${level}>${paragraphs.map((p) => `<p>${p}</p>`).join("")}`;
+const paragraphs = (ps: string[]) => ps.map((p) => `<p>${p}</p>`).join("");
 
-const body = (sections: Section[]) => sections.map((s, i) => section(s, i === 0 ? 1 : 2)).join("");
+/** The first section is the page title and intro; the rest are headed sections. */
+const body = ([[title, ...intro], ...sections]: Section[]) =>
+  `<h1>${title}</h1>${paragraphs(intro)}${sections.map(([heading, ...ps]) => `<h2>${heading}</h2>${paragraphs(ps)}`).join("")}`;
 
 // Static, so built once. Hebrew first with English below, like every email (emails/layout.ts).
 const page = `<!doctype html>
