@@ -32,15 +32,15 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   drizzle/                generated SQL migrations (committed)
 apps/mobile/              Expo SDK 58 + expo-router app
   app/                    file routes: (auth)/onboarding|sign-in, (tabs)/index|items|compare|settings, recent, share (modal),
-                          item/[id] and missing (form sheets), join/[code]
+                          item/[id], quantity/[id], breakdown and lists (form sheets), join/[code]
   src/lib/auth-client.ts  better-auth Expo client (SecureStore)
   src/lib/api.ts          api<T>(path, init): fetch wrapper with base URL + auth cookie
   src/lib/analytics.ts    the only PostHog import: track(event), screen, identity (useAnalytics.ts: root layout hook)
   src/lib/strings.ts      en + he strings; t("key") picks the device language (expo-localization)
   src/features/<feature>/ auth, onboarding, lists (data layer + shopping list), items, compare (+ format.ts: fmt,
                           shekels, formatDistance), share, geofence (task.ts = background task, imported by _layout), tabs
-  src/ui/                 UI kit: Button, Text, TextField, Screen, Tap, Divider, IconButton, Group/SectionHeader, Row,
-                          LargeTitle, SearchField, EmptyState, SwipeRow, Toast, Sheet/SheetHeader/SheetTextField
+  src/ui/                 UI kit: Button, Text, TextField, Screen, Tap, Divider, IconButton, Group/SectionHeader, Row, ListRow,
+                          LargeTitle, SearchField, EmptyState, SwipeRow, Toast, Sheet/SheetHeader/SheetField/SheetTextField
                           (sheet route body) (import from "@/ui")
   src/theme/              useTheme(), springs, text() (imports docs/design/tokens.json directly; import from "@/theme")
   tests/                  all mobile tests, mirroring src/ (vitest.config.ts maps "@/" to src/)
