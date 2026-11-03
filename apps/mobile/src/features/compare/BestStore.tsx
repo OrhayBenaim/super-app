@@ -97,7 +97,10 @@ export function StoreRow({ store, basketSize, onPress }: { store: StoreResult; b
   const missing = basketSize - store.matched;
   return (
     <Tap
-      accessibilityLabel={`${store.chainName} ${store.storeName}, ${formatDistance(store.distanceKm, t)}, ${shekels(store.total)}`}
+      // The label replaces the row's text for screen readers, so it must keep the missing count (honest coverage).
+      accessibilityLabel={[`${store.chainName} ${store.storeName}`, formatDistance(store.distanceKm, t), shekels(store.total), missing > 0 && fmt(t("compare.missingCount"), { n: missing })]
+        .filter(Boolean)
+        .join(", ")}
       analyticsName={Taps.compareStore}
       onPress={onPress}
       scaleTo={1}
