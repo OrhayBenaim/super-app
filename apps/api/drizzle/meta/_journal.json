@@ -85,6 +85,13 @@
       "when": 1793799086361,
       "tag": "0011_glorious_wild_child",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1793827929327,
+      "tag": "0012_hesitant_rawhide_kid",
+      "breakpoints": true
     }
   ]
 }

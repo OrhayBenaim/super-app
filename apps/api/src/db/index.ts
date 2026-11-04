@@ -19,8 +19,8 @@ export function openDb(path: string) {
   const db = drizzle(sqlite, { schema });
   migrate(db, { migrationsFolder: fileURLToPath(new URL("../../drizzle", import.meta.url)) });
 
-  for (const { ids, key, name, nameHe, orderUrl } of chainSeeds) {
-    const row = { id: ids[0]!, key, name, nameHe, orderUrl };
+  for (const { ids, key, name, nameHe, orderUrl, onlineStore } of chainSeeds) {
+    const row = { id: ids[0]!, key, name, nameHe, orderUrl, onlineStoreId: onlineStore ? `${ids[0]}-${onlineStore}` : null };
     db.insert(schema.chains).values(row).onConflictDoUpdate({ target: schema.chains.id, set: row }).run();
   }
   linkProduceItems(sqlite);

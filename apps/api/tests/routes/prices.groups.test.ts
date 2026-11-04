@@ -15,10 +15,10 @@ const next = () => gtin(`7290001${String(++n).padStart(5, "0")}`);
 // [code, name, price, opts]: qty + unit read "500 גרם"; w = sold by the kilo (bIsWeighted 1).
 type Opts = { w?: boolean; qty?: number; unit?: string };
 type Item = [code: string, name: string, price: number, opts?: Opts];
-const storesXml = (chain: string) =>
-  `<Root><ChainID>${chain}</ChainID><SubChains><SubChain><SubChainID>1</SubChainID><Stores><Store><StoreID>1</StoreID><StoreName>סניף</StoreName><Address>רחוב 1</Address><City>תל אביב</City></Store></Stores></SubChain></SubChains></Root>`;
-const pricesXml = (chain: string, items: Item[]) =>
-  `<Root><ChainID>${chain}</ChainID><SubChainID>1</SubChainID><StoreID>1</StoreID><Items>${items
+const storesXml = (chain: string, store = "1", name = "סניף") =>
+  `<Root><ChainID>${chain}</ChainID><SubChains><SubChain><SubChainID>1</SubChainID><Stores><Store><StoreID>${store}</StoreID><StoreName>${name}</StoreName><Address>רחוב 1</Address><City>תל אביב</City></Store></Stores></SubChain></SubChains></Root>`;
+const pricesXml = (chain: string, items: Item[], store = "1") =>
+  `<Root><ChainID>${chain}</ChainID><SubChainID>1</SubChainID><StoreID>${store}</StoreID><Items>${items
     .map(([code, name, price, o]) => `<Item><ItemCode>${code}</ItemCode><ItemName>${name}</ItemName><ManufacturerName></ManufacturerName><UnitQty>${o?.unit ?? "יחידות"}</UnitQty><Quantity>${o?.qty ?? 1}</Quantity><bIsWeighted>${o?.w ? 1 : 0}</bIsWeighted><ItemPrice>${price}</ItemPrice><UnitOfMeasurePrice>${price}</UnitOfMeasurePrice></Item>`)
     .join("")}</Items></Root>`;
 
@@ -34,11 +34,12 @@ const eggOsherL = next(), eggOsherM = next(), eggShufM = next(), eggRamiL = next
 const riceSugat = next(), riceMia = next(), riceRami = next(); // two 500 g and a 1 kg
 const nobody = "7290000000000";
 
+let deps: ReturnType<typeof buildDeps>;
 let app: ReturnType<typeof createApp>;
 let cookie: string;
 
 beforeAll(async () => {
-  const deps = buildDeps(loadConfig());
+  deps = buildDeps(loadConfig());
   app = createApp(deps);
   const load = (key: string, chain: string, items: Item[]) => {
     ingestStores(deps, key, storesXml(chain));
@@ -475,5 +476,27 @@ describe("product groups: compare", () => {
     for (const ref of ["x|kg|3", "x|foo", "x", "|kg", "x|unit", "x|unit|0", "x|unit|1.5", "x|kg|1|2", "", "a\"b|kg", "a  b|kg", "a*|kg", "א|kg", "א ב|kg"])
       expect((await post({ ...here, groups: [{ ref }] })).status, ref).toBe(400);
     for (const quantity of [0, -1, "2", 100]) expect((await post({ ...here, groups: [{ ref: "בורגול|kg", quantity }] })).status, String(quantity)).toBe(400);
+  });
+});
+
+// Last in the file: Rami Levy's online store (StoreId 39, no location) changes the groups' store counts that search reports.
+describe("product groups: cart link from the chain's online store", () => {
+  it("buys each group's product the online store prices cheapest, else the one priced at the branch", async () => {
+    ingestStores(deps, "rami-levy", storesXml(RAMI, "39", "מרלוג אינטרנט"));
+    ingestPrices(deps, "rami-levy", pricesXml(RAMI, [
+      [eggRamiL, "ביצים L 12 יח", 15],
+      [eggShufM, "ביצים M 12 יח", 14], // cheaper online than the branch's only dozen
+      ["e1", "ביצים L 12 יח", 1], // cheapest, but a chain-local code no shop knows
+      [riceRami, "אורז בסמטי רמי לוי", 11, kg],
+      [riceSugat, "אורז בסמטי סוגת", 5, g500], // 10 a kilo beats 11: one of the half-kilo packs the Item counts
+      ["5", "בננה במשקל", 6.5, W],
+    ], "39"));
+    const r = await compare({ groups: [{ ref: "ביצ|unit|12", quantity: 2 }, { ref: "חלב|l" }, { ref: "אורז|kg" }, { ref: "בננה|kg", quantity: 1.5 }] });
+    // the online store prices no milk, so the branch's stays; the banana is chain-local both ways
+    const items = `${eggShufM},2;${milk1},1;${riceSugat},1`;
+    const rami = store(r, "Rami Levy");
+    expect(rami).toMatchObject({ matched: 4, orderUrl: `https://www.rami-levy.co.il/he/basket?items=${encodeURIComponent(items)}`, fillsCart: true });
+    expect(groupItem(rami)).toMatchObject({ code: eggRamiL, price: 15 }); // the branch's lines are still its own
+    expect(r.stores.map((s) => s.storeName)).not.toContain("מרלוג אינטרנט"); // no location, never compared
   });
 });

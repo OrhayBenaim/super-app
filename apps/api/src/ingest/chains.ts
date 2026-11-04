@@ -4,6 +4,9 @@
 // orderUrl: the online shop (docs/research/price-data.md section 6), null when the chain sells nothing online. A cart link
 // template has {items}, filled with `barcode,quantity;...`: Rami Levy's /he/basket fills the cart; the Stor.ai shops'
 // externalCart opens their "add these to cart" dialog. Both are undocumented and found in the shops' own code.
+// onlineStore: the StoreId whose price file is the online shop's (named so in the chain's Stores file, seen 2026-11-04),
+// set only for cart link chains: the cart buys each Product group's product from it. Tiv Taam has a picking store per
+// area and the other Stor.ai shops none, so their carts keep the compared branch's products.
 const storAi = (domain: string) => `https://${domain}/?externalCart={items}&externalName=Grocer`;
 export type ChainSeed = {
   ids: string[]; // ChainId(s) seen in files; ids[0] is chains.id
@@ -12,16 +15,17 @@ export type ChainSeed = {
   nameHe: string;
   source: { cerberus: string } | { url: string };
   orderUrl: string | null;
+  onlineStore?: string;
 };
 
 export const chainSeeds: ChainSeed[] = [
   { ids: ["7290027600007"], key: "shufersal", name: "Shufersal", nameHe: "שופרסל", source: { url: "https://prices.shufersal.co.il/" }, orderUrl: "https://www.shufersal.co.il/online/he/" },
-  { ids: ["7290058140886"], key: "rami-levy", name: "Rami Levy", nameHe: "רמי לוי", source: { cerberus: "RamiLevi" }, orderUrl: "https://www.rami-levy.co.il/he/basket?items={items}" },
+  { ids: ["7290058140886"], key: "rami-levy", name: "Rami Levy", nameHe: "רמי לוי", source: { cerberus: "RamiLevi" }, orderUrl: "https://www.rami-levy.co.il/he/basket?items={items}", onlineStore: "39" },
   { ids: ["7290803800003"], key: "yohananof", name: "Yohananof", nameHe: "יוחננוף", source: { cerberus: "yohananof" }, orderUrl: "https://yochananof.co.il/" },
   { ids: ["7290103152017"], key: "osher-ad", name: "Osher Ad", nameHe: "אושר עד", source: { cerberus: "osherad" }, orderUrl: null },
   { ids: ["7290873255550"], key: "tiv-taam", name: "Tiv Taam", nameHe: "טיב טעם", source: { cerberus: "TivTaam" }, orderUrl: storAi("www.tivtaam.co.il") },
-  { ids: ["7290696200003", "7290058103393"], key: "victory", name: "Victory", nameHe: "ויקטורי", source: { url: "https://laibcatalog.co.il/victory/index.html" }, orderUrl: storAi("www.victoryonline.co.il") },
-  { ids: ["7290055700007"], key: "carrefour", name: "Carrefour / Mega / Yeinot Bitan", nameHe: "קרפור / מגה / יינות ביתן", source: { url: "https://prices.carrefour.co.il/" }, orderUrl: storAi("www.carrefour.co.il") },
+  { ids: ["7290696200003", "7290058103393"], key: "victory", name: "Victory", nameHe: "ויקטורי", source: { url: "https://laibcatalog.co.il/victory/index.html" }, orderUrl: storAi("www.victoryonline.co.il"), onlineStore: "97" },
+  { ids: ["7290055700007"], key: "carrefour", name: "Carrefour / Mega / Yeinot Bitan", nameHe: "קרפור / מגה / יינות ביתן", source: { url: "https://prices.carrefour.co.il/" }, orderUrl: storAi("www.carrefour.co.il"), onlineStore: "471" },
   { ids: ["7290700100008"], key: "hazi-hinam", name: "Hazi Hinam", nameHe: "חצי חינם", source: { url: "https://shop.hazi-hinam.co.il/Prices" }, orderUrl: "https://shop.hazi-hinam.co.il/" },
   { ids: ["7290785400000"], key: "keshet", name: "Keshet Taamim", nameHe: "קשת טעמים", source: { cerberus: "Keshet" }, orderUrl: storAi("www.keshet-teamim.co.il") },
   { ids: ["7290639000004"], key: "stop-market", name: "Stop Market", nameHe: "סטופ מרקט", source: { cerberus: "Stop_Market" }, orderUrl: null },
