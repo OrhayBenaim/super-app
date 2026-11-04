@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
+import { basename } from "node:path";
 import type { Deps } from "#/deps.ts";
 import { chainByKey } from "#/ingest/chains.ts";
-import { storeOfFileName } from "#/ingest/files.ts";
+import { parseFileName, storeOfFileName } from "#/ingest/files.ts";
 import { decodeXml, isGtin, parsePrices, parseStores } from "#/ingest/parse.ts";
 
 type IngestDeps = Pick<Deps, "db" | "clock">;
@@ -33,11 +34,13 @@ export function ingestStores({ db }: IngestDeps, chainKey: string, xml: string) 
 
 /**
  * Replaces the store's prices with this PriceFull snapshot (items no longer listed are dropped) and skips items priced <= 0.
+ * A price update file (named `Price…`) is applied on top instead: its rows replace those products' prices, `ItemStatus` 0
+ * removes the product from the store, and absent products keep their price.
  * Pass the file's name: its store wins over the StoreID inside. A store missing from the Stores file is skipped (returns 0).
- * shortcut: assumes every file is a full snapshot, not a delta.
  */
 export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: string, fileName?: string) {
   const sqlite = db.$client;
+  const update = parseFileName(basename(fileName ?? ""))?.type === "price";
   const parsed = parsePrices(xml);
   const chainId = chainFor(chainKey, parsed.chainId);
   // Carrefour's former Yeinot Bitan stores (files 400-473) carry their old StoreID inside, and 26 of those are other live
@@ -49,7 +52,7 @@ export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: s
     return 0;
   }
   const now = clock.now().getTime();
-  const valid = parsed.items.filter((it) => it.price > 0); // also drops NaN
+  const valid = parsed.items.filter((it) => it.price > 0 || (update && it.removed)); // also drops NaN
   if (valid.length < parsed.items.length) console.warn(`${storeId}: skipped ${parsed.items.length - valid.length} items with price <= 0`);
   // Real files repeat an ItemCode now and then (Keshet: 7.90 and 8.90 for one code); the last row wins, as the upsert would.
   // GS1 barcodes are global; internal and weighed codes mean different things per chain, so they are chain-scoped.
@@ -65,9 +68,14 @@ export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: s
     `INSERT INTO prices (store_id, code, price, unit_price, updated_at) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(store_id, code) DO UPDATE SET price = excluded.price, unit_price = excluded.unit_price, updated_at = excluded.updated_at`,
   );
+  const removePrice = sqlite.prepare("DELETE FROM prices WHERE store_id = ? AND code = ?");
   sqlite.transaction(() => {
-    sqlite.prepare("DELETE FROM prices WHERE store_id = ?").run(storeId);
+    if (!update) sqlite.prepare("DELETE FROM prices WHERE store_id = ?").run(storeId);
     for (const [code, it] of items) {
+      if (update && it.removed) {
+        removePrice.run(storeId, code);
+        continue;
+      }
       upsertProduct.run(code, it.code, it.name, it.manufacturer, it.unitQty, it.isWeighted ? 1 : 0);
       upsertPrice.run(storeId, code, it.price, it.unitPrice, now);
     }

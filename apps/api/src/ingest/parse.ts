@@ -101,6 +101,8 @@ export type ParsedItem = {
   isWeighted: boolean;
   price: number;
   unitPrice: number | null;
+  /** `ItemStatus` 0: an update file's way of saying the store no longer sells it (such rows may carry no price). */
+  removed: boolean;
 };
 
 export function parsePrices(xml: string): { chainId: string; storeId: string; items: ParsedItem[] } {
@@ -110,7 +112,8 @@ export function parsePrices(xml: string): { chainId: string; storeId: string; it
   for (const it of (list.item ?? list.product ?? []) as Node[]) {
     const code = str(it.itemcode);
     const price = num(it.itemprice);
-    if (!code || price === null) continue;
+    const removed = num(it.itemstatus) === 0;
+    if (!code || (price === null && !removed)) continue;
     const unit = known(it.unitqty);
     items.push({
       code,
@@ -118,8 +121,9 @@ export function parsePrices(xml: string): { chainId: string; storeId: string; it
       manufacturer: known(it.manufacturername ?? it.manufacturename) || null,
       unitQty: unit ? [num(it.quantity), unit].filter(Boolean).join(" ") : null, // "200" without a unit means nothing
       isWeighted: /^(1|true)$/i.test(str(it.bisweighted)),
-      price,
+      price: price ?? 0, // a removed row without a price; the full-file rule (price > 0) drops it
       unitPrice: num(it.unitofmeasureprice),
+      removed,
     });
   }
   return { chainId: id(r.chainid), storeId: id(r.storeid), items };

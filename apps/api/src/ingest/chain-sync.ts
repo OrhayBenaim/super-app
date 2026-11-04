@@ -45,16 +45,26 @@ export async function geocodeStores({ db, geocoder }: Pick<Deps, "db" | "geocode
 export type ChainCounts = { filesDownloaded: number; storesLoaded: number; pricesLoaded: number; storesGeocoded: number };
 
 /**
- * Downloads and loads the Chain's newest Stores file and PriceFull files one at a time, in memory (nothing is written to
- * disk), then geocodes its stores without a location. Fills `counts` as it goes, so a failure still shows how far it got.
+ * Downloads and loads the Chain's newest Stores file and PriceFull files, each followed by its store's price update file,
+ * one at a time, in memory (nothing is written to disk), then geocodes its stores without a location. Fills `counts` as
+ * it goes, so a failure still shows how far it got.
  */
 export async function syncChain(deps: Deps, chain: ChainSeed, maxStores: number, counts: ChainCounts) {
   const { files, download } = await openChainFiles(deps, chain, maxStores);
-  for (const [i, f] of files.entries()) {
+  const load = async (f: PriceFile) => {
     const xml = decodeXml(Buffer.from(await download(f)));
     counts.filesDownloaded++;
+    return xml;
+  };
+  for (const [i, f] of files.entries()) {
+    const xml = await load(f);
     if (i === 0) counts.storesLoaded = ingestStores(deps, chain.key, xml);
     else counts.pricesLoaded += ingestPrices(deps, chain.key, xml, f.name);
+    // An update that can't be downloaded or loaded leaves the store on its full file's prices; not a Chain failure.
+    if (f.update)
+      counts.pricesLoaded += await load(f.update)
+        .then((u) => ingestPrices(deps, chain.key, u, f.update!.name))
+        .catch((e: unknown) => (console.error(`${f.update!.name}: skipped this price update`, e), 0));
   }
   // ingestPrices skips a file whose store is not in the Stores file; when every file is skipped, the chain is broken.
   if (files.length > 1 && counts.pricesLoaded === 0)
