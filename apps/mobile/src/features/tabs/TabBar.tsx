@@ -1,13 +1,13 @@
 import * as Haptics from "expo-haptics";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
-import { ChartColumn, ListChecks, Settings, ShoppingBasket, type LucideIcon } from "lucide-react-native";
+import { ChartColumn, ListChecks, type LucideIcon } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Taps, trackTap, type TapName } from "@/lib/analytics";
 import { useTheme } from "@/theme";
 import { Text } from "@/ui";
 
-const ICONS: Record<string, LucideIcon> = { index: ListChecks, items: ShoppingBasket, compare: ChartColumn, settings: Settings };
-const TAPS: Record<string, TapName> = { index: Taps.tabIndex, items: Taps.tabItems, compare: Taps.tabCompare, settings: Taps.tabSettings };
+const ICONS: Record<string, LucideIcon> = { index: ListChecks, compare: ChartColumn };
+const TAPS: Record<string, TapName> = { index: Taps.tabIndex, compare: Taps.tabCompare };
 
 /** Standard iOS tab bar: Lucide icon over a Caption label; selected = tint, others Secondary Label; top hairline. */
 export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: BottomTabBarProps) {

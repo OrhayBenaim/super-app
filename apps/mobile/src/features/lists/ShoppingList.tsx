@@ -23,6 +23,7 @@ import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
 import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
+import { MenuButton } from "@/features/drawer/MenuButton";
 import { EmptyState, Group, IconButton, LargeTitle, Row, Screen, Tap, Text } from "@/ui";
 import { missingItems, useCategories, useCurrentListId, useItemMutations, useList, type Item } from "./api";
 import { Avatars } from "./Avatars";
@@ -82,6 +83,7 @@ export function ShoppingList() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.labelSecondary} />}
       >
         <LargeTitle
+          start={<MenuButton />}
           title={data.list.name}
           menu={{ hint: t("lists.title"), analyticsName: Taps.listSwitch, onPress: () => router.push("/lists") }}
           subtitle={missing.length ? fmt(t("list.summary"), { n: missing.length }) : undefined}

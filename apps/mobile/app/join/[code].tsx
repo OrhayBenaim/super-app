@@ -24,13 +24,13 @@ export default function JoinByLink() {
   useEffect(() => {
     if (started.current || !code) return;
     started.current = true;
-    join.mutate(code, { onSuccess: () => router.replace("/(tabs)") });
+    join.mutate(code, { onSuccess: () => router.replace("/") });
   }, [code, join, router]);
 
   return (
     <Screen>
       {join.isError ? (
-        <EmptyState title={t("share.join.error")} action={{ title: t("list.toList"), analyticsName: Taps.listToList, onPress: () => router.replace("/(tabs)") }} />
+        <EmptyState title={t("share.join.error")} action={{ title: t("list.toList"), analyticsName: Taps.listToList, onPress: () => router.replace("/") }} />
       ) : (
         <ActivityIndicator style={{ flex: 1 }} color={colors.labelSecondary} accessibilityLabel={t("share.joining")} />
       )}
