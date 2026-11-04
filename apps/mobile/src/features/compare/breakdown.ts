@@ -10,9 +10,10 @@ type Line = StoreResult["items"][number];
  * The Basket breakdown of one store: a line per on-list item it prices, then the items it doesn't price and the unmatched
  * ones. Each line's total is the server's `lineTotal` (after its Promotion); two items matched to one product (one merged
  * line on the server) show as two, sharing that total by Quantity in agorot that add up exactly (the remainder on the last).
- * `shelfTotal` is the item's Quantity × Shelf price.
+ * `shelfTotal` is the item's Quantity × Shelf price. `basket` is one entry per spend deal that applies, with the List items on
+ * it: their lines keep the Shelf total, so the lines less each deal's `saving` add up to the store's total.
  */
-export function breakdown(items: Item[], store: Pick<StoreResult, "items">) {
+export function breakdown(items: Item[], store: Pick<StoreResult, "items" | "basket">) {
   const lines = new Map(store.items.map((l) => [lineKey(l), l]));
   const keys = items.map((item) => matchKey(item));
   // Per line: the Quantity of its items, how many are still to come and how much of its total they were given so far.
@@ -41,7 +42,9 @@ export function breakdown(items: Item[], store: Pick<StoreResult, "items">) {
     const names = p.promotion ? priced.filter((o) => o !== p && o.promotion?.id === p.promotion!.id).map((o) => o.item.name) : [];
     if (names.length) p.partners = names;
   }
-  return { priced, notHere, unmatched };
+  const onDeal = (codes: string[]) => items.filter((item, i) => keys[i] !== null && codes.includes(lines.get(keys[i]!)?.code ?? ""));
+  const basket = (store.basket ?? []).map((deal) => ({ deal, items: onDeal(deal.codes) }));
+  return { priced, basket, notHere, unmatched };
 }
 
 /** On-list items this store leaves out of its total, counted per item (its `matched` counts products, not items). */

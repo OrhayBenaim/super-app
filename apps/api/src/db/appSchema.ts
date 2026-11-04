@@ -148,6 +148,10 @@ export const syncChainResults = sqliteTable(
 
 // A store's Promotions as its newest promotion files publish them (docs/adr/0003); Compare applies the running ones.
 // kind and audience are TS-only enums (SQLite text), so a later reward kind or audience needs no migration.
+export const promotionKinds = ["price", "bundle", "percent", "nth", "off", "info"] as const;
+export type PromotionKind = (typeof promotionKinds)[number];
+export const audiences = ["all", "club", "card", "coupon"] as const;
+export type Audience = (typeof audiences)[number];
 export const promotions = sqliteTable(
   "promotions",
   {
@@ -161,17 +165,18 @@ export const promotions = sqliteTable(
     // nth: the cheapest of every `minQty` units `amount` percent off (100 = "2+1"); off: ₪`amount` off every `minQty` units;
     // info: information only (shown with its description, never in a total).
     // A unit is a kilo when the product is weighed, so bundle's `minQty` may be a weight (0.25).
-    kind: text("kind", { enum: ["price", "bundle", "percent", "nth", "off", "info"] }).notNull(),
+    kind: text("kind", { enum: promotionKinds }).notNull(),
     minQty: real("min_qty").notNull(),
     amount: real("amount").notNull(),
-    audience: text("audience", { enum: ["all", "club", "card", "coupon"] }).notNull(),
+    audience: text("audience", { enum: audiences }).notNull(),
     startsAt: integer("starts_at", { mode: "timestamp_ms" }).notNull(),
     endsAt: integer("ends_at", { mode: "timestamp_ms" }).notNull(),
     days: text("days"), // weekdays it runs, "1,6" (1 = Sunday); null = every day
     limitQty: real("limit_qty"), // units per purchase that get it; null = no limit
     // A spend deal: it counts only when the rest of the List, without its own products, costs at least this; null = none.
     minPurchase: real("min_purchase"),
-    // AllowMultipleDiscounts: false = a spend deal leaves the rest of the List at Shelf prices when it is used.
+    // AllowMultipleDiscounts (false = the Chain says a spend deal doesn't stack on other Promotions).
+    // shortcut: AllowMultipleDiscounts is ignored, use it when a Chain's till is shown to refuse stacking
     combines: integer("combines", { mode: "boolean" }).notNull().default(true),
   },
   (t) => [uniqueIndex("promotions_store_promotion_idx").on(t.storeId, t.promotionId)],

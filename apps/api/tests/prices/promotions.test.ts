@@ -10,7 +10,6 @@ const rp = (code: string, o: Partial<RunningPromotion> & Pick<RunningPromotion, 
   weighted: 0,
   description: "",
   minPurchase: null,
-  combines: 1,
   ...o,
 });
 /** One List line: its no-Promotion option, then one option per Promotion row. */
@@ -90,5 +89,66 @@ describe("priceLines: info-only Promotions", () => {
     expect(rs[1]).toMatchObject({ lineTotal: 3, info: [{ id: "7", description: "מתנה" }] });
     expect(rs[1]!.option.promo).toBeUndefined();
     for (const r of rs) expect(r).not.toHaveProperty("hints");
+  });
+});
+
+describe("priceLines: many linked lines (local search past 4096 combinations)", () => {
+  // 7 lines of one product at ₪10, each with 4 options (none, P1, P2, P3) = 4^7 = 16384 combinations, all linked by shared ids,
+  // so the exhaustive search (limit 4096) is skipped. P1 is ₪9 and P2 ₪8 per unit; P3 is 7 for a bundle price shared by every line.
+  const lines = (bundle: number) =>
+    [0, 1, 2, 3, 4, 5, 6].map((i) => {
+      const c = `L${i}`;
+      return line(
+        c,
+        10,
+        1,
+        rp(c, { id: "P1", kind: "price", minQty: 1, amount: 9 }),
+        rp(c, { id: "P2", kind: "price", minQty: 1, amount: 8 }),
+        rp(c, { id: "P3", kind: "bundle", minQty: 7, amount: bundle }),
+      );
+    });
+
+  it("finds the bundle all lines must join, which no single-line change reaches from Shelf", () => {
+    // Optimum: all 7 on P3 = 35. Changing one line at a time stops at P2 (7 * 8 = 56): one line alone on P3 is a set of 1.
+    const input = lines(35);
+    const rs = priceLines(input);
+    expect(rs.reduce((a, r) => a + cents(r.lineTotal), 0)).toBe(3500);
+    rs.forEach((r, i) => {
+      expect(input[i]).toContain(r.option);
+      expect(r.promotion?.id).toBe("P3");
+      expect(cents(r.lineTotal)).toBe(500);
+    });
+  });
+
+  it("never beats Shelf and the lines on the shared bundle add up to its rounded total", () => {
+    // 7 for 34.99: 4.9986 per line rounds to 5.00 each (35.00), one line takes the missing 0.01
+    const input = lines(34.99);
+    const rs = priceLines(input);
+    const total = rs.reduce((a, r) => a + cents(r.lineTotal), 0);
+    expect(total).toBe(3499);
+    expect(total).toBeLessThanOrEqual(7000);
+    rs.forEach((r, i) => {
+      expect(input[i]).toContain(r.option);
+      expect(r.promotion?.id).toBe("P3");
+    });
+  });
+});
+
+describe("priceLines: two spend deals", () => {
+  const deal = (code: string, id: string, amount: number) => rp(code, { id, kind: "price", minQty: 1, amount, minPurchase: 20 });
+  const world = (c: number) => priceList([line("A", 10, 1, deal("A", "D1", 5)), line("B", 10, 1, deal("B", "D2", 4)), line("C", c, 1)]);
+
+  it("both apply when each minimum holds with the other applied", () => {
+    // C 30: D1's rest = B 4 + C 30 = 34 >= 20; D2's rest = A 5 + 30 = 35 >= 20. Savings 5 + 6 = 11, total 39
+    const { basket } = world(30);
+    expect(basket.map((b) => b.id).sort()).toEqual(["D1", "D2"]);
+    expect(basket.reduce((a, b) => a + b.saving, 0)).toBe(11);
+  });
+
+  it("keeps only the bigger saving when together they break each other's minimum", () => {
+    // C 12: both -> D1's rest = 4 + 12 = 16 < 20. D1 alone: 5 + 10 + 12 = 27. D2 alone: 10 + 4 + 12 = 26 -> D2 only
+    const { basket } = world(12);
+    expect(basket.map((b) => b.id)).toEqual(["D2"]);
+    expect(basket[0]!.saving).toBe(6);
   });
 });

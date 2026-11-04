@@ -13,6 +13,9 @@ function chainFor(key: string, fileChainId: string) {
   return chain.ids[0]!;
 }
 
+/** An update file (`Price…`, `Promo…`) applies on top of the store's data; any other name is a full file. */
+const isUpdate = (fileName: string | undefined, updateType: "price" | "promo") => parseFileName(basename(fileName ?? ""))?.type === updateType;
+
 // GS1 barcodes are global; internal and weighed codes mean different things per chain, so they are chain-scoped.
 const productCode = (chainId: string, code: string) => (isGtin(code) ? code : `${chainId}:${code}`);
 
@@ -56,7 +59,7 @@ export function ingestStores({ db }: IngestDeps, chainKey: string, xml: string) 
  */
 export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: string, fileName?: string) {
   const sqlite = db.$client;
-  const update = parseFileName(basename(fileName ?? ""))?.type === "price";
+  const update = isUpdate(fileName, "price");
   const parsed = parsePrices(xml);
   const chainId = chainFor(chainKey, parsed.chainId);
   const storeId = storeOf({ db, clock }, chainId, fileName, parsed.storeId, "prices");
@@ -108,7 +111,7 @@ export function ingestPromotions(deps: IngestDeps, chainKey: string, xml: string
   if (parsed.layout === "unknown") return { layout: "unknown" };
   const storeId = storeOf(deps, chainId, fileName, parsed.storeId, "promotions");
   if (!storeId) return { layout: parsed.layout, store: parsed.storeId, loaded: 0, unpriced: [] };
-  const update = parseFileName(basename(fileName))?.type === "promo";
+  const update = isUpdate(fileName, "promo");
   const insertPromotion = sqlite.prepare(
     `INSERT INTO promotions (store_id, promotion_id, description, kind, min_qty, amount, audience, starts_at, ends_at, days, limit_qty, min_purchase, combines)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

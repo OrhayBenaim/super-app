@@ -62,6 +62,11 @@ typography:
     fontSize: "13px"
     fontWeight: 400
     lineHeight: "18px"
+  footnoteEmphasized:
+    fontFamily: "SF Pro, SF Hebrew, -apple-system, system-ui, sans-serif"
+    fontSize: "13px"
+    fontWeight: 600
+    lineHeight: "18px"
   caption:
     fontFamily: "SF Pro, SF Hebrew, -apple-system, system-ui, sans-serif"
     fontSize: "12px"
@@ -195,7 +200,7 @@ A gray-and-white iOS system ground with one saturated ultramarine and three sing
 - **Tint Wash** (`tint-soft`): tinted-button fill and member avatars. Never a surface for content.
 
 ### Tertiary (states)
-- **Money Green** (`saving`): only the money-saved line ("₪1.20 less than Rami Levy"). 5.07:1.
+- **Money Green** (`saving`): only money saved: the money-saved line ("₪1.20 less than Rami Levy") and, in the Basket breakdown, a Promotion that lowers a line (its lowered price, its text and its tag icon) and a spend deal's "−₪x" row. 5.07:1.
 - **Coverage Amber** (`warning`): only partial coverage ("priced 3 of 4 · 1 missing") and the missing count on store rows. 5.57:1.
 - **Destructive Red** (`danger`): only destructive actions (sign out, delete, remove member) and blocking errors. 5.38:1.
 
@@ -232,6 +237,7 @@ A gray-and-white iOS system ground with one saturated ultramarine and three sing
 - **Body** (Regular, 17/22, -0.4): row text, field text.
 - **Callout / Subhead** (16/21, 15/20): supporting copy, segment labels, row detail lines.
 - **Footnote / Caption** (13/18, 12/16): group footers, tab labels.
+- **Footnote Emphasized** (SemiBold, 13/18): an applied Promotion's text under a Basket breakdown line.
 - **Section Header** (13/18): the title and trailing count above each inset group, in Secondary Label.
 - **Price Hero** (Bold, 40/48, tabular): the best store's basket total. Only one per screen.
 - **Price Row** (SemiBold, 17/22, tabular): trailing prices on store rows and the "cheapest now" row.
@@ -334,5 +340,5 @@ The open store on Compare (by default the first in the chosen sort) and the app'
 - **Don't** bring back the v1 vocabulary in v2 screens: green produce primary, card stacks, coverage bars, category chips on item rows, Best-price badges, custom tab bars or a second switch style.
 - **Don't** put eyebrow or uppercase kicker labels above titles.
 - **Don't** draw illustrations; onboarding shows real UI fragments.
-- **Don't** invent savings claims; the green line only compares this basket against the next branch.
+- **Don't** invent savings claims; the green line only compares this basket against the next branch, and the Basket breakdown shows only what the Chain's own Promotions take off.
 - **Don't** write color literals outside the theme; every value comes from these tokens once the code is migrated.

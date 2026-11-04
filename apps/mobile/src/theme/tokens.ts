@@ -21,6 +21,7 @@ const weightOf: Partial<Record<TextVariant, keyof typeof tokens.font.weight>> = 
   title2: "bold",
   title3: "semibold",
   headline: "semibold",
+  footnoteEmphasized: "semibold",
   priceHero: "bold",
   priceRow: "semibold",
 };

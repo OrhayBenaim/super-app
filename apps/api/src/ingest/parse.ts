@@ -2,8 +2,7 @@
 import { gunzipSync } from "node:zlib";
 import { XMLParser } from "fast-xml-parser";
 import { unzipSync } from "fflate";
-import type { Audience } from "#/prices/promotions.ts";
-import { fromJerusalem } from "#/utils/clock.ts";
+import type { Audience, PromotionKind } from "#/db/appSchema.ts";
 
 type Node = Record<string, any>;
 
@@ -45,6 +44,7 @@ const num = (v: unknown) => {
   const n = Number(str(v));
   return str(v) === "" || !Number.isFinite(n) ? null : n;
 };
+const isWeighted = (v: unknown) => /^(1|true)$/i.test(str(v));
 
 // CBS locality codes, the most common City values in real Stores files (2026-11-01), each checked against store names.
 // shortcut: other codes stay numeric ("0" = unknown becomes ""); load the full CBS list when that matters.
@@ -122,7 +122,7 @@ export function parsePrices(xml: string): { chainId: string; storeId: string; it
       name: str(it.itemname ?? it.itemnm) || code,
       manufacturer: known(it.manufacturername ?? it.manufacturename) || null,
       unitQty: unit ? [num(it.quantity), unit].filter(Boolean).join(" ") : null, // "200" without a unit means nothing
-      isWeighted: /^(1|true)$/i.test(str(it.bisweighted)),
+      isWeighted: isWeighted(it.bisweighted),
       price: price ?? 0, // a removed row without a price; the full-file rule (price > 0) drops it
       unitPrice: num(it.unitofmeasureprice),
       removed,
@@ -141,7 +141,7 @@ const promoParser = new XMLParser({
   isArray: (n, jpath) => ["promotion", "group", "promotionitem", "item"].includes(n) || String(jpath).endsWith("clubs.clubid"),
 });
 
-export type PromotionReward = { kind: "price" | "bundle" | "percent" | "nth" | "off"; minQty: number; amount: number };
+export type PromotionReward = { kind: Exclude<PromotionKind, "info">; minQty: number; amount: number };
 // info: information only (a gift, a deal priced only in its description, a reward Grocer can't price), never in a total.
 export type ParsedPromotion = (PromotionReward | { kind: "info"; minQty: 0; amount: 0 }) & {
   promotionId: string;
@@ -152,11 +152,24 @@ export type ParsedPromotion = (PromotionReward | { kind: "info"; minQty: 0; amou
   days: string | null;
   limitQty: number | null;
   minPurchase: number | null; // a spend deal: the rest of the List must cost this much (CONTEXT.md "Promotion")
-  combines: boolean; // AllowMultipleDiscounts: whether a spend deal stacks on the rest of the List's Promotions
+  combines: boolean; // AllowMultipleDiscounts, stored but not used by Compare yet (appSchema.ts `combines`)
   codes: string[];
 };
 
-const isWeighted = (v: unknown) => /^(1|true)$/i.test(str(v));
+const jerusalem = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Jerusalem", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+});
+const offsetAt = (t: number) => {
+  const p = Object.fromEntries(jerusalem.formatToParts(t).map((x) => [x.type, x.value]));
+  return Date.UTC(+p.year!, +p.month! - 1, +p.day!, +p.hour!, +p.minute!, +p.second!) - (t - (t % 1000));
+};
+
+/** Israel wall-clock time without an offset ("2026-11-04T00:00:00.000", "2026-11-03 10:58:00"), as promotion files write it, as an instant; NaN if unreadable. */
+function fromJerusalem(local: string) {
+  const wall = Date.parse(`${local.trim().replace(" ", "T").slice(0, 19)}Z`);
+  if (Number.isNaN(wall)) return NaN;
+  return wall - offsetAt(wall - offsetAt(wall)); // the second pass lands on the right side of a daylight-saving change
+}
 
 /** The reward of a one-group promotion's items, or why it can't be priced yet (later tickets add the other kinds). */
 function groupedReward(groupCount: number, items: Node[]): PromotionReward | string {
