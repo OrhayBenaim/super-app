@@ -121,7 +121,7 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
     return { ref, byQuantity, members, quantity, perStep };
   });
   const asked = [...codes.keys(), ...groups.map((g) => g.ref)];
-  const priced = [...new Set([...codes.keys(), ...groups.flatMap((g) => g.members.map((m) => m.code))])];
+  const wantedCodes = [...new Set([...codes.keys(), ...groups.flatMap((g) => g.members.map((m) => m.code))])];
   const dLat = radiusKm / KM_PER_DEG;
   const dLng = radiusKm / (KM_PER_DEG * Math.max(Math.cos(rad(lat)), 0.01));
   const rows = db.$client
@@ -131,7 +131,7 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
        FROM prices pr JOIN stores s ON s.id = pr.store_id JOIN chains ch ON ch.id = s.chain_id
        WHERE s.lat BETWEEN ? AND ? AND s.lng BETWEEN ? AND ? AND pr.code IN (SELECT value FROM json_each(?))`,
     )
-    .all(lat - dLat, lat + dLat, lng - dLng, lng + dLng, JSON.stringify(priced)) as PriceRow[];
+    .all(lat - dLat, lat + dLat, lng - dLng, lng + dLng, JSON.stringify(wantedCodes)) as PriceRow[];
 
   const byStore = new Map<string, { row: PriceRow; distanceKm: number; prices: Map<string, number> }>();
   for (const r of rows) {
@@ -144,7 +144,7 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
     s.prices.set(r.code, r.price);
   }
 
-  const promos = runningPromotions(db, [...byStore.keys()], priced, now);
+  const promos = runningPromotions(db, [...byStore.keys()], wantedCodes, now);
   const carried = new Set<string>();
   const stores = [...byStore.values()].map(({ row, distanceKm, prices }) => {
     const optionsOf = (code: string, quantity: number) => {
