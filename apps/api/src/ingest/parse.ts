@@ -131,13 +131,14 @@ export function parsePrices(xml: string): { chainId: string; storeId: string; it
   return { chainId: id(r.chainid), storeId: id(r.storeid), items };
 }
 
-// Promotion files nest Promotion > Groups > Group > PromotionItems > PromotionItem; a single child must still be an array.
+// Promotion files nest Promotion > Groups > Group > PromotionItems > PromotionItem (flat ones PromotionItems > Item and
+// Clubs > ClubId); a single child must still be an array.
 const promoParser = new XMLParser({
   ignoreDeclaration: true,
   parseTagValue: false,
   htmlEntities: true,
   transformTagName: (n) => n.toLowerCase(),
-  isArray: (n) => ["promotion", "group", "promotionitem"].includes(n),
+  isArray: (n, jpath) => ["promotion", "group", "promotionitem", "item"].includes(n) || String(jpath).endsWith("clubs.clubid"),
 });
 
 export type PromotionReward = { kind: "price" | "bundle" | "percent" | "nth" | "off"; minQty: number; amount: number };
@@ -167,10 +168,33 @@ function groupedReward(groupCount: number, items: Node[]): PromotionReward | str
   if (isWeighted(i.bisweighted) && type !== "2") return weightedReward(type, minQty, price);
   if (type === "3" && minQty <= 1 && price > 0) return { kind: "price", minQty: 1, amount: price };
   // 1 = N for a total on one product, 10 = across several (mix and match); DiscountedPrice is the total for MinQty units.
-  if ((type === "1" || type === "10") && Number.isInteger(minQty) && minQty >= 1 && price > 0)
-    return minQty === 1 ? { kind: "price", minQty: 1, amount: price } : { kind: "bundle", minQty, amount: price };
-  // Rate 100 is a gift, free delivery or another product free (real-promos README): never a free line.
-  if (type === "2" && minQty <= 1 && rate > 0 && rate < 100) return { kind: "percent", minQty: 1, amount: rate };
+  if (type === "1" || type === "10") return nForTotal(minQty, price) ?? `RewardType ${type}`;
+  return (type === "2" && percentOff(minQty, rate)) || `RewardType ${type}`;
+}
+
+const nForTotal = (minQty: number, price: number): PromotionReward | undefined =>
+  Number.isInteger(minQty) && minQty >= 1 && price > 0 ? (minQty === 1 ? { kind: "price", minQty: 1, amount: price } : { kind: "bundle", minQty, amount: price }) : undefined;
+// Rate 100 is a gift, free delivery or another product free (real-promos README): never a free line.
+const percentOff = (minQty: number, rate: number): PromotionReward | undefined =>
+  minQty <= 1 && rate > 0 && rate < 100 ? { kind: "percent", minQty: 1, amount: rate } : undefined;
+
+/**
+ * The reward of a flat Promotion (Keshet's 3-segment stores, Rami Levy 039), written on the Promotion itself
+ * (price-data.md section 3c): 1 = N for a total, 2 = percent off, 7 and 9 = "N+1" (the cheapest of every MinQty units
+ * `DiscountRate` off). `percentUnit` 100 is Keshet's DiscountRate in hundredths of a percent. Seen in every Keshet flat
+ * file and Rami Levy 039 on 2026-11-04: 1, 2 and 9 only; 3 (amount off) and 6 never, so they stay info-only until a real
+ * one shows which field holds the amount. A spend minimum (`MinPurchaseAmnt`) is info-only too.
+ */
+function flatReward(p: Node, percentUnit: number): PromotionReward | string {
+  const type = str(p.rewardtype);
+  const [minQty, price, rate] = [num(p.minqty) ?? 0, num(p.discountedprice) ?? 0, (num(p.discountrate) ?? 0) / percentUnit];
+  if ((num(p.minpurchaseamnt) ?? 0) > 0) return `RewardType ${type} above a purchase amount`;
+  // Keshet writes a weighed item's DiscountedPrice per kilo, also for a weight MinQty ("2 ב 69.90": MinQty 2, price 34.95).
+  if (isWeighted(p.isweightedpromo) && type !== "2")
+    return type === "1" ? weightedReward(type, minQty, minQty > 0.01 + 1e-6 ? Math.round(price * minQty * 100) / 100 : price) : `RewardType ${type} weighted`;
+  if (type === "1") return nForTotal(minQty, price) ?? `RewardType ${type}`;
+  if (type === "2") return percentOff(minQty, rate) ?? `RewardType ${type}`;
+  if ((type === "7" || type === "9") && Number.isInteger(minQty) && minQty >= 2 && rate > 0 && rate <= 100) return { kind: "nth", minQty, amount: rate };
   return `RewardType ${type}`;
 }
 
@@ -235,9 +259,27 @@ const weekdays = (v: unknown) => {
   return days === "" || days === "1,2,3,4,5,6,7" ? null : days;
 };
 
+const flatDate = (date: unknown, hour: unknown) => `${str(date).slice(0, 10)} ${str(hour) || "00:00:00"}`;
+
+/** A flat Promotion row with its Promotion-level fields under their grouped names. */
+const asGrouped = (p: Node): Node => {
+  const restrictions: Node = typeof p.additionalrestrictions === "object" ? p.additionalrestrictions : {};
+  const clubs: unknown[] = (p.clubs ?? restrictions.clubs)?.clubid ?? [];
+  return {
+    ...p,
+    clubid: clubs.map(str).sort().join("|"), // shortcut: only one ClubId per Promotion seen; "0" sorts first, so any 0 = all
+    additionaliscoupon: restrictions.additionaliscoupon,
+    promotionstartdatetime: flatDate(p.promotionstartdate, p.promotionstarthour),
+    promotionenddatetime: flatDate(p.promotionenddate, p.promotionendhour),
+    redemptionlimit: p.maxqty, // MAXQTY at Rami Levy 039; 0 = no limit
+  };
+};
+
 /**
- * A promotion file (docs/research/price-data.md section 3c). `layout` is "grouped" when every Promotion nests its items in
- * Groups (grouped-2026, and Shufersal/Carrefour's files, which have the same tags), else "unknown" (nothing parsed).
+ * A promotion file (docs/research/price-data.md section 3c). `layout`: "grouped" when every Promotion nests its items in
+ * Groups (grouped-2026, and Shufersal/Carrefour's files, which have the same tags); "flat" (Keshet) or "flat-percent"
+ * (Rami Levy 039, its `Clubs` inside `AdditionalRestrictions` and DiscountRate in whole percent) when every Promotion
+ * carries its reward and items itself; else "unknown" (nothing parsed).
  * Rows sharing a PromotionID are one Promotion (Victory and Machsanei Hashuk write one row per item).
  * Promotions for an excluded audience are left out; `unpriced` lists the others whose price can't be read yet (returned
  * as info-only when their dates can be read), `ids` every PromotionID in the file.
@@ -246,10 +288,17 @@ export function parsePromotions(xml: string, chainKey: string) {
   const doc = promoParser.parse(xml) as Node;
   const r: Node | undefined = Object.values(doc).find((v) => v && typeof v === "object");
   if (!r) throw new Error("no XML root element");
-  const rows: Node[] = r.promotions?.promotion ?? [];
-  const layout = rows.every((p) => p.groups?.group) ? ("grouped" as const) : ("unknown" as const);
+  const all: Node[] = r.promotions?.promotion ?? [];
+  const layout = all.every((p) => p.groups?.group)
+    ? ("grouped" as const)
+    : all.every((p) => p.rewardtype !== undefined && p.promotionitems?.item)
+      ? all.some((p) => p.additionalrestrictions?.clubs)
+        ? ("flat-percent" as const)
+        : ("flat" as const)
+      : ("unknown" as const);
+  const rows = layout === "unknown" ? [] : layout === "grouped" ? all : all.map(asGrouped);
   const byId = new Map<string, Node[]>();
-  for (const p of layout === "grouped" ? rows : []) {
+  for (const p of rows) {
     const pid = id(p.promotionid);
     if (pid) byId.set(pid, [...(byId.get(pid) ?? []), p]);
   }
@@ -259,10 +308,17 @@ export function parsePromotions(xml: string, chainKey: string) {
     const audience = audienceOf(chainKey, str(p!.clubid), num(p!.additionaliscoupon) === 1);
     if (!audience) continue;
     const idRows = [p!, ...more];
-    const groupCount = Math.max(...idRows.map((row) => row.groups.group.length));
-    const groups = Array.from({ length: groupCount }, (_, g) => idRows.flatMap((row): Node[] => row.groups.group[g]?.promotionitems?.promotionitem ?? []));
-    const items = groups[0]!;
-    const reward = (groupCount === 2 && nthReward(idRows, groups)) || groupedReward(groupCount, items);
+    let items: Node[];
+    let reward: PromotionReward | string;
+    if (layout === "grouped") {
+      const groupCount = Math.max(...idRows.map((row) => row.groups.group.length));
+      const groups = Array.from({ length: groupCount }, (_, g) => idRows.flatMap((row): Node[] => row.groups.group[g]?.promotionitems?.promotionitem ?? []));
+      items = groups[0]!;
+      reward = (groupCount === 2 && nthReward(idRows, groups)) || groupedReward(groupCount, items);
+    } else {
+      items = idRows.flatMap((row): Node[] => row.promotionitems.item);
+      reward = flatReward(p!, layout === "flat" ? 100 : 1);
+    }
     const [startsAt, endsAt] = [fromJerusalem(str(p!.promotionstartdatetime)), fromJerusalem(str(p!.promotionenddatetime))];
     if (Number.isNaN(startsAt) || Number.isNaN(endsAt)) {
       unpriced.push({ promotionId, kind: "unreadable dates" });

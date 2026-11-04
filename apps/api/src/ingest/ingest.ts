@@ -93,7 +93,7 @@ export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: s
 
 export type PromotionsOutcome =
   | { layout: "unknown" }
-  | { layout: "grouped"; store: string; loaded: number; unpriced: { promotionId: string; kind: string }[] };
+  | { layout: "grouped" | "flat" | "flat-percent"; store: string; loaded: number; unpriced: { promotionId: string; kind: string }[] };
 
 /**
  * Loads a promotion file. A full file (named `PromoFull…`) replaces the store's Promotions, so one it no longer lists has
