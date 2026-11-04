@@ -171,7 +171,7 @@ components:
 
 # Design System: Grocer
 
-> **Status.** This file records the v2 visual world as built in Figma: https://www.figma.com/design/YncE254fQ7DyfktwvCsqR0/ (pages Foundations, Components, Screens; the v1 pages were deleted, the old look lives only in git history of this file). The Screens page is grouped into flow sections (Onboarding & sign in, List, My items, Compare, Settings & nearby alert); every frame carries a "How you get here" caption. **The code is migrated:** `docs/design/tokens.json` now carries these v2 values (camelCase names, e.g. `grouped-bg` → `groupedBg`, plus `onDanger` for the swipe-delete label and `size.*` for row, target, button and segmented heights) and `apps/mobile/src/theme` loads it. Known gaps in code: the tab bar is solid Group White (no 85% blur, which needs expo-blur); the Compare radius pull-down uses the system action sheet (iOS) / alert (Android) instead of a native menu; item rows have no "from ₪x · in N branches" detail line (the API has no per-item price lookup); Recently bought rows show no who/when detail.
+> **Status.** This file records the v2 visual world as built in Figma: https://www.figma.com/design/YncE254fQ7DyfktwvCsqR0/ (pages Foundations, Components, Screens; the v1 pages were deleted, the old look lives only in git history of this file). The Screens page is grouped into flow sections (Onboarding & sign in, List, My items, Compare, Settings & nearby alert, and "7 · Home, Promotions & drawer" for the Home / Promotions tabs, the drawer and their states); every frame carries a "How you get here" caption. **The code is migrated:** `docs/design/tokens.json` now carries these v2 values (camelCase names, e.g. `grouped-bg` → `groupedBg`, plus `onDanger` for the swipe-delete label and `size.*` for row, target, button and segmented heights) and `apps/mobile/src/theme` loads it. Known gaps in code: the tab bar is solid Group White (no 85% blur, which needs expo-blur); the Compare radius pull-down uses the system action sheet (iOS) / alert (Android) instead of a native menu; item rows have no "from ₪x · in N branches" detail line (the API has no per-item price lookup); Recently bought rows show no who/when detail.
 >
 > Figma uses **Heebo** as a stand-in for SF Pro / SF Hebrew; the app uses the system font. Color and size values live as Figma variables (collections "Grocer color" and "Grocer size"; the app uses only the Light mode); text styles are `v2/*`.
 
@@ -181,7 +181,7 @@ components:
 
 Grocer is a native iOS utility whose one job is the price answer: where the household's whole basket is cheapest nearby, and by how much. The world is standard iOS on purpose (system grouped backgrounds, inset groups, the SF type scale, standard tab bar and sheets) so that nothing about the frame needs learning in a busy supermarket. Grocer's own expression lives inside that frame, not on top of it: one ultramarine tint for everything you can press, and three state colors that each mean exactly one thing.
 
-The system refuses the grocery category's green produce look, card stacks and coverage bars. Every screen is a grouped list with one action. Density is iOS-standard: 52pt rows, 16pt gutters, hairline separators inset to the text start. Depth is tonal, not cast: the gray grouped background sits behind white groups, and only sheets and the selected segment thumb carry a shadow. Every screen is designed right-to-left first in Hebrew; English mirrors it.
+The system refuses the grocery category's green produce look, card stacks and coverage bars. Every screen is a grouped list with one action, except the two browse screens (Home and Promotions), which are a flat two-column card grid (see Card grid). Density is iOS-standard: 52pt rows, 16pt gutters, hairline separators inset to the text start. Depth is tonal, not cast: the gray grouped background sits behind white groups, and only sheets and the selected segment thumb carry a shadow. Every screen is designed right-to-left first in Hebrew; English mirrors it.
 
 **Key Characteristics:**
 - Standard iOS grouped lists, large titles, tab bar and sheets; no custom chrome.
@@ -197,10 +197,10 @@ A gray-and-white iOS system ground with one saturated ultramarine and three sing
 
 ### Primary
 - **Ultramarine Tint** (`tint`): every interactive element: filled and plain buttons, links, the switch "on" track, the checked circle, the selected tab, chevrons that open something, the nav-bar radius pull-down. Filled buttons put **Tint On** (`tint-on`) on it (7.02:1). Tint as text reads 7.02:1 on white.
-- **Tint Wash** (`tint-soft`): tinted-button fill and member avatars. Never a surface for content.
+- **Tint Wash** (`tint-soft`): tinted-button fill, stepper − / + buttons and member avatars. Never a surface for content (the drawer's current row is Tint text and icon, not a Tint Wash surface).
 
 ### Tertiary (states)
-- **Money Green** (`saving`): only money saved: the money-saved line ("₪1.20 less than Rami Levy") and, in the Basket breakdown, a Promotion that lowers a line (its lowered price, its text and its tag icon) and a spend deal's "−₪x" row. 5.07:1.
+- **Money Green** (`saving`): only money saved: the money-saved line ("₪1.20 less than Rami Levy") and, in the Basket breakdown, a Promotion that lowers a line (its lowered price, its text and its tag icon) and a spend deal's "−₪x" row; on Promotions cards and the Promotions product page, the Promotion price (next to the struck Shelf price in Secondary Label). 5.07:1.
 - **Coverage Amber** (`warning`): only partial coverage ("priced 3 of 4 · 1 missing") and the missing count on store rows. 5.57:1.
 - **Destructive Red** (`danger`): only destructive actions (sign out, delete, remove member) and blocking errors. 5.38:1.
 
@@ -240,7 +240,7 @@ A gray-and-white iOS system ground with one saturated ultramarine and three sing
 - **Footnote Emphasized** (SemiBold, 13/18): an applied Promotion's text under a Basket breakdown line.
 - **Section Header** (13/18): the title and trailing count above each inset group, in Secondary Label.
 - **Price Hero** (Bold, 40/48, tabular): the best store's basket total. Only one per screen.
-- **Price Row** (SemiBold, 17/22, tabular): trailing prices on store rows and the "cheapest now" row.
+- **Price Row** (SemiBold, 17/22, tabular): trailing prices on store rows and the "cheapest now" row, the "מ-₪X" line on Home cards, Promotion prices and Product rows. A struck Shelf price next to it is Subhead (15/20) in Secondary Label, read aloud as "במקום ₪X".
 
 ### Named Rules
 **The Tabular Price Rule.** Every price and count uses tabular figures, so totals never jitter while sorting or updating. `₪` amounts stay LTR inside RTL text.
@@ -252,6 +252,8 @@ A gray-and-white iOS system ground with one saturated ultramarine and three sing
 Single-column iOS layout at 393pt width, designed RTL first. Screen gutters and inset-group margins are 16pt (`spacing.4`); rows are 52pt minimum (`size/row`) and every target is at least 44pt (`size/target`). Groups are separated by a section header; all spacing comes from the 4pt-based scale (4 / 8 / 12 / 16 / 20 / 24 / 32). Top-level screens open with a large title and one summary line in Secondary Label; tabs carry their own title. Sheets are content-sized, with a grabber. Containers use minimum heights, never fixed heights, so Dynamic Type can grow them.
 
 Screen anatomy, as drawn: **List** = + / share in the nav bar → "cheapest now" summary row (no chevron, price in Tint; tapping switches to the Compare tab) → category groups of check rows → "Recently bought" row (pushes the Recently bought screen, back button "הבית"). **My items** = search field → category groups of item rows (add-to-list button at the trailing end) → footer. **Compare** = radius pull-down in the nav bar → large title + summary → segmented (price / distance / coverage) → the store list in the chosen order, where one store is open as the Best store group and the rest are store rows (an accordion). The first store in the order opens by default (the cheapest under price); tapping a row opens it in its place and closes the previous one; changing the sort reopens the first. Rows below the card sit under "Other branches" only while the card is first; rows above it have no header. **Settings** = alerts group with footer → account group ending in a destructive row.
+
+Every tab and every drawer screen (Settings, My items) carries the menu icon (☰, Tint, 44pt target) at the start corner of the nav bar; the screen's own nav items (+, share, avatars, the radius pull-down) stay at the end side. Pushed screens show Back there instead. **Home** = ☰ → large title + summary → Product type cards (card grid). A Product type card pushes that type's Product group cards; its title and back label are the card's name, and both say the count with the same noun ("64 מוצרים"). A group card's image or name pushes its product page: the group's controls at the top, then a group of Product rows. **Promotions** = ☰ and the Chain filter pull-down ("כל הרשתות ⌄", 44pt, an iOS menu like the radius) → large title + summary → a sideways Product type bar ("הכל" first; 32pt chips inside 44pt targets) → Promotions cards (card grid). Its product page lists each Product on a Promotion with one line per Chain. Home with location off shows everything without prices under a banner with a filled "אפשרו מיקום"; Promotions empty states keep the title's summary line and offer a plain action (change the radius, clear the filter).
 
 ## Elevation & Depth
 
@@ -294,13 +296,24 @@ All components are iOS standard in structure; Grocer's expression is color assig
 - **Add field (List and My items):** opened by the + in the nav bar (no bottom bar). The field takes over the top of the screen with ביטול, the keyboard rises, and a suggestions group shows My items matches as item rows (already on the list → the "ברשימה" tag; otherwise "+"), then "הוספת ״…״" in Tint to create a new item. From the List, a picked or new item goes ON the list (same state as + on My items); from My items, a new item is created OFF the list. New items get category "אחר". Return ("הוספה") adds the top match and keeps the field open. There is no add-item sheet: name, category, price match and delete live in the Edit item sheet (long-press a row), and category picker / product match push inside it. Delete is also the trailing swipe action (red), with an Undo toast instead of a confirm.
 - **Form row:** label, trailing value in Secondary Label, disclosure chevron in Control Outline.
 - **Store row:** chain (Body), "branch · distance" detail, amber missing count when partial, trailing Price Row. No disclosure.
+- **Product row (product pages):** line 1 = Product image (48pt, none when there is none), name (Body) and pack size (Footnote, Secondary Label), cheapest nearby price (Price Row) at the trailing end; line 2, full width = the Add/Update action and the stepper. On the Promotions product page each Product row is followed by one line per Chain: Promotion text (Saving green, tag icon), the Promotion price next to the struck Shelf price, the club / card / coupon label when Restricted, or the Chain's own description with an info icon when there is no price.
+
+### Card grid (Home and Promotions)
+- The browse screens are a flat grid of cards, 2 per row, 174.5pt wide with a 12pt gap (16pt gutters), on Grouped Gray. Cards are Group White, 12pt radius, 12pt padding, no border, no shadow. All cards in a row are as tall as the tallest one.
+- **Product type card:** the type's illustration (56pt, from the Brand page set "Illustration/Product type/*": flat stickers in the mascot palette, one per type, a neutral box for "אחר"), name (Headline) and count (Footnote, Secondary Label). This is the one place in the app with drawn illustrations.
+- **Group card (Home) and Promotions card:** top-aligned content, then one flexible gap, then the controls pinned to the bottom, so a row of mixed cards lines up. Content: the Product image (none when the Product has none; the text moves up), name (Headline) and price. Home: "מ-₪X" per ליטר / ק״ג / pack in Price Row, Label colour. Promotions: the lowest Promotion price in Saving green, the struck Shelf price next to it, "במועדון" / "בכרטיס" / "עם קופון" when that price is Restricted, "ב-N רשתות"; a Promotion without a price shows its text (1+1) in place of the price. The image, name and price are one button that opens the product page; the stepper and the action are separate elements.
+
+### Stepper and Add / Update
+- **Stepper:** one style app-wide, the Quantity sheet's: 44pt round Tint Wash − and + with a Tint icon, the value in Headline between them, no track and no outline. Units step by 1 and show ×N (minimum ×1). Sold by weight steps by 0.5 ק״ג, minimum 0.5, and shows 500 גרם below 1 ק״ג (`packages/shared` quantity rules). New items start at ×1 / 1 ק״ג. At the minimum, − is disabled at 40% opacity. Changing the stepper does nothing on its own.
+- **Action** under or beside a stepper, 44pt, always tinted (the screen's one filled button stays free): **הוספה** when the List does not have the group or Product. **✓ ברשימה ×N** (Secondary Label, not a button) while the List has it and the stepper still equals the Item's Quantity. **עדכון** once the stepper differs; it changes the Quantity only. **החלפה לזה** on a Product row that is not the one the Item is matched to; it moves the Item's match to that Product (still one Item). There is no remove from these screens.
 
 ### Switch
 - One switch app-wide (iOS style, mirrored for RTL): tint track when on, Control Fill when off. Used for settings only (nearby alerts). Never for list membership: My items uses the add-to-list button.
 
 ### Navigation
-- **Tab bar:** standard iOS, 4 tabs (List, My items, Compare, Settings), Lucide icons with Caption labels; selected = tint, unselected = Secondary Label; 85% surface with blur and a top hairline.
-- **Nav bar:** large titles on top-level screens; trailing / leading nav items in tint (share, add, radius pull-down).
+- **Tab bar:** standard iOS, 4 tabs (Home, List, Promotions, Compare; the app opens on Home), Lucide icons with Caption labels; selected = tint, unselected = Secondary Label; 85% surface with blur and a top hairline.
+- **Drawer:** opened only by tapping ☰ (no swipe), from the start side (right in Hebrew). Header with the User's name and email, then sections with Section Header titles: Shopping (Home, List, Promotions, Compare), Lists (Share list, Recently bought, My items), Account (Settings). Rows are 48pt with a Lucide icon at the start; the current page has a Tint label and icon. Behind it the Scrim, which is a "סגירת התפריט" button. Settings and My items are drawer screens: no tab bar, ☰ in the same spot.
+- **Nav bar:** large titles on top-level screens; trailing / leading nav items in tint (☰, share, add, radius and Chain pull-downs), each with a 44pt target.
 - **Sheets:** standard iOS sheets on Sheet Surface, 16pt top radius, grabber in Control Outline, over the Scrim. Used for edit item, what's missing and share. Category picker and product match push inside the edit-item sheet; join a list pushes inside the share sheet (back = "חזרה"). Pull-down menus (the Compare radius) are iOS menus, not sheets.
 
 ### Icons
@@ -325,7 +338,7 @@ The open store on Compare (by default the first in the chosen sort) and the app'
 ## Do's and Don'ts
 
 ### Do:
-- **Do** build every screen as iOS inset grouped lists on Grouped Gray with 16pt gutters and 52pt rows.
+- **Do** build every screen as iOS inset grouped lists on Grouped Gray with 16pt gutters and 52pt rows; only Home and Promotions use the two-column card grid.
 - **Do** use the tint for every pressable element and only for pressable elements.
 - **Do** give each screen exactly one filled button, for its one primary action; everything else is tinted or plain.
 - **Do** show prices in tabular figures, and the best basket total in Price Hero (40/48).
@@ -339,6 +352,6 @@ The open store on Compare (by default the first in the chosen sort) and the app'
 - **Don't** add shadows to groups, rows or buttons; only sheets and the segment thumb cast one.
 - **Don't** bring back the v1 vocabulary in v2 screens: green produce primary, card stacks, coverage bars, category chips on item rows, Best-price badges, custom tab bars or a second switch style.
 - **Don't** put eyebrow or uppercase kicker labels above titles.
-- **Don't** draw illustrations; onboarding shows real UI fragments.
+- **Don't** draw illustrations, except the Product type card set on the Brand page; onboarding shows real UI fragments, and Product cards show real Product images or nothing.
 - **Don't** invent savings claims; the green line only compares this basket against the next branch, and the Basket breakdown shows only what the Chain's own Promotions take off.
 - **Don't** write color literals outside the theme; every value comes from these tokens once the code is migrated.
