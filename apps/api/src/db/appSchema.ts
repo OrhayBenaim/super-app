@@ -63,7 +63,7 @@ export const chains = sqliteTable("chains", {
   key: text("key").notNull().unique(), // e.g. "rami-levy"
   name: text("name").notNull(),
   nameHe: text("name_he").notNull(),
-  orderUrl: text("order_url"), // shop home, or a search template with {code}
+  orderUrl: text("order_url"), // shop home, or a cart link template with {items}
 });
 
 export const stores = sqliteTable(

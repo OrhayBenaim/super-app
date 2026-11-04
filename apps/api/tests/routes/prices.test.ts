@@ -73,7 +73,7 @@ describe("prices", () => {
 
   it("lists chains", async () => {
     const chains = await (await get("/api/chains")).json();
-    expect(chains).toContainEqual({ id: "7290103152017", name: "Osher Ad", nameHe: "אושר עד", orderUrl: "https://www.osherad.co.il/" });
+    expect(chains).toContainEqual({ id: "7290103152017", name: "Osher Ad", nameHe: "אושר עד", orderUrl: null }); // no online shop
   });
 
   it("401 without a session, 400 on a bad body", async () => {
@@ -92,7 +92,8 @@ describe("prices", () => {
       total: 25,
       matched: 3,
       missingCodes: [D, E],
-      orderUrl: "https://www.osherad.co.il/",
+      orderUrl: null,
+      fillsCart: false,
     });
     expect(r.stores[0].distanceKm).toBeCloseTo(1, 1);
     expect(r.stores[1]).toMatchObject({ total: 16.5, matched: 2, missingCodes: [B, D, E] });

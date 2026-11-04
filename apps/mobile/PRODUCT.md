@@ -27,7 +27,7 @@ Whole-basket comparison, not per-item deals: the app prices the household's actu
 - Comparing branches within 5 / 10 / 20 km, sorted by price, distance or coverage (how many list items the branch prices).
 - Sharing the list with an invite code or link; members see changes within seconds.
 - A background geofence notification near the cheapest store opens Waze directly.
-- "Order online" copies the list to the clipboard and opens the chain's site.
+- "Order online" opens the chain's site with the list's priced items in the cart (or one tap from it) where the shop takes a cart link; elsewhere it copies the list to the clipboard first.
 
 ## Capabilities and Constraints
 

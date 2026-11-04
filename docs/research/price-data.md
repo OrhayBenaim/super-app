@@ -12,7 +12,7 @@ Source abbreviations: [GOV](https://www.gov.il/he/departments/legalInfo/cpfta_pr
 6. Stores files have NO lat/lng; only Address, City (sometimes a CBS locality code), ZIPCode. You must geocode ([REG](https://www.nevo.co.il/law_html/law01/501_131.htm)).
 7. ItemCode is the printed barcode when one exists, else a chain-internal code; ItemType is NOT reliable as the discriminator ([REG](https://www.nevo.co.il/law_html/law01/501_131.htm), [SO sample](https://stackoverflow.com/questions/30424816/what-is-performance-efficient-way-to-update-the-two-interconnected-table-in-post)).
 8. Key rows by (ChainId, SubChainId, StoreId, ItemCode) from the file's own root element; files are per store, ~10 MB / ~13k items each ([SKILL](https://www.mcpinstall.com/skills/skills-il/food-and-dining/israeli-grocery-price-intelligence), [SalSmart](https://github.com/SaharHalili95/price-comparison-platform)).
-9. Online shops have no documented barcode-search or add-to-cart deep links; Rami Levy and Shufersal only have undocumented, authenticated internal APIs (section 6).
+9. No shop documents a cart URL, but Rami Levy and the Stor.ai shops (Tiv Taam, Victory, Carrefour and others) take undocumented `barcode,qty;...` cart links (section 6).
 10. Start with the Cerberus family (one client, 5+ chains; Rami Levy/Yohananof/Osher Ad verified working Oct 2026), then Carrefour/Bitan and Hazi Hinam (no login), then Shufersal.
 
 ## 1. Where each chain publishes
@@ -146,19 +146,35 @@ Wrapper `Promotions` (older `Sales`/`Details`), row id `PromotionId` (`Promotion
 - Bonus: many staples (e.g. controlled dairy) are price-capped, so cross-chain spread is near zero; lists of controlled products were not retrievable ([SKILL](https://www.mcpinstall.com/skills/skills-il/food-and-dining/israeli-grocery-price-intelligence)).
 
 ## 6. Online ordering and deep links
-Honest status: no chain documents a "search by barcode" or "add to cart" URL. Everything cart-related found is reverse-engineered, authenticated, and breakable.
+Checked live from an Israeli IP on 2026-11-04 (curl and a headless browser, as a guest; nothing logged in or bought). No chain
+documents a cart URL. The two below were found in the shops' own JavaScript, so they can change on any redeploy.
 
-| Chain | Online shop | Search / cart deep link |
+**Rami Levy** fills the cart: `https://www.rami-levy.co.il/he/basket?items=<EAN>,<qty>;<EAN>,<qty>`. Its `/he/basket` route
+looks the barcodes up (`POST /api/items {"ids":"..","type":"barcode"}`), puts them in a guest cart (store 331 until the
+shopper picks a delivery area) and moves on to checkout. Tested: Bamba x2 and Tnuva milk gave a 13.80 ₪ cart. Weighed
+items: the quantity is divided by the product's `by_kilo_content` (not tested).
+
+**Stor.ai** (formerly Self-Point), the white-label shop behind Tiv Taam, Victory, Fresh Market, Keshet Teamim, Machsanei
+Hashuk, Politzer and Carrefour (also bigdabach.co.il and superalonit.co.il), opens a dialog one tap from the cart:
+`https://<shop>/?externalCart=<EAN>,<qty>;<EAN>,<qty>&externalName=<site name>`. `ExternalCartService` looks the barcodes up
+in the shopper's current branch (`GET /v2/retailers/:rid/branches/:bid/products` with a `localBarcode` filter) and shows
+"Your products from the <site name> website" with +/- buttons, "Add N items to cart", and "could not identify N
+products". Guests get it; only checkout needs a login. The barcode lookup was verified for every chain listed (Super Alonit
+found neither test barcode); the dialog was read in code, not yet seen rendered. The Tiv Taam and Victory apps claim only
+`?in_app=` and `/orders/*?autoAddToCart=` links, so this one opens on the web.
+
+| Chain | Online shop | Deep link |
 |---|---|---|
-| Shufersal | https://www.shufersal.co.il/online/he/ | `.../online/he/search?text=<q>` **UNVERIFIED**: my fetch of it returned only a maintenance image (Firecrawl, 2026-10-31). Product codes look like `P_4127329` (internal, not EAN). Cart only via logged-in browser automation ([shufersal-automation](https://github.com/eshaham/shufersal-automation), [MCP](https://agentskills.co.il/en/mcp/shufersal)) |
-| Rami Levy | https://www.rami-levy.co.il/he/online/market ([post](https://www.facebook.com/Rami.Levy.Shivuk.Hashikma/videos/%D7%9C%D7%A7%D7%95%D7%97%D7%95%D7%AA-%D7%A8%D7%9E%D7%99-%D7%9C%D7%95%D7%99-%D7%91%D7%90%D7%99%D7%A0%D7%98%D7%A8%D7%A0%D7%98-%D7%96%D7%94-%D7%91%D7%A9%D7%91%D7%99%D7%9C%D7%9B%D7%9D-%D7%9E%D7%96%D7%9E%D7%99%D7%A0%D7%99%D7%9D-%D7%94%D7%99%D7%95%D7%9D-%D7%9E%D7%A7%D7%91%D7%9C%D7%99%D7%9D-%D7%94%D7%99%D7%95%D7%9D-%D7%9E%D7%96%D7%9E%D7%99%D7%A0%D7%99%D7%9D-%D7%91%D7%99%D7%9E%D7%99%D7%9D-%D7%90-%D7%91-%D7%A2%D7%93/995460359602959/)) | `/he/online/search?q=` **UNVERIFIED**. Internal API (undocumented, Feb 2025 capture): POST `/api/catalog` body `{"q":"..","aggs":1,"store":"331"}` and POST `/api/v2/cart` with Rami's own numeric item ids, Bearer token + cookies required ([API notes](https://github.com/shilomagen/rami-levy-mcp/blob/main/Rami-Levy-API.md), [repo](https://github.com/shilomagen/rami-levy-mcp)). Ids are not barcodes; searching by barcode via `q`: **UNVERIFIED** |
-| Victory | https://www.victoryonline.co.il/ (linked from [victory.co.il](https://victory.co.il/)) | **UNVERIFIED** (not researched) |
-| Yohananof | https://yochananof.co.il/ ([site](https://yochananof.co.il/)) | **UNVERIFIED** |
-| Osher Ad | https://osherad.co.il/ ([site](https://osherad.co.il/en/osher-ad/)) | **UNVERIFIED** |
-| Hazi Hinam | https://shop.hazi-hinam.co.il/ (price files at `/Prices`) | **UNVERIFIED** |
-| Tiv Taam, Carrefour/Mega/Bitan, Keshet, Stop Market, Machsanei Hashuk | not researched | **UNVERIFIED** |
+| Rami Levy | rami-levy.co.il | Cart link (above) |
+| Tiv Taam, Victory, Fresh Market, Keshet, Machsanei Hashuk, Politzer, Carrefour | Stor.ai shops | Cart dialog (above) |
+| Shufersal | shufersal.co.il/online/he/ (SAP Hybris) | Product page only: `/online/he/p/P_<code>`, where code is the EAN without a leading `729000` and the zeros after it (7290000066318 -> `P_66318`; not official). Search by full EAN finds nothing. Cart needs a session cookie + CSRF token |
+| Yohananof | yochananof.co.il (Magento 2) | Search only: `/category?search=<EAN>` shows that product (SKU = EAN). Guest cart is in browser storage; no fill URL found |
+| Hazi Hinam | shop.hazi-hinam.co.il (custom) | Product page needs its internal id: `/catalog/products/<id>/<EAN>/<name>` |
+| Osher Ad, Stop Market | none (WordPress sites, no shop) | - |
+| Dor Alon, Salach Dabach | not confirmed | - |
 
-Practical plan: link out to the chain's shop home (or a text search the user can verify), show the barcode/name so the user can paste it, and treat true cart handoff as out of scope. Scraping/automating shops may breach site terms; not assessed.
+Grocer uses the two cart links; other shops get the shop home and the list on the clipboard. The cart's prices are the
+online shop's, not the compared branch's. Scraping or automating shops may breach site terms; not assessed.
 
 ## 7. Recommended ingestion approach
 

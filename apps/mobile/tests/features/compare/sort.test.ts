@@ -3,7 +3,7 @@ import { openSplit, saving, sortStores, type StoreResult } from "@/features/comp
 
 const store = (storeId: string, total: number, distanceKm: number, missing: number): StoreResult => ({
   storeId, chainId: "c", chainName: "C", storeName: storeId, address: "", city: "", lat: 0, lng: 0,
-  distanceKm, total, matched: 5 - missing, missingCodes: Array.from({ length: missing }, (_, i) => `m${i}`), items: [], orderUrl: null,
+  distanceKm, total, matched: 5 - missing, missingCodes: Array.from({ length: missing }, (_, i) => `m${i}`), items: [], orderUrl: null, fillsCart: false,
 });
 
 // a: cheap but missing 2; b: complete, pricier; c: complete, cheapest complete, far; d: like c but nearer

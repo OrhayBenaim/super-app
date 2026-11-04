@@ -36,11 +36,13 @@ export function BestStore({ store, basketSize, missing, saving, listText, onShow
   const order = async () => {
     if (!store.orderUrl) return;
     selected("order");
-    // No chain exposes add-to-cart links (docs/research/price-data.md §6): hand over the list via the clipboard.
-    await Clipboard.setStringAsync(listText);
-    setCopied(true);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setCopied(false), motion.duration.toast);
+    // A shop without a cart link gets the list via the clipboard (docs/research/price-data.md §6).
+    if (!store.fillsCart) {
+      await Clipboard.setStringAsync(listText);
+      setCopied(true);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), motion.duration.toast);
+    }
     await Linking.openURL(store.orderUrl);
   };
 

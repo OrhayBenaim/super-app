@@ -24,6 +24,8 @@ export type StoreResult = {
   /** Spend deals that apply: `total` is the lines less each `saving`; their lines (`codes`) keep their Shelf `lineTotal`. */
   basket?: BasketDeal[];
   orderUrl: string | null;
+  /** orderUrl puts this store's priced lines in the shop's cart (or one tap from it), so the list needs no copying. */
+  fillsCart: boolean;
 };
 export type BasketDeal = Promotion & { minPurchase: number; saving: number; codes: string[] };
 /** What a line prices, as the List's items name it (matchKey): a group line by its ref, a product line by its code. */
