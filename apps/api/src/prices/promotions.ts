@@ -186,23 +186,8 @@ function search(lines: LineOption[][]) {
 
 const isDeal = (p?: RunningPromotion) => (p?.minPurchase ?? 0) > 0;
 
-/**
- * Prices a store's List lines. `lines[l]` are line l's options, the no-Promotion one included. Each line takes one option
- * (at most one Promotion per unit); a Promotion pools the units of every line that took it (mix-and-match), and the
- * choice is the one with the lowest total. Line totals are rounded to agorot so the lines on one Promotion add up to
- * its rounded total. `hints` are the line's Promotions it didn't get because the List's Quantity of their products is
- * below their minimum. Info-only Promotions never enter the search: they are listed in the line's `info`. A line's
- * options may be different products (a Product group's members); its `hints` and `info` are the chosen product's.
- *
- * A spend deal (`minPurchase`) counts only when the lines not on its products (a group line counts as on them when one
- * of its members is) cost at least its minimum after their own Promotions. It stacks on the other lines' Promotions.
- * Its lines keep their Shelf totals and its saving is in `basket`.
- */
-export function priceLines(lines: LineOption[][]) {
-  const info = lines.map((options) => options.flatMap(({ code, promo: p }) => (p?.kind === "info" ? [{ code, id: p.id, description: p.description }] : [])));
-  const priced = lines.map((options) => options.filter((o) => o.promo?.kind !== "info"));
-  const withoutDeals = priced.map((options) => options.filter((o) => !isDeal(o.promo)));
-
+/** The cheapest choice of `priced` options (no info-only ones) with the spend deals that reach their minimum. */
+function chooseDeals(priced: LineOption[][]) {
   /** The cheapest choice with the spend deals `on` allowed; undefined when one it takes doesn't reach its minimum. */
   const withDeals = (on: RunningPromotion[]) => {
     const ids = new Set(on.map((d) => d.id));
@@ -229,8 +214,26 @@ export function priceLines(lines: LineOption[][]) {
       on.push(d);
     }
   }
+  return best;
+}
 
-  const { chosen, cost, pools } = best;
+/**
+ * Prices a store's List lines. `lines[l]` are line l's options, the no-Promotion one included. Each line takes one option
+ * (at most one Promotion per unit); a Promotion pools the units of every line that took it (mix-and-match), and the
+ * choice is the one with the lowest total. Line totals are rounded to agorot so the lines on one Promotion add up to
+ * its rounded total. `hints` are the line's Promotions it didn't get because the List's Quantity of their products is
+ * below their minimum. Info-only Promotions never enter the search: they are listed in the line's `info`. A line's
+ * options may be different products (a Product group's members); its `hints` and `info` are the chosen product's.
+ *
+ * A spend deal (`minPurchase`) counts only when the lines not on its products (a group line counts as on them when one
+ * of its members is) cost at least its minimum after their own Promotions. It stacks on the other lines' Promotions.
+ * Its lines keep their Shelf totals and its saving is in `basket`.
+ */
+export function priceLines(lines: LineOption[][]) {
+  const info = lines.map((options) => options.flatMap(({ code, promo: p }) => (p?.kind === "info" ? [{ code, id: p.id, description: p.description }] : [])));
+  const priced = lines.map((options) => options.filter((o) => o.promo?.kind !== "info"));
+  const withoutDeals = priced.map((options) => options.filter((o) => !isDeal(o.promo)));
+  const { chosen, cost, pools } = chooseDeals(priced);
   const shelf = (c: Chosen) => c.option.price * c.option.quantity;
   const lineTotal = chosen.map((c) => round2(isDeal(c.option.promo) ? shelf(c) : cost.get(c.line)!));
   const basket = [];
