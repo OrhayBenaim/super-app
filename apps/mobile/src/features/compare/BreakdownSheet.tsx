@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Info, Tag } from "lucide-react-native";
-import { ScrollView, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, ScrollView, View } from "react-native";
 import { lineDetail } from "@/features/items/labels";
 import { missingItems, useCurrentListId, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
@@ -38,6 +39,18 @@ function PromotionRow({ kind, text, label }: ReturnType<typeof promotionRows>[nu
   );
 }
 
+/** True once `on` has stayed on for `ms`, so a fast refetch never flashes a spinner. */
+function useAfter(on: boolean, ms: number) {
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    setLate(false);
+    if (!on) return;
+    const id = setTimeout(() => setLate(true), ms);
+    return () => clearTimeout(id);
+  }, [on, ms]);
+  return on && late;
+}
+
 /**
  * Sheet route app/breakdown: the Basket breakdown of the branch open on Compare (param `storeId`). A line per priced item (quantity × Shelf
  * price, line total; on a Promotion its text and label, the lowered total and the struck Shelf total; then the Promotions
@@ -48,7 +61,10 @@ export function BreakdownSheet() {
   const router = useRouter();
   const { storeId } = useLocalSearchParams<{ storeId: string }>();
   const list = useList(useCurrentListId(), { poll: false }).data;
-  const store = useCompareStores(list).find((s) => s.storeId === storeId); // Compare's cached result
+  const { colors } = useTheme();
+  const { stores, updating } = useCompareStores(list); // Compare's cached result
+  const spinning = useAfter(updating, 250);
+  const store = stores.find((s) => s.storeId === storeId);
   if (!store) return null;
   const { priced, basket, notHere, unmatched } = breakdown(missingItems(list), store);
   const missing = notHere.length + unmatched.length;
@@ -99,7 +115,7 @@ export function BreakdownSheet() {
               trailing={price(deal.saving, "saving", `\u2066−${shekels(deal.saving)}\u2069`)}
             />
           ))}
-          <Row title={t("compare.breakdown.total")} detail={fmt(t("compare.breakdown.count"), { n: priced.length })} trailing={price(store.total)} />
+          <Row title={t("compare.breakdown.total")} detail={fmt(t("compare.breakdown.count"), { n: priced.length })} trailing={spinning ? <ActivityIndicator color={colors.labelSecondary} /> : price(store.total)} />
         </Group>
         {missing > 0 && (
           <Group title={fmt(t("compare.missingCount"), { n: missing })}>
