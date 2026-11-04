@@ -104,11 +104,12 @@ export function cardsOf(db: Db, products: Priced[], storeIds: string[] | null): 
 /**
  * A Promotions card: a group card of the Products on a Promotion, headlined by its lowest Promotion price per kilo, liter
  * or pack (`promoPrice`, null when none can be worked out) with that offer's Shelf price, saving in percent, kind,
- * audience (Restricted when not "all") and text. `chainCount` = the Chains running a Promotion on its Products.
+ * reward (`kind`, `minQty`, `amount`: the app words it), audience (Restricted when not "all") and Hebrew text (an
+ * info-only one: the Chain's description). `type` is its Product type; `chainCount` = the Chains running a Promotion on it.
  */
 export type PromoCard = Card & {
-  promoPrice: number | null; shelfPrice: number | null; saving: number | null; kind: PromotionKind; audience: Audience; text: string;
-  chainCount: number;
+  type: ProductType; promoPrice: number | null; shelfPrice: number | null; saving: number | null;
+  kind: PromotionKind; minQty: number; amount: number; audience: Audience; text: string; chainCount: number;
 };
 
 type Offer = { code: string; chainId: string; promo: RunningPromotion; shelf: number; off: ReturnType<typeof promotionPrice> };
@@ -143,10 +144,13 @@ export function promotionCards(db: Db, storeIds: string[], now: Date, { type, ch
     ) as [(typeof mine)[number]];
     return {
       ...card,
+      type: byCode.get(card.code)!.type, // a group's Products share a type
       promoPrice: best.each === null ? null : round2(best.each),
       shelfPrice: best.each === null ? null : round2(best.shelf / perUnit(best.code)),
       saving: best.off?.saving ?? null,
       kind: best.promo.kind,
+      minQty: best.promo.minQty,
+      amount: best.promo.amount,
       audience: best.promo.audience,
       text: promotionText(best.promo, best.shelf),
       chainCount: new Set(mine.map((o) => o.chainId)).size,

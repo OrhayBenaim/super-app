@@ -142,7 +142,7 @@ beforeAll(async () => {
 });
 
 type PromoCard = {
-  ref: string; name: string; codes: string[]; promoPrice: number | null; shelfPrice: number | null; saving: number | null;
+  ref: string; name: string; codes: string[]; type: string; minQty: number; amount: number; promoPrice: number | null; shelfPrice: number | null; saving: number | null;
   kind: string; audience: string; text: string; chainCount: number;
 };
 const near = `lat=${here.lat}&lng=${here.lng}&radiusKm=10`;
@@ -169,13 +169,13 @@ describe("GET /api/browse/promotions", () => {
 
   it("headlines the lowest Promotion price with its Shelf price, and says when it is Restricted and to what", async () => {
     expect((await cards()).find((c) => c.ref === "חלב|l")).toMatchObject({
-      promoPrice: 4.5, shelfPrice: 6.5, saving: 31, kind: "price", audience: "card", text: "₪4.50 במקום ₪6.50", chainCount: 2,
+      type: "dairy-eggs", promoPrice: 4.5, shelfPrice: 6.5, saving: 31, kind: "price", minQty: 1, amount: 4.5, audience: "card", text: "₪4.50 במקום ₪6.50", chainCount: 2,
     });
   });
 
   it("prices a pack group per kilo or liter, a set Promotion averaged over its set", async () => {
     expect((await cards()).find((c) => c.ref === "במבה|kg")).toMatchObject({
-      promoPrice: 37.5, shelfPrice: 50, saving: 25, kind: "bundle", audience: "all", text: "3 ב-₪9", chainCount: 1,
+      type: "snacks-sweets", promoPrice: 37.5, shelfPrice: 50, saving: 25, kind: "bundle", minQty: 3, amount: 9, audience: "all", text: "3 ב-₪9", chainCount: 1,
     });
   });
 
