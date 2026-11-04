@@ -43,8 +43,12 @@ How an item's Quantity is measured, `unit` or `weight`, taken from what it is ma
 _Avoid_: Unit type, measure (a product's measure is kilo, liter or unit)
 
 **Basket breakdown**:
-The per-line view of one store's Compare total: each item's Quantity × its price there, then the items that store does not price and the items with no match.
-_Avoid_: Receipt, what's missing
+The per-line view of one store's Compare total: each item's Quantity × its price there, then that store's Missing items.
+_Avoid_: Receipt, what's missing, cart
+
+**Missing item**:
+An item on the List that a store's Compare total leaves out: the store does not price what it is matched to, or it has no match. An item that is missing at one store can be priced at another. Re-matching a Missing item changes its match for every store, not only the one where it was missing.
+_Avoid_: Unavailable item, out of stock (Grocer only knows what a store prices, not what is on its shelf)
 
 ### Prices
 
