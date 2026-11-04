@@ -7,8 +7,11 @@ import { sentryErrorHandler } from "#/providers/sentry/sentry.ts";
 // Nothing listens on port 9; the event processor drops every event before it is sent anyway.
 const errorHandler = sentryErrorHandler({ dsn: "http://key@127.0.0.1:9/1", environment: "test" });
 const events: Sentry.Event[] = [];
+const warnings: Sentry.Event[] = [];
 Sentry.addEventProcessor((event) => {
-  if (event.exception) events.push(event);
+  // Message events carry a synthetic exception too, so tell them apart by level first.
+  if (event.level === "warning") warnings.push(event);
+  else if (event.exception) events.push(event);
   return null;
 });
 
@@ -48,4 +51,15 @@ it("keeps each request's user and continues the caller's trace, even when reques
   await vi.waitFor(() => expect(events).toHaveLength(2));
   const seen = events.map((e) => [e.user?.id, e.contexts?.trace?.trace_id]).sort();
   expect(seen).toEqual([["dana", trace("1")], ["eli", trace("2")]]);
+});
+
+it("warn sends a warning-level message with each detail as JSON text in extra", async () => {
+  const unpriced = { "RewardType 2": { "5": ["1", "2"] } };
+  errorHandler.warn("Promotions Grocer could not read: osher-ad", { unpriced, unknownLayout: ["PromoFull1.xml"] });
+  await vi.waitFor(() => expect(warnings).toHaveLength(1));
+  const [event] = warnings;
+  expect(event!.level).toBe("warning");
+  expect(event!.message).toBe("Promotions Grocer could not read: osher-ad");
+  expect(event!.extra).toMatchObject({ unpriced: JSON.stringify(unpriced), unknownLayout: JSON.stringify(["PromoFull1.xml"]) });
+  expect(events).toHaveLength(2);
 });
