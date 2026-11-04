@@ -150,6 +150,8 @@ export type ParsedPromotion = (PromotionReward | { kind: "info"; minQty: 0; amou
   endsAt: number;
   days: string | null;
   limitQty: number | null;
+  minPurchase: number | null; // a spend deal: the rest of the List must cost this much (CONTEXT.md "Promotion")
+  combines: boolean; // AllowMultipleDiscounts: whether a spend deal stacks on the rest of the List's Promotions
   codes: string[];
 };
 
@@ -230,6 +232,14 @@ function weightedReward(type: string, minQty: number, price: number): PromotionR
   return `weighted MinQty ${minQty}: per kilo or per pack unclear`;
 }
 
+const minPurchaseOf = (rows: Node[], g: number) => Math.max(0, ...rows.map((r) => num(r.groups.group[g]?.minpurchaseamount) ?? 0));
+/**
+ * A spend condition: a group with a MinPurchaseAmount on the whole store (item 0000000000000, RewardType 0) whose other
+ * rows (RewardType 12) name the deal's own products, which don't count toward it (Stop Market, Carrefour, Yohananof).
+ */
+const isSpendCondition = (rows: Node[], items: Node[], g: number) =>
+  minPurchaseOf(rows, g) > 0 && items.some((i) => /^0+$/.test(str(i.itemcode))) && items.every((i) => ["0", "12"].includes(str(i.rewardtype)));
+
 const weekdays = (v: unknown) => {
   const days = [...new Set(str(v).split(",").map((d) => d.trim()).filter((d) => /^[1-7]$/.test(d)))].sort().join(",");
   return days === "" || days === "1,2,3,4,5,6,7" ? null : days;
@@ -261,8 +271,11 @@ export function parsePromotions(xml: string, chainKey: string) {
     const idRows = [p!, ...more];
     const groupCount = Math.max(...idRows.map((row) => row.groups.group.length));
     const groups = Array.from({ length: groupCount }, (_, g) => idRows.flatMap((row): Node[] => row.groups.group[g]?.promotionitems?.promotionitem ?? []));
-    const items = groups[0]!;
-    const reward = (groupCount === 2 && nthReward(idRows, groups)) || groupedReward(groupCount, items);
+    // A spend deal is one group with a minimum, or a spend condition group beside the reward group (either order).
+    const cond = groupCount === 2 ? [0, 1].find((g) => isSpendCondition(idRows, groups[g]!, g)) : undefined;
+    const items = groups[cond === undefined ? 0 : 1 - cond]!;
+    const reward = cond !== undefined ? groupedReward(1, items) : (groupCount === 2 && nthReward(idRows, groups)) || groupedReward(groupCount, items);
+    const minPurchase = cond !== undefined ? minPurchaseOf(idRows, cond) : groupCount === 1 ? minPurchaseOf(idRows, 0) : 0;
     const [startsAt, endsAt] = [fromJerusalem(str(p!.promotionstartdatetime)), fromJerusalem(str(p!.promotionenddatetime))];
     if (Number.isNaN(startsAt) || Number.isNaN(endsAt)) {
       unpriced.push({ promotionId, kind: "unreadable dates" });
@@ -280,6 +293,8 @@ export function parsePromotions(xml: string, chainKey: string) {
       endsAt,
       days: weekdays(p!.promotiondays),
       limitQty: limit && limit > 0 ? limit : null,
+      minPurchase: minPurchase > 0 ? minPurchase : null,
+      combines: num(p!.allowmultiplediscounts) !== 0,
       codes: [...new Set(items.map((i) => str(i.itemcode)).filter(Boolean))],
     });
   }

@@ -15,6 +15,8 @@ export type RunningPromotion = {
   audience: Audience;
   limitQty: number | null;
   weighted: 0 | 1; // the product is weighed, so Quantity, minQty and limitQty are kilos
+  minPurchase: number | null; // a spend deal: counts only when the rest of the List costs this much
+  combines: 0 | 1; // 0: a spend deal leaves the rest of the List at Shelf prices
 };
 
 /** The Promotions on `codes` at `storeIds` running at `now` (start, end, Israeli weekday), by `${storeId} ${code}`. */
@@ -22,7 +24,7 @@ export function runningPromotions(db: Db, storeIds: string[], codes: string[], n
   const rows = db.$client
     .prepare(
       `SELECT p.store_id AS storeId, pi.code, p.promotion_id AS id, p.kind, p.description, p.min_qty AS minQty, p.amount, p.audience, p.limit_qty AS limitQty,
-         COALESCE(pr.is_weighted, 0) AS weighted
+         p.min_purchase AS minPurchase, p.combines, COALESCE(pr.is_weighted, 0) AS weighted
        FROM promotion_items pi JOIN promotions p ON p.id = pi.promotion_id LEFT JOIN products pr ON pr.code = pi.code
        WHERE pi.code IN (SELECT value FROM json_each(?)) AND p.store_id IN (SELECT value FROM json_each(?))
          AND p.starts_at <= ? AND p.ends_at > ? AND (p.days IS NULL OR instr(',' || p.days || ',', ?) > 0)`,
@@ -116,7 +118,14 @@ function textOf(p: RunningPromotion, price: number) {
       return p.description;
   }
 }
-const applied = (p: RunningPromotion, price: number) => ({ id: p.id, kind: p.kind, minQty: p.minQty, amount: p.amount, audience: p.audience, text: textOf(p, price) });
+const applied = (p: RunningPromotion, price: number) => ({
+  id: p.id,
+  kind: p.kind,
+  minQty: p.minQty,
+  amount: p.amount,
+  audience: p.audience,
+  text: textOf(p, price) + (p.minPurchase ? ` מעל ${shekels(p.minPurchase)}` : ""),
+});
 export type AppliedPromotion = ReturnType<typeof applied>;
 
 // shortcut: past this many combinations in one group of linked lines, a local search replaces the exhaustive one;
@@ -159,17 +168,8 @@ function cheapest(lines: LineOption[][], group: number[]) {
   return best;
 }
 
-/**
- * Prices a store's List lines. `lines[l]` are line l's options, the no-Promotion one included. Each line takes one option
- * (at most one Promotion per unit); a Promotion pools the units of every line that took it (mix-and-match), and the
- * choice is the one with the lowest total. Line totals are rounded to agorot so the lines on one Promotion add up to
- * its rounded total. `hints` are the line's Promotions it didn't get because the List's Quantity of their products is
- * below their minimum. Info-only Promotions never enter the search: they are listed in the line's `info`.
- */
-export function priceLines(withInfo: LineOption[][]) {
-  const info = withInfo.map((options) => options.flatMap(({ promo: p }) => (p?.kind === "info" ? [{ id: p.id, description: p.description }] : [])));
-  const lines = withInfo.map((options) => options.filter((o) => o.promo?.kind !== "info"));
-  // Lines sharing a Promotion are searched together; the others alone.
+/** The option index per line with the lowest total: lines sharing a Promotion are searched together, the others alone. */
+function search(lines: LineOption[][]) {
   const root = lines.map((_, i) => i);
   const find = (i: number): number => (root[i] === i ? i : (root[i] = find(root[i]!)));
   const covering = new Map<string, number[]>();
@@ -179,25 +179,82 @@ export function priceLines(withInfo: LineOption[][]) {
   lines.forEach((_, l) => groups.set(find(l), [...(groups.get(find(l)) ?? []), l]));
   const pick = lines.map(() => 0);
   for (const group of groups.values()) cheapest(lines, group).forEach((k, j) => (pick[group[j]!] = k));
+  return lines.map((options, l) => ({ line: l, option: options[pick[l]!]! }));
+}
 
-  const chosen = lines.map((options, l) => ({ line: l, option: options[pick[l]!]! }));
-  const { out, pools } = costs(chosen);
-  const lineTotal = chosen.map((c) => round2(out.get(c.line)!));
+const isDeal = (p?: RunningPromotion) => (p?.minPurchase ?? 0) > 0;
+
+/**
+ * Prices a store's List lines. `lines[l]` are line l's options, the no-Promotion one included. Each line takes one option
+ * (at most one Promotion per unit); a Promotion pools the units of every line that took it (mix-and-match), and the
+ * choice is the one with the lowest total. Line totals are rounded to agorot so the lines on one Promotion add up to
+ * its rounded total. `hints` are the line's Promotions it didn't get because the List's Quantity of their products is
+ * below their minimum. Info-only Promotions never enter the search: they are listed in the line's `info`.
+ *
+ * A spend deal (`minPurchase`) counts only when the lines not on its products cost at least its minimum after their own
+ * Promotions. One that doesn't combine is only taken alone, with every other line at its Shelf price. Its lines keep
+ * their Shelf totals and its saving is in `basket`.
+ */
+export function priceLines(withInfo: LineOption[][]) {
+  const info = withInfo.map((options) => options.flatMap(({ promo: p }) => (p?.kind === "info" ? [{ id: p.id, description: p.description }] : [])));
+  const all = withInfo.map((options) => options.filter((o) => o.promo?.kind !== "info"));
+  const plain = all.map((options) => options.filter((o) => !isDeal(o.promo)));
+
+  /** The cheapest choice with the spend deals `on` allowed; undefined when one it takes doesn't reach its minimum. */
+  const withDeals = (on: RunningPromotion[]) => {
+    const ids = new Set(on.map((d) => d.id));
+    const alone = on.some((d) => !d.combines);
+    const chosen = search(all.map((options) => options.filter((o) => !o.promo || ids.has(o.promo.id) || (!alone && !isDeal(o.promo)))));
+    const { out, pools } = costs(chosen);
+    const cost = (cs: Chosen[]) => cs.reduce((a, c) => a + out.get(c.line)!, 0);
+    const rest = (id: string) => cost(chosen.filter((c) => !all[c.line]!.some((o) => o.promo?.id === id)));
+    const reached = [...pools].every(([id, [c]]) => !isDeal(c!.option.promo) || rest(id) >= c!.option.promo!.minPurchase! - EPS);
+    return reached ? { chosen, out, pools, total: cost(chosen) } : undefined;
+  };
+  // Greedy: each spend deal that lowers the total on its own, best first, kept while all kept still reach their minimums.
+  const deals = [...new Map(all.flat().flatMap((o) => (isDeal(o.promo) ? [[o.promo!.id, o.promo!] as const] : []))).values()];
+  let best = withDeals([])!;
+  const alone = deals
+    .map((d) => ({ d, r: withDeals([d]) }))
+    .filter((t) => t.r && t.r.total < best.total - EPS)
+    .sort((a, b) => a.r!.total - b.r!.total);
+  const on: RunningPromotion[] = [];
+  for (const { d } of alone.filter((t) => t.d.combines)) {
+    const r = withDeals([...on, d]);
+    if (r && r.total < best.total - EPS) {
+      best = r;
+      on.push(d);
+    }
+  }
+  for (const { r } of alone) if (r!.total < best.total - EPS) best = r!;
+
+  const { chosen, out, pools } = best;
+  const shelf = (c: Chosen) => c.option.price * c.option.quantity;
+  const lineTotal = chosen.map((c) => round2(isDeal(c.option.promo) ? shelf(c) : out.get(c.line)!));
+  const basket = [];
   for (const pool of pools.values()) {
-    const saving = pool.filter((c) => out.get(c.line)! < c.option.price * c.option.quantity - EPS);
+    const saving = pool.filter((c) => out.get(c.line)! < shelf(c) - EPS);
     if (!saving.length) continue;
     const exact = round2(pool.reduce((a, c) => a + out.get(c.line)!, 0));
+    const shown = pool.reduce((a, c) => a + lineTotal[c.line]!, 0);
+    const p = pool[0]!.option.promo!;
+    if (isDeal(p)) {
+      basket.push({ ...applied(p, pool[0]!.option.price), minPurchase: p.minPurchase!, saving: round2(shown - exact), codes: pool.map((c) => c.option.code) });
+      continue;
+    }
     const largest = saving.reduce((a, c) => (out.get(c.line)! > out.get(a.line)! ? c : a));
-    lineTotal[largest.line] = round2(lineTotal[largest.line]! + exact - pool.reduce((a, c) => a + lineTotal[c.line]!, 0));
+    lineTotal[largest.line] = round2(lineTotal[largest.line]! + exact - shown);
   }
-  const listQuantity = (id: string) => [...new Set(covering.get(id))].reduce((a, l) => a + lines[l]!.find((o) => o.promo?.id === id)!.quantity, 0);
-  return chosen.map(({ option }, l) => {
-    const promo = option.promo && out.get(l)! < option.price * option.quantity - EPS ? option.promo : undefined;
+  const listQuantity = (id: string) => plain.reduce((a, options) => a + (options.find((o) => o.promo?.id === id)?.quantity ?? 0), 0);
+  const lines = chosen.map(({ option }, l) => {
+    const promo = option.promo && !isDeal(option.promo) && out.get(l)! < shelf(chosen[l]!) - EPS ? option.promo : undefined;
     // A hint only for a set Promotion (price and percent have no minimum) that would save something at its minimum.
     const saves = (o: LineOption) => poolCosts(o.promo!, [{ line: 0, option: { ...o, quantity: o.promo!.minQty } }])[0]! < o.price * o.promo!.minQty - EPS;
     const sets = (o: LineOption) => o.promo && o.promo.kind !== "price" && o.promo.kind !== "percent";
-    const short = lines[l]!.filter((o) => sets(o) && o.promo!.id !== promo?.id && o.promo!.minQty > listQuantity(o.promo!.id) + EPS && saves(o));
+    const short = plain[l]!.filter((o) => sets(o) && o.promo!.id !== promo?.id && o.promo!.minQty > listQuantity(o.promo!.id) + EPS && saves(o));
     const hints = [...new Map(short.map((o) => [o.promo!.id, applied(o.promo!, o.price)])).values()];
     return { option, lineTotal: lineTotal[l]!, ...(promo ? { promotion: applied(promo, option.price) } : {}), ...(hints.length ? { hints } : {}), ...(info[l]!.length ? { info: info[l] } : {}) };
   });
+  return { lines, basket };
 }
+export type BasketDeal = ReturnType<typeof priceLines>["basket"][number];

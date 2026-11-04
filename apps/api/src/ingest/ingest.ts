@@ -110,15 +110,15 @@ export function ingestPromotions(deps: IngestDeps, chainKey: string, xml: string
   if (!storeId) return { layout: parsed.layout, store: parsed.storeId, loaded: 0, unpriced: [] };
   const update = parseFileName(basename(fileName))?.type === "promo";
   const insertPromotion = sqlite.prepare(
-    `INSERT INTO promotions (store_id, promotion_id, description, kind, min_qty, amount, audience, starts_at, ends_at, days, limit_qty)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO promotions (store_id, promotion_id, description, kind, min_qty, amount, audience, starts_at, ends_at, days, limit_qty, min_purchase, combines)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const insertItem = sqlite.prepare("INSERT OR IGNORE INTO promotion_items (promotion_id, code) VALUES (?, ?)");
   sqlite.transaction(() => {
     if (update) sqlite.prepare("DELETE FROM promotions WHERE store_id = ? AND promotion_id IN (SELECT value FROM json_each(?))").run(storeId, JSON.stringify(parsed.ids));
     else sqlite.prepare("DELETE FROM promotions WHERE store_id = ?").run(storeId);
     for (const p of parsed.promotions) {
-      const { lastInsertRowid } = insertPromotion.run(storeId, p.promotionId, p.description, p.kind, p.minQty, p.amount, p.audience, p.startsAt, p.endsAt, p.days, p.limitQty);
+      const { lastInsertRowid } = insertPromotion.run(storeId, p.promotionId, p.description, p.kind, p.minQty, p.amount, p.audience, p.startsAt, p.endsAt, p.days, p.limitQty, p.minPurchase, p.combines ? 1 : 0);
       for (const code of p.codes) insertItem.run(lastInsertRowid, productCode(chainId, code));
     }
   })();
