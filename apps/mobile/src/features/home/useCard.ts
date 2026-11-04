@@ -8,7 +8,7 @@ import { t } from "@/lib/strings";
 import { cardSend, cardView, type CardTarget } from "./card";
 
 /** Where the card was tapped, for analytics. */
-export type CardScreen = "home";
+export type CardScreen = "home" | "promotions";
 
 /**
  * A card's stepper and action against the current List's `items`: the stepper does nothing until Add or Update, which

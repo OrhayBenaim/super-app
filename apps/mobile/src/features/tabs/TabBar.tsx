@@ -1,14 +1,14 @@
 import * as Haptics from "expo-haptics";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
-import { ChartColumn, House, ListChecks, type LucideIcon } from "lucide-react-native";
+import { ChartColumn, House, ListChecks, Tag, type LucideIcon } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Taps, trackTap, type TapName } from "@/lib/analytics";
 import { useTheme } from "@/theme";
 import { Text } from "@/ui";
 
 // Keyed by route name; Home is a group so it can push pages inside its tab.
-const ICONS: Record<string, LucideIcon> = { "(home)": House, list: ListChecks, compare: ChartColumn };
-const TAPS: Record<string, TapName> = { "(home)": Taps.tabHome, list: Taps.tabList, compare: Taps.tabCompare };
+const ICONS: Record<string, LucideIcon> = { "(home)": House, list: ListChecks, promotions: Tag, compare: ChartColumn };
+const TAPS: Record<string, TapName> = { "(home)": Taps.tabHome, list: Taps.tabList, promotions: Taps.tabPromotions, compare: Taps.tabCompare };
 
 /** Standard iOS tab bar: Lucide icon over a Caption label; selected = tint, others Secondary Label; top hairline. */
 export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: BottomTabBarProps) {

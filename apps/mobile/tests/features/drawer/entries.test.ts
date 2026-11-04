@@ -4,7 +4,7 @@ import { currentEntry, DRAWER_SECTIONS } from "@/features/drawer/entries";
 describe("drawer entries", () => {
   it("lists the sections in order with their entries", () => {
     expect(DRAWER_SECTIONS.map((s) => [s.key, s.entries.map((e) => e.key)])).toEqual([
-      ["shopping", ["home", "list", "compare"]],
+      ["shopping", ["home", "list", "promotions", "compare"]],
       ["lists", ["share", "recent", "items"]],
       ["account", ["settings"]],
     ]);
@@ -14,6 +14,7 @@ describe("drawer entries", () => {
     expect(currentEntry("/")).toBe("home");
     expect(currentEntry("/list")).toBe("list");
     expect(currentEntry("/type/dairy-eggs")).toBe("home");
+    expect(currentEntry("/promotions")).toBe("promotions");
     expect(currentEntry("/compare")).toBe("compare");
     expect(currentEntry("/items")).toBe("items");
     expect(currentEntry("/settings")).toBe("settings");

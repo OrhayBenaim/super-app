@@ -70,6 +70,7 @@ export const Taps = {
   drawerItems: "drawer.items",
   drawerList: "drawer.list",
   drawerMenu: "drawer.menu",
+  drawerPromotions: "drawer.promotions",
   drawerRecent: "drawer.recent",
   drawerSettings: "drawer.settings",
   drawerShare: "drawer.share",
@@ -109,6 +110,16 @@ export const Taps = {
   listToList: "list.toList",
   listsJoin: "lists.join",
   listsPick: "lists.pick",
+  promotionsChain: "promotions.chain",
+  promotionsChainClose: "promotions.chain.close",
+  promotionsChainPick: "promotions.chain.pick",
+  promotionsClearFilter: "promotions.clearFilter",
+  promotionsEmptyRadius: "promotions.empty.radius",
+  promotionsLocationAllow: "promotions.location.allow",
+  promotionsLocationRetry: "promotions.location.retry",
+  promotionsLocationSettings: "promotions.location.settings",
+  promotionsRetry: "promotions.retry",
+  promotionsType: "promotions.type",
   quantityCancel: "quantity.cancel",
   quantityLess: "quantity.less",
   quantityMore: "quantity.more",
@@ -128,6 +139,7 @@ export const Taps = {
   tabCompare: "tab.compare",
   tabHome: "tab.home",
   tabList: "tab.list",
+  tabPromotions: "tab.promotions",
 } as const;
 export type TapName = (typeof Taps)[keyof typeof Taps];
 

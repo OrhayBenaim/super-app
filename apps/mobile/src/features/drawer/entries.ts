@@ -1,11 +1,10 @@
 import { Taps, type TapName } from "@/lib/analytics";
 import type { StringKey } from "@/lib/strings";
 
-export type DrawerEntryKey = "home" | "list" | "compare" | "share" | "recent" | "items" | "settings";
-export type DrawerEntry = { key: DrawerEntryKey; label: StringKey; tap: TapName; href: "/" | "/list" | "/compare" | "/share" | "/recent" | "/items" | "/settings" };
+export type DrawerEntryKey = "home" | "list" | "promotions" | "compare" | "share" | "recent" | "items" | "settings";
+export type DrawerEntry = { key: DrawerEntryKey; label: StringKey; tap: TapName; href: "/" | "/list" | "/promotions" | "/compare" | "/share" | "/recent" | "/items" | "/settings" };
 export type DrawerSection = { key: "shopping" | "lists" | "account"; title: StringKey; entries: DrawerEntry[] };
 
-/** Promotions joins Shopping with its own ticket. */
 export const DRAWER_SECTIONS: DrawerSection[] = [
   {
     key: "shopping",
@@ -13,6 +12,7 @@ export const DRAWER_SECTIONS: DrawerSection[] = [
     entries: [
       { key: "home", label: "tabs.home", tap: Taps.drawerHome, href: "/" },
       { key: "list", label: "tabs.list", tap: Taps.drawerList, href: "/list" },
+      { key: "promotions", label: "tabs.promotions", tap: Taps.drawerPromotions, href: "/promotions" },
       { key: "compare", label: "tabs.compare", tap: Taps.drawerCompare, href: "/compare" },
     ],
   },
