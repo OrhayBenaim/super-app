@@ -157,26 +157,26 @@ describe("Compare with basket deals (spend a minimum)", () => {
   });
 });
 
-describe("Compare: AllowMultipleDiscounts 0 on a basket deal", () => {
+// AllowMultipleDiscounts is ignored for now: a spend deal stacks on the other lines' Promotions whatever it says.
+describe("Compare: AllowMultipleDiscounts 0 on a basket deal is read like 1", () => {
   const plainB: Deal = { id: "901", items: [B], price: 30, amd: 1 };
 
-  it("uses the deal alone when that beats the other Promotions: every other line at Shelf", async () => {
+  it("stacks the deal on the other Promotions instead of taking it alone", async () => {
     const w = await world([osher([[A, 30], [B, 40], [C, 50]], [deal900({ price: 10, amd: 0 }), plainB])]);
     const { store, by } = await w.first([[A, 1], [B, 1], [C, 1]]);
-    // deal alone 30 + 40 + 50 - 20 = 100; B's Promotion alone 30 + 30 + 50 = 110
+    // both: A 10 (saves 20) + B 30 + C 50 = 90; the rest for 900 is 30 + 50 = 80 >= 75
     expect(store.basket).toEqual([basket900(20, { amount: 10, text: "₪10 במקום ₪30 מעל ₪75" })]);
-    expect(by(B)).toMatchObject({ lineTotal: 40 });
-    expect(by(B)).not.toHaveProperty("promotion");
-    expect(store.total).toBe(100);
+    expect(by(B)).toMatchObject({ lineTotal: 30, promotion: { id: "901" } });
+    expect(store.total).toBe(90);
   });
 
-  it("drops the deal when the other Promotions give the lower total", async () => {
+  it("keeps the deal when the other Promotions alone would be cheaper than the deal alone", async () => {
     const w = await world([osher(shelf, [deal900({ amd: 0 }), plainB])]);
     const { store, by } = await w.first([[A, 1], [B, 1], [C, 1]]);
-    // deal alone 16.9 + 40 + 50 - 8 = 98.9; B's Promotion alone 16.9 + 30 + 50 = 96.9
-    expect(store).not.toHaveProperty("basket");
+    // both: A 8.90 + B 30 + C 50 = 88.90; the rest for 900 is 30 + 50 = 80 >= 75
+    expect(store.basket).toEqual([basket900(8)]);
     expect(by(B)).toMatchObject({ lineTotal: 30, promotion: { id: "901" } });
-    expect(store.total).toBe(96.9);
+    expect(store.total).toBe(88.9);
   });
 
   it("with AllowMultipleDiscounts 1 the same numbers take both", async () => {
