@@ -3,7 +3,8 @@ import { basename } from "node:path";
 import type { Deps } from "#/deps.ts";
 import { chainByKey } from "#/ingest/chains.ts";
 import { parseFileName, storeOfFileName } from "#/ingest/files.ts";
-import { decodeXml, isGtin, parsePrices, parsePromotions, parseStores } from "#/ingest/parse.ts";
+import { decodeXml, isGtin, parsePrices, parseStores } from "#/ingest/parse.ts";
+import { parsePromotions } from "#/ingest/parse-promotions.ts";
 
 type IngestDeps = Pick<Deps, "db" | "clock">;
 
