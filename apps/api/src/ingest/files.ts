@@ -20,21 +20,39 @@ export function storeOfFileName(file: string) {
   return segments.length > 1 ? id(segments.at(-1)) : null;
 }
 
-/**
- * Newest Stores file plus the newest PriceFull of the first `maxStores` stores (by file key), only for `chainIds`
- * (Keshet's account also lists a 2024 Carrefour file).
- */
-export function pickFiles(files: PriceFile[], maxStores: number, chainIds: string[]) {
-  const newest = new Map<string, PriceFile & ParsedName>();
+export type PickedFile = PriceFile & ParsedName & { update?: PriceFile & ParsedName };
+
+/** The newest file of `type` per file key, only for `chainIds` (Keshet's account also lists a 2024 Carrefour file). */
+function newestOfType(files: PriceFile[], chainIds: string[], type: string) {
+  const newest = new Map<string, PickedFile>();
   for (const f of files) {
     const p = parseFileName(f.name);
-    if (!p || (p.type !== "stores" && p.type !== "pricefull") || !chainIds.some((id) => p.key.startsWith(id))) continue;
-    const k = p.type === "stores" ? "stores" : p.key;
-    if ((newest.get(k)?.ts ?? "") < p.ts) newest.set(k, { ...f, ...p });
+    if (p?.type === type && chainIds.some((id) => p.key.startsWith(id)) && (newest.get(p.key)?.ts ?? "") < p.ts) newest.set(p.key, { ...f, ...p });
   }
-  const stores = newest.get("stores");
-  newest.delete("stores");
-  const prices = [...newest.keys()].sort().slice(0, maxStores).map((k) => newest.get(k)!);
+  return newest;
+}
+
+/**
+ * Per store (file key), the newest `fullType` file ("pricefull", "promofull") with, as `update`, the newest `updateType`
+ * file ("price", "promo") timestamped after it. Update files hold every change since that day's full file, so the newest
+ * one is enough; one older than the full file belongs to an earlier day.
+ */
+export function newestFullAndUpdate(files: PriceFile[], chainIds: string[], fullType: string, updateType: string) {
+  const updates = newestOfType(files, chainIds, updateType);
+  const full = newestOfType(files, chainIds, fullType);
+  for (const [k, f] of full) {
+    const u = updates.get(k);
+    if (u && u.ts > f.ts) f.update = u;
+  }
+  return full;
+}
+
+/** Newest Stores file plus the newest PriceFull (with its newest update) of the first `maxStores` stores, by file key. */
+export function pickFiles(files: PriceFile[], maxStores: number, chainIds: string[]) {
+  let stores: PickedFile | undefined;
+  for (const s of newestOfType(files, chainIds, "stores").values()) if ((stores?.ts ?? "") < s.ts) stores = s;
+  const full = newestFullAndUpdate(files, chainIds, "pricefull", "price");
+  const prices = [...full.keys()].sort().slice(0, maxStores).map((k) => full.get(k)!);
   return { stores, prices };
 }
 

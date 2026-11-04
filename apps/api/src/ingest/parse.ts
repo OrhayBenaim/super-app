@@ -3,7 +3,7 @@ import { gunzipSync } from "node:zlib";
 import { XMLParser } from "fast-xml-parser";
 import { unzipSync } from "fflate";
 
-type Node = Record<string, any>;
+export type Node = Record<string, any>;
 
 /** Decompresses by magic bytes (gzip, zip named .gz) and decodes by BOM (UTF-16LE/BE, UTF-8). */
 export function decodeXml(buf: Buffer): string {
@@ -35,14 +35,15 @@ function root(xml: string): Node {
   return r;
 }
 
-const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+export const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 // Real files fill blanks with "לא ידוע" / "Unknown" / "unknown", or bare punctuation: "," (Keshet, Stop Market), "---" (Shufersal).
 const known = (v: unknown) => (/^(לא ידוע|unknown)$/i.test(str(v)) || !/[\p{L}\p{N}]/u.test(str(v)) ? "" : str(v));
 export const id = (v: unknown) => str(v).replace(/^0+(?=\d)/, ""); // "034" and "34" are the same store
-const num = (v: unknown) => {
+export const num = (v: unknown) => {
   const n = Number(str(v));
   return str(v) === "" || !Number.isFinite(n) ? null : n;
 };
+export const isWeighted = (v: unknown) => /^(1|true)$/i.test(str(v));
 
 // CBS locality codes, the most common City values in real Stores files (2026-11-01), each checked against store names.
 // shortcut: other codes stay numeric ("0" = unknown becomes ""); load the full CBS list when that matters.
@@ -101,6 +102,8 @@ export type ParsedItem = {
   isWeighted: boolean;
   price: number;
   unitPrice: number | null;
+  /** `ItemStatus` 0: an update file's way of saying the store no longer sells it (such rows may carry no price). */
+  removed: boolean;
 };
 
 export function parsePrices(xml: string): { chainId: string; storeId: string; items: ParsedItem[] } {
@@ -110,16 +113,18 @@ export function parsePrices(xml: string): { chainId: string; storeId: string; it
   for (const it of (list.item ?? list.product ?? []) as Node[]) {
     const code = str(it.itemcode);
     const price = num(it.itemprice);
-    if (!code || price === null) continue;
+    const removed = num(it.itemstatus) === 0;
+    if (!code || (price === null && !removed)) continue;
     const unit = known(it.unitqty);
     items.push({
       code,
       name: str(it.itemname ?? it.itemnm) || code,
       manufacturer: known(it.manufacturername ?? it.manufacturename) || null,
       unitQty: unit ? [num(it.quantity), unit].filter(Boolean).join(" ") : null, // "200" without a unit means nothing
-      isWeighted: /^(1|true)$/i.test(str(it.bisweighted)),
-      price,
+      isWeighted: isWeighted(it.bisweighted),
+      price: price ?? 0, // a removed row without a price; the full-file rule (price > 0) drops it
       unitPrice: num(it.unitofmeasureprice),
+      removed,
     });
   }
   return { chainId: id(r.chainid), storeId: id(r.storeid), items };

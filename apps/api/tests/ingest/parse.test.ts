@@ -26,6 +26,7 @@ describe("parse", () => {
       isWeighted: false,
       price: 6,
       unitPrice: 0.6,
+      removed: false,
     });
     expect(items[1]!.manufacturer).toBe("אנג'ל"); // entity decoded
     expect(items[2]!.manufacturer).toBeNull();

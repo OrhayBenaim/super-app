@@ -4,23 +4,47 @@ import { lineKey, type StoreResult } from "./sort";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+type Line = StoreResult["items"][number];
+
 /**
- * The Basket breakdown of one store: a line per on-list item it prices (quantity × its price there), then the items it
- * doesn't price and the unmatched ones. Lines come per item, so two items matched to one product (one merged line on
- * the server) show as two.
+ * The Basket breakdown of one store: a line per on-list item it prices, then the items it doesn't price and the unmatched
+ * ones. Each line's total is the server's `lineTotal` (after its Promotion); two items matched to one product (one merged
+ * line on the server) show as two, sharing that total by Quantity in agorot that add up exactly (the remainder on the last).
+ * `shelfTotal` is the item's Quantity × Shelf price. `basket` is one entry per spend deal that applies, with the List items on
+ * it: their lines keep the Shelf total, so the lines less each deal's `saving` add up to the store's total.
  */
-export function breakdown(items: Item[], store: Pick<StoreResult, "items">) {
-  const price = new Map(store.items.map((l) => [lineKey(l), l.price]));
-  const priced: { item: Item; price: number; lineTotal: number }[] = [];
+export function breakdown(items: Item[], store: Pick<StoreResult, "items" | "basket">) {
+  const lines = new Map(store.items.map((l) => [lineKey(l), l]));
+  const keys = items.map((item) => matchKey(item));
+  // Per line: the Quantity of its items, how many are still to come and how much of its total they were given so far.
+  const share = new Map<string, { quantity: number; left: number; given: number }>();
+  keys.forEach((key, i) => {
+    if (key === null) return;
+    const s = share.get(key) ?? { quantity: 0, left: 0, given: 0 };
+    share.set(key, { quantity: s.quantity + items[i].quantity, left: s.left + 1, given: 0 });
+  });
+
+  const priced: (Pick<Line, "promotion" | "hints" | "info"> & { item: Item; price: number; lineTotal: number; shelfTotal: number; partners?: string[] })[] = [];
   const notHere: Item[] = [];
   const unmatched: Item[] = [];
-  for (const item of items) {
-    const key = matchKey(item);
-    const p = key === null ? undefined : price.get(key);
-    if (p !== undefined) priced.push({ item, price: p, lineTotal: round2(p * item.quantity) });
-    else (key === null ? unmatched : notHere).push(item);
+  items.forEach((item, i) => {
+    const key = keys[i];
+    const line = key === null ? undefined : lines.get(key);
+    if (key === null || !line) return void (key === null ? unmatched : notHere).push(item);
+    const s = share.get(key)!;
+    const lineTotal = round2(--s.left === 0 ? line.lineTotal - s.given : (line.lineTotal * item.quantity) / s.quantity);
+    s.given += lineTotal;
+    const { promotion, hints, info } = line;
+    priced.push({ item, price: line.price, lineTotal, shelfTotal: round2(line.price * item.quantity), promotion, hints, info });
+  });
+  // A mix-and-match Promotion names the other lines it is shared with (the same id on each).
+  for (const p of priced) {
+    const names = p.promotion ? priced.filter((o) => o !== p && o.promotion?.id === p.promotion!.id).map((o) => o.item.name) : [];
+    if (names.length) p.partners = names;
   }
-  return { priced, notHere, unmatched };
+  const onDeal = (codes: string[]) => items.filter((item, i) => keys[i] !== null && codes.includes(lines.get(keys[i]!)?.code ?? ""));
+  const basket = (store.basket ?? []).map((deal) => ({ deal, items: onDeal(deal.codes) }));
+  return { priced, basket, notHere, unmatched };
 }
 
 /** On-list items this store leaves out of its total, counted per item (its `matched` counts products, not items). */

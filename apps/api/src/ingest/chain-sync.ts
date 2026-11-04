@@ -1,18 +1,23 @@
 // The per-Chain steps of a Price sync (CONTEXT.md "Prices"), shared by the sync and the one-shot fetch and geocode jobs.
 import type { Deps } from "#/deps.ts";
 import type { ChainSeed } from "#/ingest/chains.ts";
-import { looksLikePriceFile, pickFiles } from "#/ingest/files.ts";
-import { ingestPrices, ingestStores } from "#/ingest/ingest.ts";
+import { looksLikePriceFile, newestFullAndUpdate, pickFiles, type PickedFile } from "#/ingest/files.ts";
+import { ingestPrices, ingestPromotions, ingestStores } from "#/ingest/ingest.ts";
 import { decodeXml } from "#/ingest/parse.ts";
 import type { PriceFile } from "#/services/price-portal.ts";
 
-/** Opens the Chain's portal: the newest Stores file first, then the newest PriceFull of the first `maxStores` stores. */
+/**
+ * Opens the Chain's portal: the newest Stores file first, then the newest PriceFull of the first `maxStores` stores, and
+ * apart from them (`promos`) the newest PromoFull of the first `maxStores` stores, each with its newest update.
+ */
 export async function openChainFiles({ pricePortal }: Pick<Deps, "pricePortal">, chain: ChainSeed, maxStores: number) {
   const portal = await pricePortal.open(chain);
   const { stores, prices } = pickFiles(portal.files, maxStores, chain.ids);
   if (!stores) throw new Error(`${chain.key}: no Stores file among ${portal.files.length} listed files`);
+  const promoFull = newestFullAndUpdate(portal.files, chain.ids, "promofull", "promo");
   return {
     files: [stores, ...prices],
+    promos: [...promoFull.keys()].sort().slice(0, maxStores).map((k) => promoFull.get(k)!),
     async download(f: PriceFile) {
       const buf = await portal.download(f);
       if (!looksLikePriceFile(buf)) throw new Error(`${f.name}: not a price file`);
@@ -42,20 +47,92 @@ export async function geocodeStores({ db, geocoder }: Pick<Deps, "db" | "geocode
   return found;
 }
 
-export type ChainCounts = { filesDownloaded: number; storesLoaded: number; pricesLoaded: number; storesGeocoded: number };
+export type ChainCounts = {
+  filesDownloaded: number;
+  storesLoaded: number;
+  pricesLoaded: number;
+  storesGeocoded: number;
+  promotionsLoaded: number;
+  /** Null until the Chain's promotion files are tried (a Chain failure before them). */
+  promotionStatus: "ok" | "failed" | null;
+  promotionError: string | null;
+};
 
 /**
- * Downloads and loads the Chain's newest Stores file and PriceFull files one at a time, in memory (nothing is written to
- * disk), then geocodes its stores without a location. Fills `counts` as it goes, so a failure still shows how far it got.
+ * Loads each store's newest PromoFull and then its update, never throwing: a file that fails leaves its store's previous
+ * Promotions (an update that fails, the PromoFull's). Every file failing is a Promotion failure (CONTEXT.md); files in
+ * a layout Grocer can't read yet count neither way. Sends one warning listing the Promotions it couldn't price
+ * (reason -> PromotionID -> stores) and the files in an unknown layout, when there are any.
+ */
+async function syncPromotions(deps: Deps, chain: ChainSeed, promos: PickedFile[], load: (f: PriceFile) => Promise<string>, counts: ChainCounts) {
+  let tried = 0;
+  let failed = 0;
+  const unpriced: Record<string, Record<string, string[]>> = {};
+  const unknownLayout: string[] = [];
+  const ingest = async (f: PriceFile) => {
+    const outcome = ingestPromotions(deps, chain.key, await load(f), f.name);
+    if (outcome.layout === "unknown") unknownLayout.push(f.name);
+    else
+      for (const u of outcome.unpriced) {
+        const stores = ((unpriced[u.reason] ??= {})[u.promotionId] ??= []);
+        if (!stores.includes(outcome.store)) stores.push(outcome.store);
+      }
+    return outcome;
+  };
+  for (const f of promos) {
+    try {
+      const full = await ingest(f);
+      if (full.layout === "unknown") {
+        console.warn(`${f.name}: promotion layout not known yet; the store keeps its previous Promotions`);
+        continue;
+      }
+      tried++;
+      counts.promotionsLoaded += full.loaded;
+    } catch (e) {
+      tried++;
+      failed++;
+      counts.promotionError = `${f.name}: ${e instanceof Error ? e.message : String(e)}`;
+      console.error(`${f.name}: skipped these promotions`, e);
+      continue;
+    }
+    if (f.update) {
+      const u = await ingest(f.update).catch((e: unknown) => (console.error(`${f.update!.name}: skipped this promotion update`, e), null));
+      if (u && u.layout !== "unknown") counts.promotionsLoaded += u.loaded;
+    }
+  }
+  counts.promotionStatus = tried > 0 && failed === tried ? "failed" : "ok";
+  if (counts.promotionStatus === "ok") counts.promotionError = null;
+  const notPriced = Object.values(unpriced).reduce((n, ids) => n + Object.keys(ids).length, 0);
+  if (notPriced || unknownLayout.length)
+    deps.errorHandler.warn(`${chain.key}: ${notPriced} Promotions not priced, ${unknownLayout.length} promotion files in an unknown layout`, {
+      unpriced,
+      unknownLayout,
+    });
+}
+
+/**
+ * Downloads and loads the Chain's newest Stores file and PriceFull files, each followed by its store's price update file,
+ * then its promotion files the same way, one at a time, in memory (nothing is written to disk), then geocodes its stores
+ * without a location. Fills `counts` as it goes, so a failure still shows how far it got.
  */
 export async function syncChain(deps: Deps, chain: ChainSeed, maxStores: number, counts: ChainCounts) {
-  const { files, download } = await openChainFiles(deps, chain, maxStores);
-  for (const [i, f] of files.entries()) {
+  const { files, promos, download } = await openChainFiles(deps, chain, maxStores);
+  const load = async (f: PriceFile) => {
     const xml = decodeXml(Buffer.from(await download(f)));
     counts.filesDownloaded++;
+    return xml;
+  };
+  for (const [i, f] of files.entries()) {
+    const xml = await load(f);
     if (i === 0) counts.storesLoaded = ingestStores(deps, chain.key, xml);
     else counts.pricesLoaded += ingestPrices(deps, chain.key, xml, f.name);
+    // An update that can't be downloaded or loaded leaves the store on its full file's prices; not a Chain failure.
+    if (f.update)
+      counts.pricesLoaded += await load(f.update)
+        .then((u) => ingestPrices(deps, chain.key, u, f.update!.name))
+        .catch((e: unknown) => (console.error(`${f.update!.name}: skipped this price update`, e), 0));
   }
+  await syncPromotions(deps, chain, promos, load, counts);
   // ingestPrices skips a file whose store is not in the Stores file; when every file is skipped, the chain is broken.
   if (files.length > 1 && counts.pricesLoaded === 0)
     throw new Error(`${chain.key}: no prices loaded from any of ${files.length - 1} PriceFull files (stores not in the Stores file?)`);

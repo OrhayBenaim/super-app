@@ -1,6 +1,16 @@
 // Pure (no RN imports) so vitest can load it. Types mirror docs/api.md.
 export type Sort = "price" | "distance" | "coverage";
-type Line = { code: string; price: number; quantity: number; lineTotal: number };
+export type Promotion = {
+  id: string; kind: "price" | "bundle" | "percent" | "nth" | "off"; minQty: number; amount: number; audience: "all" | "club" | "card" | "coupon"; text: string;
+};
+/**
+ * `price` is the Shelf price; `lineTotal` is after `promotion` when one applies; `hints` are Promotions its Quantity
+ * doesn't reach; `info` is never in `lineTotal`.
+ */
+type Line = {
+  code: string; price: number; quantity: number; lineTotal: number; promotion?: Promotion; hints?: Promotion[];
+  info?: { id: string; description: string }[];
+};
 export type StoreResult = {
   storeId: string; chainId: string; chainName: string; storeName: string; address: string; city: string;
   lat: number; lng: number; distanceKm: number; total: number; matched: number;
@@ -11,8 +21,11 @@ export type StoreResult = {
    * product. A group line names the product its price comes from (unitPrice per kilo or liter).
    */
   items: (Line | (Line & { ref: string; name: string; size: number; unitPrice?: number }))[];
+  /** Spend deals that apply: `total` is the lines less each `saving`; their lines (`codes`) keep their Shelf `lineTotal`. */
+  basket?: BasketDeal[];
   orderUrl: string | null;
 };
+export type BasketDeal = Promotion & { minPurchase: number; saving: number; codes: string[] };
 /** What a line prices, as the List's items name it (matchKey): a group line by its ref, a product line by its code. */
 export const lineKey = (l: StoreResult["items"][number]) => ("ref" in l ? l.ref : l.code);
 

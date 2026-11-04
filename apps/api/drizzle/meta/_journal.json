@@ -71,6 +71,20 @@
       "when": 1793746471896,
       "tag": "0009_high_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793796725567,
+      "tag": "0010_living_spirit",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1793799086361,
+      "tag": "0011_glorious_wild_child",
+      "breakpoints": true
     }
   ]
 }

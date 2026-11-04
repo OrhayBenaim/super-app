@@ -22,7 +22,9 @@ export async function runPriceSync(deps: Deps, runId: number, { signal, maxStore
       interrupted = true;
       break;
     }
-    const counts: ChainCounts = { filesDownloaded: 0, storesLoaded: 0, pricesLoaded: 0, storesGeocoded: 0 };
+    const counts: ChainCounts = {
+      filesDownloaded: 0, storesLoaded: 0, pricesLoaded: 0, storesGeocoded: 0, promotionsLoaded: 0, promotionStatus: null, promotionError: null,
+    };
     const start = performance.now();
     let error: string | null = null;
     try {
