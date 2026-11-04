@@ -10,7 +10,7 @@ function handle(response: Notifications.NotificationResponse | null) {
   Notifications.clearLastNotificationResponse(); // don't replay it on the next sign-in or remount
   track(Events.notificationOpened, { kind: "nearby" }); // open rate = notification_opened / geofence_triggered
   void openWaze(lat, lng);
-  router.replace("/(tabs)"); // back in the app later, the shopping list is waiting
+  router.replace("/list"); // back in the app later, the shopping list is waiting
 }
 
 /** Nearby-alert tap: navigate there in Waze. Covers cold start (last response) and taps while running. */

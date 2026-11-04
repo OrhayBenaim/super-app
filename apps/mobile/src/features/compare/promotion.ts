@@ -24,8 +24,17 @@ export const basketText = (deal: BasketDeal, soldBy: SoldBy, t: typeof translate
     min: shekels(deal.minPurchase),
   });
 
-const audienceKey = { club: "compare.promo.club", card: "compare.promo.card", coupon: "compare.promo.coupon" } as const;
-const audienceLabel = (p: Promotion, t: typeof translate) => (p.audience === "all" ? undefined : t(audienceKey[p.audience]));
+/**
+ * A Restricted Promotion's label: the long one ("לחברי מועדון") in Compare and per Chain on the Promotions product page,
+ * the short one ("במועדון") on a Promotions card.
+ */
+export const AUDIENCE_KEYS = {
+  club: { long: "compare.promo.club", short: "promotions.club" },
+  card: { long: "compare.promo.card", short: "promotions.card" },
+  coupon: { long: "compare.promo.coupon", short: "promotions.coupon" },
+} as const;
+/** The long label of a Promotion's audience; none for everyone. */
+export const audienceLabel = (audience: Promotion["audience"], t: typeof translate) => (audience === "all" ? undefined : t(AUDIENCE_KEYS[audience].long));
 
 /**
  * The Promotion rows under a breakdown line, in order: the applied one ("3 for ₪10", label: its audience and the other
@@ -40,11 +49,11 @@ export function promotionRows(
   const applied = p && {
     kind: "applied" as const,
     text: promotionText(p, soldBy, t),
-    label: [audienceLabel(p, t), partners?.length ? fmt(t("compare.promo.with"), { names: partners.join(", ") }) : undefined].filter(Boolean).join(" · ") || undefined,
+    label: [audienceLabel(p.audience, t), partners?.length ? fmt(t("compare.promo.with"), { names: partners.join(", ") }) : undefined].filter(Boolean).join(" · ") || undefined,
   };
   return [
     ...(applied ? [applied] : []),
-    ...hints.map((h) => ({ kind: "hint" as const, text: fmt(t("compare.promo.available"), { promo: promotionText(h, soldBy, t) }), label: audienceLabel(h, t) })),
+    ...hints.map((h) => ({ kind: "hint" as const, text: fmt(t("compare.promo.available"), { promo: promotionText(h, soldBy, t) }), label: audienceLabel(h.audience, t) })),
     ...info.map((i) => ({ kind: "info" as const, text: i.description })),
   ];
 }

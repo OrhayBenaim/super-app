@@ -4,7 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { Events, track } from "@/lib/analytics";
 import { api } from "@/lib/api";
-import type { SoldBy } from "@grocer/shared/quantity";
+import { QUANTITY, type SoldBy } from "@grocer/shared/quantity";
 
 export type List = { id: string; name: string; ownerId: string; role: "owner" | "member"; memberCount: number; updatedAt: string };
 export type Member = { userId: string; name: string; email: string; role: "owner" | "member" };
@@ -72,6 +72,22 @@ export const missingBasket = (d?: ListDetail): Basket => {
 export const basketSize = (b: Basket) => b.items.length + b.groups.length;
 
 type ItemPatch = Partial<Pick<Item, "name" | "category" | "productCode" | "groupRef" | "missing" | "quantity">>;
+export type NewItem = { name: string; category: string; productCode?: string | null; groupRef?: string | null; missing?: boolean; quantity?: number; soldBy?: SoldBy };
+
+/** The row a new item shows until the server answers; the API's defaults (on the List, Quantity 1) fill what is left out. */
+export const optimisticItem = ({ soldBy = "unit", ...body }: NewItem, listId: string, now: string): Item => ({
+  id: `pending-${now}-${Math.random().toString(36).slice(2)}`,
+  listId,
+  name: body.name,
+  category: body.category,
+  productCode: body.productCode ?? null,
+  groupRef: body.groupRef ?? null,
+  missing: body.missing ?? true,
+  quantity: body.quantity ?? QUANTITY.start,
+  soldBy,
+  createdAt: now,
+  updatedAt: now,
+});
 
 // Optimistic item mutations so toggles feel instant; the poll reconciles with the server.
 export function useItemMutations(listId: string | null) {
@@ -92,9 +108,17 @@ export function useItemMutations(listId: string | null) {
     if (ctx?.previous) qc.setQueryData(key, ctx.previous);
   };
 
+  // `soldBy` only shapes the optimistic row (the server owns it); it is not sent.
   const add = useMutation({
-    mutationFn: (body: { name: string; category: string; productCode?: string | null; groupRef?: string | null; missing?: boolean }) =>
-      api<Item>(`api/lists/${listId}/items`, { method: "POST", body: JSON.stringify(body) }),
+    mutationFn: ({ soldBy: _, ...body }: NewItem) => api<Item>(`api/lists/${listId}/items`, { method: "POST", body: JSON.stringify(body) }),
+    onMutate: async (body) => {
+      const temp = optimisticItem(body, listId ?? "", new Date().toISOString());
+      return { ...(await patchCache((items) => [...items, temp])), tempId: temp.id };
+    },
+    onError: rollback,
+    // Swap the pending row for the server's item now, not at the next poll.
+    onSuccess: (item, _body, ctx) =>
+      qc.setQueryData<ListDetail>(key, (d) => (d ? { ...d, items: d.items.map((i) => (i.id === ctx.tempId ? item : i)) } : d)),
     onSettled: invalidate,
   });
   const update = useMutation({

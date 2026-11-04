@@ -12,7 +12,7 @@ type State =
 const toCoords = (l: Location.LocationObject): Coords => ({ lat: l.coords.latitude, lng: l.coords.longitude });
 
 let pendingPrompt: Promise<Location.LocationPermissionResponse> | undefined;
-/** Reads the foreground permission; if it was never answered, asks. The list is the first signed-in screen, so that's where the prompt shows. Concurrent callers share one prompt. */
+/** Reads the foreground permission; if it was never answered, asks. Home is the first signed-in screen, so that's where the prompt shows. Concurrent callers share one prompt. */
 export async function foregroundPermission() {
   const p = await Location.getForegroundPermissionsAsync();
   if (p.status !== Location.PermissionStatus.UNDETERMINED) return p;
