@@ -165,7 +165,7 @@ export function ShareList({ stage }: StageProps) {
 
 const sampleStore: StoreResult = {
   storeId: "", chainId: "", chainName: "", storeName: "", address: "", city: "",
-  lat: 0, lng: 0, distanceKm: 1.2, total: 21.7, matched: 3, missingCodes: [], items: [], orderUrl: "https://example.com",
+  lat: 0, lng: 0, distanceKm: 1.2, total: 21.7, matched: 3, missingCodes: [], items: [], orderUrl: "https://example.com", fillsCart: false,
 };
 
 /** The real Compare hero with sample numbers. */

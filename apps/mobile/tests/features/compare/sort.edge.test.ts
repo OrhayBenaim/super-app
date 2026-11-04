@@ -8,7 +8,7 @@ const store = (storeId: string, o: Opts = {}): StoreResult => {
   return {
     storeId, chainId: "c", chainName: "C", storeName: storeId, address: "", city: "", lat: 0, lng: 0,
     distanceKm: o.distanceKm ?? 1, total: o.total ?? 10, matched: o.matched ?? 5 - missing,
-    missingCodes: Array.from({ length: missing }, (_, i) => `m${i}`), items: [], orderUrl: null,
+    missingCodes: Array.from({ length: missing }, (_, i) => `m${i}`), items: [], orderUrl: null, fillsCart: false,
   };
 };
 const ids = (s: StoreResult[]) => s.map((x) => x.storeId);
