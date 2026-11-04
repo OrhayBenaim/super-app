@@ -1,5 +1,3 @@
-import { getLocales } from "expo-localization";
-
 export const en = {
   "common.skip": "Skip",
   "common.next": "Next",
@@ -486,7 +484,5 @@ export const he: Record<StringKey, string> = {
   "settings.imageCredit": "חלק מתמונות המוצרים מגיעות מ-Open Food Facts ‏(CC BY-SA).",
 };
 
-// Read once: changing the device language restarts the app on both platforms.
-const dict = getLocales()[0]?.languageCode === "he" ? he : en;
-
-export const t = (key: StringKey): string => dict[key];
+// Always Hebrew, whatever the device language; en stays as the source table.
+export const t = (key: StringKey): string => he[key];

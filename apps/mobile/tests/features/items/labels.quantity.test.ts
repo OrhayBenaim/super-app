@@ -1,6 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("expo-localization", () => ({ getLocales: () => [{ languageCode: "en" }] }));
+import { describe, expect, it } from "vitest";
 
 import { en, he, type StringKey } from "@/lib/strings";
 import { formatQuantity, lineDetail, priceLabel, showPill } from "@/features/items/labels";

@@ -67,14 +67,10 @@ describe("string tables", () => {
 });
 
 describe("t()", () => {
-  it("returns Hebrew for 'he', English for 'en', and falls back to English for other/missing locales", async () => {
-    const he = await load("he");
-    expect(he.t("common.next")).toBe(he.he["common.next"]);
-    const en = await load("en");
-    expect(en.t("common.next")).toBe("Next");
-    const fr = await load("fr");
-    expect(fr.t("common.next")).toBe("Next");
-    const none = await load(undefined);
-    expect(none.t("common.next")).toBe("Next");
+  it("returns Hebrew whatever the device language", async () => {
+    for (const code of ["he", "en", "fr", undefined]) {
+      const s = await load(code);
+      expect(s.t("common.next"), String(code)).toBe(s.he["common.next"]);
+    }
   });
 });
