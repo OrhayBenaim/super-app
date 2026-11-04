@@ -490,12 +490,14 @@ describe("product groups: cart link from the chain's online store", () => {
       [riceRami, "אורז בסמטי רמי לוי", 11, kg],
       [riceSugat, "אורז בסמטי סוגת", 5, g500], // 10 a kilo beats 11: one of the half-kilo packs the Item counts
       ["5", "בננה במשקל", 6.5, W],
+      [miaCoarse, "בורגול גס מיה", 3.6, g500], // the branch has no bulgur
     ], "39"));
-    const r = await compare({ groups: [{ ref: "ביצ|unit|12", quantity: 2 }, { ref: "חלב|l" }, { ref: "אורז|kg" }, { ref: "בננה|kg", quantity: 1.5 }] });
-    // the online store prices no milk, so the branch's stays; the banana is chain-local both ways
-    const items = `${eggShufM},2;${milk1},1;${riceSugat},1`;
+    const r = await compare({ groups: [{ ref: "ביצ|unit|12", quantity: 2 }, { ref: "חלב|l" }, { ref: "אורז|kg" }, { ref: "בננה|kg", quantity: 1.5 }, { ref: "בורגול|kg" }] });
+    // the online store prices no milk, so the branch's stays; the banana is chain-local both ways; the bulgur the branch
+    // is missing comes from the online store, one of the half-kilo packs the Item counts
+    const items = `${eggShufM},2;${milk1},1;${riceSugat},1;${miaCoarse},1`;
     const rami = store(r, "Rami Levy");
-    expect(rami).toMatchObject({ matched: 4, orderUrl: `https://www.rami-levy.co.il/he/basket?items=${encodeURIComponent(items)}`, fillsCart: true });
+    expect(rami).toMatchObject({ matched: 4, missingCodes: ["בורגול|kg"], orderUrl: `https://www.rami-levy.co.il/he/basket?items=${encodeURIComponent(items)}`, fillsCart: true });
     expect(groupItem(rami)).toMatchObject({ code: eggRamiL, price: 15 }); // the branch's lines are still its own
     expect(r.stores.map((s) => s.storeName)).not.toContain("מרלוג אינטרנט"); // no location, never compared
   });

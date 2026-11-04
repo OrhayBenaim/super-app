@@ -57,7 +57,8 @@ type StoreResult = {
   items: ({ code; price; quantity; lineTotal; promotion?: Promotion; hints?: Promotion[]; info?: { id; description }[] } | { ref; code; name; size; unitPrice?; price; quantity; lineTotal; promotion?: Promotion; hints?: Promotion[]; info?: { id; description }[] })[];
   basket?: BasketDeal[];      // spend deals that apply (absent when none); their lines keep their Shelf lineTotal
   orderUrl: string|null;      // online shop; a cart link chain's has this store's lines as barcode,quantity;... (chain-local codes left out;
-                              // a group as the product the chain's online store prices cheapest, when it prices one)
+                              // every group on the list, even one missing here, as the product the chain's online store
+                              // prices cheapest, when it prices one)
   fillsCart: boolean;         // orderUrl puts those lines in the cart, or one tap from it
 }
 // A spend deal ("₪8.90 במקום ₪16.90 מעל ₪75"): a Promotion that counts only when the rest of the List, the lines not

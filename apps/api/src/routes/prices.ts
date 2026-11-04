@@ -202,16 +202,20 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
     });
     const have = new Set(items.map((i) => ("ref" in i ? i.ref : i.code)));
     have.forEach((k) => carried.add(k));
-    // The chain's online shop takes `barcode,quantity;...` (docs/research/price-data.md section 6): the lines as priced
-    // here, chain-local codes left out (no shop knows them). A group buys the product the chain's online store prices
-    // cheapest, by Shelf price (Promotions are the shop's to apply), or the one bought here when that store prices none.
-    const cart = lines
-      .flatMap((line, i) => {
-        const g = groupLines[i - products.length]?.g;
-        const { code, quantity } = (g && onlinePick(g, online.get(row.onlineStoreId ?? ""))) || line;
-        if (code.includes(":")) return [];
-        return [`${code},${g?.soldBy === "unit" ? Math.ceil(round2(quantity)) : round2(quantity)}`];
-      })
+    // The chain's online shop takes `barcode,quantity;...` (docs/research/price-data.md section 6): the products as priced
+    // here, chain-local codes left out (no shop knows them). Every group on the list, even one missing here, buys the
+    // product the chain's online store prices cheapest, by Shelf price (Promotions are the shop's to apply), or else the
+    // one bought here.
+    const bought = new Map(groupLines.map(({ g }, j) => [g.ref, lines[products.length + j]!]));
+    const onlinePrices = online.get(row.onlineStoreId ?? "");
+    const cart = [
+      ...lines.slice(0, products.length).map((l) => ({ ...l, packs: false })),
+      ...groups.flatMap((g) => {
+        const pick = onlinePick(g, onlinePrices) ?? bought.get(g.ref);
+        return pick ? [{ ...pick, packs: g.soldBy === "unit" }] : [];
+      }),
+    ]
+      .flatMap(({ code, quantity, packs }) => (code.includes(":") ? [] : [`${code},${packs ? Math.ceil(round2(quantity)) : round2(quantity)}`]))
       .join(";");
     const { code: _c, price: _p, orderUrl, onlineStoreId: _o, ...store } = row;
     const fillsCart = !!cart && !!orderUrl?.includes("{items}");
