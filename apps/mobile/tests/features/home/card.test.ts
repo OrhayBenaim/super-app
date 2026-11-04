@@ -109,9 +109,18 @@ describe("productView (a Product row on a product page)", () => {
     expect(cardSend(view, tara)).toEqual({ kind: "add", body: { name: "חלב טרה 1%", category: "מוצרי חלב וביצים", productCode: "222", quantity: 1, missing: true } });
   });
 
-  it("offers Add, not switch, when the group's Item is off the List", () => {
+  it("offers Add from 1 when the group's Item is off the List, putting that Item back matched to this Product: still one Item", () => {
     const bought = [item("milk", { groupRef: "חלב|l", missing: false, quantity: 4 })];
-    expect(productView(bought, milk, tara, null)).toMatchObject({ action: "add", quantity: 1 });
+    const view = productView(bought, milk, tara, null);
+    expect(view).toMatchObject({ action: "add", quantity: 1, item: bought[0] });
+    expect(cardSend(view, tara)).toEqual({ kind: "update", id: "milk", patch: { missing: true, quantity: 1, productCode: "222" } });
+    const boughtTnuva = [item("tnuva", { productCode: "111", missing: false, quantity: 2 })];
+    expect(cardSend(productView(boughtTnuva, milk, tara, 3), tara)).toEqual({ kind: "update", id: "tnuva", patch: { missing: true, quantity: 3, productCode: "222" } });
+  });
+
+  it("puts this Product's own Item back when it is off the List", () => {
+    const bought = [item("tara", { productCode: "222", missing: false, quantity: 4 })];
+    expect(cardSend(productView(bought, milk, tara, null), tara)).toEqual({ kind: "update", id: "tara", patch: { missing: true, quantity: 1 } });
   });
 
   it("offers switch to this on every Product while the group itself is on the List, at the Item's Quantity", () => {
