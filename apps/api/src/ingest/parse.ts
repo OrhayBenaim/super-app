@@ -2,6 +2,7 @@
 import { gunzipSync } from "node:zlib";
 import { XMLParser } from "fast-xml-parser";
 import { unzipSync } from "fflate";
+import type { Audience } from "#/prices/promotions.ts";
 import { fromJerusalem } from "#/utils/clock.ts";
 
 type Node = Record<string, any>;
@@ -143,7 +144,7 @@ export type PromotionReward = { kind: "price" | "bundle" | "percent" | "nth" | "
 export type ParsedPromotion = PromotionReward & {
   promotionId: string;
   description: string;
-  audience: "all";
+  audience: Audience;
   startsAt: number;
   endsAt: number;
   days: string | null;
@@ -162,7 +163,7 @@ function groupedReward(groupCount: number, items: Node[]): PromotionReward | str
   const i = items[0]!;
   const type = str(i.rewardtype);
   const [minQty, price, rate] = [num(i.minqty) ?? 0, num(i.discountedprice) ?? 0, num(i.discountrate) ?? 0];
-  if (isWeighted(i.bisweighted)) return `RewardType ${type} weighted`;
+  if (isWeighted(i.bisweighted) && type !== "2") return weightedReward(type, minQty, price);
   if (type === "3" && minQty <= 1 && price > 0) return { kind: "price", minQty: 1, amount: price };
   // 1 = N for a total on one product, 10 = across several (mix and match); DiscountedPrice is the total for MinQty units.
   if ((type === "1" || type === "10") && Number.isInteger(minQty) && minQty >= 1 && price > 0)
@@ -191,6 +192,43 @@ function nthReward(rows: Node[], [cond = [], reward = []]: Node[][]): PromotionR
   return { kind: "nth", minQty: n + 1, amount: rate };
 }
 
+// A bare club number names no audience and means a different one at each Chain (real files, 2026-11-04): Victory 1 is
+// Wolt-only and Machsanei Hashuk 1 employees, so only these are kept. Any other bare number is excluded.
+const bareClubs: Record<string, Record<string, Audience>> = {
+  victory: { "2": "card" }, // Max Victory card
+  "machsanei-hashuk": { "2": "card" }, // W CARD
+  "rami-levy": { "2": "card" }, // store 039: "לחברי אשראי"
+};
+
+/**
+ * Who gets a Promotion, from its ClubID ("0 - כלל הלקוחות", "1=מועדון אונליין", "(2=…אשראי|2=…)", "((…))&(3=…)", "2")
+ * and AdditionalIsCoupon; null = excluded (employees, a club tier, an unnamed code such as Keshet's bare "1=").
+ */
+function audienceOf(chainKey: string, clubId: string, coupon: boolean): Audience | null {
+  if (/^0(\D|$)/.test(clubId)) return coupon ? "coupon" : "all";
+  const bare = /^\d+$/.test(clubId) ? bareClubs[chainKey]?.[clubId] : undefined;
+  const names = [...clubId.matchAll(/\d+\s*[=-]\s*([^|()&]*)/g)].map((m) => m[1]!.trim());
+  if (!bare && (!names.length || names.some((n) => !n || /עובד|זהב|פלטינ|V\.?I\.?P/i.test(n)))) return null;
+  if (coupon) return "coupon";
+  if (bare) return bare;
+  // "|" lists alternatives (any one is enough, so a club beats a card); "&" joins conditions (a card one is needed).
+  const card = (n: string) => n.includes("אשראי");
+  return (clubId.includes("&") ? names.some(card) : names.every(card)) ? "card" : "club";
+}
+
+/**
+ * A price on an item Sold by weight (Quantity in kilos). MinQty 0.01 marks a per-kilo price, as does 1 (Victory); another
+ * weight up to 10 kg means the price of that weight. Other MinQty values (Salach Dabach 200, Stop Market and Dor Alon
+ * empty) and a price under ₪1 at 0.01 (Politzer prices 10 g there) can't say per kilo or per pack: info-only.
+ */
+function weightedReward(type: string, minQty: number, price: number): PromotionReward | string {
+  if (!["1", "3", "10"].includes(type)) return `RewardType ${type} weighted`;
+  const near = (q: number) => Math.abs(minQty - q) < 1e-6;
+  if (price > 0 && ((near(0.01) && price >= 1) || near(1))) return { kind: "price", minQty: 1, amount: price };
+  if (price > 0 && minQty > 0.01 + 1e-6 && minQty <= 10) return { kind: "bundle", minQty, amount: price };
+  return `weighted MinQty ${minQty}: per kilo or per pack unclear`;
+}
+
 const weekdays = (v: unknown) => {
   const days = [...new Set(str(v).split(",").map((d) => d.trim()).filter((d) => /^[1-7]$/.test(d)))].sort().join(",");
   return days === "" || days === "1,2,3,4,5,6,7" ? null : days;
@@ -200,10 +238,10 @@ const weekdays = (v: unknown) => {
  * A promotion file (docs/research/price-data.md section 3c). `layout` is "grouped" when every Promotion nests its items in
  * Groups (grouped-2026, and Shufersal/Carrefour's files, which have the same tags), else "unknown" (nothing parsed).
  * Rows sharing a PromotionID are one Promotion (Victory and Machsanei Hashuk write one row per item).
- * Only all-customer Promotions are returned; `unpriced` lists the all-customer ones whose price can't be read yet,
+ * Promotions for an excluded audience are left out; `unpriced` lists the others whose price can't be read yet,
  * `ids` every PromotionID in the file.
  */
-export function parsePromotions(xml: string) {
+export function parsePromotions(xml: string, chainKey: string) {
   const doc = promoParser.parse(xml) as Node;
   const r: Node | undefined = Object.values(doc).find((v) => v && typeof v === "object");
   if (!r) throw new Error("no XML root element");
@@ -217,8 +255,8 @@ export function parsePromotions(xml: string) {
   const promotions: ParsedPromotion[] = [];
   const unpriced: { promotionId: string; kind: string }[] = [];
   for (const [promotionId, [p, ...more]] of byId) {
-    // All customers: ClubID "0" / "0 - כלל הלקוחות", not a coupon. Restricted audiences come in a later ticket.
-    if (!/^0(\D|$)/.test(str(p!.clubid)) || num(p!.additionaliscoupon) === 1) continue;
+    const audience = audienceOf(chainKey, str(p!.clubid), num(p!.additionaliscoupon) === 1);
+    if (!audience) continue;
     const idRows = [p!, ...more];
     const groupCount = Math.max(...idRows.map((row) => row.groups.group.length));
     const groups = Array.from({ length: groupCount }, (_, g) => idRows.flatMap((row): Node[] => row.groups.group[g]?.promotionitems?.promotionitem ?? []));
@@ -234,7 +272,7 @@ export function parsePromotions(xml: string) {
       promotionId,
       description: str(p!.promotiondescription),
       ...reward,
-      audience: "all",
+      audience,
       startsAt,
       endsAt,
       days: weekdays(p!.promotiondays),

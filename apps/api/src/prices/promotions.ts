@@ -13,14 +13,16 @@ export type RunningPromotion = {
   amount: number;
   audience: Audience;
   limitQty: number | null;
+  weighted: 0 | 1; // the product is weighed, so Quantity, minQty and limitQty are kilos
 };
 
 /** The Promotions on `codes` at `storeIds` running at `now` (start, end, Israeli weekday), by `${storeId} ${code}`. */
 export function runningPromotions(db: Db, storeIds: string[], codes: string[], now: Date) {
   const rows = db.$client
     .prepare(
-      `SELECT p.store_id AS storeId, pi.code, p.promotion_id AS id, p.kind, p.min_qty AS minQty, p.amount, p.audience, p.limit_qty AS limitQty
-       FROM promotion_items pi JOIN promotions p ON p.id = pi.promotion_id
+      `SELECT p.store_id AS storeId, pi.code, p.promotion_id AS id, p.kind, p.min_qty AS minQty, p.amount, p.audience, p.limit_qty AS limitQty,
+         COALESCE(pr.is_weighted, 0) AS weighted
+       FROM promotion_items pi JOIN promotions p ON p.id = pi.promotion_id LEFT JOIN products pr ON pr.code = pi.code
        WHERE pi.code IN (SELECT value FROM json_each(?)) AND p.store_id IN (SELECT value FROM json_each(?))
          AND p.starts_at <= ? AND p.ends_at > ? AND (p.days IS NULL OR instr(',' || p.days || ',', ?) > 0)`,
     )
@@ -91,11 +93,16 @@ function costs(chosen: Chosen[]) {
 
 const shekels = (n: number) => (Number.isInteger(Math.round(n * 100) / 100) ? `₪${Math.round(n)}` : `₪${n.toFixed(2)}`);
 
-/** Hebrew-first text built from the reward ("3 ב-₪10", "2+1", "₪4.90 במקום ₪6.90"); the app builds its own from the fields. */
+const weight = (kg: number) => (kg < 1 ? `${Math.round(kg * 1000)} גרם` : `${kg} ק״ג`);
+
+/**
+ * Hebrew-first text built from the reward ("3 ב-₪10", "2+1", "₪4.90 במקום ₪6.90"; weighed: "2 ק״ג ב-₪80",
+ * "250 גרם ב-₪22", "₪29.90 לק״ג"); the app builds its own from the fields.
+ */
 function textOf(p: RunningPromotion, price: number) {
   switch (p.kind) {
     case "bundle":
-      return `${p.minQty} ב-${shekels(p.amount)}`;
+      return `${p.weighted ? weight(p.minQty) : p.minQty} ב-${shekels(p.amount)}`;
     case "percent":
       return `${p.amount}% הנחה`;
     case "nth":
@@ -103,7 +110,7 @@ function textOf(p: RunningPromotion, price: number) {
     case "off":
       return `${shekels(p.amount)} הנחה${p.minQty > 1 ? ` בקניית ${p.minQty}` : ""}`;
     case "price":
-      return `${shekels(p.amount)} במקום ${shekels(price)}`;
+      return p.weighted ? `${shekels(p.amount)} לק״ג` : `${shekels(p.amount)} במקום ${shekels(price)}`;
   }
 }
 const applied = (p: RunningPromotion, price: number) => ({ id: p.id, kind: p.kind, minQty: p.minQty, amount: p.amount, audience: p.audience, text: textOf(p, price) });
@@ -181,9 +188,10 @@ export function priceLines(lines: LineOption[][]) {
   const listQuantity = (id: string) => [...new Set(covering.get(id))].reduce((a, l) => a + lines[l]!.find((o) => o.promo?.id === id)!.quantity, 0);
   return chosen.map(({ option }, l) => {
     const promo = option.promo && out.get(l)! < option.price * option.quantity - EPS ? option.promo : undefined;
-    // A hint only for a Promotion that would save something at its minimum on this product.
+    // A hint only for a set Promotion (price and percent have no minimum) that would save something at its minimum.
     const saves = (o: LineOption) => poolCosts(o.promo!, [{ line: 0, option: { ...o, quantity: o.promo!.minQty } }])[0]! < o.price * o.promo!.minQty - EPS;
-    const short = lines[l]!.filter((o) => o.promo && o.promo.id !== promo?.id && o.promo.minQty > listQuantity(o.promo.id) + EPS && saves(o));
+    const sets = (o: LineOption) => o.promo && o.promo.kind !== "price" && o.promo.kind !== "percent";
+    const short = lines[l]!.filter((o) => sets(o) && o.promo!.id !== promo?.id && o.promo!.minQty > listQuantity(o.promo!.id) + EPS && saves(o));
     const hints = [...new Map(short.map((o) => [o.promo!.id, applied(o.promo!, o.price)])).values()];
     return { option, lineTotal: lineTotal[l]!, ...(promo ? { promotion: applied(promo, option.price) } : {}), ...(hints.length ? { hints } : {}) };
   });

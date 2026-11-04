@@ -59,9 +59,11 @@ type StoreResult = {
 }
 // The line's Promotion in the store's combination with the lowest total (docs/adr/0003). kind price: one unit at amount;
 // bundle: minQty units for amount in total; percent: amount percent off; nth: the cheapest of every minQty units amount
-// percent off (100 = "2+1"); off: ₪amount off every minQty units. Units beyond full sets at the Shelf price.
-// text is Hebrew-first ("3 ב-₪10", "20% הנחה", "2+1", "₪4.90 במקום ₪6.90"); id is the Chain's PromotionID, the same on
-// every line sharing one Promotion. hints: Promotions on the line the List's Quantity doesn't reach.
+// percent off (100 = "2+1"); off: ₪amount off every minQty units. Units beyond full sets at the Shelf price. For a
+// product sold by weight a unit is a kilo: price is per kilo, bundle is minQty kilos (may be fractional: 0.25) for amount.
+// text is Hebrew-first ("3 ב-₪10", "20% הנחה", "2+1", "₪4.90 במקום ₪6.90"; weighed: "₪29.90 לק״ג", "2 ק״ג ב-₪80",
+// "250 גרם ב-₪22"); id is the Chain's PromotionID, the same on every line sharing one Promotion.
+// hints: Promotions on the line the List's Quantity doesn't reach.
 type Promotion = { id: string; kind: "price"|"bundle"|"percent"|"nth"|"off"; minQty: number; amount: number; audience: "all"|"club"|"card"|"coupon"; text: string }
 ```
 Promotions apply to product lines (not yet to group lines): only those running at the server's now (start, end, Israeli weekday), at most one per line, units above its limit per purchase at the Shelf price. A Promotion pools the units of every line it covers (mix-and-match), most expensive first; its price is split over those lines in proportion to their Shelf prices, rounded to agorot so the shares add up exactly. Sort semantics: `price` → fewest missing first, then lowest total (after Promotions); `distance` → nearest; `coverage` → most matched, then price. Stores without coordinates are excluded. Duplicate codes (or refs) are merged by summing their quantities. A product sold by weight is priced per kilo × kilos. A group is charged its cheapest product at each store: a group sold by weight by price per kilo × kilos; another kilo or liter group by price per kilo/liter (`unitPrice`) × the group's commonest pack size × `quantity` (packs); a unit group by the cheapest pack × `quantity`. `unmatched` = codes and group refs no store in radius carries.

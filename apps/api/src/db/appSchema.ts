@@ -159,6 +159,7 @@ export const promotions = sqliteTable(
     description: text("description").notNull(),
     // price: one unit at `amount`; bundle: `minQty` units for `amount` in total; percent: `amount` percent off;
     // nth: the cheapest of every `minQty` units `amount` percent off (100 = "2+1"); off: ₪`amount` off every `minQty` units.
+    // A unit is a kilo when the product is weighed, so bundle's `minQty` may be a weight (0.25).
     kind: text("kind", { enum: ["price", "bundle", "percent", "nth", "off"] }).notNull(),
     minQty: real("min_qty").notNull(),
     amount: real("amount").notNull(),

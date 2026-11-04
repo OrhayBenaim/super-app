@@ -6,6 +6,7 @@ const rp = (code: string, o: Partial<RunningPromotion> & Pick<RunningPromotion, 
   code,
   audience: "all",
   limitQty: null,
+  weighted: 0,
   ...o,
 });
 /** One List line: its no-Promotion option, then one option per Promotion row. */
