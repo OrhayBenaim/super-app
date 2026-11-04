@@ -13,7 +13,7 @@ export type CardTarget = { name: string; category: string; soldBy: SoldBy } & (
   | { productCode: string; groupRef?: never; codes?: never }
 );
 
-export type CardAction = "add" | "onList" | "update";
+export type CardAction = "add" | "onList" | "update" | "switch";
 export type CardView = {
   /** The Item matched to the target, on the List or off it. */
   item?: Item;
@@ -51,15 +51,31 @@ export function cardView(items: Item[], target: CardTarget, picked: number | nul
 export type AddBody = { name: string; category: string; groupRef?: string; productCode?: string; quantity: number; missing: true };
 export type CardSend =
   | { kind: "add"; body: AddBody }
-  | { kind: "update"; id: string; patch: { quantity: number; missing?: true } }
+  | { kind: "update"; id: string; patch: { quantity: number; missing?: true; productCode?: string } }
   | null;
 
 /**
- * What the action button sends. Add creates an Item on the List matched to the target, or, when an Item off the List
+ * A Product row on its group's product page. While an Item on the List is matched to the group or to another of its
+ * Products, the row offers "switch to this" (that Item, re-matched: still one Item) at the Item's Quantity, or from 1
+ * when this Product is Sold by the other way. Otherwise it is a card for the Product itself.
+ */
+export function productView(items: Item[], group: CardTarget, product: CardTarget, picked: number | null): CardView {
+  const own = cardView(items, product, picked);
+  const held = cardView(items, group, null);
+  if (own.action !== "add" || held.action === "add") return own;
+  const item = held.item!;
+  const soldBy = product.soldBy;
+  const quantity = picked ?? (item.soldBy === soldBy ? item.quantity : QUANTITY.start);
+  return { item, action: "switch", soldBy, quantity, canLess: quantity > QUANTITY.step[soldBy], canMore: quantity < QUANTITY.max };
+}
+
+/**
+ * What the action button sends. Switch re-matches the Item to the Product with the row's Quantity. Add creates an Item on the List matched to the target, or, when an Item off the List
  * already matches, puts that one back (never a second Item). Update changes the Quantity only.
  */
 export function cardSend({ item, action, quantity }: CardView, target: CardTarget): CardSend {
   if (action === "onList") return null;
+  if (action === "switch") return { kind: "update", id: item!.id, patch: { productCode: target.productCode!, quantity } };
   if (item) return { kind: "update", id: item.id, patch: action === "add" ? { missing: true, quantity } : { quantity } };
   const match = target.groupRef !== undefined ? { groupRef: target.groupRef } : { productCode: target.productCode };
   return { kind: "add", body: { name: target.name, category: target.category, ...match, quantity, missing: true } };

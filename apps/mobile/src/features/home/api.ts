@@ -27,3 +27,20 @@ export const useTypeCards = (type: ProductType, coords: Coords | null, radiusKm:
   const q = nearQuery(coords, radiusKm);
   return useQuery({ queryKey: ["browse", "types", type, q], queryFn: () => api<Card[]>(`api/browse/types/${type}${q}`), enabled, placeholderData: keepPreviousData });
 };
+
+/** A Product on a product page: pack size (null when unreadable), cheapest price nearby (per kilo by weight; null without a location). */
+export type GroupProduct = {
+  code: string; name: string; measure: Measure | null; size: number | null; soldBy: SoldBy; minPrice: number | null; storeCount: number;
+};
+export type GroupPage = { card: Card; products: GroupProduct[] };
+
+/** A group card's product page: the card and its Products sold nearby. */
+export const useGroupPage = (type: ProductType, ref: string, coords: Coords | null, radiusKm: number, enabled: boolean) => {
+  const q = nearQuery(coords, radiusKm);
+  return useQuery({
+    queryKey: ["browse", "types", type, "groups", ref, q],
+    queryFn: () => api<GroupPage>(`api/browse/types/${type}/groups/${encodeURIComponent(ref)}${q}`),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+};

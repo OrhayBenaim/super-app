@@ -70,11 +70,12 @@ const CHOCOLATE = { code: "9", name: "שוקולד חלב 100 גרם", ...g(100)
 const SOAP = { code: "10", name: "סבון ידיים" };
 const WIPES = { code: "11", name: "מגבונים 80 יח" };
 const TUNA = { code: "12", name: "טונה בשמן 160 גרם", ...g(160) };
+const MILK_FAR = { code: "13", name: "חלב יטבתה 1% 1 ליטר", ...litre };
 
 const TYPES: Record<string, ProductType | null> = {
   [MILK3.name]: "dairy-eggs", [MILK1.name]: "dairy-eggs", [POWDER.name]: "dairy-eggs", [EGGS.name]: "dairy-eggs", [KEFIR.name]: "dairy-eggs",
   [SHOKO.name]: "drinks", [BAMBA.name]: "snacks-sweets", [BAMBA_NOUGAT.name]: "snacks-sweets", [CHOCOLATE.name]: "snacks-sweets",
-  [TUNA.name]: "canned", [WIPES.name]: null, // untyped: the classifier's answer was outside the list
+  [TUNA.name]: "canned", [MILK_FAR.name]: "dairy-eggs", [WIPES.name]: null, // untyped: the classifier's answer was outside the list
 };
 
 let app: Awaited<ReturnType<typeof world>>["app"];
@@ -89,7 +90,7 @@ beforeAll(async () => {
         { ...SOAP, price: 9 }, { ...WIPES, price: 10 },
       ],
       close: [{ ...MILK3, price: 5.5 }, { ...BAMBA_NOUGAT, price: 4.2 }],
-      far: [{ ...MILK3, price: 4 }, { ...TUNA, price: 8 }],
+      far: [{ ...MILK3, price: 4 }, { ...TUNA, price: 8 }, { ...MILK_FAR, price: 5 }],
     },
     TYPES,
   ));
@@ -168,5 +169,43 @@ describe("GET /api/browse/types/:type", () => {
     expect((await get(`/api/browse/types/dairy-eggs?${near}`, false)).status).toBe(401);
     expect((await get(`/api/browse/types/sweets?${near}`)).status).toBe(400);
     expect((await get(`/api/browse/types/dairy-eggs?lat=${here.lat}`)).status).toBe(400);
+  });
+});
+
+type GroupProduct = { code: string; name: string; measure: string | null; size: number | null; soldBy: string; minPrice: number | null; storeCount: number };
+const groupPath = (type: string, ref: string, query = near) => `/api/browse/types/${type}/groups/${encodeURIComponent(ref)}?${query}`;
+const page = async (type: string, ref: string, query = near) => (await json(groupPath(type, ref, query))) as { card: Card; products: GroupProduct[] };
+
+describe("GET /api/browse/types/:type/groups/:ref", () => {
+  it("lists the group's Products sold nearby, most nearby stores first, each with its cheapest nearby price", async () => {
+    expect(await page("dairy-eggs", "חלב|l")).toEqual({
+      card: expect.objectContaining({ ref: "חלב|l", name: "חלב", minPrice: 5.5, storeCount: 2 }),
+      products: [
+        // ₪4 at the far store and Yotvata (only sold far away) are outside the radius
+        { code: sku(MILK3.code), name: MILK3.name, measure: "l", size: 1, soldBy: "unit", minPrice: 5.5, storeCount: 2 },
+        { code: sku(MILK1.code), name: MILK1.name, measure: "l", size: 1, soldBy: "unit", minPrice: 6.4, storeCount: 1 },
+      ],
+    });
+  });
+
+  it("keeps to the card's Product type: the drinks milk card holds only chocolate milk", async () => {
+    expect((await page("drinks", "חלב|l")).products.map((p) => p.code)).toEqual([sku(SHOKO.code)]);
+  });
+
+  it("without a location lists every Product of the group with no prices", async () => {
+    const { card, products } = await page("dairy-eggs", "חלב|l", "");
+    expect(card).toMatchObject({ minPrice: null, storeCount: 3 });
+    expect(products.map((p) => [p.code, p.minPrice])).toEqual([[sku(MILK3.code), null], [sku(MILK1.code), null], [sku(MILK_FAR.code), null]]);
+  });
+
+  it("is 404 for a group not sold nearby", async () => {
+    expect((await get(groupPath("canned", "טונה|kg"))).status).toBe(404);
+  });
+
+  it("is 401 signed out and 400 for a bad group ref, Product type or location", async () => {
+    expect((await get(groupPath("dairy-eggs", "חלב|l"), false)).status).toBe(401);
+    expect((await get(groupPath("dairy-eggs", "חלב|box"))).status).toBe(400);
+    expect((await get(groupPath("sweets", "חלב|l"))).status).toBe(400);
+    expect((await get(groupPath("dairy-eggs", "חלב|l", `lat=${here.lat}`))).status).toBe(400);
   });
 });

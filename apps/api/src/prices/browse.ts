@@ -3,7 +3,7 @@
 import { PRODUCT_TYPES, type ProductType } from "@grocer/shared/product-types";
 import type { Db } from "#/db/index.ts";
 import type { Audience, PromotionKind } from "#/db/appSchema.ts";
-import { groupsFrom, measureOf, nameWords, parseRef, withoutSizes, type Measure } from "#/prices/groups.ts";
+import { groupsFrom, measureOf, nameWords, parseRef, soldByOf, withoutSizes, type Measure } from "#/prices/groups.ts";
 import { promotionPrice, promotionText, runningPromotions, type RunningPromotion } from "#/prices/promotions.ts";
 import type { SoldBy } from "@grocer/shared/quantity";
 
@@ -90,15 +90,43 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  * null, and then no prices are shown: there is no "nearby" to price).
  */
 export function cardsOf(db: Db, products: Priced[], storeIds: string[] | null): Card[] {
+  return groupsOf(products).map(toCard(db, products, storeIds)).sort(byStoresThenName);
+}
+
+const byStoresThenName = (a: { storeCount: number; name: string }, b: { storeCount: number; name: string }) =>
+  b.storeCount - a.storeCount || a.name.localeCompare(b.name, "he");
+
+function toCard(db: Db, products: Priced[], storeIds: string[] | null) {
   const byCode = new Map(products.map((p) => [p.code, p]));
-  const cards = groupsOf(products).map(({ ref, name, measure, soldBy, size, minPrice, codes }): Card => ({
+  return ({ ref, name, measure, soldBy, size, minPrice, codes }: ReturnType<typeof groupsOf>[number]): Card => ({
     ref, name, measure, soldBy, size,
     code: codes.reduce((a, b) => (byCode.get(b)!.storeCount > byCode.get(a)!.storeCount ? b : a)),
     minPrice: storeIds ? round2(minPrice) : null,
     storeCount: storeCountOf(db, codes, storeIds),
     codes,
+  });
+}
+
+/** A Product on a product page: its pack size (null when unreadable) and its cheapest price nearby (null without a location). */
+export type GroupProduct = {
+  code: string; name: string; measure: Measure | null; size: number | null; soldBy: SoldBy; minPrice: number | null; storeCount: number;
+};
+
+/**
+ * A group card's product page: the card and its Products, most nearby stores first, then by name. Null when these
+ * Products make no such card (not sold nearby, or of another Product type).
+ */
+export function groupPage(db: Db, products: Priced[], storeIds: string[] | null, ref: string) {
+  const group = groupsOf(products).find((g) => g.ref === ref);
+  if (!group) return null;
+  const members = products.filter((p) => group.codes.includes(p.code)).map(({ code, name, unitQty, isWeighted, minPrice, storeCount }): GroupProduct => ({
+    code, name,
+    ...(measureOf({ name, unitQty, isWeighted }) ?? { measure: null, size: null }),
+    soldBy: soldByOf({ unitQty, isWeighted }),
+    minPrice: storeIds ? minPrice : null,
+    storeCount,
   }));
-  return cards.sort((a, b) => b.storeCount - a.storeCount || a.name.localeCompare(b.name, "he"));
+  return { card: toCard(db, products, storeIds)(group), products: members.sort(byStoresThenName) };
 }
 
 /**
