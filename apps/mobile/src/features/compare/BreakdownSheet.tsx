@@ -40,7 +40,7 @@ function PromotionRow({ kind, text, label }: ReturnType<typeof promotionRows>[nu
 }
 
 /** True once `on` has stayed on for `ms`, so a fast refetch never flashes a spinner. */
-function useAfter(on: boolean, ms: number) {
+function useDelayed(on: boolean, ms: number) {
   const [late, setLate] = useState(false);
   useEffect(() => {
     setLate(false);
@@ -63,7 +63,7 @@ export function BreakdownSheet() {
   const list = useList(useCurrentListId(), { poll: false }).data;
   const { colors } = useTheme();
   const { stores, updating } = useCompareStores(list); // Compare's cached result
-  const spinning = useAfter(updating, 250);
+  const spinning = useDelayed(updating, 250);
   const store = stores.find((s) => s.storeId === storeId);
   if (!store) return null;
   const { priced, basket, notHere, unmatched } = breakdown(missingItems(list), store);
