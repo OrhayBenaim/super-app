@@ -10,9 +10,13 @@ export type Priced = {
   code: string; name: string; unitQty: string | null; isWeighted: number; type: ProductType; minPrice: number; storeCount: number;
 };
 
-/** A group card. `minPrice` is per kilo, liter or pack at nearby stores (null without a location); `code` is its commonest Product. */
+/**
+ * A group card. `minPrice` is per kilo, liter or pack at nearby stores (null without a location); `code` is its commonest
+ * Product (for the Product image); `codes` are its Products, so the app knows an Item matched to one is on the List.
+ */
 export type Card = {
   ref: string; name: string; measure: Measure; soldBy: SoldBy; size: number; code: string; minPrice: number | null; storeCount: number;
+  codes: string[];
 };
 
 const COLS = `p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted, coalesce(p.product_type, 'other') AS type,
@@ -90,6 +94,7 @@ export function cardsOf(db: Db, products: Priced[], storeIds: string[] | null): 
     code: codes.reduce((a, b) => (byCode.get(b)!.storeCount > byCode.get(a)!.storeCount ? b : a)),
     minPrice: storeIds ? round2(minPrice) : null,
     storeCount: storeCountOf(db, codes, storeIds),
+    codes,
   }));
   return cards.sort((a, b) => b.storeCount - a.storeCount || a.name.localeCompare(b.name, "he"));
 }

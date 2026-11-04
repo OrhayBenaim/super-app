@@ -131,18 +131,18 @@ describe("GET /api/browse/types", () => {
   });
 });
 
-type Card = { ref: string; name: string; measure: string; soldBy: string; size: number; code: string; minPrice: number | null; storeCount: number };
+type Card = { ref: string; name: string; measure: string; soldBy: string; size: number; code: string; minPrice: number | null; storeCount: number; codes: string[] };
 const cards = async (type: string, query = near) => (await json(`/api/browse/types/${type}?${query}`)) as Card[];
 
 describe("GET /api/browse/types/:type", () => {
   it("makes one card per first word and measure, most nearby stores first, then by name, with the cheapest nearby price", async () => {
     expect(await cards("dairy-eggs")).toEqual([
       // the far store's ₪4 milk is outside the radius
-      { ref: "חלב|l", name: "חלב", measure: "l", soldBy: "unit", size: 1, code: sku(MILK3.code), minPrice: 5.5, storeCount: 2 },
-      { ref: "ביצ|unit|12", name: "ביצים", measure: "unit", soldBy: "unit", size: 12, code: sku(EGGS.code), minPrice: 14, storeCount: 1 },
-      { ref: "חלב|kg", name: "חלב", measure: "kg", soldBy: "unit", size: 0.4, code: sku(POWDER.code), minPrice: 50, storeCount: 1 },
+      { ref: "חלב|l", name: "חלב", measure: "l", soldBy: "unit", size: 1, code: sku(MILK3.code), minPrice: 5.5, storeCount: 2, codes: [sku(MILK3.code), sku(MILK1.code)] },
+      { ref: "ביצ|unit|12", name: "ביצים", measure: "unit", soldBy: "unit", size: 12, code: sku(EGGS.code), minPrice: 14, storeCount: 1, codes: [sku(EGGS.code)] },
+      { ref: "חלב|kg", name: "חלב", measure: "kg", soldBy: "unit", size: 0.4, code: sku(POWDER.code), minPrice: 50, storeCount: 1, codes: [sku(POWDER.code)] },
       // a Product that shares its first word with nothing still gets a card
-      { ref: "קפיר|l", name: "קפיר", measure: "l", soldBy: "unit", size: 0.5, code: sku(KEFIR.code), minPrice: 10, storeCount: 1 },
+      { ref: "קפיר|l", name: "קפיר", measure: "l", soldBy: "unit", size: 0.5, code: sku(KEFIR.code), minPrice: 10, storeCount: 1, codes: [sku(KEFIR.code)] },
     ]);
   });
 
