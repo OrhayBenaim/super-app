@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
+import { createApp } from "#/app.ts";
 import { buildDeps, type Deps } from "#/deps.ts";
 import { MAX_NAMES } from "#/ingest/product-types.ts";
 import { priceSyncJob } from "#/jobs/price-sync.ts";
@@ -64,6 +65,17 @@ describe("priceSyncJob: Product types", () => {
 
     expect(types(deps)).toEqual({ [sku(MILK)]: "dairy-eggs", [sku(TOMATO)]: "produce", [sku(SOAP)]: "other" });
     expect(classifier.calls.flat()).toContainEqual({ name: "עגבניה", manufacturer: null, size: "1 kg", soldBy: "weight" });
+
+    // What a User then sees: Home's Product types (no location: every store).
+    const app = createApp(deps);
+    const signUp = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "types@sync.test", password: "password1234", name: "Tal" }),
+    });
+    const cookie = signUp.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    const res = await app.request("/api/browse/types", { headers: { cookie } });
+    expect(await res.json()).toEqual([{ type: "dairy-eggs", cardCount: 1 }, { type: "produce", cardCount: 1 }, { type: "other", cardCount: 1 }]);
   });
 
   it("records how many Products got a type, how many became Other, and how many requests failed", async () => {
