@@ -40,6 +40,27 @@ describe("pickFiles on a captured Rami Levy listing", () => {
   });
 });
 
+describe("pickFiles on Hazi Hinam's names", () => {
+  const HAZI = "7290700100008";
+  const f = (name: string) => ({ name, url: `https://blob/${name}` });
+
+  it("takes the newest StoresFull as the Stores file, and the newest of a store's many PriceFull files", () => {
+    const { stores, prices } = pickFiles(
+      [
+        f(`StoresFull${HAZI}-000-20261103-010530.gz`),
+        f(`StoresFull${HAZI}-000-20261104-010530.gz`),
+        f(`PriceFull${HAZI}-000-219-20261104-221427.gz`),
+        f(`PriceFull${HAZI}-000-219-20261104-231501.gz`),
+        f(`Price${HAZI}-000-219-20261104-235534.gz`),
+      ],
+      9,
+      [HAZI],
+    );
+    expect(stores?.name).toBe(`StoresFull${HAZI}-000-20261104-010530.gz`);
+    expect(prices.map((p) => [p.name, p.update?.name])).toEqual([[`PriceFull${HAZI}-000-219-20261104-231501.gz`, `Price${HAZI}-000-219-20261104-235534.gz`]]);
+  });
+});
+
 describe("looksLikePriceFile", () => {
   it("accepts gzip, zip and XML (with BOMs) and rejects an HTML login page", () => {
     expect(looksLikePriceFile(new Uint8Array([0x1f, 0x8b, 8, 0]))).toBe(true);
