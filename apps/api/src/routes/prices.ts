@@ -5,6 +5,7 @@ import { SEARCH } from "@grocer/shared/search";
 import type { Db } from "#/db/index.ts";
 import { commonest, ftsMatch, groupMembers, groupRefSchema, measureOf, nameWords, parseRef, searchGroups, soldByOf, withoutSizes } from "#/prices/groups.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
+import { boundingBox, haversineKm } from "#/prices/nearby.ts";
 import { priceLines, runningPromotions, type AppliedPromotion } from "#/prices/promotions.ts";
 
 const quantity = z.number().positive().max(QUANTITY.max);
@@ -86,14 +87,6 @@ export function searchProducts(db: Db, q: string, limit: number, storeId?: strin
   return [...groups, ...withPrice(found).slice(0, limit).map(({ tier: _, ...p }) => productResult(p))];
 }
 
-const R = 6371;
-const KM_PER_DEG = 111; // below R*pi/180 = 111.195 so the bounding box always contains the circle
-const rad = (d: number) => (d * Math.PI) / 180;
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
 type PriceRow = {
   storeId: string; chainId: string; chainName: string; orderUrl: string | null; storeName: string;
   address: string; city: string; lat: number; lng: number; code: string; price: number;
@@ -132,8 +125,6 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
   });
   const asked = [...codes.keys(), ...groups.map((g) => g.ref)];
   const wantedCodes = [...new Set([...codes.keys(), ...groups.flatMap((g) => g.members.map((m) => m.code))])];
-  const dLat = radiusKm / KM_PER_DEG;
-  const dLng = radiusKm / (KM_PER_DEG * Math.max(Math.cos(rad(lat)), 0.01));
   const rows = db.$client
     .prepare(
       `SELECT s.id AS storeId, s.chain_id AS chainId, ch.name AS chainName, ch.order_url AS orderUrl, s.name AS storeName,
@@ -141,7 +132,7 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
        FROM prices pr JOIN stores s ON s.id = pr.store_id JOIN chains ch ON ch.id = s.chain_id
        WHERE s.lat BETWEEN ? AND ? AND s.lng BETWEEN ? AND ? AND pr.code IN (SELECT value FROM json_each(?))`,
     )
-    .all(lat - dLat, lat + dLat, lng - dLng, lng + dLng, JSON.stringify(wantedCodes)) as PriceRow[];
+    .all(...boundingBox(query), JSON.stringify(wantedCodes)) as PriceRow[];
 
   const byStore = new Map<string, { row: PriceRow; distanceKm: number; prices: Map<string, number> }>();
   for (const r of rows) {
