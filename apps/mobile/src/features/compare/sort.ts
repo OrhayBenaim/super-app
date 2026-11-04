@@ -22,9 +22,10 @@ export type StoreResult = {
    */
   items: (Line | (Line & { ref: string; name: string; size: number; unitPrice?: number }))[];
   /** Spend deals that apply: `total` is the lines less each `saving`; their lines (`codes`) keep their Shelf `lineTotal`. */
-  basket?: (Promotion & { minPurchase: number; saving: number; codes: string[] })[];
+  basket?: BasketDeal[];
   orderUrl: string | null;
 };
+export type BasketDeal = Promotion & { minPurchase: number; saving: number; codes: string[] };
 /** What a line prices, as the List's items name it (matchKey): a group line by its ref, a product line by its code. */
 export const lineKey = (l: StoreResult["items"][number]) => ("ref" in l ? l.ref : l.code);
 

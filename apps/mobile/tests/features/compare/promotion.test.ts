@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("expo-localization", () => ({ getLocales: () => [{ languageCode: "en" }] }));
 
-import { promotionRows, promotionText } from "@/features/compare/promotion";
+import { basketText, promotionRows, promotionText } from "@/features/compare/promotion";
 import { shekels } from "@/features/compare/format";
 import { en, he, type StringKey } from "@/lib/strings";
-import type { Promotion } from "@/features/compare/sort";
+import type { BasketDeal, Promotion } from "@/features/compare/sort";
 
 const tEn = (k: StringKey) => en[k];
 const tHe = (k: StringKey) => he[k];
@@ -49,6 +49,21 @@ describe("promotionText", () => {
   it("off with minQty above 1", () => {
     expect(promotionText(promo({ kind: "off", minQty: 2, amount: 5 }), "unit", tEn)).toBe(`${shekels(5)} off when you buy 2`);
     expect(promotionText(promo({ kind: "off", minQty: 2, amount: 5 }), "unit", tHe)).toBe(`${shekels(5)} הנחה בקניית 2`);
+  });
+});
+
+describe("basketText", () => {
+  const deal = (over: Partial<BasketDeal>): BasketDeal => ({ ...promo({}), minPurchase: 75, saving: 8, codes: ["a"], ...over });
+  it("price sold by unit: the price itself and the minimum, not 'Sale price'", () => {
+    expect(basketText(deal({ kind: "price", amount: 8.9 }), "unit", tEn)).toBe("₪8.90 when you spend ₪75.00");
+    expect(basketText(deal({ kind: "price", amount: 8.9 }), "unit", tHe)).toBe("₪8.90 בקנייה מעל ₪75.00");
+  });
+  it("other kinds use promotionText", () => {
+    expect(basketText(deal({ kind: "bundle", minQty: 2, amount: 110, minPurchase: 100 }), "unit", tHe)).toBe("2 ב-₪110.00 בקנייה מעל ₪100.00");
+    expect(basketText(deal({ kind: "percent", amount: 20 }), "unit", tEn)).toBe("20% off when you spend ₪75.00");
+  });
+  it("never uses the server's text", () => {
+    expect(basketText(deal({ kind: "percent", amount: 5 }), "unit", tEn)).not.toContain("SERVER");
   });
 });
 

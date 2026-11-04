@@ -3,7 +3,7 @@ import type { SoldBy } from "@grocer/shared/quantity";
 import { formatQuantity } from "@/features/items/labels";
 import type { t as translate } from "@/lib/strings";
 import { fmt, shekels } from "./format";
-import type { Promotion, StoreResult } from "./sort";
+import type { BasketDeal, Promotion, StoreResult } from "./sort";
 
 type Line = StoreResult["items"][number];
 
@@ -16,6 +16,13 @@ export function promotionText(p: Promotion, soldBy: SoldBy, t: typeof translate)
   if (p.kind === "off") return fmt(t(p.minQty > 1 ? "compare.promo.amountOffFor" : "compare.promo.amountOff"), { amount: shekels(p.amount), qty });
   return soldBy === "weight" ? fmt(t("quantity.perKg"), { price: shekels(p.amount) }) : t("compare.promo.salePrice");
 }
+
+/** A spend deal's row above the total: "₪8.90 when you spend ₪75.00" (a price is shown as is: the row has no price column for it). */
+export const basketText = (deal: BasketDeal, soldBy: SoldBy, t: typeof translate) =>
+  fmt(t("compare.promo.basket"), {
+    promo: deal.kind === "price" && soldBy !== "weight" ? shekels(deal.amount) : promotionText(deal, soldBy, t),
+    min: shekels(deal.minPurchase),
+  });
 
 const audienceKey = { club: "compare.promo.club", card: "compare.promo.card", coupon: "compare.promo.coupon" } as const;
 const audienceLabel = (p: Promotion, t: typeof translate) => (p.audience === "all" ? undefined : t(audienceKey[p.audience]));
