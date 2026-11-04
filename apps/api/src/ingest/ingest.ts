@@ -102,7 +102,7 @@ export type PromotionsOutcome =
  */
 export function ingestPromotions(deps: IngestDeps, chainKey: string, xml: string, fileName: string): PromotionsOutcome {
   const sqlite = deps.db.$client;
-  const parsed = parsePromotions(xml);
+  const parsed = parsePromotions(xml, chainKey);
   const chainId = chainFor(chainKey, parsed.chainId);
   if (parsed.layout === "unknown") return { layout: "unknown" };
   const storeId = storeOf(deps, chainId, fileName, parsed.storeId, "promotions");

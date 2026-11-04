@@ -2,6 +2,7 @@
 import { gunzipSync } from "node:zlib";
 import { XMLParser } from "fast-xml-parser";
 import { unzipSync } from "fflate";
+import type { Audience } from "#/prices/promotions.ts";
 import { fromJerusalem } from "#/utils/clock.ts";
 
 type Node = Record<string, any>;
@@ -143,7 +144,7 @@ export type PromotionReward = { kind: "price" | "bundle" | "percent"; minQty: nu
 export type ParsedPromotion = PromotionReward & {
   promotionId: string;
   description: string;
-  audience: "all";
+  audience: Audience;
   startsAt: number;
   endsAt: number;
   days: string | null;
@@ -172,6 +173,30 @@ function groupedReward(groupCount: number, items: Node[]): PromotionReward | str
   return `RewardType ${type}`;
 }
 
+// A bare club number names no audience and means a different one at each Chain (real files, 2026-11-04): Victory 1 is
+// Wolt-only and Machsanei Hashuk 1 employees, so only these are kept. Any other bare number is excluded.
+const bareClubs: Record<string, Record<string, Audience>> = {
+  victory: { "2": "card" }, // Max Victory card
+  "machsanei-hashuk": { "2": "card" }, // W CARD
+  "rami-levy": { "2": "card" }, // store 039: "לחברי אשראי"
+};
+
+/**
+ * Who gets a Promotion, from its ClubID ("0 - כלל הלקוחות", "1=מועדון אונליין", "(2=…אשראי|2=…)", "((…))&(3=…)", "2")
+ * and AdditionalIsCoupon; null = excluded (employees, a club tier, an unnamed code such as Keshet's bare "1=").
+ */
+function audienceOf(chainKey: string, clubId: string, coupon: boolean): Audience | null {
+  if (/^0(\D|$)/.test(clubId)) return coupon ? "coupon" : "all";
+  const bare = /^\d+$/.test(clubId) ? bareClubs[chainKey]?.[clubId] : undefined;
+  const names = [...clubId.matchAll(/\d+\s*[=-]\s*([^|()&]*)/g)].map((m) => m[1]!.trim());
+  if (!bare && (!names.length || names.some((n) => !n || /עובד|זהב|פלטינ|V\.?I\.?P/i.test(n)))) return null;
+  if (coupon) return "coupon";
+  if (bare) return bare;
+  // "|" lists alternatives (any one is enough, so a club beats a card); "&" joins conditions (a card one is needed).
+  const card = (n: string) => n.includes("אשראי");
+  return (clubId.includes("&") ? names.some(card) : names.every(card)) ? "card" : "club";
+}
+
 const weekdays = (v: unknown) => {
   const days = [...new Set(str(v).split(",").map((d) => d.trim()).filter((d) => /^[1-7]$/.test(d)))].sort().join(",");
   return days === "" || days === "1,2,3,4,5,6,7" ? null : days;
@@ -181,10 +206,10 @@ const weekdays = (v: unknown) => {
  * A promotion file (docs/research/price-data.md section 3c). `layout` is "grouped" when every Promotion nests its items in
  * Groups (grouped-2026, and Shufersal/Carrefour's files, which have the same tags), else "unknown" (nothing parsed).
  * Rows sharing a PromotionID are one Promotion (Victory and Machsanei Hashuk write one row per item).
- * Only all-customer Promotions are returned; `unpriced` lists the all-customer ones whose price can't be read yet,
+ * Promotions for an excluded audience are left out; `unpriced` lists the others whose price can't be read yet,
  * `ids` every PromotionID in the file.
  */
-export function parsePromotions(xml: string) {
+export function parsePromotions(xml: string, chainKey: string) {
   const doc = promoParser.parse(xml) as Node;
   const r: Node | undefined = Object.values(doc).find((v) => v && typeof v === "object");
   if (!r) throw new Error("no XML root element");
@@ -198,8 +223,8 @@ export function parsePromotions(xml: string) {
   const promotions: ParsedPromotion[] = [];
   const unpriced: { promotionId: string; kind: string }[] = [];
   for (const [promotionId, [p, ...more]] of byId) {
-    // All customers: ClubID "0" / "0 - כלל הלקוחות", not a coupon. Restricted audiences come in a later ticket.
-    if (!/^0(\D|$)/.test(str(p!.clubid)) || num(p!.additionaliscoupon) === 1) continue;
+    const audience = audienceOf(chainKey, str(p!.clubid), num(p!.additionaliscoupon) === 1);
+    if (!audience) continue;
     const groupCount = Math.max(...[p!, ...more].map((row) => row.groups.group.length));
     const items: Node[] = [p!, ...more].flatMap((row) => row.groups.group[0]?.promotionitems?.promotionitem ?? []);
     const reward = groupedReward(groupCount, items);
@@ -213,7 +238,7 @@ export function parsePromotions(xml: string) {
       promotionId,
       description: str(p!.promotiondescription),
       ...reward,
-      audience: "all",
+      audience,
       startsAt,
       endsAt,
       days: weekdays(p!.promotiondays),

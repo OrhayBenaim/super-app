@@ -303,7 +303,7 @@ describe("Compare with Promotions from real Yohananof files (downloaded 2026-11-
     expect(await w.line(code.chocolate, 2)).toMatchObject({ price: 8.9, lineTotal: 15, promotion: { id: "372706", kind: "bundle", minQty: 2, text: "2 ב-₪15" } });
   });
 
-  it("a club-only Promotion leaves the line at the Shelf price", async () => {
+  it("an employees' club Promotion (1 - מועדון עובדים) leaves the line at the Shelf price", async () => {
     const w = await yohananof();
     const l = await w.line(code.salad, 2);
     expect(l).toMatchObject({ price: 14.9, lineTotal: 29.8 });
