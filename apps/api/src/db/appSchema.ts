@@ -84,6 +84,12 @@ export const stores = sqliteTable(
   (t) => [index("stores_lat_lng_idx").on(t.lat, t.lng)],
 );
 
+// The fixed list of Product types (docs/adr/0003), upserted by openDb from PRODUCT_TYPES; position is display order.
+export const productTypes = sqliteTable("product_types", {
+  id: text("id").primaryKey(),
+  position: integer("position").notNull(),
+});
+
 export const products = sqliteTable("products", {
   code: text("code").primaryKey(), // ItemCode if a valid GTIN, else `${chainId}:${ItemCode}`
   itemCode: text("item_code"), // raw ItemCode as published
@@ -91,6 +97,8 @@ export const products = sqliteTable("products", {
   manufacturer: text("manufacturer"),
   unitQty: text("unit_qty"),
   isWeighted: integer("is_weighted", { mode: "boolean" }).notNull().default(false),
+  // Null until a Price sync classifies it (an untyped Product counts as Other); clearing it sends it again.
+  productType: text("product_type").references(() => productTypes.id),
 });
 
 export const prices = sqliteTable(
@@ -120,6 +128,10 @@ export const syncRuns = sqliteTable("sync_runs", {
   requestedAt: integer("requested_at", { mode: "timestamp_ms" }).notNull(),
   startedAt: integer("started_at", { mode: "timestamp_ms" }),
   finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+  // The Product type step: Products that got a type, how many of them Other, failed requests. Null when it didn't run.
+  productsTyped: integer("products_typed"),
+  productsOther: integer("products_other"),
+  typeRequestsFailed: integer("type_requests_failed"),
 });
 
 export const syncChainResults = sqliteTable(

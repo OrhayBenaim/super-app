@@ -45,6 +45,9 @@ On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN IP, not lo
 | api | `NOMINATIM_URL` | optional geocoder base URL for `npm run geocode`, default `https://nominatim.openstreetmap.org` |
 | api | `SENTRY_DSN` | optional; the one Sentry project `grocer`, shared with mobile (events tagged `app:api`). Unset: errors are only logged |
 | api | `SENTRY_ENVIRONMENT` | default `development`; set `production` in deploys. Traces: 100% in development, 20% in production, the same rule as mobile (`packages/shared/src/sentry.ts`) |
+| api | `LLM_API_KEY` | optional; key for the Product type classifier in the Price sync. Unset: the step is skipped (logged once per sync) and Products stay untyped. Product names are sent to the provider |
+| api | `LLM_BASE_URL`, `LLM_MODEL` | any OpenAI-compatible Chat Completions API and model, default `https://api.openai.com/v1` and `gpt-4.1-mini` |
+| api | `LLM_MAX_NAMES` | distinct Product names classified per Price sync, default 5000; the rest wait for the next sync |
 | api | `APPLE_CLIENT_ID`, `APPLE_CLIENT_SECRET`, `APPLE_APP_BUNDLE_IDENTIFIER` | optional; Apple sign-in on when id + secret set |
 | mobile | `EXPO_PUBLIC_API_URL` | e.g. `http://localhost:3000` |
 | mobile | `EXPO_PUBLIC_SENTRY_DSN` | optional; same DSN as the API's `SENTRY_DSN` (events tagged `app:mobile`). Unset: the SDK stays off. `.env` is not uploaded to EAS, so set it as an EAS env var for cloud builds |

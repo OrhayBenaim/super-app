@@ -52,6 +52,7 @@ src/providers/<vendor>/fake.ts     its fake
 
 | Service | Interface | Provider folder |
 |---|---|---|
+| `classifier.ts` | `Classifier`: Product types for the Price sync | `openai/` (any OpenAI-compatible Chat Completions API); `deps.classifier` is null when `LLM_API_KEY` is unset |
 | `config.ts` | `Config` | none: env vars, validated with Zod |
 | `error-handler.ts` | `ErrorHandler` | `sentry/` (its fake when `SENTRY_DSN` is unset) |
 | `geocoder.ts` | `Geocoder` | `nominatim/` |

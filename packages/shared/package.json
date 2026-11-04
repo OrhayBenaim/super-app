@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./otp": "./src/otp.ts",
+    "./product-types": "./src/product-types.ts",
     "./quantity": "./src/quantity.ts",
     "./search": "./src/search.ts",
     "./sentry": "./src/sentry.ts"
