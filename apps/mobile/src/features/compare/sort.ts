@@ -3,8 +3,8 @@ export type Sort = "price" | "distance" | "coverage";
 export type Promotion = {
   id: string; kind: "price" | "bundle" | "percent"; minQty: number; amount: number; audience: "all" | "club" | "card" | "coupon"; text: string;
 };
-/** `price` is the Shelf price; `lineTotal` is after `promotion` when one applies. */
-type Line = { code: string; price: number; quantity: number; lineTotal: number; promotion?: Promotion };
+/** `price` is the Shelf price; `lineTotal` is after `promotion` when one applies; `info` is never in `lineTotal`. */
+type Line = { code: string; price: number; quantity: number; lineTotal: number; promotion?: Promotion; info?: { id: string; description: string }[] };
 export type StoreResult = {
   storeId: string; chainId: string; chainName: string; storeName: string; address: string; city: string;
   lat: number; lng: number; distanceKm: number; total: number; matched: number;

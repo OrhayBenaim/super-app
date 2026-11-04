@@ -19,6 +19,9 @@ export function sentryErrorHandler({ dsn, environment }: { dsn: string; environm
     });
   return {
     report: (error) => Sentry.captureException(error),
+    // As JSON text: Sentry cuts extra nested deeper than normalizeDepth (3) to "[Object]".
+    warn: (message, details) =>
+      Sentry.captureMessage(message, { level: "warning", extra: Object.fromEntries(Object.entries(details).map(([k, v]) => [k, JSON.stringify(v)])) }),
     setUser: (id) => Sentry.setUser({ id }),
     flush: () => Sentry.flush(2000),
   };

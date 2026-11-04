@@ -7,7 +7,8 @@ export type RunningPromotion = {
   storeId: string;
   code: string;
   id: string; // the Chain's PromotionID, so lines sharing a Promotion can name it
-  kind: "price" | "bundle" | "percent";
+  kind: "price" | "bundle" | "percent" | "info"; // info: shown with its description, never in a total
+  description: string;
   minQty: number;
   amount: number;
   audience: Audience;
@@ -19,7 +20,7 @@ export type RunningPromotion = {
 export function runningPromotions(db: Db, storeIds: string[], codes: string[], now: Date) {
   const rows = db.$client
     .prepare(
-      `SELECT p.store_id AS storeId, pi.code, p.promotion_id AS id, p.kind, p.min_qty AS minQty, p.amount, p.audience, p.limit_qty AS limitQty,
+      `SELECT p.store_id AS storeId, pi.code, p.promotion_id AS id, p.kind, p.description, p.min_qty AS minQty, p.amount, p.audience, p.limit_qty AS limitQty,
          COALESCE(pr.is_weighted, 0) AS weighted
        FROM promotion_items pi JOIN promotions p ON p.id = pi.promotion_id LEFT JOIN products pr ON pr.code = pi.code
        WHERE pi.code IN (SELECT value FROM json_each(?)) AND p.store_id IN (SELECT value FROM json_each(?))
@@ -61,15 +62,18 @@ const textOf = (p: RunningPromotion, price: number) =>
 
 /**
  * The lowest total for one line: its Shelf total, or the cheapest of `promos` (at most one Promotion per line). A
- * Promotion that doesn't lower the total, or whose minimum the Quantity doesn't reach, is not applied.
+ * Promotion that doesn't lower the total, or whose minimum the Quantity doesn't reach, is not applied. Info-only
+ * Promotions are listed in `info` and never priced.
  */
 export function priceLine(price: number, quantity: number, promos: RunningPromotion[] = []) {
   let total = price * quantity;
   let best: RunningPromotion | undefined;
+  const info = promos.filter((p) => p.kind === "info").map(({ id, description }) => ({ id, description }));
   for (const p of promos) {
+    if (p.kind === "info") continue;
     const cost = costWith(p, price, quantity);
     if (cost < total - 1e-9) [total, best] = [cost, p];
   }
   const promotion = best && { id: best.id, kind: best.kind, minQty: best.minQty, amount: best.amount, audience: best.audience, text: textOf(best, price) };
-  return { total, ...(promotion ? { promotion } : {}) };
+  return { total, ...(promotion ? { promotion } : {}), ...(info.length ? { info } : {}) };
 }

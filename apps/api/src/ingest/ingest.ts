@@ -93,12 +93,13 @@ export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: s
 
 export type PromotionsOutcome =
   | { layout: "unknown" }
-  | { layout: "grouped"; loaded: number; unpriced: { promotionId: string; kind: string }[] };
+  | { layout: "grouped"; store: string; loaded: number; unpriced: { promotionId: string; kind: string }[] };
 
 /**
  * Loads a promotion file. A full file (named `PromoFull…`) replaces the store's Promotions, so one it no longer lists has
  * ended; an update (named `Promo…`) replaces only the Promotions it lists, each by its PromotionID. A file in a layout
- * Grocer can't read yet leaves the store's Promotions untouched. Returns how many were loaded and the ones it couldn't price.
+ * Grocer can't read yet leaves the store's Promotions untouched. Returns the store (the Chain's StoreID), how many were
+ * loaded (info-only ones included) and the ones it couldn't price.
  */
 export function ingestPromotions(deps: IngestDeps, chainKey: string, xml: string, fileName: string): PromotionsOutcome {
   const sqlite = deps.db.$client;
@@ -106,7 +107,7 @@ export function ingestPromotions(deps: IngestDeps, chainKey: string, xml: string
   const chainId = chainFor(chainKey, parsed.chainId);
   if (parsed.layout === "unknown") return { layout: "unknown" };
   const storeId = storeOf(deps, chainId, fileName, parsed.storeId, "promotions");
-  if (!storeId) return { layout: parsed.layout, loaded: 0, unpriced: [] };
+  if (!storeId) return { layout: parsed.layout, store: parsed.storeId, loaded: 0, unpriced: [] };
   const update = parseFileName(basename(fileName))?.type === "promo";
   const insertPromotion = sqlite.prepare(
     `INSERT INTO promotions (store_id, promotion_id, description, kind, min_qty, amount, audience, starts_at, ends_at, days, limit_qty)
@@ -121,7 +122,7 @@ export function ingestPromotions(deps: IngestDeps, chainKey: string, xml: string
       for (const code of p.codes) insertItem.run(lastInsertRowid, productCode(chainId, code));
     }
   })();
-  return { layout: parsed.layout, loaded: parsed.promotions.length, unpriced: parsed.unpriced };
+  return { layout: parsed.layout, store: storeId.slice(chainId.length + 1), loaded: parsed.promotions.length, unpriced: parsed.unpriced };
 }
 
 export const readXml = (file: string) => decodeXml(readFileSync(file));

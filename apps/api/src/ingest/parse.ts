@@ -141,7 +141,8 @@ const promoParser = new XMLParser({
 });
 
 export type PromotionReward = { kind: "price" | "bundle" | "percent"; minQty: number; amount: number };
-export type ParsedPromotion = PromotionReward & {
+// info: information only (a gift, a deal priced only in its description, a reward Grocer can't price), never in a total.
+export type ParsedPromotion = (PromotionReward | { kind: "info"; minQty: 0; amount: 0 }) & {
   promotionId: string;
   description: string;
   audience: Audience;
@@ -219,8 +220,8 @@ const weekdays = (v: unknown) => {
  * A promotion file (docs/research/price-data.md section 3c). `layout` is "grouped" when every Promotion nests its items in
  * Groups (grouped-2026, and Shufersal/Carrefour's files, which have the same tags), else "unknown" (nothing parsed).
  * Rows sharing a PromotionID are one Promotion (Victory and Machsanei Hashuk write one row per item).
- * Promotions for an excluded audience are left out; `unpriced` lists the others whose price can't be read yet,
- * `ids` every PromotionID in the file.
+ * Promotions for an excluded audience are left out; `unpriced` lists the others whose price can't be read yet (returned
+ * as info-only when their dates can be read), `ids` every PromotionID in the file.
  */
 export function parsePromotions(xml: string, chainKey: string) {
   const doc = promoParser.parse(xml) as Node;
@@ -242,15 +243,17 @@ export function parsePromotions(xml: string, chainKey: string) {
     const items: Node[] = [p!, ...more].flatMap((row) => row.groups.group[0]?.promotionitems?.promotionitem ?? []);
     const reward = groupedReward(groupCount, items);
     const [startsAt, endsAt] = [fromJerusalem(str(p!.promotionstartdatetime)), fromJerusalem(str(p!.promotionenddatetime))];
-    if (typeof reward === "string" || Number.isNaN(startsAt) || Number.isNaN(endsAt)) {
-      unpriced.push({ promotionId, kind: typeof reward === "string" ? reward : "unreadable dates" });
+    if (Number.isNaN(startsAt) || Number.isNaN(endsAt)) {
+      unpriced.push({ promotionId, kind: "unreadable dates" });
       continue;
     }
+    // A reward Grocer can't price is kept as information: shown with the Chain's description, never in a total.
+    if (typeof reward === "string") unpriced.push({ promotionId, kind: reward });
     const limit = num(p!.redemptionlimit);
     promotions.push({
       promotionId,
       description: str(p!.promotiondescription),
-      ...reward,
+      ...(typeof reward === "string" ? { kind: "info" as const, minQty: 0, amount: 0 } : reward),
       audience,
       startsAt,
       endsAt,
