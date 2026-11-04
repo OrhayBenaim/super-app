@@ -11,6 +11,8 @@ export type RowProps = Partial<Omit<TapProps, "children" | "analyticsName">> & {
   titleColor?: ColorName;
   /** Second line in Subhead, Secondary Label. */
   detail?: string;
+  /** Extra lines under the detail, in the text column. */
+  below?: ReactNode;
   /** Trailing value in Secondary Label (form rows). */
   value?: string;
   valueColor?: ColorName;
@@ -21,7 +23,7 @@ export type RowProps = Partial<Omit<TapProps, "children" | "analyticsName">> & {
 } & ({ onPress?: undefined; onLongPress?: undefined; analyticsName?: undefined } | { analyticsName: TapName }); // pressable rows must name their tap
 
 /** The standard 52pt list row. Pressable when it has onPress/onLongPress, static otherwise. */
-export function Row({ title, titleColor = "label", detail, value, valueColor = "labelSecondary", chevron, leading, trailing, onPress, onLongPress, accessibilityLabel, analyticsName, ...rest }: RowProps) {
+export function Row({ title, titleColor = "label", detail, below, value, valueColor = "labelSecondary", chevron, leading, trailing, onPress, onLongPress, accessibilityLabel, analyticsName, ...rest }: RowProps) {
   const { colors, space, size } = useTheme();
   const body = (
     <>
@@ -35,6 +37,7 @@ export function Row({ title, titleColor = "label", detail, value, valueColor = "
             {detail}
           </Text>
         )}
+        {below}
       </View>
       {value && (
         <Text color={valueColor} numberOfLines={1} style={{ flexShrink: 1, maxWidth: "60%" }}>
