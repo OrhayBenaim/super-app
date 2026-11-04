@@ -53,7 +53,7 @@ _Avoid_: Unavailable item, out of stock (Grocer only knows what a store prices, 
 ### Prices
 
 **Price sync**:
-One run that brings every Chain's prices up to date: download each Chain's newest Stores and PriceFull files for all its stores, load them, geocode every store that has no location yet (new, moved, or not found before), and look up the Product type of every Product that has none yet (one not found is looked up again a week later). A Chain that fails does not stop the others, and a lookup that fails leaves Products as they were. Only one Price sync runs at a time.
+One run that brings every Chain's prices up to date: download each Chain's newest Stores and PriceFull files for all its stores, load them, geocode every store that has no location yet (new, moved, or not found before), and give a Product type to every Product that has none yet (what one Price sync doesn't reach is left for the next). A Chain that fails does not stop the others, and a classification that fails leaves Products as they were. Only one Price sync runs at a time.
 _Avoid_: Fetch, scrape, import (each names only one part of it)
 
 **Scheduled sync**:
@@ -85,7 +85,7 @@ Products that are the same thing to a shopper, whatever their brand, pack size o
 _Avoid_: Generic product, canonical product, Produce group, kind, category (an Item's category is something else)
 
 **Product type**:
-The broad kind a Product is (dairy, beverages, snacks, meat…): the top-level Open Food Facts category of its barcode. A Product Open Food Facts has no category for, or that has no barcode, is of the Product type Other. Users browse Home by Product type. An Item added from Home or Promotions takes its Product type's name as its category.
+The broad kind a Product is: one of a fixed list we own (dairy and eggs, meat and fish, produce…, Other last), given to each Product from its name. A Product that fits none of them is of the Product type Other, and so is a Product not given a type yet. Users browse Home by Product type. An Item added from Home or Promotions takes its Product type's name as its category.
 _Avoid_: Category (an Item's category is the household's own), department
 
 ### Account lifecycle
