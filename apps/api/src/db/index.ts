@@ -4,11 +4,12 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { chainSeeds } from "#/ingest/chains.ts";
 import { ownGroupRef } from "#/prices/groups.ts";
 import * as schema from "#/db/schema.ts";
 
-/** Opens the SQLite file (":memory:" in tests), applies migrations, upserts the chain seeds and links old Produce-group items. */
+/** Opens the SQLite file (":memory:" in tests), applies migrations, upserts the chain seeds and Product types, and links old Produce-group items. */
 export function openDb(path: string) {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
 
@@ -23,6 +24,8 @@ export function openDb(path: string) {
     const row = { id: ids[0]!, key, name, nameHe, orderUrl, onlineStoreId: onlineStore ? `${ids[0]}-${onlineStore}` : null };
     db.insert(schema.chains).values(row).onConflictDoUpdate({ target: schema.chains.id, set: row }).run();
   }
+  for (const [position, id] of PRODUCT_TYPES.entries())
+    db.insert(schema.productTypes).values({ id, position }).onConflictDoUpdate({ target: schema.productTypes.id, set: { position } }).run();
   linkProduceItems(sqlite);
   return db;
 }

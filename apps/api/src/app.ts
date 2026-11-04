@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import type { Deps } from "#/deps.ts";
 import { rateLimit, type AppEnv } from "#/middleware.ts";
+import { browseRoutes } from "#/routes/browse.ts";
 import { deletionRoutes } from "#/routes/deletion.ts";
 import { listsRoutes } from "#/routes/lists.ts";
 import { pricesRoutes } from "#/routes/prices.ts";
@@ -42,6 +43,7 @@ export function createApp(deps: Deps) {
       }
     })
     .route("/api/lists", listsRoutes)
+    .route("/api/browse", browseRoutes)
     .route("/api", pricesRoutes)
     // Public page for the store listings (Google Play requires a privacy policy URL).
     .route("/privacy", privacyRoutes)

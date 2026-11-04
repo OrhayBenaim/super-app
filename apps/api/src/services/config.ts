@@ -32,6 +32,11 @@ const schema = z.object({
   INTERNAL_HOST: z.string().default("127.0.0.1"),
   SENTRY_DSN: optional, // unset: errors are only logged, nothing is sent
   SENTRY_ENVIRONMENT: z.string().default("development"), // "production" in deploys: also lowers trace sampling
+  // Product type classifier: any OpenAI-compatible Chat Completions API, chosen by the operator. Unless all three are
+  // set, the Price sync skips the step.
+  LLM_BASE_URL: z.url().optional(),
+  LLM_API_KEY: optional,
+  LLM_MODEL: optional,
 });
 
 export type Config = z.infer<typeof schema>;

@@ -32,6 +32,10 @@ services:
     build: { context: ., dockerfile: apps/api/Dockerfile, target: worker }
     environment:
       <<: *env
+      # Product type classifier, used only by the Price sync; unset = the step is skipped.
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
       NODE_USE_ENV_PROXY: "1" # Node 24's fetch honors HTTP(S)_PROXY only with this
       HTTP_PROXY: http://tailscale:1055
       HTTPS_PROXY: http://tailscale:1055

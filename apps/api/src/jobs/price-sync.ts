@@ -4,6 +4,7 @@ import { syncChainResults, syncRuns } from "#/db/appSchema.ts";
 import type { Deps } from "#/deps.ts";
 import { syncChain, type ChainCounts } from "#/ingest/chain-sync.ts";
 import { chainSeeds } from "#/ingest/chains.ts";
+import { typeProducts } from "#/ingest/product-types.ts";
 
 export const priceSyncData = z.object({ maxStores: z.coerce.number().int().min(1).optional() });
 export type PriceSyncData = z.input<typeof priceSyncData>;
@@ -11,7 +12,8 @@ export type PriceSyncData = z.input<typeof priceSyncData>;
 /**
  * Runs the recorded Price sync `runId` over every Chain, one after another, recording each Chain's result. A Chain failure
  * is logged, reported and recorded, and the next Chain still runs. `signal` is checked between Chains, never inside one:
- * once it fires the sync stops and is recorded as interrupted. Marks the run `running` before its first await.
+ * once it fires the sync stops and is recorded as interrupted. After the Chains, gives untyped Products a Product type
+ * (skipped when interrupted). Marks the run `running` before its first await.
  */
 export async function runPriceSync(deps: Deps, runId: number, { signal, maxStores = Infinity }: { signal?: AbortSignal; maxStores?: number }) {
   const { db, clock } = deps;
@@ -40,8 +42,9 @@ export async function runPriceSync(deps: Deps, runId: number, { signal, maxStore
       .run();
     console.log(`price sync ${runId}: ${chain.key} ${error ? "failed" : "ok"} in ${durationMs} ms`, counts);
   }
+  const typed = interrupted ? null : await typeProducts(deps, signal);
   db.update(syncRuns)
-    .set({ status: interrupted ? "interrupted" : "finished", finishedAt: clock.now() })
+    .set({ status: interrupted || signal?.aborted ? "interrupted" : "finished", finishedAt: clock.now(), ...typed })
     .where(eq(syncRuns.id, runId))
     .run();
 }

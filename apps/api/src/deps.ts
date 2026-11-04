@@ -5,6 +5,8 @@ import { pricePortals } from "#/providers/price-portals/price-portals.ts";
 import { ResendProvider } from "#/providers/resend/resend.ts";
 import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
 import { sentryErrorHandler } from "#/providers/sentry/sentry.ts";
+import { openaiClassifier } from "#/providers/openai/openai.ts";
+import type { Classifier } from "#/services/classifier.ts";
 import type { Config } from "#/services/config.ts";
 import type { ErrorHandler } from "#/services/error-handler.ts";
 import type { Geocoder } from "#/services/geocoder.ts";
@@ -18,6 +20,8 @@ export type Deps = {
   db: Db;
   auth: Auth;
   clock: Clock;
+  /** Null unless LLM_BASE_URL, LLM_API_KEY and LLM_MODEL are all set: the Price sync then gives no Product types. */
+  classifier: Classifier | null;
   errorHandler: ErrorHandler;
   geocoder: Geocoder;
   mailer: MailerService;
@@ -40,6 +44,10 @@ export function buildDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
     db,
     auth: createAuth(db, config, otp),
     clock,
+    classifier:
+      config.LLM_BASE_URL && config.LLM_API_KEY && config.LLM_MODEL
+        ? openaiClassifier({ baseUrl: config.LLM_BASE_URL, apiKey: config.LLM_API_KEY, model: config.LLM_MODEL })
+        : null,
     errorHandler,
     geocoder: nominatimGeocoder(config.NOMINATIM_URL),
     mailer,

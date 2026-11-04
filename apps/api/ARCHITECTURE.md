@@ -21,8 +21,8 @@ How the code inside `apps/api` is organised.
 | `src/deletion/` | The web page for Account deletion and Data deletion (`routes/deletion.ts`): `GET /account` signs in like the app, then choose, Deletion code, last confirmation. `GET /delete-account` and `GET /delete-data` (Google Play's Data safety links) show the choose step, or redirect to `/account` when signed out. `deletion.ts` sends, checks, confirms and cancels the code through the `OtpService`; `steps.ts` renders each step as an htmx fragment with Hono's `html` helper. The API serves htmx itself at `/assets/htmx.min.js`. Sign-in offers email and password, and Google when configured. Sign in with Apple is not on the page yet (#92: it needs an Apple Services ID with a web return URL); the sign-in step tells Apple users to delete in the app or write to the privacy address. |
 | `src/services/` | One file per vendor-neutral service (see [Services and providers](#services-and-providers)). |
 | `src/providers/<vendor>/` | Each vendor's implementation of a service, and its fake. |
-| `src/ingest/` | Price-file rules: chain seeds, file names, XML parsing, writing stores and prices. |
-| `src/prices/` | Price rules search and Compare apply at query time, e.g. `groups.ts`: Product groups (CONTEXT.md, docs/adr/0001). |
+| `src/ingest/` | Price-file rules: chain seeds, file names, XML parsing, writing stores and prices; `product-types.ts`: the Price sync's Product type step. |
+| `src/prices/` | Price rules search, Compare and browse apply at query time: `groups.ts` (Product groups, CONTEXT.md, docs/adr/0001), `nearby.ts` (the stores within a radius, for Compare and browse), `promotions.ts` (running Promotions and their prices), `browse.ts` (Home's Product types and group cards, Promotions cards, and their product pages, for `routes/browse.ts`). |
 | `src/db/` | Drizzle schema and `openDb()`. Migrations are in `drizzle/`. Queries that belong to no single route take `db` first and live by what they ask about (e.g. `users.ts`: `hasPassword(db, email)`). |
 | `src/utils/` | Small stateless helpers (e.g. `clock.ts`). |
 | `tests/` | All tests (see [Tests](#tests)). |
@@ -52,6 +52,7 @@ src/providers/<vendor>/fake.ts     its fake
 
 | Service | Interface | Provider folder |
 |---|---|---|
+| `classifier.ts` | `Classifier`: Product types for the Price sync | `openai/` (any OpenAI-compatible Chat Completions API); `deps.classifier` is null unless `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL` are all set |
 | `config.ts` | `Config` | none: env vars, validated with Zod |
 | `error-handler.ts` | `ErrorHandler` | `sentry/` (its fake when `SENTRY_DSN` is unset) |
 | `geocoder.ts` | `Geocoder` | `nominatim/` |
@@ -105,7 +106,7 @@ export function geocodeStoresJob(deps: Deps) {
 | `fetch-prices` | `npm run fetch` | Downloads a chain's newest Stores file and PriceFull files through `deps.pricePortal`. |
 | `ingest-prices` | `npm run ingest` | Loads Stores and PriceFull files into the database. |
 | `geocode-stores` | `npm run geocode` | Fills store coordinates through `deps.geocoder`. |
-| `price-sync` | `npm run sync` | One Price sync now: fetch, load and geocode every chain, recorded in `sync_runs`/`sync_chain_results`. |
+| `price-sync` | `npm run sync` | One Price sync now: fetch, load and geocode every chain, then give untyped Products a Product type through `deps.classifier` (skipped when it is null), recorded in `sync_runs`/`sync_chain_results`. |
 | `sync-worker` | `npm run worker` | Long-running (`src/jobs/sync-worker.ts`): runs `priceSyncCheck` once a minute (Scheduled syncs, Manual sync requests, Skipped syncs). |
 
 Rules:
