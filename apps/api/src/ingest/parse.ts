@@ -2,6 +2,7 @@
 import { gunzipSync } from "node:zlib";
 import { XMLParser } from "fast-xml-parser";
 import { unzipSync } from "fflate";
+import { fromJerusalem } from "#/utils/clock.ts";
 
 type Node = Record<string, any>;
 
@@ -127,4 +128,98 @@ export function parsePrices(xml: string): { chainId: string; storeId: string; it
     });
   }
   return { chainId: id(r.chainid), storeId: id(r.storeid), items };
+}
+
+// Promotion files nest Promotion > Groups > Group > PromotionItems > PromotionItem; a single child must still be an array.
+const promoParser = new XMLParser({
+  ignoreDeclaration: true,
+  parseTagValue: false,
+  htmlEntities: true,
+  transformTagName: (n) => n.toLowerCase(),
+  isArray: (n) => ["promotion", "group", "promotionitem"].includes(n),
+});
+
+export type PromotionReward = { kind: "price" | "bundle" | "percent"; minQty: number; amount: number };
+export type ParsedPromotion = PromotionReward & {
+  promotionId: string;
+  description: string;
+  audience: "all";
+  startsAt: number;
+  endsAt: number;
+  days: string | null;
+  limitQty: number | null;
+  codes: string[];
+};
+
+const isWeighted = (v: unknown) => /^(1|true)$/i.test(str(v));
+
+/** The reward of a one-group promotion's items, or why it can't be priced yet (later tickets add the other kinds). */
+function groupedReward(groupCount: number, items: Node[]): PromotionReward | string {
+  if (groupCount !== 1) return `${groupCount} groups`;
+  const rewardOf = (i: Node) => [str(i.rewardtype), num(i.minqty), num(str(i.rewardtype) === "2" ? i.discountrate : i.discountedprice), isWeighted(i.bisweighted)].join("|");
+  if (!items.length) return "no items";
+  if (new Set(items.map(rewardOf)).size > 1) return "items with different rewards";
+  const i = items[0]!;
+  const type = str(i.rewardtype);
+  const [minQty, price, rate] = [num(i.minqty) ?? 0, num(i.discountedprice) ?? 0, num(i.discountrate) ?? 0];
+  if (isWeighted(i.bisweighted)) return `RewardType ${type} weighted`;
+  if (type === "3" && minQty <= 1 && price > 0) return { kind: "price", minQty: 1, amount: price };
+  // 1 = N for a total on one product, 10 = across several (mix and match); DiscountedPrice is the total for MinQty units.
+  if ((type === "1" || type === "10") && Number.isInteger(minQty) && minQty >= 1 && price > 0)
+    return minQty === 1 ? { kind: "price", minQty: 1, amount: price } : { kind: "bundle", minQty, amount: price };
+  // Rate 100 is a gift, free delivery or another product free (real-promos README): never a free line.
+  if (type === "2" && minQty <= 1 && rate > 0 && rate < 100) return { kind: "percent", minQty: 1, amount: rate };
+  return `RewardType ${type}`;
+}
+
+const weekdays = (v: unknown) => {
+  const days = [...new Set(str(v).split(",").map((d) => d.trim()).filter((d) => /^[1-7]$/.test(d)))].sort().join(",");
+  return days === "" || days === "1,2,3,4,5,6,7" ? null : days;
+};
+
+/**
+ * A promotion file (docs/research/price-data.md section 3c). `layout` is "grouped" when every Promotion nests its items in
+ * Groups (grouped-2026, and Shufersal/Carrefour's files, which have the same tags), else "unknown" (nothing parsed).
+ * Rows sharing a PromotionID are one Promotion (Victory and Machsanei Hashuk write one row per item).
+ * Only all-customer Promotions are returned; `unpriced` lists the all-customer ones whose price can't be read yet,
+ * `ids` every PromotionID in the file.
+ */
+export function parsePromotions(xml: string) {
+  const doc = promoParser.parse(xml) as Node;
+  const r: Node | undefined = Object.values(doc).find((v) => v && typeof v === "object");
+  if (!r) throw new Error("no XML root element");
+  const rows: Node[] = r.promotions?.promotion ?? [];
+  const layout = rows.every((p) => p.groups?.group) ? ("grouped" as const) : ("unknown" as const);
+  const byId = new Map<string, Node[]>();
+  for (const p of layout === "grouped" ? rows : []) {
+    const pid = id(p.promotionid);
+    if (pid) byId.set(pid, [...(byId.get(pid) ?? []), p]);
+  }
+  const promotions: ParsedPromotion[] = [];
+  const unpriced: { promotionId: string; kind: string }[] = [];
+  for (const [promotionId, [p, ...more]] of byId) {
+    // All customers: ClubID "0" / "0 - כלל הלקוחות", not a coupon. Restricted audiences come in a later ticket.
+    if (!/^0(\D|$)/.test(str(p!.clubid)) || num(p!.additionaliscoupon) === 1) continue;
+    const groupCount = Math.max(...[p!, ...more].map((row) => row.groups.group.length));
+    const items: Node[] = [p!, ...more].flatMap((row) => row.groups.group[0]?.promotionitems?.promotionitem ?? []);
+    const reward = groupedReward(groupCount, items);
+    const [startsAt, endsAt] = [fromJerusalem(str(p!.promotionstartdatetime)), fromJerusalem(str(p!.promotionenddatetime))];
+    if (typeof reward === "string" || Number.isNaN(startsAt) || Number.isNaN(endsAt)) {
+      unpriced.push({ promotionId, kind: typeof reward === "string" ? reward : "unreadable dates" });
+      continue;
+    }
+    const limit = num(p!.redemptionlimit);
+    promotions.push({
+      promotionId,
+      description: str(p!.promotiondescription),
+      ...reward,
+      audience: "all",
+      startsAt,
+      endsAt,
+      days: weekdays(p!.promotiondays),
+      limitQty: limit && limit > 0 ? limit : null,
+      codes: [...new Set(items.map((i) => str(i.itemcode)).filter(Boolean))],
+    });
+  }
+  return { chainId: id(r.chainid), storeId: id(r.storeid), layout, ids: [...byId.keys()], promotions, unpriced };
 }
