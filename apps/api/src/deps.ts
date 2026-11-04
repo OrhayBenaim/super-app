@@ -20,7 +20,7 @@ export type Deps = {
   db: Db;
   auth: Auth;
   clock: Clock;
-  /** Null without LLM_API_KEY: the Price sync then gives no Product types. */
+  /** Null unless LLM_BASE_URL, LLM_API_KEY and LLM_MODEL are all set: the Price sync then gives no Product types. */
   classifier: Classifier | null;
   errorHandler: ErrorHandler;
   geocoder: Geocoder;
@@ -44,9 +44,10 @@ export function buildDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
     db,
     auth: createAuth(db, config, otp),
     clock,
-    classifier: config.LLM_API_KEY
-      ? openaiClassifier({ baseUrl: config.LLM_BASE_URL, apiKey: config.LLM_API_KEY, model: config.LLM_MODEL })
-      : null,
+    classifier:
+      config.LLM_BASE_URL && config.LLM_API_KEY && config.LLM_MODEL
+        ? openaiClassifier({ baseUrl: config.LLM_BASE_URL, apiKey: config.LLM_API_KEY, model: config.LLM_MODEL })
+        : null,
     errorHandler,
     geocoder: nominatimGeocoder(config.NOMINATIM_URL),
     mailer,

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { buildDeps, type Deps } from "#/deps.ts";
+import { MAX_NAMES } from "#/ingest/product-types.ts";
 import { priceSyncJob } from "#/jobs/price-sync.ts";
 import { fakeClassifier } from "#/providers/openai/fake.ts";
 import { fakeGeocoder } from "#/providers/nominatim/fake.ts";
@@ -138,23 +139,29 @@ describe("priceSyncJob: Product types", () => {
     expect(classifier.calls.map((c) => c.length)).toEqual([100, 50]);
   });
 
-  it("stops at LLM_MAX_NAMES names, and the next sync continues", async () => {
-    const classifier = fakeClassifier();
-    const deps = buildDeps({ ...loadConfig(), LLM_MAX_NAMES: 2 }, { pricePortal: portal({ "001": [MILK, TOMATO, SOAP] }), classifier });
+  it(`stops at ${MAX_NAMES} names, and the next sync continues`, async () => {
+    const items = Array.from({ length: MAX_NAMES + 1 }, (_, i): Item => ({ code: String(100000 + i), name: `מוצר ${i}` }));
+    const deps = setup({ "001": items }, { classifier: fakeClassifier() });
     const first = await priceSyncJob(deps)({});
-    expect(run(deps, first)).toMatchObject({ products_typed: 2 });
+    expect(run(deps, first)).toMatchObject({ products_typed: MAX_NAMES });
     expect(Object.values(types(deps)).filter((t) => t === null)).toHaveLength(1);
 
     const second = await priceSyncJob(deps)({});
     expect(run(deps, second)).toMatchObject({ products_typed: 1 });
     expect(Object.values(types(deps))).not.toContain(null);
+  }, 30_000);
+
+  it("has a classifier only with LLM_BASE_URL, LLM_API_KEY and LLM_MODEL all set", () => {
+    const llm = { LLM_BASE_URL: "https://llm.test/v1", LLM_API_KEY: "key", LLM_MODEL: "model" };
+    expect(buildDeps({ ...loadConfig(), ...llm }).classifier).not.toBeNull();
+    for (const unset of Object.keys(llm)) expect(buildDeps({ ...loadConfig(), ...llm, [unset]: undefined }).classifier, unset).toBeNull();
   });
 
-  it("without LLM_API_KEY skips the step, logs it once and records no counts", async () => {
+  it("without all three LLM settings skips the step, logs it once and records no counts", async () => {
     const log = vi.spyOn(console, "log");
-    const deps = setup({ "001": [MILK] });
+    const deps = buildDeps({ ...loadConfig(), LLM_API_KEY: "key" }, { pricePortal: portal({ "001": [MILK] }), geocoder: fakeGeocoder(() => ({ lat: 32, lng: 34 })) });
     const id = await priceSyncJob(deps)({});
-    const skipped = log.mock.calls.filter(([m]) => String(m).includes("LLM_API_KEY"));
+    const skipped = log.mock.calls.filter(([m]) => String(m).includes("LLM_MODEL"));
     log.mockRestore();
 
     expect(deps.classifier).toBeNull();

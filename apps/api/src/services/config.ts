@@ -32,11 +32,11 @@ const schema = z.object({
   INTERNAL_HOST: z.string().default("127.0.0.1"),
   SENTRY_DSN: optional, // unset: errors are only logged, nothing is sent
   SENTRY_ENVIRONMENT: z.string().default("development"), // "production" in deploys: also lowers trace sampling
-  // Product type classifier: any OpenAI-compatible Chat Completions API. Unset key: the Price sync skips the step.
-  LLM_BASE_URL: z.url().default("https://api.openai.com/v1"),
+  // Product type classifier: any OpenAI-compatible Chat Completions API, chosen by the operator. Unless all three are
+  // set, the Price sync skips the step.
+  LLM_BASE_URL: z.url().optional(),
   LLM_API_KEY: optional,
-  LLM_MODEL: z.string().default("gpt-4.1-mini"),
-  LLM_MAX_NAMES: z.coerce.number().int().min(1).default(5000), // distinct names per Price sync; the rest wait for the next
+  LLM_MODEL: optional,
 });
 
 export type Config = z.infer<typeof schema>;
