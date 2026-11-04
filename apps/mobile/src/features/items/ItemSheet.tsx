@@ -2,6 +2,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Barcode, Check, Layers } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert } from "react-native";
+import { fmt } from "@/features/compare/format";
+import { useCompareStores } from "@/features/compare/useBestStore";
 import { useCategories, useCurrentListId, useItemMutations, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
@@ -25,7 +27,9 @@ export function ItemSheet() {
   const router = useRouter();
   const { colors } = useTheme();
   const listId = useCurrentListId();
-  const item = useList(listId, { poll: false }).data?.items.find((i) => i.id === id) ?? null;
+  const list = useList(listId, { poll: false }).data;
+  const item = list?.items.find((i) => i.id === id) ?? null;
+  const chain = useCompareStores(list).stores.find((s) => s.storeId === storeId)?.chainName; // Compare's cached result, as the breakdown title
   const { update } = useItemMutations(listId);
   const categories = useCategories(listId).data ?? [];
   const [page, setPage] = useState<ItemPage>(storeId ? "product" : initialPage);
@@ -36,7 +40,7 @@ export function ItemSheet() {
   const [groupRef, setGroupRef] = useState<string | null>(null);
   const [productName, setProductName] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const search = useProductSearch(page === "product" ? query : "");
+  const search = useProductSearch(page === "product" ? query : "", storeId);
   const found = splitResults(search.data);
   const productImage = useProductImage(productCode);
 
@@ -139,7 +143,7 @@ export function ItemSheet() {
 
       {page === "product" && (
         <>
-          <SheetHeader title={t("items.product")} start={storeId ? { title: t("common.cancel"), analyticsName: Taps.commonCancel, onPress: onClose } : back} />
+          <SheetHeader title={chain ? fmt(t("items.product.atStore"), { chain }) : t("items.product")} start={storeId ? { title: t("common.cancel"), analyticsName: Taps.commonCancel, onPress: onClose } : back} />
           <SearchField label={t("items.product.placeholder")} value={query} onChangeText={setQuery} returnKeyType="search" />
           {search.isFetching && <ActivityIndicator color={colors.labelSecondary} />}
           {found.groups.length > 0 && (
@@ -173,7 +177,7 @@ export function ItemSheet() {
               ))}
             </Group>
           )}
-          {search.data?.length === 0 && <Row title={t("items.product.none")} />}
+          {search.data?.length === 0 && <Row title={chain ? fmt(t("items.product.noneAtStore"), { chain }) : t("items.product.none")} />}
           {!storeId && (
             <Group>
               <Row

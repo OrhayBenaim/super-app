@@ -57,16 +57,18 @@ export function useProductImage(code: string | null): string | null | undefined 
 /**
  * Product search for "Match a product" (the API's default 20 results), debounced 250ms; idle under 2 characters.
  * Results arrive without waiting for images; `imageUrl` fills in as each Product's lookup settles.
+ * With `storeId`, only what that store prices, at its prices.
  */
-export function useProductSearch(q: string) {
+export function useProductSearch(q: string, storeId?: string) {
   const [debounced, setDebounced] = useState(q);
   useEffect(() => {
     const id = setTimeout(() => setDebounced(q.trim()), 250);
     return () => clearTimeout(id);
   }, [q]);
   const search = useQuery({
-    queryKey: ["products", "search", debounced],
-    queryFn: () => api<SearchResult[]>(`api/products/search?q=${encodeURIComponent(debounced)}`),
+    queryKey: ["products", "search", debounced, storeId],
+    queryFn: () =>
+      api<SearchResult[]>(`api/products/search?q=${encodeURIComponent(debounced)}${storeId ? `&storeId=${encodeURIComponent(storeId)}` : ""}`),
     enabled: debounced.length >= SEARCH.minLength,
     staleTime: 60_000,
   });
