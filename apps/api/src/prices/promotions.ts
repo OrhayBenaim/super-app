@@ -12,14 +12,16 @@ export type RunningPromotion = {
   amount: number;
   audience: Audience;
   limitQty: number | null;
+  weighted: 0 | 1; // the product is weighed, so Quantity, minQty and limitQty are kilos
 };
 
 /** The Promotions on `codes` at `storeIds` running at `now` (start, end, Israeli weekday), by `${storeId} ${code}`. */
 export function runningPromotions(db: Db, storeIds: string[], codes: string[], now: Date) {
   const rows = db.$client
     .prepare(
-      `SELECT p.store_id AS storeId, pi.code, p.promotion_id AS id, p.kind, p.min_qty AS minQty, p.amount, p.audience, p.limit_qty AS limitQty
-       FROM promotion_items pi JOIN promotions p ON p.id = pi.promotion_id
+      `SELECT p.store_id AS storeId, pi.code, p.promotion_id AS id, p.kind, p.min_qty AS minQty, p.amount, p.audience, p.limit_qty AS limitQty,
+         COALESCE(pr.is_weighted, 0) AS weighted
+       FROM promotion_items pi JOIN promotions p ON p.id = pi.promotion_id LEFT JOIN products pr ON pr.code = pi.code
        WHERE pi.code IN (SELECT value FROM json_each(?)) AND p.store_id IN (SELECT value FROM json_each(?))
          AND p.starts_at <= ? AND p.ends_at > ? AND (p.days IS NULL OR instr(',' || p.days || ',', ?) > 0)`,
     )
@@ -33,7 +35,7 @@ export function runningPromotions(db: Db, storeIds: string[], codes: string[], n
 function costWith(p: RunningPromotion, price: number, quantity: number) {
   const units = Math.min(quantity, p.limitQty ?? Infinity);
   if (p.kind === "bundle") {
-    const sets = Math.floor(units / p.minQty);
+    const sets = Math.floor(units / p.minQty + 1e-9); // 0.6 kg / 0.2 kg is 2.999… in floats
     return sets * p.amount + (quantity - sets * p.minQty) * price;
   }
   const each = p.kind === "price" ? p.amount : price * (1 - p.amount / 100);
@@ -42,9 +44,20 @@ function costWith(p: RunningPromotion, price: number, quantity: number) {
 
 const shekels = (n: number) => (Number.isInteger(Math.round(n * 100) / 100) ? `₪${Math.round(n)}` : `₪${n.toFixed(2)}`);
 
-/** Hebrew-first text built from the reward ("3 ב-₪10", "10% הנחה", "₪4.90 במקום ₪6.90"); the app builds its own from the fields. */
+const weight = (kg: number) => (kg < 1 ? `${Math.round(kg * 1000)} גרם` : `${kg} ק״ג`);
+
+/**
+ * Hebrew-first text built from the reward ("3 ב-₪10", "10% הנחה", "₪4.90 במקום ₪6.90"; weighed: "2 ק״ג ב-₪80",
+ * "250 גרם ב-₪22", "₪29.90 לק״ג"); the app builds its own from the fields.
+ */
 const textOf = (p: RunningPromotion, price: number) =>
-  p.kind === "bundle" ? `${p.minQty} ב-${shekels(p.amount)}` : p.kind === "percent" ? `${p.amount}% הנחה` : `${shekels(p.amount)} במקום ${shekels(price)}`;
+  p.kind === "bundle"
+    ? `${p.weighted ? weight(p.minQty) : p.minQty} ב-${shekels(p.amount)}`
+    : p.kind === "percent"
+      ? `${p.amount}% הנחה`
+      : p.weighted
+        ? `${shekels(p.amount)} לק״ג`
+        : `${shekels(p.amount)} במקום ${shekels(price)}`;
 
 /**
  * The lowest total for one line: its Shelf total, or the cheapest of `promos` (at most one Promotion per line). A

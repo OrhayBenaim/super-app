@@ -163,7 +163,7 @@ function groupedReward(groupCount: number, items: Node[]): PromotionReward | str
   const i = items[0]!;
   const type = str(i.rewardtype);
   const [minQty, price, rate] = [num(i.minqty) ?? 0, num(i.discountedprice) ?? 0, num(i.discountrate) ?? 0];
-  if (isWeighted(i.bisweighted)) return `RewardType ${type} weighted`;
+  if (isWeighted(i.bisweighted) && type !== "2") return weightedReward(type, minQty, price);
   if (type === "3" && minQty <= 1 && price > 0) return { kind: "price", minQty: 1, amount: price };
   // 1 = N for a total on one product, 10 = across several (mix and match); DiscountedPrice is the total for MinQty units.
   if ((type === "1" || type === "10") && Number.isInteger(minQty) && minQty >= 1 && price > 0)
@@ -195,6 +195,19 @@ function audienceOf(chainKey: string, clubId: string, coupon: boolean): Audience
   // "|" lists alternatives (any one is enough, so a club beats a card); "&" joins conditions (a card one is needed).
   const card = (n: string) => n.includes("אשראי");
   return (clubId.includes("&") ? names.some(card) : names.every(card)) ? "card" : "club";
+}
+
+/**
+ * A price on an item Sold by weight (Quantity in kilos). MinQty 0.01 marks a per-kilo price, as does 1 (Victory); another
+ * weight up to 10 kg means the price of that weight. Other MinQty values (Salach Dabach 200, Stop Market and Dor Alon
+ * empty) and a price under ₪1 at 0.01 (Politzer prices 10 g there) can't say per kilo or per pack: info-only.
+ */
+function weightedReward(type: string, minQty: number, price: number): PromotionReward | string {
+  if (!["1", "3", "10"].includes(type)) return `RewardType ${type} weighted`;
+  const near = (q: number) => Math.abs(minQty - q) < 1e-6;
+  if (price > 0 && ((near(0.01) && price >= 1) || near(1))) return { kind: "price", minQty: 1, amount: price };
+  if (price > 0 && minQty > 0.01 + 1e-6 && minQty <= 10) return { kind: "bundle", minQty, amount: price };
+  return `weighted MinQty ${minQty}: per kilo or per pack unclear`;
 }
 
 const weekdays = (v: unknown) => {
