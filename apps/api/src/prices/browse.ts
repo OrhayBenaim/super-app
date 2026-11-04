@@ -13,11 +13,11 @@ export type Priced = {
 };
 
 /**
- * A group card. `minPrice` is per kilo, liter or pack at nearby stores (null without a location); `code` is its commonest
+ * A group card (`ref` null for a lone Product with no group ref: it is matched by `code`). `minPrice` is per kilo, liter or pack at nearby stores (null without a location); `code` is its commonest
  * Product (for the Product image); `codes` are its Products, so the app knows an Item matched to one is on the List.
  */
 export type Card = {
-  ref: string; name: string; measure: Measure; soldBy: SoldBy; size: number; code: string; minPrice: number | null; storeCount: number;
+  ref: string | null; name: string; measure: Measure; soldBy: SoldBy; size: number; code: string; minPrice: number | null; storeCount: number;
   codes: string[];
 };
 
@@ -53,27 +53,49 @@ export function storeCountOf(db: Db, codes: string[], storeIds: string[] | null)
 function firstWord(name: string) {
   const words = nameWords(name).map((w) => w.norm);
   const first = withoutSizes(words)[0];
-  return first === words[0] ? first : undefined;
+  return first !== undefined && first === words[0] ? [first] : [];
+}
+
+const ownWords = (name: string) => withoutSizes(nameWords(name).map((w) => w.norm));
+
+/** Per Product type, the groups `wordsOf` each Product's name makes, one per measure (and pack count), lone Products included. */
+function groupsBy(products: Priced[], wordsOf: (name: string) => string[]) {
+  const buckets = new Map<string, { type: ProductType; words: string[]; members: Priced[] }>();
+  for (const p of products) {
+    const words = wordsOf(p.name);
+    if (!words.length) continue;
+    const key = `${p.type}|${words.join(" ")}`;
+    const bucket = buckets.get(key) ?? { type: p.type, words, members: [] };
+    bucket.members.push(p);
+    buckets.set(key, bucket);
+  }
+  return [...buckets.values()].flatMap(({ type, words, members }) =>
+    groupsFrom(words, members, { minProducts: 1, everyMeasure: true })
+      .filter((g) => parseRef(g.ref)) // a ref the List and Compare accept
+      .map((g) => ({ ...g, ref: g.ref as string | null, type })),
+  );
+}
+
+/** A card for one Product with no group ref: Add matches its code. Priced per kilo, liter or pack; a pack of one without a size. */
+function loneCard(p: Priced) {
+  const { measure, size } = measureOf(p) ?? { measure: "unit" as const, size: 1 };
+  const minPrice = measure === "unit" ? p.minPrice : p.minPrice / size;
+  return { ref: null, name: p.name, measure, soldBy: soldByOf(p), size, minPrice, refinements: [], codes: [p.code], type: p.type };
 }
 
 /**
- * The group cards of these Products without prices or store counts: per Product type, the groups search would make from
- * each Product's first normalized word, one per measure (and pack count), lone Products included.
+ * The group cards of these Products without prices or store counts, each Product on exactly one: per Product type, the
+ * groups search would make from each Product's first normalized word (every measure, lone Products included). A Product
+ * none holds (a qualifier such as סויה, its size first, no readable size) gets its own: the group its own words make,
+ * or else a card with no group ref.
  */
-export function groupsOf(products: Priced[]) {
-  const buckets = new Map<string, Priced[]>();
-  for (const p of products) {
-    const word = firstWord(p.name);
-    if (!word) continue;
-    const key = `${p.type} ${word}`;
-    buckets.set(key, [...(buckets.get(key) ?? []), p]);
-  }
-  return [...buckets].flatMap(([key, members]) => {
-    const [type, word] = key.split(" ") as [ProductType, string];
-    return groupsFrom([word], members, { minProducts: 1, everyMeasure: true })
-      .filter((g) => parseRef(g.ref)) // a ref the List and Compare accept
-      .map((g) => ({ ...g, type }));
-  });
+function groupsOf(products: Priced[]) {
+  const grouped = groupsBy(products, firstWord);
+  const held = new Set(grouped.flatMap((g) => g.codes));
+  const refs = new Set(grouped.map((g) => `${g.type}|${g.ref}`));
+  const own = groupsBy(products.filter((p) => !held.has(p.code)), ownWords).filter((g) => !refs.has(`${g.type}|${g.ref}`));
+  for (const code of own.flatMap((g) => g.codes)) held.add(code);
+  return [...grouped, ...own, ...products.filter((p) => !held.has(p.code)).map(loneCard)];
 }
 
 /** How many group cards each Product type has, in display order (Other last), leaving out types with none. */

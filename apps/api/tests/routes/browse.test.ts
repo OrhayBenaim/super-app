@@ -209,3 +209,41 @@ describe("GET /api/browse/types/:type/groups/:ref", () => {
     expect((await get(groupPath("dairy-eggs", "חלב|l", `lat=${here.lat}`))).status).toBe(400);
   });
 });
+
+describe("every Product sold nearby is on exactly one card", () => {
+  const SOY = { code: "21", name: "חלב סויה 1 ליטר", ...litre }; // a qualifier: never part of the milk card
+  const SIZE_FIRST = { code: "22", name: "500 גרם גבינה לבנה", ...g(500) }; // starts with its size
+  const NAPKINS = { code: "23", name: "מפיות נייר", unit: "" }; // no readable size
+  let lone: Awaited<ReturnType<typeof world>>;
+  beforeAll(async () => {
+    lone = await world(
+      { near: [{ ...MILK3, price: 6 }, { ...SOY, price: 12 }, { ...SIZE_FIRST, price: 10 }, { ...NAPKINS, price: 8 }] },
+      { [MILK3.name]: "dairy-eggs", [SOY.name]: "dairy-eggs", [SIZE_FIRST.name]: "dairy-eggs" },
+    );
+  });
+  const loneCards = async (type: string) => {
+    const res = await lone.app.request(`/api/browse/types/${type}?${near}`, { headers: { cookie: lone.cookie } });
+    expect(res.status).toBe(200);
+    return (await res.json()) as (Omit<Card, "ref"> & { ref: string | null })[];
+  };
+
+  it("gives a Product no group holds a card of its own, matched by its own words or, without a group ref, by its code", async () => {
+    const dairy = await loneCards("dairy-eggs");
+    expect(dairy).toHaveLength(3);
+    expect(dairy).toEqual(expect.arrayContaining([
+      expect.objectContaining({ ref: "חלב|l", codes: [sku(MILK3.code)] }),
+      expect.objectContaining({ ref: "חלב סויה|l", name: "חלב סויה", measure: "l", size: 1, minPrice: 12, codes: [sku(SOY.code)] }),
+      { ref: null, name: SIZE_FIRST.name, measure: "kg", soldBy: "unit", size: 0.5, code: sku(SIZE_FIRST.code), minPrice: 20, storeCount: 1, codes: [sku(SIZE_FIRST.code)] },
+    ]));
+    expect(await loneCards("other")).toEqual([
+      { ref: null, name: NAPKINS.name, measure: "unit", soldBy: "unit", size: 1, code: sku(NAPKINS.code), minPrice: 8, storeCount: 1, codes: [sku(NAPKINS.code)] },
+    ]);
+    const res = await lone.app.request(`/api/browse/types?${near}`, { headers: { cookie: lone.cookie } });
+    expect(await res.json()).toEqual([{ type: "dairy-eggs", cardCount: 3 }, { type: "other", cardCount: 1 }]);
+  });
+
+  it("opens a lone Product's card with a group ref on its product page", async () => {
+    const res = await lone.app.request(groupPath("dairy-eggs", "חלב סויה|l"), { headers: { cookie: lone.cookie } });
+    expect((await res.json()).products.map((p: GroupProduct) => p.code)).toEqual([sku(SOY.code)]);
+  });
+});
