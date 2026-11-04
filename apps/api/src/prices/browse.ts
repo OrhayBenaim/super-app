@@ -39,7 +39,7 @@ export function pricedProducts(db: Db, storeIds: string[] | null, type?: Product
 }
 
 /** How many of `storeIds` (of all stores when null) price any of these codes. */
-export function storeCountOf(db: Db, codes: string[], storeIds: string[] | null) {
+function storeCountOf(db: Db, codes: string[], storeIds: string[] | null) {
   const { n } = db.$client
     .prepare(
       `SELECT count(DISTINCT store_id) AS n FROM prices WHERE code IN (SELECT value FROM json_each(@codes))
