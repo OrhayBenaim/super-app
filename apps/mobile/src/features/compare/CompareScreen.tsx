@@ -10,6 +10,7 @@ import { Events, Taps, track } from "@/lib/analytics";
 import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
+import { MenuButton } from "@/features/drawer/MenuButton";
 import { EmptyState, Group, LargeTitle, Screen, ShoppingLoader } from "@/ui";
 import { RADII, useCompare, useRadius } from "./api";
 import { BestStore, StoreRow } from "./BestStore";
@@ -153,7 +154,7 @@ export function CompareScreen() {
           />
         }
       >
-        <LargeTitle title={t("tabs.compare")} subtitle={subtitle} nav={showControls && <RadiusMenu value={radiusKm} onChange={setRadiusKm} />} />
+        <LargeTitle start={<MenuButton />} title={t("tabs.compare")} subtitle={subtitle} nav={showControls && <RadiusMenu value={radiusKm} onChange={setRadiusKm} />} />
         {showControls && matched > 0 && (
           <SortControl
             value={sort}

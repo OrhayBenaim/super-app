@@ -5,6 +5,7 @@ import { useNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
 import { Taps, trackTap } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
+import { MenuButton } from "@/features/drawer/MenuButton";
 import { Button, Group, LargeTitle, Screen, Text } from "@/ui";
 
 export default function Settings() {
@@ -12,7 +13,7 @@ export default function Settings() {
   return (
     <Screen edges={["top"]} style={{ paddingHorizontal: 0 }}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: space[5], paddingBottom: space[9] }}>
-        <LargeTitle title={t("tabs.settings")} />
+        <LargeTitle start={<MenuButton />} title={t("tabs.settings")} />
         <NearbyAlerts />
         <AccountGroup />
         <Text variant="footnote" color="labelSecondary" style={{ paddingHorizontal: space[5], paddingTop: space[6] }}>

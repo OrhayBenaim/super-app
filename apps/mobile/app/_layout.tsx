@@ -28,7 +28,7 @@ function RootLayout() {
   // and returning null then would unmount the whole navigator mid-form.
   const loaded = useRef(false);
   if (!isPending) loaded.current = true;
-  // Navigate only once the navigator is mounted and the (tabs) group is reachable.
+  // Navigate only once the navigator is mounted and the (drawer) group is reachable.
   useNearbyNotificationTap(loaded.current && !!session);
   usePendingInvite(loaded.current && !!session);
   const ready = loaded.current;
@@ -47,14 +47,14 @@ function RootLayout() {
     contentStyle: { backgroundColor: colors.groupedBg },
   } as const;
 
-  // Protected groups: without a session expo-router redirects to (auth) (onboarding first), else (tabs).
+  // Protected groups: without a session expo-router redirects to (auth) (onboarding first), else (drawer).
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Protected guard={!!session}>
-            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(drawer)" />
             <Stack.Screen
               name="recent"
               options={{ headerShown: true, title: "", headerTintColor: colors.tint, headerShadowVisible: false, headerStyle: { backgroundColor: colors.groupedBg } }}

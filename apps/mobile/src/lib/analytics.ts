@@ -64,6 +64,14 @@ export const Taps = {
   compareSortCoverage: "compare.sort.coverage",
   compareSortDistance: "compare.sort.distance",
   compareSortPrice: "compare.sort.price",
+  drawerClose: "drawer.close",
+  drawerCompare: "drawer.compare",
+  drawerItems: "drawer.items",
+  drawerList: "drawer.list",
+  drawerMenu: "drawer.menu",
+  drawerRecent: "drawer.recent",
+  drawerSettings: "drawer.settings",
+  drawerShare: "drawer.share",
   itemsAdd: "items.add",
   itemsAddCreate: "items.add.create",
   itemsAddDismiss: "items.add.dismiss",
@@ -110,8 +118,6 @@ export const Taps = {
   shareTitle: "share.title",
   tabCompare: "tab.compare",
   tabIndex: "tab.index",
-  tabItems: "tab.items",
-  tabSettings: "tab.settings",
 } as const;
 export type TapName = (typeof Taps)[keyof typeof Taps];
 
