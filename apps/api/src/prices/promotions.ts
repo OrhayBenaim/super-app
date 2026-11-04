@@ -43,6 +43,8 @@ type Chosen = { line: number; option: LineOption };
 
 const EPS = 1e-9;
 const round2 = (n: number) => Math.round(n * 100) / 100;
+/** Priced in full sets of `minQty` (price and percent apply per unit). */
+const isSetKind = (p: RunningPromotion) => p.kind === "bundle" || p.kind === "nth" || p.kind === "off";
 
 /**
  * What each line in one Promotion's pool costs (unrounded), in pool order. Units are taken most expensive first: up to
@@ -66,7 +68,7 @@ function poolCosts(p: RunningPromotion, pool: Chosen[]) {
     return got;
   };
   const covered = Math.min(left.reduce((a, b) => a + b, 0), p.limitQty ?? Infinity);
-  if (p.kind === "price" || p.kind === "percent") {
+  if (!isSetKind(p)) {
     for (const [i, u] of take(covered)) cost[i]! += u * (p.kind === "price" ? p.amount : price(i) * (1 - p.amount / 100));
   } else {
     for (let sets = Math.floor(covered / p.minQty + EPS); sets > 0; sets--) {
@@ -255,8 +257,7 @@ export function priceLines(lines: LineOption[][]) {
     const promo = option.promo && !isDeal(option.promo) && cost.get(l)! < shelf(chosen[l]!) - EPS ? option.promo : undefined;
     // A hint only for a set Promotion (price and percent have no minimum) that would save something at its minimum.
     const saves = (o: LineOption) => poolCosts(o.promo!, [{ line: 0, option: { ...o, quantity: o.promo!.minQty } }])[0]! < o.price * o.promo!.minQty - EPS;
-    const sets = (o: LineOption) => o.promo && o.promo.kind !== "price" && o.promo.kind !== "percent";
-    const short = withoutDeals[l]!.filter((o) => o.code === option.code && sets(o) && o.promo!.id !== promo?.id && o.promo!.minQty > listQuantity(o.promo!.id) + EPS && saves(o));
+    const short = withoutDeals[l]!.filter((o) => o.code === option.code && o.promo && isSetKind(o.promo) && o.promo!.id !== promo?.id && o.promo!.minQty > listQuantity(o.promo!.id) + EPS && saves(o));
     const hints = [...new Map(short.map((o) => [o.promo!.id, applied(o.promo!, o.price)])).values()];
     const lineInfo = info[l]!.flatMap(({ code, ...i }) => (code === option.code ? [i] : []));
     return { option, lineTotal: lineTotal[l]!, ...(promo ? { promotion: applied(promo, option.price) } : {}), ...(hints.length ? { hints } : {}), ...(lineInfo.length ? { info: lineInfo } : {}) };
