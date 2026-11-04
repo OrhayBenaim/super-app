@@ -7,6 +7,7 @@ const rp = (code: string, o: Partial<RunningPromotion> & Pick<RunningPromotion, 
   audience: "all",
   limitQty: null,
   weighted: 0,
+  description: "",
   ...o,
 });
 /** One List line: its no-Promotion option, then one option per Promotion row. */
@@ -74,5 +75,17 @@ describe("priceLines: hints", () => {
     expect(r!).not.toHaveProperty("hints");
     const [none] = priceLines([line("B", 4, 1)]);
     expect(none!).not.toHaveProperty("hints");
+  });
+});
+
+describe("priceLines: info-only Promotions", () => {
+  it("lists them in info, never in the search, a total or the hints", () => {
+    const info = (code: string) => rp(code, { id: "7", kind: "info", minQty: 0, amount: 0, description: "מתנה" });
+    const nth = (code: string) => rp(code, { id: "8", kind: "nth", minQty: 2, amount: 100 });
+    const rs = priceLines([line("A", 5, 2, info("A"), nth("A")), line("B", 3, 1, info("B"))]);
+    expect(rs[0]).toMatchObject({ lineTotal: 5, promotion: { id: "8", text: "1+1" }, info: [{ id: "7", description: "מתנה" }] });
+    expect(rs[1]).toMatchObject({ lineTotal: 3, info: [{ id: "7", description: "מתנה" }] });
+    expect(rs[1]!.option.promo).toBeUndefined();
+    for (const r of rs) expect(r).not.toHaveProperty("hints");
   });
 });
