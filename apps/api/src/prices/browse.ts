@@ -141,12 +141,16 @@ export type PromoCard = Card & {
 };
 
 type Offer = { code: string; chainId: string; promo: RunningPromotion; shelf: number; off: ReturnType<typeof promotionPrice> };
+type Ranked = Offer & { each: number | null };
+/** The lowest price, then the bigger saving, then the one for everyone. */
+const byBestOffer = (a: Ranked, b: Ranked) =>
+  (a.each ?? Infinity) - (b.each ?? Infinity) || (b.off?.saving ?? 0) - (a.off?.saving ?? 0) || +(a.promo.audience !== "all") - +(b.promo.audience !== "all");
 
 /**
- * Cards of the Products with a Promotion running at `now` (#118's timing; every stored audience counts) at `storeIds`,
- * optionally of one Product type or at one Chain's stores. Biggest saving first, those with no price last.
+ * The Products priced at `storeIds` (optionally of one Product type, at one Chain's stores) and, by code, the offers of
+ * those with a Promotion running at `now` (#118's timing; every stored audience counts): one per store and Promotion.
  */
-export function promotionCards(db: Db, storeIds: string[], now: Date, { type, chain }: { type?: ProductType; chain?: string } = {}): PromoCard[] {
+function promotionOffers(db: Db, storeIds: string[], now: Date, { type, chain }: { type?: ProductType; chain?: string }) {
   const chainOf = new Map(
     (db.$client.prepare("SELECT id, chain_id AS chainId FROM stores WHERE id IN (SELECT value FROM json_each(?))").all(JSON.stringify(storeIds)) as { id: string; chainId: string }[])
       .filter((s) => !chain || s.chainId === chain)
@@ -162,14 +166,22 @@ export function promotionCards(db: Db, storeIds: string[], now: Date, { type, ch
   for (const s of shelves)
     for (const promo of running.get(`${s.storeId} ${s.code}`) ?? [])
       offers.set(s.code, [...(offers.get(s.code) ?? []), { code: s.code, chainId: chainOf.get(s.storeId)!, promo, shelf: s.price, off: promotionPrice(promo, s.price) }]);
-  const byCode = new Map(priced.map((p) => [p.code, p]));
-  const cards = cardsOf(db, priced.filter((p) => offers.has(p.code)), stores).map((card): PromoCard => {
+  return { stores, pool: priced.filter((p) => offers.has(p.code)), offers };
+}
+
+/**
+ * Cards of the Products with a Promotion running at `now` at `storeIds`, optionally of one Product type or at one
+ * Chain's stores. Biggest saving first, those with no price last.
+ */
+export const promotionCards = (db: Db, storeIds: string[], now: Date, filters: { type?: ProductType; chain?: string } = {}) =>
+  promoCardsOf(db, promotionOffers(db, storeIds, now, filters));
+
+function promoCardsOf(db: Db, { stores, pool, offers }: ReturnType<typeof promotionOffers>): PromoCard[] {
+  const byCode = new Map(pool.map((p) => [p.code, p]));
+  const cards = cardsOf(db, pool, stores).map((card): PromoCard => {
     const perUnit = (code: string) => (card.measure === "unit" ? 1 : measureOf(byCode.get(code)!)!.size);
     const mine = card.codes.flatMap((code) => offers.get(code)!).map((o) => ({ ...o, each: o.off ? o.off.price / perUnit(o.code) : null }));
-    // The lowest price, then the bigger saving, then the one for everyone.
-    const [best] = mine.sort(
-      (a, b) => (a.each ?? Infinity) - (b.each ?? Infinity) || (b.off?.saving ?? 0) - (a.off?.saving ?? 0) || +(a.promo.audience !== "all") - +(b.promo.audience !== "all"),
-    ) as [(typeof mine)[number]];
+    const [best] = mine.sort(byBestOffer) as [Ranked];
     return {
       ...card,
       type: byCode.get(card.code)!.type, // a group's Products share a type
@@ -185,4 +197,37 @@ export function promotionCards(db: Db, storeIds: string[], now: Date, { type, ch
     };
   });
   return cards.sort((a, b) => (b.saving ?? -1) - (a.saving ?? -1));
+}
+
+/**
+ * One Chain's Promotion on a Product: its best offer at the Chain's nearby stores, priced per unit (per kilo when
+ * weighed) next to that store's Shelf price; both null (and saving) when there is no price we can work out.
+ */
+export type ChainPromo = {
+  chainId: string; promoPrice: number | null; shelfPrice: number | null; saving: number | null;
+  kind: PromotionKind; minQty: number; amount: number; audience: Audience; text: string;
+};
+
+/**
+ * A Promotions card's product page: the card and only its Products on a Promotion running now, each broken down by
+ * Chain (lowest price first, no-price last). Null when no such card is on a Promotion at `storeIds`.
+ */
+export function promotionPage(db: Db, storeIds: string[], now: Date, type: ProductType, ref: string) {
+  const promoted = promotionOffers(db, storeIds, now, { type });
+  const page = groupPage(db, promoted.pool, promoted.stores, ref);
+  if (!page) return null;
+  const card = promoCardsOf(db, promoted).find((c) => c.ref === ref)!;
+  const chains = (code: string) => {
+    const best = new Map<string, Ranked>();
+    for (const o of promoted.offers.get(code)!.map((o) => ({ ...o, each: o.off?.price ?? null })).sort(byBestOffer)) if (!best.has(o.chainId)) best.set(o.chainId, o);
+    return [...best.values()].map(({ chainId, promo, shelf, off }): ChainPromo => ({
+      chainId,
+      promoPrice: off?.price ?? null,
+      shelfPrice: off ? shelf : null,
+      saving: off?.saving ?? null,
+      kind: promo.kind, minQty: promo.minQty, amount: promo.amount, audience: promo.audience,
+      text: promotionText(promo, shelf),
+    }));
+  };
+  return { card, products: page.products.map((p) => ({ ...p, chains: chains(p.code) })) };
 }

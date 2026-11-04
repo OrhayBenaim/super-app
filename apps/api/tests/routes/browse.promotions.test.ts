@@ -128,7 +128,10 @@ beforeAll(async () => {
         chain: RAMI,
         at: { lat: here.lat + 0.009, lng: here.lng }, // about 1 km away
         items: [{ ...MILK3, price: 6.5 }, { ...SNACK, price: 4.2 }],
-        promos: [{ id: "7", items: [M3!], price: 4.5, club: "2" }], // Rami Levy's credit card: 31% off, the lowest price
+        promos: [
+          { id: "7", items: [M3!], price: 4.5, club: "2" }, // Rami Levy's credit card: 31% off, the lowest price
+          { id: "9", items: [M3!], price: 1, end: "2026-11-03T23:59:00.000" }, // ended yesterday
+        ],
       },
       {
         chain: YOHANANOF,
@@ -216,5 +219,65 @@ describe("GET /api/browse/promotions", () => {
 
   it("returns 401 when signed out", async () => {
     expect((await get(`/api/browse/promotions?${near}`, false)).status).toBe(401);
+  });
+});
+
+type PromoPage = {
+  card: PromoCard;
+  products: {
+    code: string; name: string; soldBy: string;
+    chains: { chainId: string; promoPrice: number | null; shelfPrice: number | null; saving: number | null; kind: string; minQty: number; amount: number; audience: string; text: string }[];
+  }[];
+};
+const pagePath = (type: string, ref: string) => `/api/browse/promotions/types/${type}/groups/${encodeURIComponent(ref)}`;
+const page = async (type: string, ref: string) => {
+  const res = await get(`${pagePath(type, ref)}?${near}`);
+  expect(res.status).toBe(200);
+  return (await res.json()) as PromoPage;
+};
+
+describe("GET /api/browse/promotions/types/:type/groups/:ref", () => {
+  it("shows the card and only the group's Products on a Promotion running now nearby", async () => {
+    const milk = await page("dairy-eggs", "חלב|l");
+    expect(milk.card).toMatchObject({ ref: "חלב|l", promoPrice: 4.5, chainCount: 2 });
+    expect(milk.products.map((p) => p.code)).toEqual([M3]); // not the 1% milk, which has no Promotion
+  });
+
+  it("breaks a Product down by Chain, lowest Promotion price first, leaving out ended and far-away ones", async () => {
+    const [milk] = (await page("dairy-eggs", "חלב|l")).products;
+    expect(milk!.chains).toEqual([
+      { chainId: RAMI, promoPrice: 4.5, shelfPrice: 6.5, saving: 31, kind: "price", minQty: 1, amount: 4.5, audience: "card", text: "₪4.50 במקום ₪6.50" },
+      { chainId: OSHER, promoPrice: 4.9, shelfPrice: 6.9, saving: 29, kind: "price", minQty: 1, amount: 4.9, audience: "all", text: "₪4.90 במקום ₪6.90" },
+    ]); // not Rami Levy's ended ₪1, nor Yohananof (55 km away)
+  });
+
+  it("prices a set Promotion per unit, next to the pack's Shelf price", async () => {
+    const [bamba] = (await page("snacks-sweets", "במבה|kg")).products;
+    expect(bamba!.chains).toEqual([
+      { chainId: OSHER, promoPrice: 3, shelfPrice: 4, saving: 25, kind: "bundle", minQty: 3, amount: 9, audience: "all", text: "3 ב-₪9" },
+    ]);
+  });
+
+  it("gives a Promotion with no price its Chain's own description", async () => {
+    const [coffee] = (await page("pantry", "קפה|kg")).products;
+    expect(coffee!.chains).toEqual([
+      { chainId: OSHER, promoPrice: null, shelfPrice: null, saving: null, kind: "info", minQty: 0, amount: 0, audience: "all", text: "1+1 על קפה נמס" },
+    ]);
+  });
+
+  it("returns 404 for a group with no Promotion running now, of another type, or without a location", async () => {
+    for (const ref of ["שוקולד|kg", "וופל|kg", "עוגיות|kg"]) expect((await get(`${pagePath("snacks-sweets", ref)}?${near}`)).status).toBe(404);
+    expect((await get(`${pagePath("pantry", "חלב|l")}?${near}`)).status).toBe(404);
+    expect((await get(pagePath("dairy-eggs", "חלב|l"))).status).toBe(404);
+  });
+
+  it("returns 400 for a bad type, ref or location", async () => {
+    expect((await get(`${pagePath("sweets", "חלב|l")}?${near}`)).status).toBe(400);
+    expect((await get(`${pagePath("dairy-eggs", "חלב")}?${near}`)).status).toBe(400);
+    expect((await get(`${pagePath("dairy-eggs", "חלב|l")}?lat=32`)).status).toBe(400);
+  });
+
+  it("returns 401 when signed out", async () => {
+    expect((await get(`${pagePath("dairy-eggs", "חלב|l")}?${near}`, false)).status).toBe(401);
   });
 });

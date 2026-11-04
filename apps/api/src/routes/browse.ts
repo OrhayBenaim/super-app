@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { requireUser, type AppEnv } from "#/middleware.ts";
-import { cardsOf, groupPage, pricedProducts, promotionCards, typeCounts } from "#/prices/browse.ts";
+import { cardsOf, groupPage, pricedProducts, promotionCards, promotionPage, typeCounts } from "#/prices/browse.ts";
 import { groupRefSchema } from "#/prices/groups.ts";
 import { nearbyStoreIds } from "#/prices/nearby.ts";
 
@@ -61,4 +61,16 @@ export const browseRoutes = new Hono<AppEnv>()
     if (!f.success) return bad(c, f.error);
     const stores = storesFor(c, q.data);
     return c.json(stores ? promotionCards(c.var.deps.db, stores, c.var.deps.clock.now(), f.data) : []);
+  })
+  // A Promotions card's product page: its Products on a Promotion running nearby, each broken down by Chain.
+  .get("/promotions/types/:type/groups/:ref", (c) => {
+    const type = typeParam.safeParse(c.req.param("type"));
+    if (!type.success) return bad(c, type.error);
+    const ref = groupRefSchema.safeParse(c.req.param("ref"));
+    if (!ref.success) return bad(c, ref.error);
+    const q = nearQuery.safeParse(c.req.query());
+    if (!q.success) return bad(c, q.error);
+    const stores = storesFor(c, q.data);
+    const page = stores && promotionPage(c.var.deps.db, stores, c.var.deps.clock.now(), type.data, ref.data);
+    return page ? c.json(page) : c.json({ error: "not found" }, 404);
   });
