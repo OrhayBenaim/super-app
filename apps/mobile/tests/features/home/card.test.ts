@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { stepQuantity } from "@grocer/shared/quantity";
-import { cardSend, cardView, typeNameKey, type CardTarget } from "@/features/home/card";
+import { cardSend, cardView, productView, typeNameKey, type CardTarget } from "@/features/home/card";
 import type { Item } from "@/features/lists/api";
 import { en, he } from "@/lib/strings";
 
@@ -94,5 +94,46 @@ describe("Product type names", () => {
     expect(typeNameKey("other")).toBe("items.category.other");
     expect(new Set(PRODUCT_TYPES.map((t) => he[typeNameKey(t)])).size).toBe(PRODUCT_TYPES.length);
     expect([en[typeNameKey("dairy-eggs")], he[typeNameKey("dairy-eggs")]]).toEqual(["Dairy & eggs", "מוצרי חלב וביצים"]);
+  });
+});
+
+describe("productView (a Product row on a product page)", () => {
+  const tnuva: CardTarget = { name: "חלב תנובה 3%", category: "מוצרי חלב וביצים", soldBy: "unit", productCode: "111" };
+  const tara: CardTarget = { name: "חלב טרה 1%", category: "מוצרי חלב וביצים", soldBy: "unit", productCode: "222" };
+  const loose: CardTarget = { name: "חלב בתפזורת", category: "מוצרי חלב וביצים", soldBy: "weight", productCode: "333" };
+
+  it("offers Add from 1 on every Product while the List has nothing for the group, matching that exact Product", () => {
+    const view = productView([], milk, tara, null);
+    expect(view).toMatchObject({ action: "add", quantity: 1, soldBy: "unit" });
+    expect(cardSend(view, tara)).toEqual({ kind: "add", body: { name: "חלב טרה 1%", category: "מוצרי חלב וביצים", productCode: "222", quantity: 1, missing: true } });
+  });
+
+  it("offers Add, not switch, when the group's Item is off the List", () => {
+    const bought = [item("milk", { groupRef: "חלב|l", missing: false, quantity: 4 })];
+    expect(productView(bought, milk, tara, null)).toMatchObject({ action: "add", quantity: 1 });
+  });
+
+  it("offers switch to this on every Product while the group itself is on the List, at the Item's Quantity", () => {
+    const onList = [item("milk", { groupRef: "חלב|l", quantity: 2 })];
+    const view = productView(onList, milk, tara, null);
+    expect(view).toMatchObject({ action: "switch", quantity: 2, soldBy: "unit", item: onList[0] });
+    expect(cardSend(view, tara)).toEqual({ kind: "update", id: "milk", patch: { productCode: "222", quantity: 2 } });
+    expect(cardSend(productView(onList, milk, tara, 3), tara)).toEqual({ kind: "update", id: "milk", patch: { productCode: "222", quantity: 3 } });
+  });
+
+  it("shows the matched Product as on the List, then Update once its stepper differs; every other Product offers switch", () => {
+    const onList = [item("milk", { productCode: "111", quantity: 2 })];
+    expect(productView(onList, milk, tnuva, null)).toMatchObject({ action: "onList", quantity: 2 });
+    expect(cardSend(productView(onList, milk, tnuva, null), tnuva)).toBeNull();
+    expect(cardSend(productView(onList, milk, tnuva, 3), tnuva)).toEqual({ kind: "update", id: "milk", patch: { quantity: 3 } });
+    expect(productView(onList, milk, tara, null)).toMatchObject({ action: "switch", quantity: 2 });
+  });
+
+  it("starts a Product Sold by the other way over at 1 (1 kg), stepping its own way", () => {
+    const onList = [item("milk", { productCode: "111", quantity: 3 })];
+    const view = productView(onList, milk, loose, null);
+    expect(view).toMatchObject({ action: "switch", quantity: 1, soldBy: "weight", canLess: true });
+    expect(cardSend(view, loose)).toEqual({ kind: "update", id: "milk", patch: { productCode: "333", quantity: 1 } });
+    expect(productView(onList, milk, loose, 0.5)).toMatchObject({ quantity: 0.5, canLess: false });
   });
 });
