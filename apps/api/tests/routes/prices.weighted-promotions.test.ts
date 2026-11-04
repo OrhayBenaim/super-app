@@ -51,6 +51,7 @@ type Line = {
   quantity: number;
   lineTotal: number;
   promotion?: { id: string; kind: string; minQty: number; amount: number; audience: string; text: string };
+  info?: { id: string; description: string }[];
 };
 
 async function world(setup: (deps: ReturnType<typeof buildDeps>) => void, now = WEDNESDAY) {
@@ -94,6 +95,7 @@ describe("Compare with Promotions on products Sold by weight", () => {
       lineTotal: 44.85,
       promotion: { id: "301", kind: "price", minQty: 1, amount: 29.9, audience: "all", text: "₪29.90 לק״ג" },
     });
+    expect(await w.line(A, 1.5)).not.toHaveProperty("info");
   });
 
   it('"0.010" is the same per-kilo price, written without agorot when whole', async () => {
@@ -145,7 +147,7 @@ describe("Compare with Promotions on products Sold by weight", () => {
     });
   });
 
-  describe("when it is unclear whether the price is per kilo or per pack, the Promotion is not applied", () => {
+  describe("when it is unclear whether the price is per kilo or per pack, the Promotion is info-only", () => {
     it.each([
       ["MinQty empty", { reward: 3, minQty: "", price: 20 }],
       ["MinQty 0", { reward: 3, minQty: "0", price: 20 }],
@@ -158,6 +160,7 @@ describe("Compare with Promotions on products Sold by weight", () => {
       const l = await w.line(A, 2);
       expect(l.lineTotal).toBe(100);
       expect(l).not.toHaveProperty("promotion");
+      expect(l.info).toEqual([{ id: "301", description: "מבצע 301" }]);
     });
   });
 

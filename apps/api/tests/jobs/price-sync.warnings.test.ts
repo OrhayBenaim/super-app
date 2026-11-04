@@ -22,9 +22,9 @@ const base = {
 };
 
 /** reward 3 with a price is priced; 2 with rate 100 (a gift), 3 at price 0 and 11 are not. */
-type Promo = { id: string; code: string; reward?: 2 | 3 | 11; price?: number; rate?: number; desc?: string };
+type Promo = { id: string; code: string; reward?: 2 | 3 | 11; price?: number; rate?: number; desc?: string; weighted?: { minQty: string } };
 const promo = (p: Promo) =>
-  `<Promotion><PromotionUpdateTime>2026-10-21T08:00:00.000</PromotionUpdateTime><AllowMultipleDiscounts>1</AllowMultipleDiscounts><PromotionID>${p.id}</PromotionID><PromotionDescription>${p.desc ?? `מבצע ${p.id}`}</PromotionDescription><PromotionStartDateTime>2026-10-01T00:00:00.000</PromotionStartDateTime><PromotionEndDateTime>2026-10-31T23:59:00.000</PromotionEndDateTime><PromotionStartHour /><PromotionEndHour /><PromotionDays /><RedemptionLimit>0</RedemptionLimit><MinNoOfItemOffered>10</MinNoOfItemOffered><ClubID>0 - כלל הלקוחות</ClubID><IsGiftItem /><AdditionalIsCoupon>0</AdditionalIsCoupon><AdditionalRestrictions /><Remarks /><Groups><Group><GroupID>1</GroupID><MinPurchaseAmount></MinPurchaseAmount><DiscountType></DiscountType><PromotionItems><PromotionItem><ItemCode>${p.code}</ItemCode><ItemType>1</ItemType><RewardType>${p.reward ?? 3}</RewardType><MinQty>1.00</MinQty><MaxQty></MaxQty><DiscountRate>${p.rate ?? ""}</DiscountRate><DiscountedPrice>${(p.price ?? 0).toFixed(2)}</DiscountedPrice><DiscountedPricePerMida>${(p.price ?? 0).toFixed(2)}</DiscountedPricePerMida><bIsWeighted>0</bIsWeighted></PromotionItem></PromotionItems></Group></Groups></Promotion>`;
+  `<Promotion><PromotionUpdateTime>2026-10-21T08:00:00.000</PromotionUpdateTime><AllowMultipleDiscounts>1</AllowMultipleDiscounts><PromotionID>${p.id}</PromotionID><PromotionDescription>${p.desc ?? `מבצע ${p.id}`}</PromotionDescription><PromotionStartDateTime>2026-10-01T00:00:00.000</PromotionStartDateTime><PromotionEndDateTime>2026-10-31T23:59:00.000</PromotionEndDateTime><PromotionStartHour /><PromotionEndHour /><PromotionDays /><RedemptionLimit>0</RedemptionLimit><MinNoOfItemOffered>10</MinNoOfItemOffered><ClubID>0 - כלל הלקוחות</ClubID><IsGiftItem /><AdditionalIsCoupon>0</AdditionalIsCoupon><AdditionalRestrictions /><Remarks /><Groups><Group><GroupID>1</GroupID><MinPurchaseAmount></MinPurchaseAmount><DiscountType></DiscountType><PromotionItems><PromotionItem><ItemCode>${p.code}</ItemCode><ItemType>1</ItemType><RewardType>${p.reward ?? 3}</RewardType><MinQty>${p.weighted?.minQty ?? "1.00"}</MinQty><MaxQty></MaxQty><DiscountRate>${p.rate ?? ""}</DiscountRate><DiscountedPrice>${(p.price ?? 0).toFixed(2)}</DiscountedPrice><DiscountedPricePerMida>${(p.price ?? 0).toFixed(2)}</DiscountedPricePerMida><bIsWeighted>${p.weighted ? 1 : 0}</bIsWeighted></PromotionItem></PromotionItems></Group></Groups></Promotion>`;
 const promoFile = (promos: Promo[], store = "001") =>
   new TextEncoder().encode(
     `<?xml version="1.0" encoding="utf-8"?><Root><ChainID>${OSHER}</ChainID><SubChainID>001</SubChainID><StoreID>${store}</StoreID><BikoretNo>0</BikoretNo><Promotions>${promos.map(promo).join("")}</Promotions></Root>`,
@@ -143,6 +143,18 @@ describe("priceSyncJob warnings and information-only Promotions", () => {
       unknownLayout: [],
     });
     expect(w.errorHandler.reported.map(String).filter((e) => !e.includes("no Stores file"))).toEqual([]); // only the other Chains, which the fake portal lists nothing for
+  });
+
+  it("weighted Promotions are listed only when per kilo or per pack is unclear", async () => {
+    const { portal } = swappable({
+      [full("20261021-051700")]: promoFile([
+        { id: "11", code: MILK, price: 5, weighted: { minQty: "0.01" } }, // per kilo: priced
+        { id: "12", code: BREAD, price: 20, weighted: { minQty: "200" } }, // unclear: info-only
+      ]),
+    });
+    const w = await world(portal);
+    await w.sync();
+    expect(w.details()).toEqual({ unpriced: { "weighted MinQty 200: per kilo or per pack unclear": { "12": ["1"] } }, unknownLayout: [] });
   });
 
   it("a sync with only priced Promotions in known layouts sends no warning", async () => {
