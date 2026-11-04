@@ -83,7 +83,8 @@ Each setting lives in one place: mobile app settings in EAS, server settings in 
   on a published GitHub release, `production` (EAS environment `production`, submitted to Google Play with `eas submit`).
   The built file is also kept as a workflow artifact. Run it by hand after changing EAS variables.
 
-**GitHub** (repo or both environments): secret `EXPO_TOKEN`, an expo.dev access token (a robot user). Add required reviewers to `production`.
+**GitHub** (repo or both environments): secrets `EXPO_TOKEN`, an expo.dev access token (a robot user), and `SENTRY_AUTH_TOKEN`
+(the local build can't read EAS secret variables, and the Android build fails without it). Add required reviewers to `production`.
 
 **EAS** (expo.dev > project > Environment variables; `preview` for staging, `production` for production):
 
@@ -93,7 +94,7 @@ Each setting lives in one place: mobile app settings in EAS, server settings in 
 | `EXPO_PUBLIC_SENTRY_DSN` | plaintext | optional; same DSN as the API's `SENTRY_DSN` |
 | `EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_POSTHOG_HOST` | plaintext | optional |
 | `SENTRY_ORG`, `SENTRY_PROJECT` | plaintext | source map upload |
-| `SENTRY_AUTH_TOKEN` | secret | source map upload; the iOS build fails without it unless `SENTRY_DISABLE_AUTO_UPLOAD=true` |
+| `SENTRY_AUTH_TOKEN` | secret | source map upload on EAS cloud builds only; `deploy-mobile` reads the GitHub secret instead |
 
 `EXPO_PUBLIC_*` values are compiled into the app, so they are never secret. From `apps/mobile`:
 `npx eas-cli@latest env:set preview --name EXPO_PUBLIC_API_URL --value https://... --visibility plaintext`.
