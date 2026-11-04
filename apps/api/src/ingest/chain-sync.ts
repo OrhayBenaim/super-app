@@ -61,12 +61,24 @@ export type ChainCounts = {
 /**
  * Loads each store's newest PromoFull and then its update, never throwing: a file that fails leaves its store's previous
  * Promotions (an update that fails, the PromoFull's). Every file failing is a Promotion failure (CONTEXT.md); files in
- * a layout Grocer can't read yet count neither way.
+ * a layout Grocer can't read yet count neither way. Sends one warning listing the Promotions it couldn't price
+ * (kind -> PromotionID -> stores) and the files in an unknown layout, when there are any.
  */
 async function syncPromotions(deps: Deps, chain: ChainSeed, promos: PickedFile[], load: (f: PriceFile) => Promise<string>, counts: ChainCounts) {
   let tried = 0;
   let failed = 0;
-  const ingest = async (f: PriceFile) => ingestPromotions(deps, chain.key, await load(f), f.name);
+  const unpriced: Record<string, Record<string, string[]>> = {};
+  const unknownLayout: string[] = [];
+  const ingest = async (f: PriceFile) => {
+    const outcome = ingestPromotions(deps, chain.key, await load(f), f.name);
+    if (outcome.layout === "unknown") unknownLayout.push(f.name);
+    else
+      for (const u of outcome.unpriced) {
+        const stores = ((unpriced[u.kind] ??= {})[u.promotionId] ??= []);
+        if (!stores.includes(outcome.store)) stores.push(outcome.store);
+      }
+    return outcome;
+  };
   for (const f of promos) {
     try {
       const full = await ingest(f);
@@ -90,6 +102,12 @@ async function syncPromotions(deps: Deps, chain: ChainSeed, promos: PickedFile[]
   }
   counts.promotionStatus = tried > 0 && failed === tried ? "failed" : "ok";
   if (counts.promotionStatus === "ok") counts.promotionError = null;
+  const notPriced = Object.values(unpriced).reduce((n, ids) => n + Object.keys(ids).length, 0);
+  if (notPriced || unknownLayout.length)
+    deps.errorHandler.warn(`${chain.key}: ${notPriced} Promotions not priced, ${unknownLayout.length} promotion files in an unknown layout`, {
+      unpriced,
+      unknownLayout,
+    });
 }
 
 /**
