@@ -23,7 +23,7 @@ export function breakdown(items: Item[], store: Pick<StoreResult, "items">) {
     share.set(key, { quantity: s.quantity + items[i].quantity, left: s.left + 1, given: 0 });
   });
 
-  const priced: { item: Item; price: number; lineTotal: number; shelfTotal: number; promotion?: Line["promotion"] }[] = [];
+  const priced: (Pick<Line, "promotion" | "hints" | "info"> & { item: Item; price: number; lineTotal: number; shelfTotal: number; partners?: string[] })[] = [];
   const notHere: Item[] = [];
   const unmatched: Item[] = [];
   items.forEach((item, i) => {
@@ -33,8 +33,14 @@ export function breakdown(items: Item[], store: Pick<StoreResult, "items">) {
     const s = share.get(key)!;
     const lineTotal = round2(--s.left === 0 ? line.lineTotal - s.given : (line.lineTotal * item.quantity) / s.quantity);
     s.given += lineTotal;
-    priced.push({ item, price: line.price, lineTotal, shelfTotal: round2(line.price * item.quantity), promotion: line.promotion });
+    const { promotion, hints, info } = line;
+    priced.push({ item, price: line.price, lineTotal, shelfTotal: round2(line.price * item.quantity), promotion, hints, info });
   });
+  // A mix-and-match Promotion names the other lines it is shared with (the same id on each).
+  for (const p of priced) {
+    const names = p.promotion ? priced.filter((o) => o !== p && o.promotion?.id === p.promotion!.id).map((o) => o.item.name) : [];
+    if (names.length) p.partners = names;
+  }
   return { priced, notHere, unmatched };
 }
 

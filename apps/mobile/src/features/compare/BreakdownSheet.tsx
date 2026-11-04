@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Tag } from "lucide-react-native";
+import { Info, Tag } from "lucide-react-native";
 import { ScrollView, View } from "react-native";
 import { lineDetail } from "@/features/items/labels";
 import { missingItems, useCurrentListId, useList } from "@/features/lists/api";
@@ -10,18 +10,28 @@ import { Button, Group, Row, Sheet, SheetHeader, Text } from "@/ui";
 import { useCompareStores } from "./useBestStore";
 import { breakdown } from "./breakdown";
 import { fmt, shekels } from "./format";
-import { promotionText } from "./promotion";
+import { promotionRows } from "./promotion";
 
-/** A Promotion under a breakdown line: a decorative Tag on the start side, then its text (wraps). */
-function PromotionRow({ text }: { text: string }) {
+/**
+ * A Promotion under a breakdown line: a decorative icon on the start side, then its text (wraps). The applied one is in `saving`
+ * (Tag, semibold text, then its label in regular labelSecondary); one not reached (Tag) and an information-only one (Info) are labelSecondary.
+ */
+function PromotionRow({ kind, text, label }: ReturnType<typeof promotionRows>[number]) {
   const { colors, space } = useTheme();
+  const applied = kind === "applied";
+  const Icon = kind === "info" ? Info : Tag;
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-start", gap: space[2] }}>
       <View style={{ width: 16, height: 18, justifyContent: "center" }} accessibilityElementsHidden importantForAccessibility="no">
-        <Tag size={16} color={colors.saving} />
+        <Icon size={16} color={applied ? colors.saving : colors.labelSecondary} />
       </View>
-      <Text variant="footnote" color="saving" style={{ flex: 1, fontWeight: "600" }}>
+      <Text variant="footnote" color={applied ? "saving" : "labelSecondary"} style={{ flex: 1, fontWeight: applied ? "600" : undefined }}>
         {text}
+        {label && (
+          <Text variant="footnote" color="labelSecondary">
+            {` · ${label}`}
+          </Text>
+        )}
       </Text>
     </View>
   );
@@ -29,7 +39,8 @@ function PromotionRow({ text }: { text: string }) {
 
 /**
  * Sheet route app/breakdown: the Basket breakdown of the branch open on Compare (param `storeId`). A line per priced item (quantity × Shelf
- * price, line total; on a Promotion its text, the lowered total and the struck Shelf total), the total, then the items it doesn't price and the
+ * price, line total; on a Promotion its text and label, the lowered total and the struck Shelf total; then the Promotions
+ * its Quantity doesn't reach and the information-only ones), the total, then the items it doesn't price and the
  * unmatched ones (with Match).
  */
 export function BreakdownSheet() {
@@ -49,13 +60,15 @@ export function BreakdownSheet() {
     <ScrollView>
       <Sheet>
         <SheetHeader title={fmt(t("compare.breakdown.title"), { store: store.chainName })} end={{ title: t("common.done"), analyticsName: Taps.commonDone, onPress: () => router.back() }} />
-        <Group footer={t("compare.breakdown.footer")}>
-          {priced.map(({ item, price: each, lineTotal, shelfTotal, promotion }) => (
+        <Group footer={priced.some((p) => p.info?.length) ? `${t("compare.breakdown.footer")} ${t("compare.breakdown.infoFooter")}` : t("compare.breakdown.footer")}>
+          {priced.map(({ item, price: each, lineTotal, shelfTotal, promotion, ...rest }) => (
             <Row
               key={item.id}
               title={item.name}
               detail={lineDetail(item.quantity, each, item.soldBy, t)}
-              below={promotion && <PromotionRow text={promotionText(promotion, item.soldBy, t)} />}
+              below={promotionRows({ promotion, ...rest }, item.soldBy, t).map((row, i) => (
+                <PromotionRow key={i} {...row} />
+              ))}
               trailing={
                 promotion && lineTotal < shelfTotal ? (
                   <View style={{ alignItems: "flex-end" }}>
