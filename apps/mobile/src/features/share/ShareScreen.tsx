@@ -24,7 +24,7 @@ export function ShareScreen() {
   const [renaming, setRenaming] = useState(false);
   // Held here, not in Members: Rename unmounts Members, and asking for a code again would rotate the one already sent.
   const share = useShareMutations(useCurrentListId());
-  const close = () => (router.canGoBack() ? router.back() : router.replace("/"));
+  const close = () => (router.canGoBack() ? router.back() : router.replace("/list"));
   // The modal is full screen on Android, so it needs the top safe-area inset; on iOS it is a page sheet already below the status bar.
   return (
     <Screen scroll edges={Platform.OS === "ios" ? ["bottom"] : ["top", "bottom"]} style={{ paddingTop: space[3], paddingBottom: space[9] }}>

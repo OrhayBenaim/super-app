@@ -18,7 +18,7 @@ export default function DrawerLayout() {
         drawerStyle: { width: 300, backgroundColor: colors.surface, borderTopEndRadius: radius.sheet, borderBottomEndRadius: radius.sheet },
       }}
     >
-      <Drawer.Screen name="(tabs)" options={{ title: t("tabs.list") }} />
+      <Drawer.Screen name="(tabs)" options={{ title: t("tabs.home") }} />
       <Drawer.Screen name="items" options={{ title: t("tabs.items") }} />
       <Drawer.Screen name="settings" options={{ title: t("tabs.settings") }} />
     </Drawer>

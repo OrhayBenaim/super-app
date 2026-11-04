@@ -1,5 +1,5 @@
 import { router, usePathname } from "expo-router";
-import { ChartColumn, History, ListChecks, Settings, Share, ShoppingBasket, type LucideIcon } from "lucide-react-native";
+import { ChartColumn, History, House, ListChecks, Settings, Share, ShoppingBasket, type LucideIcon } from "lucide-react-native";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { authClient } from "@/lib/auth-client";
@@ -8,7 +8,7 @@ import { useTheme } from "@/theme";
 import { Tap, Text } from "@/ui";
 import { currentEntry, DRAWER_SECTIONS, type DrawerEntry, type DrawerEntryKey } from "./entries";
 
-const ICONS: Record<DrawerEntryKey, LucideIcon> = { list: ListChecks, compare: ChartColumn, share: Share, recent: History, items: ShoppingBasket, settings: Settings };
+const ICONS: Record<DrawerEntryKey, LucideIcon> = { home: House, list: ListChecks, compare: ChartColumn, share: Share, recent: History, items: ShoppingBasket, settings: Settings };
 // Sheets and pushed pages stack over the current page; tabs and drawer screens switch to it.
 const PUSHED: DrawerEntryKey[] = ["share", "recent"];
 

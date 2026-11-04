@@ -1,17 +1,18 @@
 import { Taps, type TapName } from "@/lib/analytics";
 import type { StringKey } from "@/lib/strings";
 
-export type DrawerEntryKey = "list" | "compare" | "share" | "recent" | "items" | "settings";
-export type DrawerEntry = { key: DrawerEntryKey; label: StringKey; tap: TapName; href: "/" | "/compare" | "/share" | "/recent" | "/items" | "/settings" };
+export type DrawerEntryKey = "home" | "list" | "compare" | "share" | "recent" | "items" | "settings";
+export type DrawerEntry = { key: DrawerEntryKey; label: StringKey; tap: TapName; href: "/" | "/list" | "/compare" | "/share" | "/recent" | "/items" | "/settings" };
 export type DrawerSection = { key: "shopping" | "lists" | "account"; title: StringKey; entries: DrawerEntry[] };
 
-/** Home and Promotions join Shopping with their own tickets. */
+/** Promotions joins Shopping with its own ticket. */
 export const DRAWER_SECTIONS: DrawerSection[] = [
   {
     key: "shopping",
     title: "drawer.shopping",
     entries: [
-      { key: "list", label: "tabs.list", tap: Taps.drawerList, href: "/" },
+      { key: "home", label: "tabs.home", tap: Taps.drawerHome, href: "/" },
+      { key: "list", label: "tabs.list", tap: Taps.drawerList, href: "/list" },
       { key: "compare", label: "tabs.compare", tap: Taps.drawerCompare, href: "/compare" },
     ],
   },
@@ -29,6 +30,7 @@ export const DRAWER_SECTIONS: DrawerSection[] = [
 
 /** The entry whose page is showing; Share list and Recently bought sit on top of a page, so none is current there. */
 export function currentEntry(pathname: string): DrawerEntryKey | null {
-  const entry = DRAWER_SECTIONS.flatMap((s) => s.entries).find((e) => e.href === pathname);
+  const page = pathname.startsWith("/type/") ? "/" : pathname; // pages pushed inside the Home tab are Home
+  const entry = DRAWER_SECTIONS.flatMap((s) => s.entries).find((e) => e.href === page);
   return entry && entry.key !== "share" && entry.key !== "recent" ? entry.key : null;
 }
