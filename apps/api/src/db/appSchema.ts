@@ -157,8 +157,9 @@ export const promotions = sqliteTable(
       .references(() => stores.id, { onDelete: "cascade" }),
     promotionId: text("promotion_id").notNull(), // the Chain's PromotionID
     description: text("description").notNull(),
-    // price: one unit at `amount`; bundle: `minQty` units for `amount` in total; percent: `amount` percent off.
-    kind: text("kind", { enum: ["price", "bundle", "percent"] }).notNull(),
+    // price: one unit at `amount`; bundle: `minQty` units for `amount` in total; percent: `amount` percent off;
+    // nth: the cheapest of every `minQty` units `amount` percent off (100 = "2+1"); off: ₪`amount` off every `minQty` units.
+    kind: text("kind", { enum: ["price", "bundle", "percent", "nth", "off"] }).notNull(),
     minQty: real("min_qty").notNull(),
     amount: real("amount").notNull(),
     audience: text("audience", { enum: ["all", "club", "card", "coupon"] }).notNull(),

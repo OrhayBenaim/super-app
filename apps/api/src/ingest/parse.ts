@@ -139,7 +139,7 @@ const promoParser = new XMLParser({
   isArray: (n) => ["promotion", "group", "promotionitem"].includes(n),
 });
 
-export type PromotionReward = { kind: "price" | "bundle" | "percent"; minQty: number; amount: number };
+export type PromotionReward = { kind: "price" | "bundle" | "percent" | "nth" | "off"; minQty: number; amount: number };
 export type ParsedPromotion = PromotionReward & {
   promotionId: string;
   description: string;
@@ -172,6 +172,25 @@ function groupedReward(groupCount: number, items: Node[]): PromotionReward | str
   return `RewardType ${type}`;
 }
 
+/**
+ * "1+1", "2+1", "the second at 50%" (real-promos README surprise 6): group 1 is the condition (RewardType 0, MinQty n,
+ * no spend minimum), group 2 gives one more unit of the same products `DiscountRate` % off. Where group 1 carries the
+ * Shelf price (Shufersal, Tiv Taam, Yohananof), group 2's DiscountedPrice must agree with the rate (it doesn't on
+ * Shufersal's "1+1 at 50%" sets, which discount the whole set). Undefined when the groups say anything else.
+ */
+function nthReward(rows: Node[], [cond = [], reward = []]: Node[][]): PromotionReward | undefined {
+  const codes = (items: Node[]) => [...new Set(items.map((i) => str(i.itemcode)))].sort().join();
+  if (rows.some((r) => (num(r.groups.group[0]?.minpurchaseamount) ?? 0) > 0) || !cond.length || codes(cond) !== codes(reward)) return;
+  const [n, rate] = [num(cond[0]!.minqty) ?? 0, num(reward[0]!.discountrate) ?? 0];
+  const [shelf, price] = [num(cond[0]!.discountedprice) ?? 0, num(reward[0]!.discountedprice) ?? 0];
+  if (!Number.isInteger(n) || n < 1 || !(rate > 0 && rate <= 100) || [...cond, ...reward].some((i) => isWeighted(i.bisweighted))) return;
+  if (!cond.every((i) => str(i.rewardtype) === "0" && num(i.minqty) === n)) return;
+  if (!reward.every((i) => ["1", "10"].includes(str(i.rewardtype)) && num(i.minqty) === 1 && num(i.discountrate) === rate)) return;
+  if (shelf > 0 && Math.abs(price - shelf * (1 - rate / 100)) > Math.max(0.05, shelf * 0.006)) return; // rates are rounded
+  if (shelf === 0 && rate === 100 && price !== 0) return;
+  return { kind: "nth", minQty: n + 1, amount: rate };
+}
+
 const weekdays = (v: unknown) => {
   const days = [...new Set(str(v).split(",").map((d) => d.trim()).filter((d) => /^[1-7]$/.test(d)))].sort().join(",");
   return days === "" || days === "1,2,3,4,5,6,7" ? null : days;
@@ -200,9 +219,11 @@ export function parsePromotions(xml: string) {
   for (const [promotionId, [p, ...more]] of byId) {
     // All customers: ClubID "0" / "0 - כלל הלקוחות", not a coupon. Restricted audiences come in a later ticket.
     if (!/^0(\D|$)/.test(str(p!.clubid)) || num(p!.additionaliscoupon) === 1) continue;
-    const groupCount = Math.max(...[p!, ...more].map((row) => row.groups.group.length));
-    const items: Node[] = [p!, ...more].flatMap((row) => row.groups.group[0]?.promotionitems?.promotionitem ?? []);
-    const reward = groupedReward(groupCount, items);
+    const idRows = [p!, ...more];
+    const groupCount = Math.max(...idRows.map((row) => row.groups.group.length));
+    const groups = Array.from({ length: groupCount }, (_, g) => idRows.flatMap((row): Node[] => row.groups.group[g]?.promotionitems?.promotionitem ?? []));
+    const items = groups[0]!;
+    const reward = (groupCount === 2 && nthReward(idRows, groups)) || groupedReward(groupCount, items);
     const [startsAt, endsAt] = [fromJerusalem(str(p!.promotionstartdatetime)), fromJerusalem(str(p!.promotionenddatetime))];
     if (typeof reward === "string" || Number.isNaN(startsAt) || Number.isNaN(endsAt)) {
       unpriced.push({ promotionId, kind: typeof reward === "string" ? reward : "unreadable dates" });
