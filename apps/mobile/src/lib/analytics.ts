@@ -53,6 +53,7 @@ export const Taps = {
   compareLocationSettings: "compare.location.settings",
   compareBreakdown: "compare.breakdown",
   compareMissingMatch: "compare.missing.match",
+  compareMissingPick: "compare.missing.pick",
   compareNavigate: "compare.navigate",
   compareOrder: "compare.order",
   compareRadiusLabel: "compare.radiusLabel",

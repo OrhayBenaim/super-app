@@ -1,12 +1,13 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Info, Tag } from "lucide-react-native";
-import { ScrollView, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, ScrollView, View } from "react-native";
 import { lineDetail } from "@/features/items/labels";
-import { missingItems, useCurrentListId, useList } from "@/features/lists/api";
+import { missingItems, useCurrentListId, useList, type Item } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme, type ColorName } from "@/theme";
-import { Button, Group, Row, Sheet, SheetHeader, Text } from "@/ui";
+import { Group, Row, Sheet, SheetHeader, Text } from "@/ui";
 import { useCompareStores } from "./useBestStore";
 import { breakdown } from "./breakdown";
 import { fmt, shekels } from "./format";
@@ -38,17 +39,32 @@ function PromotionRow({ kind, text, label }: ReturnType<typeof promotionRows>[nu
   );
 }
 
+/** True once `on` has stayed on for `ms`, so a fast refetch never flashes a spinner. */
+function useAfter(on: boolean, ms: number) {
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    setLate(false);
+    if (!on) return;
+    const id = setTimeout(() => setLate(true), ms);
+    return () => clearTimeout(id);
+  }, [on, ms]);
+  return on && late;
+}
+
 /**
  * Sheet route app/breakdown: the Basket breakdown of the branch open on Compare (param `storeId`). A line per priced item (quantity × Shelf
  * price, line total; on a Promotion its text and label, the lowered total and the struck Shelf total; then the Promotions
  * its Quantity doesn't reach and the information-only ones), a row per spend deal ("−₪x" in `saving`), the total, then
- * the items it doesn't price and the unmatched ones (with Match).
+ * its Missing items (tap one to re-match it in the item sheet, stacked on this one).
  */
 export function BreakdownSheet() {
   const router = useRouter();
   const { storeId } = useLocalSearchParams<{ storeId: string }>();
   const list = useList(useCurrentListId(), { poll: false }).data;
-  const store = useCompareStores(list).find((s) => s.storeId === storeId); // Compare's cached result
+  const { colors } = useTheme();
+  const { stores, updating } = useCompareStores(list); // Compare's cached result
+  const spinning = useAfter(updating, 250);
+  const store = stores.find((s) => s.storeId === storeId);
   if (!store) return null;
   const { priced, basket, notHere, unmatched } = breakdown(missingItems(list), store);
   const missing = notHere.length + unmatched.length;
@@ -56,6 +72,18 @@ export function BreakdownSheet() {
     <Text variant="priceRow" tabular color={color}>
       {shown}
     </Text>
+  );
+  const missingRow = (item: Item, detail: string) => (
+    <Row
+      key={item.id}
+      title={item.name}
+      detail={detail}
+      chevron
+      analyticsName={Taps.compareMissingMatch}
+      accessibilityLabel={`${t("compare.missing.match")}: ${item.name}`}
+      // Pushed, so the match sheet stacks on this breakdown and closing it returns here.
+      onPress={() => router.push({ pathname: "/item/[id]", params: { id: item.id, page: "product", storeId } })}
+    />
   );
   return (
     <ScrollView>
@@ -99,30 +127,12 @@ export function BreakdownSheet() {
               trailing={price(deal.saving, "saving", `\u2066−${shekels(deal.saving)}\u2069`)}
             />
           ))}
-          <Row title={t("compare.breakdown.total")} detail={fmt(t("compare.breakdown.count"), { n: priced.length })} trailing={price(store.total)} />
+          <Row title={t("compare.breakdown.total")} detail={fmt(t("compare.breakdown.count"), { n: priced.length })} trailing={spinning ? <ActivityIndicator color={colors.labelSecondary} /> : price(store.total)} />
         </Group>
         {missing > 0 && (
           <Group title={fmt(t("compare.missingCount"), { n: missing })}>
-            {notHere.map((item) => (
-              <Row key={item.id} title={item.name} detail={t("compare.missing.notHere")} />
-            ))}
-            {unmatched.map((item) => (
-              <Row
-                key={item.id}
-                title={item.name}
-                detail={t("compare.missing.unmatched")}
-                trailing={
-                  <Button
-                    variant="plain"
-                    title={t("compare.missing.match")}
-                    analyticsName={Taps.compareMissingMatch}
-                    accessibilityLabel={`${t("compare.missing.match")}: ${item.name}`}
-                    onPress={() => router.replace({ pathname: "/item/[id]", params: { id: item.id, page: "product" } })}
-                    style={{ paddingHorizontal: 0 }}
-                  />
-                }
-              />
-            ))}
+            {notHere.map((item) => missingRow(item, t("compare.missing.notHere")))}
+            {unmatched.map((item) => missingRow(item, t("compare.missing.unmatched")))}
           </Group>
         )}
       </Sheet>

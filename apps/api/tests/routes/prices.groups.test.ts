@@ -258,6 +258,87 @@ describe("product groups: search", () => {
   });
 });
 
+describe("product search at one store (storeId)", () => {
+  const at = (q: string, storeId: string, auth = true) =>
+    app.request(`/api/products/search?q=${encodeURIComponent(q)}&storeId=${encodeURIComponent(storeId)}`, { headers: auth ? { cookie } : {} });
+  const searchAt = async (q: string, storeId: string) => {
+    const res = await at(q, storeId);
+    expect(res.status).toBe(200);
+    return (await res.json()) as Row[];
+  };
+
+  it("returns only the products that store prices", async () => {
+    const rows = await searchAt("בורגול", `${SHUFERSAL}-1`);
+    expect(rows.filter((r) => r.kind === "product").map((r) => r.name)).toEqual(["בורגול גס מיה"]);
+  });
+
+  it("gives a product that store's price, not the cheapest anywhere", async () => {
+    const milk = (await searchAt("חלב 3%", `${OSHER}-1`)).find((r) => r.code === milk3);
+    expect(milk).toMatchObject({ minPrice: 6 }); // 5.5 at Shufersal
+    expect(await searchAt(milk3, `${SHUFERSAL}-1`)).toMatchObject([{ code: milk3, minPrice: 5.5 }]);
+    expect(await searchAt(milk3, `${RAMI}-1`)).toEqual([]);
+  });
+
+  it("prices a kilo group at the store's cheapest per kilo, as Compare does", async () => {
+    const [bulgur] = await searchAt("בורגול", `${SHUFERSAL}-1`); // 3.50 for 500 g; 6.80 a kilo at Osher Ad
+    expect(bulgur).toMatchObject({ kind: "group", ref: "בורגול|kg", minPrice: 7 });
+  });
+
+  it("prices a group sold by weight at the store's cheapest per kilo", async () => {
+    const [banana] = await searchAt("בננה", `${RAMI}-1`); // 5 a kilo at Osher Ad
+    expect(banana).toMatchObject({ kind: "group", ref: "בננה|kg", soldBy: "weight", minPrice: 6.5 });
+  });
+
+  it("prices a unit group at the store's cheapest pack", async () => {
+    const dozen = (await searchAt("ביצים", `${OSHER}-1`)).find((r) => r.ref === "ביצ|unit|12");
+    expect(dozen).toMatchObject({ kind: "group", minPrice: 13.5 }); // 13 at Shufersal
+  });
+
+  it("leaves out a group with no product at the store", async () => {
+    // Rami Levy prices only the olive cottage, which is not in the broad cottage group
+    expect((await searchAt("קוטג", `${RAMI}-1`)).map((r) => [r.kind, r.name])).toEqual([["product", "קוטג עם זיתים 250 גרם"]]);
+    expect(await searchAt("בורגול", `${RAMI}-1`)).toEqual([]);
+  });
+
+  it("returns [] for an unknown store", async () => {
+    expect(await searchAt("בורגול", "nope-1")).toEqual([]);
+  });
+
+  it("400 on an invalid storeId", async () => {
+    for (const storeId of ["", " ", "x".repeat(65)]) expect((await at("בורגול", storeId)).status, storeId).toBe(400);
+  });
+
+  it("401 without a session", async () => {
+    expect((await at("בורגול", `${OSHER}-1`, false)).status).toBe(401);
+  });
+
+  it("leaves search without storeId as it was: every store, the cheapest price anywhere", async () => {
+    const rows = await search("בורגול");
+    expect(rows[0]).toMatchObject({ kind: "group", ref: "בורגול|kg", minPrice: 6.8, storeCount: 2 });
+    expect(rows.filter((r) => r.kind === "product").map((r) => r.name)).toEqual(expect.arrayContaining(["בורגול גס מיה", "בורגול דק סוגת"]));
+    expect((await search("חלב 3%")).find((r) => r.code === milk3)).toMatchObject({ minPrice: 5.5, storeCount: 2 });
+  });
+
+  it("finds the store's product even when over 3000 other products match first", async () => {
+    const deps = buildDeps(loadConfig());
+    const big = createApp(deps);
+    const many: Item[] = Array.from({ length: 3001 }, (_, i) => [`p${i}`, `פסטה ${i}`, 5]);
+    const chains: [string, string, Item[]][] = [["osher-ad", OSHER, many], ["shufersal", SHUFERSAL, many], ["rami-levy", RAMI, [["p-rami", "פסטה רמי", 6]]]];
+    for (const [key, chain, items] of chains) {
+      ingestStores(deps, key, storesXml(chain));
+      ingestPrices(deps, key, pricesXml(chain, items));
+    }
+    const res = await big.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "cap@prices.test", password: "password1234", name: "Gal" }),
+    });
+    const auth = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    const rows = (await (await big.request(`/api/products/search?q=${encodeURIComponent("פסטה")}&storeId=${RAMI}-1`, { headers: { cookie: auth } })).json()) as Row[];
+    expect(rows.filter((r) => r.kind === "product").map((r) => r.name)).toEqual(["פסטה רמי"]);
+  });
+});
+
 describe("product groups: leading and substitute words", () => {
   it.each([
     ["בורגול", "בורגול|kg", 5],

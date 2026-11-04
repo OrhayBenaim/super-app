@@ -34,21 +34,32 @@ export const lineDetail = (q: number, price: number, soldBy: SoldBy, t: T) =>
 /** A group's name, plus the pack count of a unit group ("ביצים · 12 יח׳"). */
 export const groupTitle = (g: ProductGroup, t: T) => (g.measure === "unit" ? `${g.name} · ${sizeLabel("unit", g.size, t)}` : g.name);
 
-/** "by weight" for produce, "63 products", "from ₪6.80 a kilo" (a unit group: its cheapest pack), "in 120 branches". */
-export const groupFacts = (g: ProductGroup, t: T) => [
-  ...(g.soldBy === "weight" ? [t("items.product.byWeight")] : []),
-  fmt(t("items.group.products"), { n: g.productCount }),
-  fmt(t(g.measure === "kg" ? "items.group.perKg" : g.measure === "l" ? "items.group.perL" : "items.product.from"), { price: shekels(g.minPrice) }),
-  fmt(t("items.product.stores"), { n: g.storeCount }),
-];
+/**
+ * "by weight" for produce, "63 products", "from ₪6.80 a kilo" (a unit group: its cheapest pack), "in 120 branches".
+ * `atStore` (a store-limited search): only that store's price, "₪6.80 a kilo".
+ */
+export const groupFacts = (g: ProductGroup, t: T, atStore = false) => {
+  const price = shekels(g.minPrice);
+  const weight = g.soldBy === "weight" ? [t("items.product.byWeight")] : [];
+  if (atStore) return [...weight, g.measure === "unit" ? price : fmt(t(g.measure === "kg" ? "items.group.kilo" : "items.group.liter"), { price })];
+  return [
+    ...weight,
+    fmt(t("items.group.products"), { n: g.productCount }),
+    fmt(t(g.measure === "kg" ? "items.group.perKg" : g.measure === "l" ? "items.group.perL" : "items.product.from"), { price }),
+    fmt(t("items.product.stores"), { n: g.storeCount }),
+  ];
+};
 
-/** A product row's detail: pack size ("by weight" when sold by weight), manufacturer (when asked), lowest price and branches. */
-export const productDetail = (p: Product, t: T, manufacturer = false) =>
+/**
+ * A product row's detail: pack size ("by weight" when sold by weight), manufacturer (when asked), lowest price and branches.
+ * `atStore` (a store-limited search): that store's price, no branches.
+ */
+export const productDetail = (p: Product, t: T, { manufacturer = false, atStore = false } = {}) =>
   [
     p.soldBy === "weight" ? t("items.product.byWeight") : p.measure && p.size ? sizeLabel(p.measure, p.size, t) : null,
     manufacturer ? p.manufacturer : null,
-    fmt(t("items.product.from"), { price: priceLabel(p.minPrice, p.soldBy, t) }),
-    fmt(t("items.product.stores"), { n: p.storeCount }),
+    atStore ? priceLabel(p.minPrice, p.soldBy, t) : fmt(t("items.product.from"), { price: priceLabel(p.minPrice, p.soldBy, t) }),
+    atStore ? null : fmt(t("items.product.stores"), { n: p.storeCount }),
   ]
     .filter(Boolean)
     .join(" · ");
