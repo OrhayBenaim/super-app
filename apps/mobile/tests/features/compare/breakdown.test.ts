@@ -23,8 +23,8 @@ describe("breakdown", () => {
       { ref: "בננה|kg", code: "555", name: "בננה", size: 1, unitPrice: 9.9, price: 9.9, quantity: 1.5, lineTotal: 14.85 },
     ]);
     expect(breakdown([milk, banana], s).priced).toEqual([
-      { item: milk, price: 6.9, lineTotal: 13.8 },
-      { item: banana, price: 9.9, lineTotal: 14.85 },
+      { item: milk, price: 6.9, lineTotal: 13.8, shelfTotal: 13.8 },
+      { item: banana, price: 9.9, lineTotal: 14.85, shelfTotal: 14.85 },
     ]);
   });
 
@@ -33,6 +33,41 @@ describe("breakdown", () => {
     const b = item("b", { productCode: "111", quantity: 3 });
     const { priced } = breakdown([a, b], store([{ code: "111", price: 5, quantity: 4, lineTotal: 20 }]));
     expect(priced.map((p) => p.lineTotal)).toEqual([5, 15]);
+  });
+
+  it("takes a bundle Promotion line's total as is and keeps the Shelf total struck", () => {
+    const promotion = { id: "p1", kind: "bundle" as const, minQty: 3, amount: 10, audience: "all" as const, text: "3 ב-10" };
+    const x = item("x", { productCode: "111", quantity: 3 });
+    const { priced } = breakdown([x], store([{ code: "111", price: 5.9, quantity: 3, lineTotal: 10, promotion }]));
+    expect(priced).toEqual([{ item: x, price: 5.9, lineTotal: 10, shelfTotal: 17.7, promotion }]);
+    expect(priced[0].promotion).toBe(promotion);
+  });
+
+  it("uses the response's lineTotal even when it differs from price × quantity", () => {
+    const x = item("x", { productCode: "111", quantity: 2 });
+    expect(breakdown([x], store([{ code: "111", price: 4, quantity: 2, lineTotal: 7 }])).priced[0]).toMatchObject({ lineTotal: 7, shelfTotal: 8 });
+  });
+
+  it("splits a merged Promotion line by quantity, remainder on the last item, summing exactly", () => {
+    const promotion = { id: "p1", kind: "price" as const, minQty: 1, amount: 3.5, audience: "all" as const, text: "" };
+    const a = item("a", { productCode: "111", quantity: 1 });
+    const b = item("b", { productCode: "111", quantity: 2 });
+    const r = breakdown([a, b], store([{ code: "111", price: 5, quantity: 3, lineTotal: 10, promotion }])).priced;
+    expect(r.map((p) => p.lineTotal)).toEqual([3.33, 6.67]);
+    expect(r.map((p) => p.shelfTotal)).toEqual([5, 10]);
+    expect(r.every((p) => p.promotion === promotion)).toBe(true);
+
+    const three = ["a", "b", "c"].map((id) => item(id, { productCode: "111", quantity: 1 }));
+    const t3 = breakdown(three, store([{ code: "111", price: 5, quantity: 3, lineTotal: 10 }])).priced;
+    expect(t3.map((p) => p.lineTotal)).toEqual([3.33, 3.33, 3.34]);
+    expect(t3.every((p) => p.promotion === undefined)).toBe(true);
+  });
+
+  it("splits a group line's total too", () => {
+    const a = item("a", { groupRef: "g|kg", quantity: 1 });
+    const b = item("b", { groupRef: "g|kg", quantity: 1 });
+    const line = { ref: "g|kg", code: "5", name: "g", size: 1, price: 5, quantity: 2, lineTotal: 9 };
+    expect(breakdown([a, b], store([line])).priced.map((p) => p.lineTotal)).toEqual([4.5, 4.5]);
   });
 
   it("never prices a product item by a group line that happens to name the same product", () => {
@@ -47,7 +82,7 @@ describe("breakdown", () => {
     const gone = item("gone", { productCode: "2" });
     const none = item("none");
     const r = breakdown([none, here, gone], store([{ code: "1", price: 1, quantity: 1, lineTotal: 1 }], ["2"]));
-    expect(r).toEqual({ priced: [{ item: here, price: 1, lineTotal: 1 }], notHere: [gone], unmatched: [none] });
+    expect(r).toEqual({ priced: [{ item: here, price: 1, lineTotal: 1, shelfTotal: 1 }], notHere: [gone], unmatched: [none] });
   });
 });
 
