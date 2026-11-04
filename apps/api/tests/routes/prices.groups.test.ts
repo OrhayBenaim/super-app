@@ -141,6 +141,16 @@ describe("product groups: search", () => {
     expect(rows.filter((r) => r.kind === "product")).toHaveLength(7); // every bulgur and both dishes stay findable
   });
 
+  it("lists the group's best-matching products in topCodes, at most five, in search order", async () => {
+    const rows = await search("בורגול");
+    const { topCodes } = rows[0] as Row & { topCodes: string[] };
+    const order = rows.filter((r) => r.kind === "product").map((r) => r.code!);
+    const at = topCodes.map((c) => order.indexOf(c));
+    expect(topCodes).toHaveLength(5);
+    expect(at.every((i) => i >= 0)).toBe(true);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
+  });
+
   it("offers refinements shared by two or more products, and no word that only one has", async () => {
     const [bulgur] = await groups("בורגול");
     expect([...bulgur!.refinements!].sort()).toEqual(["דק", "עבה"]);
