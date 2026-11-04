@@ -28,10 +28,13 @@ export const DRAWER_SECTIONS: DrawerSection[] = [
   { key: "account", title: "drawer.account", entries: [{ key: "settings", label: "tabs.settings", tap: Taps.drawerSettings, href: "/settings" }] },
 ];
 
-/** The entry whose page is showing; Share list and Recently bought sit on top of a page, so none is current there. */
+/** Share list and Recently bought are pushed over the current page; tabs and drawer screens switch to theirs. */
+export const PUSHED: DrawerEntryKey[] = ["share", "recent"];
+
+/** The entry whose page is showing; a PUSHED page sits on top of one, so none is current there. */
 export function currentEntry(pathname: string): DrawerEntryKey | null {
   // Pages pushed inside the Home and Promotions tabs belong to their tab.
   const page = /^\/(type|group)\//.test(pathname) ? "/" : pathname.startsWith("/promotions/") ? "/promotions" : pathname;
   const entry = DRAWER_SECTIONS.flatMap((s) => s.entries).find((e) => e.href === page);
-  return entry && entry.key !== "share" && entry.key !== "recent" ? entry.key : null;
+  return entry && !PUSHED.includes(entry.key) ? entry.key : null;
 }

@@ -1,16 +1,39 @@
 import { router, usePathname } from "expo-router";
+import { useDrawerStatus } from "expo-router/drawer";
 import { ChartColumn, History, House, ListChecks, Settings, Share, ShoppingBasket, Tag, type LucideIcon } from "lucide-react-native";
+import { useEffect, useRef } from "react";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Taps, trackTap } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Tap, Text } from "@/ui";
-import { currentEntry, DRAWER_SECTIONS, type DrawerEntry, type DrawerEntryKey } from "./entries";
+import { currentEntry, DRAWER_SECTIONS, PUSHED, type DrawerEntry, type DrawerEntryKey } from "./entries";
 
 const ICONS: Record<DrawerEntryKey, LucideIcon> = { home: House, list: ListChecks, promotions: Tag, compare: ChartColumn, share: Share, recent: History, items: ShoppingBasket, settings: Settings };
-// Sheets and pushed pages stack over the current page; tabs and drawer screens switch to it.
-const PUSHED: DrawerEntryKey[] = ["share", "recent"];
+
+/**
+ * Tracks closing the menu without picking an entry: the scrim (react-navigation's own "close the menu" button, which
+ * takes no press handler) or Android's back button. Call the returned function when an entry is picked.
+ */
+function useCloseTracking() {
+  const status = useDrawerStatus();
+  const wasOpen = useRef(false);
+  const picked = useRef(false);
+  useEffect(() => {
+    if (status === "open") {
+      wasOpen.current = true;
+      picked.current = false;
+    } else if (wasOpen.current) {
+      wasOpen.current = false;
+      if (!picked.current) trackTap(Taps.drawerClose);
+    }
+  }, [status]);
+  return () => {
+    picked.current = true;
+  };
+}
 
 /** Header (name, email), then Shopping, Lists and Account. The current page has a Tint label and icon. */
 export function DrawerContent({ navigation }: { navigation: { closeDrawer(): void } }) {
@@ -18,8 +41,10 @@ export function DrawerContent({ navigation }: { navigation: { closeDrawer(): voi
   const insets = useSafeAreaInsets();
   const user = authClient.useSession().data?.user;
   const current = currentEntry(usePathname());
+  const markPicked = useCloseTracking();
 
   const open = (entry: DrawerEntry) => {
+    markPicked();
     navigation.closeDrawer();
     if (PUSHED.includes(entry.key)) router.push(entry.href);
     else router.navigate(entry.href);
