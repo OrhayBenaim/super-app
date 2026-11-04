@@ -115,7 +115,7 @@ beforeAll(async () => {
 
 type Row = { kind: "group" | "product"; ref?: string; code?: string; name: string; measure: string | null; size: number | null; productCount?: number; storeCount: number; minPrice: number; refinements?: string[]; unitQty?: string | null };
 type GroupItem = { ref: string; code: string; name: string; size: number; unitPrice?: number; price: number; quantity: number; lineTotal: number };
-type Store = { chainName: string; total: number; matched: number; missingCodes: string[]; items: ({ code: string; price: number; quantity: number; lineTotal: number } | GroupItem)[] };
+type Store = { chainName: string; storeName: string; total: number; matched: number; missingCodes: string[]; items: ({ code: string; price: number; quantity: number; lineTotal: number } | GroupItem)[] };
 const search = async (q: string) => (await (await app.request(`/api/products/search?q=${encodeURIComponent(q)}`, { headers: { cookie } })).json()) as Row[];
 const groups = async (q: string) => (await search(q)).filter((r) => r.kind === "group");
 const post = (body: unknown, auth = true) =>
