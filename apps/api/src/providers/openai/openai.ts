@@ -1,31 +1,12 @@
 import { z } from "zod";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
-import type { Classifier, ProductToClassify } from "#/services/classifier.ts";
-
-// Each id with what goes in it, so the model needn't guess from the id alone.
-const GUIDE: Record<(typeof PRODUCT_TYPES)[number], string> = {
-  "dairy-eggs": "milk, cheese, yogurt, butter, cream, eggs, dairy desserts",
-  "meat-fish": "fresh or chilled meat, poultry, fish, deli meats",
-  produce: "fresh fruit, vegetables, herbs",
-  bakery: "bread, pita, rolls, cakes and pastries from the bakery",
-  drinks: "water, juice, soft drinks, coffee, tea, non-alcoholic drinks",
-  "snacks-sweets": "chocolate, candy, chips, crackers, biscuits, nuts as snacks",
-  pantry: "rice, pasta, flour, sugar, oil, spices, sauces, spreads, cereal, dry goods",
-  frozen: "frozen food of any kind",
-  canned: "canned and jarred food: vegetables, tuna, pickles, hummus in cans",
-  "cleaning-home": "cleaning products, laundry, dishwashing, paper goods, disposables, home supplies",
-  "personal-care": "toiletries, cosmetics, hygiene, pharmacy",
-  baby: "diapers, baby food, formula, baby care",
-  pets: "pet food and pet supplies",
-  alcohol: "beer, wine, spirits",
-  other: "anything that fits none of the above",
-};
+import { PRODUCT_TYPE_GUIDE, type Classifier, type ProductToClassify } from "#/services/classifier.ts";
 
 const SYSTEM = [
   "You sort Israeli supermarket products into product types. Names are in Hebrew and often cut off after about 20 characters.",
   'Reply with JSON only: {"types":[{"i":<the product\'s i>,"type":"<id>"}]}, one entry per product.',
   "Use only these ids:",
-  ...PRODUCT_TYPES.map((id) => `- ${id}: ${GUIDE[id]}`),
+  ...PRODUCT_TYPES.map((id) => `- ${id}: ${PRODUCT_TYPE_GUIDE[id]}`),
 ].join("\n");
 
 const reply = z.object({ choices: z.array(z.object({ message: z.object({ content: z.string() }) })).min(1) });

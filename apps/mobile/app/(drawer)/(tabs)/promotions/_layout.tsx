@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { pushedHeader } from "@/features/tabs/pushedHeader";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 
@@ -8,10 +9,7 @@ export default function PromotionsLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
-      <Stack.Screen
-        name="group/[ref]"
-        options={{ headerShown: true, title: "", headerBackTitle: t("tabs.promotions"), headerTintColor: colors.tint, headerShadowVisible: false, headerStyle: { backgroundColor: colors.groupedBg } }}
-      />
+      <Stack.Screen name="group/[ref]" options={{ ...pushedHeader(colors), headerBackTitle: t("tabs.promotions") }} />
     </Stack>
   );
 }

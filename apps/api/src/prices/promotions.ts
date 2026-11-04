@@ -42,7 +42,7 @@ export type LineOption = { code: string; price: number; quantity: number; promo?
 type Chosen = { line: number; option: LineOption };
 
 const EPS = 1e-9;
-const round2 = (n: number) => Math.round(n * 100) / 100;
+export const round2 = (n: number) => Math.round(n * 100) / 100;
 /** Priced in full sets of `minQty` (price and percent apply per unit). */
 const isSetKind = (p: RunningPromotion) => p.kind === "bundle" || p.kind === "nth" || p.kind === "off";
 

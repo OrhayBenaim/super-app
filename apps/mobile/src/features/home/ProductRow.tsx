@@ -12,6 +12,9 @@ import { CardControls } from "./CardControls";
 import { useCard, type CardScreen } from "./useCard";
 
 /** "1 L", "by weight", or nothing when the pack size can't be read. */
+/** The Product image on a product page row, in pt (Chain lines under it indent past it). */
+export const ROW_IMAGE = 48;
+
 export const packSize = (p: GroupProduct) =>
   p.soldBy === "weight" ? t("items.product.byWeight") : p.measure && p.size ? sizeLabel(p.measure, p.size, t) : null;
 
@@ -29,7 +32,7 @@ export function ProductRow({ product, group, listId, items, screen = "home" }: {
   return (
     <View style={{ paddingHorizontal: space[5], paddingVertical: space[4], gap: space[4] }}>
       <View accessible accessibilityLabel={[product.name, size, price].filter(Boolean).join(", ")} style={{ flexDirection: "row", alignItems: "center", gap: space[4] }}>
-        <ProductImage url={image} style={{ width: 48, height: 48 }} />
+        <ProductImage url={image} style={{ width: ROW_IMAGE, height: ROW_IMAGE }} />
         <View style={{ flex: 1, gap: space[1] }}>
           <Text variant="body" numberOfLines={2}>
             {product.name}

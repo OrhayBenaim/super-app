@@ -2,12 +2,13 @@ import type { SoldBy } from "@grocer/shared/quantity";
 import { Info, Tag } from "lucide-react-native";
 import { View } from "react-native";
 import { t } from "@/lib/strings";
+import { ROW_IMAGE } from "@/features/home/ProductRow";
 import { useTheme } from "@/theme";
 import { Text } from "@/ui";
 import { chainLine, type ChainPromo } from "./promo";
 
-/** Where a Chain line's text starts: under the Product's name (row padding + 48pt image + gap). */
-export const chainIndent = (space: number[]) => space[5]! + 48 + space[4]!;
+/** Where a Chain line's text starts: under the Product's name (row padding + image + gap). */
+export const chainIndent = (space: number[]) => space[5]! + ROW_IMAGE + space[4]!;
 
 /**
  * One Chain running a Promotion on a Product (Figma ChainPromoRow), indented under its ProductRow: the Chain, the

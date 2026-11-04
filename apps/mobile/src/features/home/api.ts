@@ -20,16 +20,17 @@ export type Card = {
 export const nearQuery = (coords: Coords | null, radiusKm: number) =>
   coords ? `?lat=${Math.round(coords.lat * 1000) / 1000}&lng=${Math.round(coords.lng * 1000) / 1000}&radiusKm=${radiusKm}` : "";
 
-/** `enabled` waits until the location is known one way or the other. */
-export const useProductTypes = (coords: Coords | null, radiusKm: number, enabled: boolean) => {
-  const q = nearQuery(coords, radiusKm);
-  return useQuery({ queryKey: ["browse", "types", q], queryFn: () => api<TypeCount[]>(`api/browse/types${q}`), enabled, placeholderData: keepPreviousData });
-};
+/**
+ * A browse route at the User's location (keyed by its path and query). `query` defaults to the rounded location;
+ * `enabled` waits until the location is known one way or the other.
+ */
+export const useBrowse = <T>(path: string, coords: Coords | null, radiusKm: number, enabled: boolean, query = nearQuery(coords, radiusKm)) =>
+  useQuery({ queryKey: ["browse", path, query], queryFn: () => api<T>(`api/browse/${path}${query}`), enabled, placeholderData: keepPreviousData });
 
-export const useTypeCards = (type: ProductType, coords: Coords | null, radiusKm: number, enabled: boolean) => {
-  const q = nearQuery(coords, radiusKm);
-  return useQuery({ queryKey: ["browse", "types", type, q], queryFn: () => api<Card[]>(`api/browse/types/${type}${q}`), enabled, placeholderData: keepPreviousData });
-};
+export const useProductTypes = (coords: Coords | null, radiusKm: number, enabled: boolean) => useBrowse<TypeCount[]>("types", coords, radiusKm, enabled);
+
+export const useTypeCards = (type: ProductType, coords: Coords | null, radiusKm: number, enabled: boolean) =>
+  useBrowse<Card[]>(`types/${type}`, coords, radiusKm, enabled);
 
 /** A Product on a product page: pack size (null when unreadable), cheapest price nearby (per kilo by weight; null without a location). */
 export type GroupProduct = {
@@ -38,12 +39,5 @@ export type GroupProduct = {
 export type GroupPage = { card: Card; products: GroupProduct[] };
 
 /** A group card's product page: the card and its Products sold nearby. */
-export const useGroupPage = (type: ProductType, ref: string, coords: Coords | null, radiusKm: number, enabled: boolean) => {
-  const q = nearQuery(coords, radiusKm);
-  return useQuery({
-    queryKey: ["browse", "types", type, "groups", ref, q],
-    queryFn: () => api<GroupPage>(`api/browse/types/${type}/groups/${encodeURIComponent(ref)}${q}`),
-    enabled,
-    placeholderData: keepPreviousData,
-  });
-};
+export const useGroupPage = (type: ProductType, ref: string, coords: Coords | null, radiusKm: number, enabled: boolean) =>
+  useBrowse<GroupPage>(`types/${type}/groups/${encodeURIComponent(ref)}`, coords, radiusKm, enabled);

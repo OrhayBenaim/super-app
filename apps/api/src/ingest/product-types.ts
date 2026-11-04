@@ -31,7 +31,7 @@ export async function typeProducts({ db, classifier, errorHandler }: Deps, signa
     const byName = new Map<string, Untyped[]>();
     for (const r of rows) {
       const key = r.name.trim().replace(/\s+/g, " ");
-      byName.set(key, [...(byName.get(key) ?? []), r]);
+      (byName.get(key) ?? byName.set(key, []).get(key)!).push(r);
     }
     const names = [...byName.entries()].slice(0, MAX_NAMES);
     const save = sqlite.prepare("UPDATE products SET product_type = ? WHERE code = ?");

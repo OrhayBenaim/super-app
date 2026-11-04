@@ -4,7 +4,7 @@ import { PRODUCT_TYPES, type ProductType } from "@grocer/shared/product-types";
 import type { Db } from "#/db/index.ts";
 import type { Audience, PromotionKind } from "#/db/appSchema.ts";
 import { groupsFrom, measureOf, nameWords, parseRef, soldByOf, withoutSizes, type Measure } from "#/prices/groups.ts";
-import { promotionPrice, promotionText, runningPromotions, type RunningPromotion } from "#/prices/promotions.ts";
+import { promotionPrice, promotionText, round2, runningPromotions, type RunningPromotion } from "#/prices/promotions.ts";
 import type { SoldBy } from "@grocer/shared/quantity";
 
 /** A Product with a current price at the stores asked about: its cheapest price there and how many of them price it. */
@@ -105,8 +105,6 @@ export function typeCounts(products: Priced[]) {
   return PRODUCT_TYPES.filter((t) => counts.has(t)).map((type) => ({ type, cardCount: counts.get(type)! }));
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
-
 /**
  * Cards for these Products, most nearby stores first, then by name. Store counts are over `storeIds` (all stores when
  * null, and then no prices are shown: there is no "nearby" to price).
@@ -187,7 +185,7 @@ function promotionOffers(db: Db, storeIds: string[], now: Date, { type, chain }:
   const offers = new Map<string, Offer[]>(); // by code
   for (const s of shelves)
     for (const promo of running.get(`${s.storeId} ${s.code}`) ?? [])
-      offers.set(s.code, [...(offers.get(s.code) ?? []), { code: s.code, chainId: chainOf.get(s.storeId)!, promo, shelf: s.price, off: promotionPrice(promo, s.price) }]);
+      (offers.get(s.code) ?? offers.set(s.code, []).get(s.code)!).push({ code: s.code, chainId: chainOf.get(s.storeId)!, promo, shelf: s.price, off: promotionPrice(promo, s.price) });
   return { stores, pool: priced.filter((p) => offers.has(p.code)), offers };
 }
 
@@ -238,7 +236,8 @@ export function promotionPage(db: Db, storeIds: string[], now: Date, type: Produ
   const promoted = promotionOffers(db, storeIds, now, { type });
   const page = groupPage(db, promoted.pool, promoted.stores, ref);
   if (!page) return null;
-  const card = promoCardsOf(db, promoted).find((c) => c.ref === ref)!;
+  // Grouping only the group's Products gives back that one card, without the whole Promotions list.
+  const [card] = promoCardsOf(db, { ...promoted, pool: promoted.pool.filter((p) => page.card.codes.includes(p.code)) }) as [PromoCard];
   const chains = (code: string) => {
     const lines = new Map<string, Ranked>(); // per Chain and Promotion: its lowest price at the Chain's nearby stores
     for (const o of promoted.offers.get(code)!.map((o) => ({ ...o, each: o.off?.price ?? null })).sort(byBestOffer)) {
