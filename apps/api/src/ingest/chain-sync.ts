@@ -62,7 +62,7 @@ export type ChainCounts = {
  * Loads each store's newest PromoFull and then its update, never throwing: a file that fails leaves its store's previous
  * Promotions (an update that fails, the PromoFull's). Every file failing is a Promotion failure (CONTEXT.md); files in
  * a layout Grocer can't read yet count neither way. Sends one warning listing the Promotions it couldn't price
- * (kind -> PromotionID -> stores) and the files in an unknown layout, when there are any.
+ * (reason -> PromotionID -> stores) and the files in an unknown layout, when there are any.
  */
 async function syncPromotions(deps: Deps, chain: ChainSeed, promos: PickedFile[], load: (f: PriceFile) => Promise<string>, counts: ChainCounts) {
   let tried = 0;
@@ -74,7 +74,7 @@ async function syncPromotions(deps: Deps, chain: ChainSeed, promos: PickedFile[]
     if (outcome.layout === "unknown") unknownLayout.push(f.name);
     else
       for (const u of outcome.unpriced) {
-        const stores = ((unpriced[u.kind] ??= {})[u.promotionId] ??= []);
+        const stores = ((unpriced[u.reason] ??= {})[u.promotionId] ??= []);
         if (!stores.includes(outcome.store)) stores.push(outcome.store);
       }
     return outcome;

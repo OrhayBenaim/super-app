@@ -197,7 +197,7 @@ export function parsePromotions(xml: string, chainKey: string) {
     if (pid) byId.set(pid, [...(byId.get(pid) ?? []), p]);
   }
   const promotions: ParsedPromotion[] = [];
-  const unpriced: { promotionId: string; kind: string }[] = [];
+  const unpriced: { promotionId: string; reason: string }[] = [];
   for (const [promotionId, [p, ...more]] of byId) {
     const audience = audienceOf(chainKey, str(p!.clubid), num(p!.additionaliscoupon) === 1);
     if (!audience) continue;
@@ -220,11 +220,11 @@ export function parsePromotions(xml: string, chainKey: string) {
     }
     const [startsAt, endsAt] = [fromJerusalem(str(p!.promotionstartdatetime)), fromJerusalem(str(p!.promotionenddatetime))];
     if (Number.isNaN(startsAt) || Number.isNaN(endsAt)) {
-      unpriced.push({ promotionId, kind: "unreadable dates" });
+      unpriced.push({ promotionId, reason: "unreadable dates" });
       continue;
     }
     // A reward Grocer can't price is kept as information: shown with the Chain's description, never in a total.
-    if (typeof reward === "string") unpriced.push({ promotionId, kind: reward });
+    if (typeof reward === "string") unpriced.push({ promotionId, reason: reward });
     const limit = num(p!.redemptionlimit);
     promotions.push({
       promotionId,
