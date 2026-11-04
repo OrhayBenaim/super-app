@@ -130,6 +130,7 @@ beforeAll(async () => {
         items: [{ ...MILK3, price: 6.5 }, { ...SNACK, price: 4.2 }],
         promos: [
           { id: "7", items: [M3!], price: 4.5, club: "2" }, // Rami Levy's credit card: 31% off, the lowest price
+          { id: "10", items: [M3!], price: 5.5 }, // and for everyone: 15% off
           { id: "9", items: [M3!], price: 1, end: "2026-11-03T23:59:00.000" }, // ended yesterday
         ],
       },
@@ -243,10 +244,12 @@ describe("GET /api/browse/promotions/types/:type/groups/:ref", () => {
     expect(milk.products.map((p) => p.code)).toEqual([M3]); // not the 1% milk, which has no Promotion
   });
 
-  it("breaks a Product down by Chain, lowest Promotion price first, leaving out ended and far-away ones", async () => {
+  it("breaks a Product down by Chain, lowest Promotion price first, every running one with its own audience, leaving out ended and far-away ones", async () => {
     const [milk] = (await page("dairy-eggs", "חלב|l")).products;
     expect(milk!.chains).toEqual([
       { chainId: RAMI, promoPrice: 4.5, shelfPrice: 6.5, saving: 31, kind: "price", minQty: 1, amount: 4.5, audience: "card", text: "₪4.50 במקום ₪6.50" },
+      // a club price doesn't hide the Chain's Promotion for everyone
+      { chainId: RAMI, promoPrice: 5.5, shelfPrice: 6.5, saving: 15, kind: "price", minQty: 1, amount: 5.5, audience: "all", text: "₪5.50 במקום ₪6.50" },
       { chainId: OSHER, promoPrice: 4.9, shelfPrice: 6.9, saving: 29, kind: "price", minQty: 1, amount: 4.9, audience: "all", text: "₪4.90 במקום ₪6.90" },
     ]); // not Rami Levy's ended ₪1, nor Yohananof (55 km away)
   });

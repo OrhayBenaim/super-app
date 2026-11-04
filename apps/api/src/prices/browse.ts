@@ -222,7 +222,7 @@ function promoCardsOf(db: Db, { stores, pool, offers }: ReturnType<typeof promot
 }
 
 /**
- * One Chain's Promotion on a Product: its best offer at the Chain's nearby stores, priced per unit (per kilo when
+ * One of a Chain's Promotions on a Product: its best offer at the Chain's nearby stores, priced per unit (per kilo when
  * weighed) next to that store's Shelf price; both null (and saving) when there is no price we can work out.
  */
 export type ChainPromo = {
@@ -232,7 +232,7 @@ export type ChainPromo = {
 
 /**
  * A Promotions card's product page: the card and only its Products on a Promotion running now, each broken down by
- * Chain (lowest price first, no-price last). Null when no such card is on a Promotion at `storeIds`.
+ * Chain (lowest price first, no-price last) into every Promotion it runs, each with its own audience. Null when no such card is on a Promotion at `storeIds`.
  */
 export function promotionPage(db: Db, storeIds: string[], now: Date, type: ProductType, ref: string) {
   const promoted = promotionOffers(db, storeIds, now, { type });
@@ -240,9 +240,13 @@ export function promotionPage(db: Db, storeIds: string[], now: Date, type: Produ
   if (!page) return null;
   const card = promoCardsOf(db, promoted).find((c) => c.ref === ref)!;
   const chains = (code: string) => {
-    const best = new Map<string, Ranked>();
-    for (const o of promoted.offers.get(code)!.map((o) => ({ ...o, each: o.off?.price ?? null })).sort(byBestOffer)) if (!best.has(o.chainId)) best.set(o.chainId, o);
-    return [...best.values()].map(({ chainId, promo, shelf, off }): ChainPromo => ({
+    const lines = new Map<string, Ranked>(); // per Chain and Promotion: its lowest price at the Chain's nearby stores
+    for (const o of promoted.offers.get(code)!.map((o) => ({ ...o, each: o.off?.price ?? null })).sort(byBestOffer)) {
+      const key = `${o.chainId} ${o.promo.id}`;
+      if (!lines.has(key)) lines.set(key, o);
+    }
+    const ranked = [...lines.values()];
+    return [...new Set(ranked.map((o) => o.chainId))].flatMap((id) => ranked.filter((o) => o.chainId === id)).map(({ chainId, promo, shelf, off }): ChainPromo => ({
       chainId,
       promoPrice: off?.price ?? null,
       shelfPrice: off ? shelf : null,

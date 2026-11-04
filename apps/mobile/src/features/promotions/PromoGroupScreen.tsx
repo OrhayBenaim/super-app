@@ -49,7 +49,7 @@ export function PromoGroupScreen() {
                   {/* The Chain lines below carry the prices. */}
                   <ProductRow product={{ ...p, minPrice: null }} group={groupTarget(data.card, type)} listId={listId} items={items} screen="promotions" />
                   {p.chains.map((c, i) => (
-                    <Fragment key={c.chainId}>
+                    <Fragment key={`${c.chainId} ${i}`}>
                       <Divider style={{ marginStart: i === 0 ? space[5] : chainIndent(space) }} />
                       <ChainPromoRow promo={c} chainName={chainName(c.chainId)} soldBy={p.soldBy} />
                     </Fragment>
