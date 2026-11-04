@@ -54,18 +54,20 @@ type StoreResult = {
   missingCodes: string[];     // codes and group refs it does not carry
   // price is the Shelf price per one of quantity; lineTotal is after the line's Promotion (price × quantity without one);
   // a group line names the product priced, unitPrice per kilo/liter
-  items: ({ code; price; quantity; lineTotal; promotion?: Promotion; info?: { id; description }[] } | { ref; code; name; size; unitPrice?; price; quantity; lineTotal })[];
+  items: ({ code; price; quantity; lineTotal; promotion?: Promotion; hints?: Promotion[]; info?: { id; description }[] } | { ref; code; name; size; unitPrice?; price; quantity; lineTotal })[];
   orderUrl: string|null;
 }
-// The running Promotion that gives the line its lowest total (docs/adr/0003). kind price: one unit at amount; bundle:
-// minQty units for amount in total (units beyond full sets at the Shelf price); percent: amount percent off. For a
+// The line's Promotion in the store's combination with the lowest total (docs/adr/0003). kind price: one unit at amount;
+// bundle: minQty units for amount in total; percent: amount percent off; nth: the cheapest of every minQty units amount
+// percent off (100 = "2+1"); off: ₪amount off every minQty units. Units beyond full sets at the Shelf price. For a
 // product sold by weight a unit is a kilo: price is per kilo, bundle is minQty kilos (may be fractional: 0.25) for amount.
-// text is Hebrew-first ("3 ב-₪10", "20% הנחה", "₪4.90 במקום ₪6.90"; weighed: "₪29.90 לק״ג", "2 ק״ג ב-₪80",
-// "250 גרם ב-₪22"); id is the Chain's PromotionID.
-type Promotion = { id: string; kind: "price"|"bundle"|"percent"; minQty: number; amount: number; audience: "all"|"club"|"card"|"coupon"; text: string }
+// text is Hebrew-first ("3 ב-₪10", "20% הנחה", "2+1", "₪4.90 במקום ₪6.90"; weighed: "₪29.90 לק״ג", "2 ק״ג ב-₪80",
+// "250 גרם ב-₪22"); id is the Chain's PromotionID, the same on every line sharing one Promotion.
+// hints: Promotions on the line the List's Quantity doesn't reach.
+type Promotion = { id: string; kind: "price"|"bundle"|"percent"|"nth"|"off"; minQty: number; amount: number; audience: "all"|"club"|"card"|"coupon"; text: string }
 // info: running information-only Promotions on the line (a gift, a deal priced only in its description, a reward Grocer
-// can't price), with the Chain's own description; never in lineTotal or total.
+// can't price), with the Chain's own description; never in lineTotal or total, never a hint.
 ```
-Promotions apply to product lines (not yet to group lines): only those running at the server's now (start, end, Israeli weekday), at most one per line, units above its limit per purchase at the Shelf price. Sort semantics: `price` → fewest missing first, then lowest total (after Promotions); `distance` → nearest; `coverage` → most matched, then price. Stores without coordinates are excluded. Duplicate codes (or refs) are merged by summing their quantities. A product sold by weight is priced per kilo × kilos. A group is charged its cheapest product at each store: a group sold by weight by price per kilo × kilos; another kilo or liter group by price per kilo/liter (`unitPrice`) × the group's commonest pack size × `quantity` (packs); a unit group by the cheapest pack × `quantity`. `unmatched` = codes and group refs no store in radius carries.
+Promotions apply to product lines (not yet to group lines): only those running at the server's now (start, end, Israeli weekday), at most one per line, units above its limit per purchase at the Shelf price. A Promotion pools the units of every line it covers (mix-and-match), most expensive first; its price is split over those lines in proportion to their Shelf prices, rounded to agorot so the shares add up exactly. Sort semantics: `price` → fewest missing first, then lowest total (after Promotions); `distance` → nearest; `coverage` → most matched, then price. Stores without coordinates are excluded. Duplicate codes (or refs) are merged by summing their quantities. A product sold by weight is priced per kilo × kilos. A group is charged its cheapest product at each store: a group sold by weight by price per kilo × kilos; another kilo or liter group by price per kilo/liter (`unitPrice`) × the group's commonest pack size × `quantity` (packs); a unit group by the cheapest pack × `quantity`. `unmatched` = codes and group refs no store in radius carries.
 
 Ingestion (CLI, not HTTP): `npm run ingest -- --chain <chainKey> [--stores <file>] [--prices <file...>]` parses Stores + PriceFull XML (gz/zip/plain, UTF-8 or UTF-16) into `stores`, `products`, `prices`. Each prices file is a full snapshot: it replaces that store's prices (items no longer listed are dropped), and items with `ItemPrice` <= 0 or NaN are skipped (count logged). Geocoding: `npm run geocode` fills `stores.lat/lng` via Nominatim from `address + city` (cached, 1 req/s).

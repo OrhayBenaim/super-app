@@ -5,7 +5,7 @@ import { SEARCH } from "@grocer/shared/search";
 import type { Db } from "#/db/index.ts";
 import { commonest, ftsMatch, groupMembers, groupRefSchema, measureOf, nameWords, parseRef, searchGroups, soldByOf, withoutSizes } from "#/prices/groups.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
-import { priceLine, runningPromotions } from "#/prices/promotions.ts";
+import { priceLines, runningPromotions, type AppliedPromotion } from "#/prices/promotions.ts";
 
 const quantity = z.number().positive().max(QUANTITY.max);
 const searchQuery = z.object({
@@ -88,8 +88,12 @@ type PriceRow = {
   storeId: string; chainId: string; chainName: string; orderUrl: string | null; storeName: string;
   address: string; city: string; lat: number; lng: number; code: string; price: number;
 };
-// price is the Shelf price; lineTotal is after the line's Promotion, when one applies.
-type Line = { code: string; price: number; quantity: number; lineTotal: number } & Omit<ReturnType<typeof priceLine>, "total">;
+// price is the Shelf price; lineTotal is after the line's Promotion (its share of one shared with other lines), when one
+// applies; hints are Promotions its Quantity doesn't reach; info are information-only Promotions, never in lineTotal.
+type Line = {
+  code: string; price: number; quantity: number; lineTotal: number; promotion?: AppliedPromotion; hints?: AppliedPromotion[];
+  info?: { id: string; description: string }[];
+};
 type GroupLine = Line & { ref: string; name: string; size: number; unitPrice?: number };
 
 /** Quantities summed per key (two items matched to one product), in first-seen order. */
@@ -143,14 +147,13 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
   const promos = runningPromotions(db, [...byStore.keys()], [...codes.keys()], now);
   const carried = new Set<string>();
   const stores = [...byStore.values()].map(({ row, distanceKm, prices }) => {
-    let sum = 0;
-    const items: (Line | GroupLine)[] = [...codes].flatMap(([code, quantity]) => {
+    const options = [...codes].flatMap(([code, quantity]) => {
       const price = prices.get(code);
       if (price === undefined) return [];
-      const { total, ...shown } = priceLine(price, quantity, promos.get(`${row.storeId} ${code}`));
-      sum += total;
-      return [{ code, price, quantity, lineTotal: round2(total), ...shown }];
+      const shelf = { code, price, quantity };
+      return [[shelf, ...(promos.get(`${row.storeId} ${code}`) ?? []).map((promo) => ({ ...shelf, promo }))]];
     });
+    const items: (Line | GroupLine)[] = priceLines(options).map(({ option: { promo: _, ...line }, ...priced }) => ({ ...line, ...priced }));
     for (const g of groups) {
       let best: { code: string; name: string; size: number; each: number } | undefined;
       for (const m of g.members) {
@@ -161,7 +164,6 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
       if (best) {
         const { each, code, name, size } = best;
         const line = each * g.perStep * g.quantity;
-        sum += line;
         items.push({ ref: g.ref, code, name, size, ...(g.byQuantity ? { unitPrice: round2(each) } : {}), price: round2(each * g.perStep), quantity: g.quantity, lineTotal: round2(line) });
       }
     }
@@ -171,7 +173,7 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
     return {
       ...store,
       distanceKm: round2(distanceKm),
-      total: round2(sum),
+      total: round2(items.reduce((a, i) => a + i.lineTotal, 0)), // the sum of the lines as shown
       matched: items.length,
       missingCodes: asked.filter((k) => !have.has(k)),
       items,

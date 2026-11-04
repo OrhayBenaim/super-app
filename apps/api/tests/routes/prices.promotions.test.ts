@@ -126,12 +126,12 @@ describe("Compare with Promotions", () => {
     expect((await w.line(A, 3)).promotion?.text).toBe("3 ב-₪12.90");
   });
 
-  it("a mix-and-match Promotion (RewardType 10) listing two products counts one product line reaching MinQty", async () => {
+  it("a mix-and-match Promotion (RewardType 10) listing two products pools their units across lines", async () => {
     const w = await world([osher([[A, 8], [B, 8]], [{ id: "104", reward: 10, items: [A, B], minQty: 2, price: 15 }])]);
     expect(await w.line(A, 2)).toMatchObject({ lineTotal: 15, promotion: { id: "104", kind: "bundle", minQty: 2, amount: 15, text: "2 ב-₪15" } });
     const [s] = await w.compare([[A, 1], [B, 1]]);
-    expect(s!.total).toBe(16);
-    for (const l of s!.items) expect(l).not.toHaveProperty("promotion");
+    expect(s!.total).toBe(15); // one set of 2 for 15; equal Shelf prices split it 7.50 / 7.50
+    for (const l of s!.items) expect(l).toMatchObject({ lineTotal: 7.5, promotion: { id: "104" } });
   });
 
   it("percent off (RewardType 2) takes that share off the Shelf price of every unit", async () => {
