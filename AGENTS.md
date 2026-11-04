@@ -31,14 +31,15 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   tests/                  all API tests, mirroring src/; fixtures in tests/__fixtures__/
   drizzle/                generated SQL migrations (committed)
 apps/mobile/              Expo SDK 58 + expo-router app
-  app/                    file routes: (auth)/onboarding|sign-in, (tabs)/index|items|compare|settings, recent, share (modal),
+  app/                    file routes: (auth)/onboarding|sign-in, (drawer)/ (drawer navigator: (tabs)/index|compare,
+                          home and promotions tabs to come; items, settings as drawer screens), recent, share (modal),
                           item/[id], quantity/[id], breakdown and lists (form sheets), join/[code]
   src/lib/auth-client.ts  better-auth Expo client (SecureStore)
   src/lib/api.ts          api<T>(path, init): fetch wrapper with base URL + auth cookie
   src/lib/analytics.ts    the only PostHog import: track(event), screen, identity (useAnalytics.ts: root layout hook)
   src/lib/strings.ts      en + he strings; t("key") picks the device language (expo-localization)
   src/features/<feature>/ auth, onboarding, lists (data layer + shopping list), items, compare (+ format.ts: fmt,
-                          shekels, formatDistance), share, geofence (task.ts = background task, imported by _layout), tabs
+                          shekels, formatDistance), share, geofence (task.ts = background task, imported by _layout), tabs, drawer
   src/ui/                 UI kit: Button, Text, TextField, Screen, Tap, Divider, IconButton, Group/SectionHeader, Row, ListRow,
                           LargeTitle, SearchField, EmptyState, SwipeRow, Toast, Sheet/SheetHeader/SheetField/SheetTextField
                           (sheet route body) (import from "@/ui")
@@ -103,7 +104,7 @@ Mobile (`apps/mobile`)
 - Server state uses TanStack Query (`QueryClientProvider` is set up in `app/_layout.tsx`) and calls `api()`.
   Use zustand only for local UI state.
 - Auth uses `authClient` (`authClient.useSession()`, `signIn.*`, `signOut()`). The root layout switches
-  between the `(auth)` and signed-in (`(tabs)`, `share`, `join/[code]`) groups with `Stack.Protected`.
+  between the `(auth)` and signed-in (`(drawer)`, `share`, `join/[code]`) groups with `Stack.Protected`.
 - Tabs have `headerShown: false`; each screen renders its own `largeTitle` inside `<Screen edges={["top"]}>`.
 - Sheets are routes: a Stack screen in `app/_layout.tsx` with the shared `sheet` options (native `formSheet`,
   `fitToContents`) whose component renders `<Sheet>`. Open with `router.push`, close with `router.back()`;
