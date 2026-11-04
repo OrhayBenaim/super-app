@@ -128,7 +128,7 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
     const { members, soldBy } = groupMembers(db, ref);
     const byQuantity = parseRef(ref)!.size.measure !== "unit"; // priced per kilo or liter
     const perStep = byQuantity && soldBy === "unit" ? (commonest(members.map((m) => m.size)) ?? 1) : 1; // kilos or liters in one of `quantity`
-    return { ref, byQuantity, members, quantity, perStep };
+    return { ref, byQuantity, members, quantity, perStep, soldBy };
   });
   const asked = [...codes.keys(), ...groups.map((g) => g.ref)];
   const wantedCodes = [...new Set([...codes.keys(), ...groups.flatMap((g) => g.members.map((m) => m.code))])];
@@ -180,7 +180,17 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
     });
     const have = new Set(items.map((i) => ("ref" in i ? i.ref : i.code)));
     have.forEach((k) => carried.add(k));
+    // The chain's online shop takes `barcode,quantity;...` (docs/research/price-data.md section 6): the lines as priced
+    // here, a group as the packs of the product it bought, chain-local codes left out (no shop knows them).
+    const cart = lines
+      .flatMap(({ code, quantity }, i) => {
+        if (code.includes(":")) return [];
+        const packs = groupLines[i - products.length]?.g.soldBy === "unit";
+        return [`${code},${packs ? Math.ceil(round2(quantity)) : round2(quantity)}`];
+      })
+      .join(";");
     const { code: _c, price: _p, orderUrl, ...store } = row;
+    const fillsCart = !!cart && !!orderUrl?.includes("{items}");
     return {
       ...store,
       distanceKm: round2(distanceKm),
@@ -190,7 +200,8 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
       missingCodes: asked.filter((k) => !have.has(k)),
       items,
       ...(priced.basket.length ? { basket: priced.basket } : {}),
-      orderUrl: orderUrl?.replace("{code}", encodeURIComponent(items[0]!.code)) ?? null,
+      orderUrl: orderUrl?.replace("{items}", fillsCart ? encodeURIComponent(cart) : "") ?? null,
+      fillsCart,
     };
   });
 

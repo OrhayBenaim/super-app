@@ -18,7 +18,7 @@ const ean = (body12: string) => body12 + [..."0123456789"].find((d) => isGtin(bo
 const [P1, P2, P3, P4, Z1, Q1, R1, R2, R3, R4, T1, T2, S1, S2, S3, S4, S5, S6, S7, S8, S9] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21].map((n) => ean(`7290001${String(n).padStart(5, "0")}`));
 const OSHER = "7290103152017";
 const RAMI = "7290058140886";
-const KESHET = "7290785400000"; // a chain without an order URL
+const KESHET = "7290785400000"; // a Stor.ai shop: a cart link
 
 const storesXml = (chain: string, stores: { id: string; name: string }[]) =>
   `<Root><ChainId>${chain}</ChainId><Stores>${stores
@@ -58,7 +58,6 @@ beforeAll(async () => {
     ingestPrices(deps, "osher-ad", pricesXml(OSHER, s.id, s.prices as unknown as [string, number][]));
     if (s.at) setPos.run(s.at.lat, s.at.lng, `${OSHER}-${s.id}`);
   }
-  // A second chain with no order URL.
   ingestStores(deps, "keshet", storesXml(KESHET, [{ id: "1", name: "sT" }]));
   ingestPrices(deps, "keshet", pricesXml(KESHET, "1", [[P1, 70], [P2, 70]]));
   setPos.run(north(2.5).lat, north(2.5).lng, `${KESHET}-1`);
@@ -282,7 +281,7 @@ describe("compare semantics", () => {
     expect(r.stores[0].distanceKm).toBeCloseTo(7.07, 1);
   });
 
-  it("returns the full StoreResult shape, and orderUrl is null for a chain without one", async () => {
+  it("returns the full StoreResult shape, and each chain's orderUrl: none, or a cart link of the store's lines", async () => {
     const r = await compare({ items: q([P1, P2]) });
     const a = r.stores.find((s) => s.storeName === "sA");
     expect(a).toEqual({
@@ -299,10 +298,16 @@ describe("compare semantics", () => {
       matched: 2,
       missingCodes: [],
       items: expect.arrayContaining([{ code: P1, price: 50, quantity: 1, lineTotal: 50 }, { code: P2, price: 50, quantity: 1, lineTotal: 50 }]),
-      orderUrl: "https://www.osherad.co.il/",
+      orderUrl: null,
+      fillsCart: false,
     });
-    expect(r.stores.find((s) => s.storeName === "sT")).toMatchObject({ chainName: "Keshet Taamim", orderUrl: null });
-    expect(r.stores.find((s) => s.storeName === "sR")).toMatchObject({ chainName: "Rami Levy" });
+    const items = encodeURIComponent(`${P1},1;${P2},1`);
+    expect(r.stores.find((s) => s.storeName === "sT")).toMatchObject({
+      chainName: "Keshet Taamim", orderUrl: `https://www.keshet-teamim.co.il/?externalCart=${items}&externalName=Grocer`, fillsCart: true,
+    });
+    expect(r.stores.find((s) => s.storeName === "sR")).toMatchObject({
+      chainName: "Rami Levy", orderUrl: `https://www.rami-levy.co.il/he/basket?items=${items}`, fillsCart: true,
+    });
   });
 });
 
@@ -401,6 +406,6 @@ describe("products search", () => {
     const chains = (await res.json()) as { id: string; name: string; nameHe: string; orderUrl: string | null }[];
     expect(chains.length).toBeGreaterThanOrEqual(12);
     expect(chains.map((c) => c.name)).toEqual([...chains.map((c) => c.name)].sort());
-    expect(chains.find((c) => c.id === KESHET)).toEqual({ id: KESHET, name: "Keshet Taamim", nameHe: "קשת טעמים", orderUrl: null });
+    expect(chains.find((c) => c.id === OSHER)).toEqual({ id: OSHER, name: "Osher Ad", nameHe: "אושר עד", orderUrl: null });
   });
 });

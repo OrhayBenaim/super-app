@@ -31,6 +31,7 @@ const W: Opts = { w: true, qty: 1, unit: "קילוגרם" };
 const sugatDek = next(), sugatThick = next(), miaCoarse = next(), miaDek = next();
 const tnuvaCottage = next(), milk3 = next(), milk1 = next(), milkAlmond = next(), milkSoy = next(), milkChoc = next(), condensed = next();
 const eggOsherL = next(), eggOsherM = next(), eggShufM = next(), eggRamiL = next(), eggOsher18 = next(), eggShuf18 = next(), egg30 = next();
+const riceSugat = next(), riceMia = next(), riceRami = next(); // two 500 g and a 1 kg
 const nobody = "7290000000000";
 
 let app: ReturnType<typeof createApp>;
@@ -74,6 +75,8 @@ beforeAll(async () => {
     ["121", "גזר תפזורת", 3, W],
     ["122", "גזר ארוז", 4, W],
     ["131", "אבטיח שלם", 20, { w: true }], // weighted, but counted in יחידות
+    [riceSugat, "אורז בסמטי סוגת", 6, g500],
+    [riceMia, "אורז בסמטי מיה", 6.5, g500],
     // stemmed to "סידר": the index keeps "יי"
     ["s1", "סיידר תפוחים 1 ליטר", 9, litre],
   ]);
@@ -94,6 +97,7 @@ beforeAll(async () => {
     [milk1, "חלב 1% 1 ליטר", 6.2, litre],
     [eggRamiL, "ביצים L 12 יח", 15],
     ["5", "בננה במשקל", 6.5, W],
+    [riceRami, "אורז בסמטי רמי לוי", 11, kg],
   ]);
   const setPos = deps.db.$client.prepare("UPDATE stores SET lat = ?, lng = ? WHERE id = ?");
   setPos.run(here.lat + 0.0045, here.lng, `${OSHER}-1`);
@@ -398,6 +402,14 @@ describe("product groups: compare", () => {
   it("does not mix pack counts: an 18-pack is not charged for a 12-pack group", async () => {
     const r = await compare({ groups: [{ ref: "ביצ|unit|18" }] });
     expect(r.stores.map((s) => [s.chainName, s.total])).toEqual([["Shufersal", 19], ["Osher Ad", 20]]);
+  });
+
+  it("puts the store's priced lines in a cart link chain's orderUrl: whole packs, chain-local codes left out", async () => {
+    const r = await compare({ groups: [{ ref: "ביצ|unit|12", quantity: 2 }, { ref: "חלב|l" }, { ref: "אורז|kg" }, { ref: "בננה|kg", quantity: 1.5 }] });
+    // half a kilo of rice (the commonest pack) is one of Rami's 1 kg packs; its banana has Rami's own code, not a barcode
+    const items = `${eggRamiL},2;${milk1},1;${riceRami},1`;
+    expect(store(r, "Rami Levy")).toMatchObject({ matched: 4, orderUrl: `https://www.rami-levy.co.il/he/basket?items=${encodeURIComponent(items)}`, fillsCart: true });
+    expect(store(r, "Osher Ad")).toMatchObject({ orderUrl: null, fillsCart: false });
   });
 
   it("reports a store with no product of the group as missing it", async () => {

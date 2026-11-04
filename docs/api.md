@@ -46,7 +46,7 @@ type Product = { kind: "product"; code; name; manufacturer: string|null; unitQty
 // A Product group (CONTEXT.md, docs/adr/0001). ref = normalized words|measure[|pack count], e.g. "בורגול|kg", "ביצ|unit|12".
 // minPrice: lowest per kilo/liter, or the cheapest pack for "unit". size: commonest pack in kilos/liters, or the pack count.
 type ProductGroup = { kind: "group"; ref; name; measure: Measure; size: number; soldBy: SoldBy; productCount: number; storeCount: number; minPrice: number; refinements: string[] }
-type Chain = { id; name; nameHe; orderUrl: string|null }   // orderUrl: online shop home or search URL template with {code}
+type Chain = { id; name; nameHe; orderUrl: string|null }   // orderUrl: online shop home, or a cart link template with {items}
 type StoreResult = {
   storeId; chainId; chainName; storeName; address; city; lat; lng; distanceKm;
   total: number;              // Σ lineTotal (after Promotions) − Σ basket[].saving, rounded to agorot
@@ -56,7 +56,8 @@ type StoreResult = {
   // a group line names the product priced, unitPrice per kilo/liter; its promotion, hints and info are that product's
   items: ({ code; price; quantity; lineTotal; promotion?: Promotion; hints?: Promotion[]; info?: { id; description }[] } | { ref; code; name; size; unitPrice?; price; quantity; lineTotal; promotion?: Promotion; hints?: Promotion[]; info?: { id; description }[] })[];
   basket?: BasketDeal[];      // spend deals that apply (absent when none); their lines keep their Shelf lineTotal
-  orderUrl: string|null;
+  orderUrl: string|null;      // online shop; a cart link chain's has this store's lines as barcode,quantity;... (chain-local codes left out)
+  fillsCart: boolean;         // orderUrl puts those lines in the cart, or one tap from it
 }
 // A spend deal ("₪8.90 במקום ₪16.90 מעל ₪75"): a Promotion that counts only when the rest of the List, the lines not
 // on its products (a group line counts as on them when its product is), costs at least minPurchase at that store after
