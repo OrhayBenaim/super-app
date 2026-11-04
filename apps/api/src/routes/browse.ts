@@ -2,7 +2,8 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { requireUser, type AppEnv } from "#/middleware.ts";
-import { cardsOf, pricedProducts, typeCounts } from "#/prices/browse.ts";
+import { cardsOf, groupPage, pricedProducts, typeCounts } from "#/prices/browse.ts";
+import { groupRefSchema } from "#/prices/groups.ts";
 import { nearbyStoreIds } from "#/prices/nearby.ts";
 
 /** Where the User is, as Compare takes it, or nothing (location off). Both lat and lng, or neither. */
@@ -37,4 +38,16 @@ export const browseRoutes = new Hono<AppEnv>()
     if (!q.success) return bad(c, q.error);
     const stores = storesFor(c, q.data);
     return c.json(cardsOf(c.var.deps.db, pricedProducts(c.var.deps.db, stores, type.data), stores));
+  })
+  // A group card's product page: the card and its Products sold nearby, each with its cheapest nearby price.
+  .get("/types/:type/groups/:ref", (c) => {
+    const type = typeParam.safeParse(c.req.param("type"));
+    if (!type.success) return bad(c, type.error);
+    const ref = groupRefSchema.safeParse(c.req.param("ref"));
+    if (!ref.success) return bad(c, ref.error);
+    const q = nearQuery.safeParse(c.req.query());
+    if (!q.success) return bad(c, q.error);
+    const stores = storesFor(c, q.data);
+    const page = groupPage(c.var.deps.db, pricedProducts(c.var.deps.db, stores, type.data), stores, ref.data);
+    return page ? c.json(page) : c.json({ error: "not found" }, 404);
   });
