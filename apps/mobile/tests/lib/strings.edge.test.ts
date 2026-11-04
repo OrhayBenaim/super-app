@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const hebrew = /[֐-׿]/;
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
-// Brand / proper nouns / symbols that legitimately stay identical across languages.
-const allowSame = /^(Apple|Google|Waze|Grocer|₪)$/;
+// Brand / proper nouns / symbols that legitimately stay identical across languages, and placeholder-only formats ("{n}+{m}").
+const allowSame = /^(Apple|Google|Waze|Grocer|₪|(\{\w+\}|[^\p{L}])+)$/u;
 
 async function load(languageCode?: string) {
   vi.resetModules();
