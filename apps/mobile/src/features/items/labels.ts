@@ -54,12 +54,14 @@ export const groupFacts = (g: ProductGroup, t: T, atStore = false) => {
  * A product row's detail: pack size ("by weight" when sold by weight), manufacturer (when asked), lowest price and branches.
  * `atStore` (a store-limited search): that store's price, no branches.
  */
-export const productDetail = (p: Product, t: T, { manufacturer = false, atStore = false } = {}) =>
-  [
+export const productDetail = (p: Product, t: T, { manufacturer = false, atStore = false } = {}) => {
+  const price = priceLabel(p.minPrice, p.soldBy, t);
+  return [
     p.soldBy === "weight" ? t("items.product.byWeight") : p.measure && p.size ? sizeLabel(p.measure, p.size, t) : null,
     manufacturer ? p.manufacturer : null,
-    atStore ? priceLabel(p.minPrice, p.soldBy, t) : fmt(t("items.product.from"), { price: priceLabel(p.minPrice, p.soldBy, t) }),
+    atStore ? price : fmt(t("items.product.from"), { price }),
     atStore ? null : fmt(t("items.product.stores"), { n: p.storeCount }),
   ]
     .filter(Boolean)
     .join(" · ");
+};
