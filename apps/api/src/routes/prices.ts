@@ -5,6 +5,7 @@ import { SEARCH } from "@grocer/shared/search";
 import type { Db } from "#/db/index.ts";
 import { commonest, ftsMatch, groupMembers, groupRefSchema, measureOf, nameWords, parseRef, searchGroups, soldByOf, withoutSizes } from "#/prices/groups.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
+import { priceLine, runningPromotions } from "#/prices/promotions.ts";
 
 const quantity = z.number().positive().max(QUANTITY.max);
 const searchQuery = z.object({
@@ -87,7 +88,8 @@ type PriceRow = {
   storeId: string; chainId: string; chainName: string; orderUrl: string | null; storeName: string;
   address: string; city: string; lat: number; lng: number; code: string; price: number;
 };
-type Line = { code: string; price: number; quantity: number; lineTotal: number };
+// price is the Shelf price; lineTotal is after the line's Promotion, when one applies.
+type Line = { code: string; price: number; quantity: number; lineTotal: number; promotion?: ReturnType<typeof priceLine>["promotion"] };
 type GroupLine = Line & { ref: string; name: string; size: number; unitPrice?: number };
 
 /** Quantities summed per key (two items matched to one product), in first-seen order. */
@@ -104,7 +106,7 @@ const sumByKey = (entries: { key: string; quantity: number }[]) => {
  * by weight, per kilo; for another kilo or liter group, the price per kilo or liter of the group's commonest pack size,
  * so the quantity counts those packs; for a unit group, the cheapest pack.
  */
-export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
+export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: Date) {
   const { lat, lng, radiusKm, sort, limit } = query;
   const codes = sumByKey(query.items.map((i) => ({ key: i.code, quantity: i.quantity })));
   const groups = [...sumByKey(query.groups.map((g) => ({ key: g.ref, quantity: g.quantity })))].map(([ref, quantity]) => {
@@ -137,14 +139,17 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>) {
     s.prices.set(r.code, r.price);
   }
 
+  // shortcut: product group lines stay at Shelf prices until #128 picks each store's cheapest product after Promotions.
+  const promos = runningPromotions(db, [...byStore.keys()], [...codes.keys()], now);
   const carried = new Set<string>();
   const stores = [...byStore.values()].map(({ row, distanceKm, prices }) => {
     let sum = 0;
     const items: (Line | GroupLine)[] = [...codes].flatMap(([code, quantity]) => {
       const price = prices.get(code);
       if (price === undefined) return [];
-      sum += price * quantity;
-      return [{ code, price, quantity, lineTotal: round2(price * quantity) }];
+      const { total, promotion } = priceLine(price, quantity, promos.get(`${row.storeId} ${code}`));
+      sum += total;
+      return [{ code, price, quantity, lineTotal: round2(total), ...(promotion ? { promotion } : {}) }];
     });
     for (const g of groups) {
       let best: { code: string; name: string; size: number; each: number } | undefined;
@@ -196,5 +201,5 @@ export const pricesRoutes = new Hono<AppEnv>()
   .post("/compare", requireUser, async (c) => {
     const p = compareBody.safeParse(await c.req.json().catch(() => undefined));
     if (!p.success) return bad(c, p.error);
-    return c.json(compareStores(c.var.deps.db, p.data));
+    return c.json(compareStores(c.var.deps.db, p.data, c.var.deps.clock.now()));
   });
