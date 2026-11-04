@@ -21,6 +21,8 @@ export type StoreResult = {
    * product. A group line names the product its price comes from (unitPrice per kilo or liter).
    */
   items: (Line | (Line & { ref: string; name: string; size: number; unitPrice?: number }))[];
+  /** Spend deals that apply: `total` is the lines less each `saving`; their lines (`codes`) keep their Shelf `lineTotal`. */
+  basket?: (Promotion & { minPurchase: number; saving: number; codes: string[] })[];
   orderUrl: string | null;
 };
 /** What a line prices, as the List's items name it (matchKey): a group line by its ref, a product line by its code. */
