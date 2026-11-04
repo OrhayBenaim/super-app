@@ -1,6 +1,7 @@
 // Israeli price-transparency portals: Cerberus (publishedprices.co.il, most chains), Shufersal's and Carrefour's own
 // sites, and laibcatalog.co.il (Victory, Machsanei Hashuk). docs/research/price-data.md section 1. Each lists every store.
 import type { ChainSeed } from "#/ingest/chains.ts";
+import { parseFileName } from "#/ingest/files.ts";
 import type { PriceFile, PricePortal } from "#/services/price-portal.ts";
 
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
@@ -28,7 +29,7 @@ async function http(url: string, jar: Jar, init: RequestInit = {}, timeoutMs = 6
   return res;
 }
 
-/** Download links of a Shufersal listing page (signed Azure blob URLs, ~1 h expiry). */
+/** Download links of a Shufersal listing page (signed Azure blob URLs that expire 30 min after listing, 2026-11-04). */
 export function shufersalLinks(html: string): PriceFile[] {
   return [...html.matchAll(/href="(https:\/\/[^"]+\/([A-Za-z]+\d[\w.-]*)\?[^"]*)"/g)].map((m) => ({
     name: m[2]!,
@@ -64,22 +65,45 @@ async function cerberusList(user: string, jar: Jar): Promise<PriceFile[]> {
 export const shufersalLastPage = (html: string) =>
   Math.max(1, ...[...html.matchAll(/[?&](?:amp;)?page=(\d+)/g)].map((m) => Number(m[1])));
 
-async function shufersalList(jar: Jar): Promise<PriceFile[]> {
-  const page = async (cat: number, n: number) => {
+/** Shufersal's listing category (catID) of each file type (parseFileName's `type`). */
+const SHUFERSAL_CATS = new Map([["stores", 5], ["pricefull", 2], ["price", 1], ["promofull", 4], ["promo", 3]]);
+
+async function shufersalCategory(cat: number, jar: Jar): Promise<PriceFile[]> {
+  const page = async (n: number) => {
     const res = await http(`https://prices.shufersal.co.il/FileObject/UpdateCategory?catID=${cat}&storeId=0&page=${n}`, jar);
     if (!res.ok) throw new Error(`shufersal catID=${cat} page=${n}: HTTP ${res.status}`);
     return res.text();
   };
+  // 20 rows a page. Every page takes 15-40 s however short, so fetch the rest 6 at a time.
+  const pages = [await page(1)];
+  for (let n = 2, last = shufersalLastPage(pages[0]!); n <= last; n += 6)
+    pages.push(...(await Promise.all(Array.from({ length: Math.min(6, last - n + 1) }, (_, i) => page(n + i)))));
+  return pages.flatMap(shufersalLinks);
+}
+
+async function shufersalList(jar: Jar): Promise<PriceFile[]> {
   const files: PriceFile[] = [];
-  for (const cat of [5, 2, 1, 4, 3]) {
-    // 5 Stores, 2 PriceFull, 1 Price, 4 PromoFull, 3 Promo (20 rows a page). Every page takes 15-40 s however short, so
-    // fetch the rest 6 at a time.
-    const pages = [await page(cat, 1)];
-    for (let n = 2, last = shufersalLastPage(pages[0]!); n <= last; n += 6)
-      pages.push(...(await Promise.all(Array.from({ length: Math.min(6, last - n + 1) }, (_, i) => page(cat, n + i)))));
-    files.push(...pages.flatMap(shufersalLinks));
-  }
+  for (const cat of SHUFERSAL_CATS.values()) files.push(...(await shufersalCategory(cat, jar)));
   return files;
+}
+
+const RELIST_EVERY_MS = 10 * 60_000;
+
+/**
+ * Shufersal's links expire 30 min after listing, long before a full sync reaches its later files. On a 403 this lists
+ * the file's category again (at most once per 10 min, so a file that is no longer listed fails fast) and returns its new
+ * link; `fresh` keeps every new link of that category for the next downloads.
+ */
+function shufersalRelinker(jar: Jar, fresh: Map<string, string>) {
+  const listedAt = new Map<number, number>();
+  return async (name: string) => {
+    const cat = SHUFERSAL_CATS.get(parseFileName(name)?.type ?? "");
+    if (cat && Date.now() - (listedAt.get(cat) ?? 0) > RELIST_EVERY_MS) {
+      listedAt.set(cat, Date.now());
+      for (const f of await shufersalCategory(cat, jar)) fresh.set(f.name, f.url);
+    }
+    return fresh.get(name);
+  };
 }
 
 // laibcatalog.co.il/<chain>/index.html is a JS page over a JSON API that lists every file of the chain in one response.
@@ -114,8 +138,13 @@ export function pricePortals(): PricePortal {
       const jar: Jar = new Map();
       const src = chain.source;
       let files: PriceFile[];
+      const fresh = new Map<string, string>();
+      let relink: ((name: string) => Promise<string | undefined>) | undefined;
       if ("cerberus" in src) files = await cerberusList(src.cerberus, jar);
-      else if (src.url.startsWith("https://prices.shufersal.co.il/")) files = await shufersalList(jar);
+      else if (src.url.startsWith("https://prices.shufersal.co.il/")) {
+        files = await shufersalList(jar);
+        relink = shufersalRelinker(jar, fresh);
+      }
       else if (src.url.startsWith("https://laibcatalog.co.il/")) files = await laibList(chain.ids[0]!, jar);
       else if (src.url.startsWith("https://prices.carrefour.co.il/")) files = await carrefourList(src.url, jar);
       else {
@@ -126,7 +155,10 @@ export function pricePortals(): PricePortal {
       return {
         files,
         async download(file) {
-          const res = await http(file.url, jar);
+          const url = fresh.get(file.name) ?? file.url;
+          let res = await http(url, jar);
+          const newUrl = res.status === 403 ? await relink?.(file.name) : undefined;
+          if (newUrl && newUrl !== url) res = await http(newUrl, jar);
           if (!res.ok) throw new Error(`${file.name}: HTTP ${res.status}`);
           return new Uint8Array(await res.arrayBuffer());
         },
