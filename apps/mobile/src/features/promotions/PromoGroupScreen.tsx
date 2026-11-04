@@ -3,7 +3,7 @@ import { useIsFocused, useLocalSearchParams } from "expo-router";
 import { TriangleAlert } from "lucide-react-native";
 import { Fragment } from "react";
 import { View } from "react-native";
-import { groupTarget } from "@/features/home/GroupCard";
+import { groupTarget } from "@/features/home/card";
 import { GroupTop } from "@/features/home/GroupScreen";
 import { LocationBanner, useBrowseLocation } from "@/features/home/LocationBanner";
 import { ProductRow } from "@/features/home/ProductRow";

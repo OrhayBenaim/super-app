@@ -1,8 +1,10 @@
 // What a browse card (Home, Promotions, product pages) shows and sends. Pure (no RN imports) so vitest can load it.
 import type { ProductType } from "@grocer/shared/product-types";
 import { QUANTITY, type SoldBy } from "@grocer/shared/quantity";
+import { groupTitle } from "@/features/items/labels";
 import type { Item } from "@/features/lists/api";
-import type { StringKey } from "@/lib/strings";
+import { t, type StringKey } from "@/lib/strings";
+import type { Card } from "./api";
 
 /**
  * What a card adds: a Product group (its ref, plus its Products' codes so an Item matched to one of them counts) or one
@@ -102,3 +104,14 @@ const TYPE_NAMES: Record<ProductType, StringKey> = {
 
 /** The strings key of a Product type's name. */
 export const typeNameKey = (type: ProductType): StringKey => TYPE_NAMES[type];
+
+/**
+ * What Add puts on the List for a browse card: the group, named as search names it, in its Product type's category; a
+ * lone Product with no group ref by its code, under its own name.
+ */
+export const groupTarget = (card: Card, type: ProductType): CardTarget => {
+  const base = { category: t(typeNameKey(type)), soldBy: card.soldBy };
+  return card.ref === null
+    ? { ...base, name: card.name, productCode: card.code }
+    : { ...base, name: groupTitle(card, t), groupRef: card.ref, codes: card.codes };
+};

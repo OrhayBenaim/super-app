@@ -1,27 +1,36 @@
 import type { ProductType } from "@grocer/shared/product-types";
 import { router } from "expo-router";
+import type { ReactNode } from "react";
 import { View } from "react-native";
-import { fromPrice, groupTitle } from "@/features/items/labels";
+import { fromPrice } from "@/features/items/labels";
 import { ProductImage } from "@/features/items/ProductImage";
 import { useProductImage } from "@/features/items/products";
 import type { Item } from "@/features/lists/api";
-import { Taps } from "@/lib/analytics";
+import { Taps, type TapName } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Tap, Text } from "@/ui";
 import type { Card } from "./api";
-import { typeNameKey, type CardTarget } from "./card";
+import { groupTarget } from "./card";
 import { CardControls } from "./CardControls";
 import { useCard } from "./useCard";
 
-/** What Add puts on the List for a group card: the group, named as search names it, in its Product type's category. */
-export const groupTarget = (card: Card, type: ProductType): CardTarget => ({
-  name: groupTitle(card, t),
-  category: t(typeNameKey(type)),
-  soldBy: card.soldBy,
-  groupRef: card.ref,
-  codes: card.codes,
-});
+/**
+ * A card's image, name and prices: a button that opens its product page, or one accessible element for a lone Product
+ * with no group ref (`open` null), which has no product page.
+ */
+export function CardBody({ open, label, hint, analyticsName, children }: { open: (() => void) | null; label: string; hint: string; analyticsName: TapName; children: ReactNode }) {
+  const { space } = useTheme();
+  return open ? (
+    <Tap accessibilityLabel={label} accessibilityHint={hint} analyticsName={analyticsName} onPress={open} style={{ gap: space[3] }}>
+      {children}
+    </Tap>
+  ) : (
+    <View accessible accessibilityLabel={label} style={{ gap: space[3] }}>
+      {children}
+    </View>
+  );
+}
 
 /**
  * A Home group card (DESIGN.md "Card grid"): the commonest Product's image (none when it has none), the name and "from ₪X"
@@ -36,12 +45,11 @@ export function GroupCard({ card, type, listId, items }: { card: Card; type: Pro
   const price = card.minPrice === null ? null : fromPrice(card.measure, card.minPrice, t);
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: radius.group, padding: space[4] }}>
-      <Tap
-        accessibilityLabel={[target.name, price].filter(Boolean).join(", ")}
-        accessibilityHint={t("home.open.hint")}
+      <CardBody
+        open={card.ref === null ? null : () => router.push({ pathname: "/group/[ref]", params: { ref: card.ref!, type } })}
+        label={[target.name, price].filter(Boolean).join(", ")}
+        hint={t("home.open.hint")}
         analyticsName={Taps.homeOpen}
-        onPress={() => router.push({ pathname: "/group/[ref]", params: { ref: card.ref, type } })}
-        style={{ gap: space[3] }}
       >
         <ProductImage url={image} style={{ width: "100%", height: 96 }} />
         <View style={{ gap: space[1] }}>
@@ -54,7 +62,7 @@ export function GroupCard({ card, type, listId, items }: { card: Card; type: Pro
             </Text>
           )}
         </View>
-      </Tap>
+      </CardBody>
       <View style={{ flex: 1, minHeight: space[4] }} />
       <CardControls name={target.name} view={view} onStep={step} onAct={act} />
     </View>

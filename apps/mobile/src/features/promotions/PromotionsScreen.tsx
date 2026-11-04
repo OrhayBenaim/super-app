@@ -85,7 +85,7 @@ export function PromotionsScreen() {
     <Screen edges={["top"]} style={{ paddingHorizontal: 0 }}>
       <CardGrid
         data={data}
-        keyOf={(c) => c.ref}
+        keyOf={(c) => c.ref ?? c.code}
         header={
           <>
             <LargeTitle

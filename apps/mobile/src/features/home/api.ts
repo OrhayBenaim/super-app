@@ -7,9 +7,12 @@ import { api } from "@/lib/api";
 import type { Coords } from "@/lib/location";
 
 export type TypeCount = { type: ProductType; cardCount: number };
-/** A group card: `minPrice` is per kilo, liter or pack nearby (null without a location); `code` is its commonest Product. */
+/**
+ * A group card: `minPrice` is per kilo, liter or pack nearby (null without a location); `code` is its commonest Product.
+ * `ref` is null for a lone Product with no group ref (matched by `code`, no product page).
+ */
 export type Card = {
-  ref: string; name: string; measure: Measure; soldBy: SoldBy; size: number; code: string;
+  ref: string | null; name: string; measure: Measure; soldBy: SoldBy; size: number; code: string;
   minPrice: number | null; storeCount: number; codes: string[];
 };
 

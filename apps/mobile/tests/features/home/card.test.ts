@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { stepQuantity } from "@grocer/shared/quantity";
-import { cardSend, cardView, productView, typeNameKey, type CardTarget } from "@/features/home/card";
+import type { Card } from "@/features/home/api";
+import { cardSend, cardView, groupTarget, productView, typeNameKey, type CardTarget } from "@/features/home/card";
 import type { Item } from "@/features/lists/api";
 import { en, he } from "@/lib/strings";
 
@@ -135,5 +136,20 @@ describe("productView (a Product row on a product page)", () => {
     expect(view).toMatchObject({ action: "switch", quantity: 1, soldBy: "weight", canLess: true });
     expect(cardSend(view, loose)).toEqual({ kind: "update", id: "milk", patch: { productCode: "333", quantity: 1 } });
     expect(productView(onList, milk, loose, 0.5)).toMatchObject({ quantity: 0.5, canLess: false });
+  });
+});
+
+describe("groupTarget (what a browse card adds)", () => {
+  const card: Card = { ref: "חלב|l", name: "חלב", measure: "l", soldBy: "unit", size: 1, code: "111", minPrice: 5, storeCount: 2, codes: ["111", "222"] };
+
+  it("adds the group, named as search names it, in its Product type's category", () => {
+    expect(groupTarget(card, "dairy-eggs")).toEqual({ name: "חלב", category: "מוצרי חלב וביצים", soldBy: "unit", groupRef: "חלב|l", codes: ["111", "222"] });
+    expect(groupTarget({ ...card, ref: "ביצ|unit|12", name: "ביצים", measure: "unit", size: 12 }, "dairy-eggs").name).toBe("ביצים · 12 יח׳");
+  });
+
+  it("adds a lone Product with no group ref by its code, under its own name", () => {
+    const lone: Card = { ...card, ref: null, name: "מפיות נייר", measure: "unit", size: 1, code: "333", codes: ["333"] };
+    expect(groupTarget(lone, "other")).toEqual({ name: "מפיות נייר", category: "אחר", soldBy: "unit", productCode: "333" });
+    expect(cardSend(cardView([], groupTarget(lone, "other"), null), groupTarget(lone, "other"))).toMatchObject({ kind: "add", body: { productCode: "333" } });
   });
 });

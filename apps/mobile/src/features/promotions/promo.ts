@@ -42,7 +42,7 @@ export function promoLines(card: PromoCard, t: T) {
     price: card.promoPrice === null ? undefined : per(card.promoPrice),
     shelf: card.shelfPrice === null ? undefined : shekels(card.shelfPrice),
     shelfLabel: card.shelfPrice === null ? undefined : fmt(t("promotions.instead"), { price: shekels(card.shelfPrice) }),
-    deal: card.kind === "info" ? card.text : card.kind === "price" ? undefined : promotionText({ ...card, kind: card.kind, id: card.ref }, card.soldBy, t),
+    deal: card.kind === "info" ? card.text : card.kind === "price" ? undefined : promotionText({ ...card, kind: card.kind, id: card.ref ?? card.code }, card.soldBy, t),
     restricted: key && t(key),
     chains: chainsLabel(card.chainCount, t),
   };

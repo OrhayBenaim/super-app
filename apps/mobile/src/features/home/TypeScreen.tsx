@@ -51,7 +51,7 @@ export function TypeScreen() {
     <Screen edges={[]} style={{ paddingHorizontal: 0 }}>
       <CardGrid
         data={data}
-        keyOf={(c) => c.ref}
+        keyOf={(c) => c.ref ?? c.code}
         header={
           <>
             <LargeTitle title={t(typeNameKey(type))} subtitle={subtitle} />

@@ -14,7 +14,7 @@ import { EmptyState, Group, LargeTitle, Screen, Skeleton, Text } from "@/ui";
 import { useGroupPage, type GroupPage } from "./api";
 import { typeNameKey } from "./card";
 import { CardControls } from "./CardControls";
-import { groupTarget } from "./GroupCard";
+import { groupTarget } from "./card";
 import { LocationBanner, useBrowseLocation } from "./LocationBanner";
 import { ProductRow } from "./ProductRow";
 import { useCard, type CardScreen } from "./useCard";

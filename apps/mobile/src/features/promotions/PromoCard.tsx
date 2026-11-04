@@ -1,7 +1,8 @@
 import { router } from "expo-router";
 import { View } from "react-native";
 import { CardControls } from "@/features/home/CardControls";
-import { groupTarget } from "@/features/home/GroupCard";
+import { groupTarget } from "@/features/home/card";
+import { CardBody } from "@/features/home/GroupCard";
 import { useCard } from "@/features/home/useCard";
 import { ProductImage } from "@/features/items/ProductImage";
 import { useProductImage } from "@/features/items/products";
@@ -9,7 +10,7 @@ import type { Item } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
-import { Tap, Text } from "@/ui";
+import { Text } from "@/ui";
 import { promoLines, type PromoCard as Card } from "./promo";
 
 /**
@@ -27,12 +28,11 @@ export function PromoCard({ card, listId, items }: { card: Card; listId: string 
   const label = [target.name, lines.price, lines.shelfLabel, lines.deal, lines.restricted, lines.chains].filter(Boolean).join(", ");
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: radius.group, padding: space[4] }}>
-      <Tap
-        accessibilityLabel={label}
-        accessibilityHint={t("promotions.open.hint")}
+      <CardBody
+        open={card.ref === null ? null : () => router.push({ pathname: "/promotions/group/[ref]", params: { ref: card.ref!, type: card.type } })}
+        label={label}
+        hint={t("promotions.open.hint")}
         analyticsName={Taps.promotionsOpen}
-        onPress={() => router.push({ pathname: "/promotions/group/[ref]", params: { ref: card.ref, type: card.type } })}
-        style={{ gap: space[3] }}
       >
         <ProductImage url={image} style={{ width: "100%", height: 96 }} />
         <View style={{ gap: space[1] }}>
@@ -67,7 +67,7 @@ export function PromoCard({ card, listId, items }: { card: Card; listId: string 
             {lines.chains}
           </Text>
         </View>
-      </Tap>
+      </CardBody>
       <View style={{ flex: 1, minHeight: space[4] }} />
       <CardControls name={target.name} view={view} onStep={step} onAct={act} />
     </View>
