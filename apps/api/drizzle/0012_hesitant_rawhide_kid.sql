@@ -1,0 +1,1 @@
+ALTER TABLE `chains` ADD `online_store_id` text;

@@ -173,7 +173,9 @@ found neither test barcode); the dialog was read in code, not yet seen rendered.
 | Osher Ad, Stop Market | none (WordPress sites, no shop) | - |
 | Dor Alon, Salach Dabach | not confirmed | - |
 
-Grocer uses the two cart links; other shops get the shop home and the list on the clipboard. The cart's prices are the
+Grocer uses the two cart links; other shops get the shop home and the list on the clipboard. The price files name an online store for
+some chains (Shufersal 413 "שופרסל ONLINE", Rami Levy 39 "מרלוג אינטרנט", Victory 97 "אינטרנט", Carrefour 471 "קרפור
+אונליין"; Tiv Taam has "ליקוט" picking stores per area); a cart link buys each Product group's product from it. The cart's prices are the
 online shop's, not the compared branch's. Scraping or automating shops may breach site terms; not assessed.
 
 ## 7. Recommended ingestion approach
