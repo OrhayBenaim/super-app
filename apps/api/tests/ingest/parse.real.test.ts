@@ -46,6 +46,6 @@ describe("real dialect quirks", () => {
   it("reads Keshet's 3-segment file (ChainId/StoreId, PriceUpdateDate, ManufacturerName, 'Unknown' unit)", () => {
     const { chainId, storeId, items } = parsePrices(read("keshet-pricefull-3seg.gz"));
     expect([chainId, storeId]).toEqual(["7290785400000", "2"]);
-    expect(items[0]).toEqual({ code: "7290000010003", name: "לחם גבטה", manufacturer: "בונז'ור", unitQty: null, isWeighted: false, price: 4.9, unitPrice: 0 });
+    expect(items[0]).toEqual({ code: "7290000010003", name: "לחם גבטה", manufacturer: "בונז'ור", unitQty: null, isWeighted: false, price: 4.9, unitPrice: 0, removed: false });
   });
 });
