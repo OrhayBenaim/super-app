@@ -37,19 +37,20 @@ const productCols = `p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.is
 // Store count and min price are per-product lookups in the covering prices index: a JOIN + GROUP BY over every price
 // row was 4x slower. Products no store prices are left out.
 // shortcut: candidates are capped at 3000; a group's members rank in the first tiers, so only a bigger group loses some.
-// Raise the cap or count members in SQL when one real search hits it.
+// Raise the cap or count members in SQL when one real search hits it. With @store, what it prices ranks first, so the cap
+// only drops products it does not price (kept as candidates because groups form from every product).
 const FTS_SEARCH = `SELECT ${productCols},
      (SELECT count(*) FROM prices pr WHERE pr.code = p.code) AS storeCount,
      (SELECT min(pr.price) FROM prices pr WHERE pr.code = p.code AND (@store IS NULL OR pr.store_id = @store)) AS minPrice,
      CASE WHEN p.name LIKE @first THEN 0 WHEN p.name LIKE @first || ' %' THEN 1
        WHEN ' ' || p.name || ' ' LIKE '% ' || @first || ' %' THEN 2 ELSE 3 END AS tier
    FROM products_fts f JOIN products p ON p.code = f.code
-   WHERE products_fts MATCH @match AND storeCount > 0 ORDER BY tier, storeCount DESC, f.rank, p.code LIMIT 3000`;
+   WHERE products_fts MATCH @match AND storeCount > 0 ORDER BY minPrice IS NULL, tier, storeCount DESC, f.rank, p.code LIMIT 3000`;
 const CODE_SEARCH = `SELECT ${productCols}, count(pr.store_id) AS storeCount,
      min(CASE WHEN @store IS NULL OR pr.store_id = @store THEN pr.price END) AS minPrice FROM products p JOIN prices pr ON pr.code = p.code
    WHERE p.code = @q OR (p.code LIKE @prefix AND instr(p.code, ':') = 0) GROUP BY p.code HAVING minPrice IS NOT NULL
    ORDER BY p.code = @q DESC, storeCount DESC LIMIT @limit`;
-const priced = <T extends Found>(rows: T[]) => rows.filter((r): r is T & { minPrice: number } => r.minPrice !== null);
+const withPrice = <T extends Found>(rows: T[]) => rows.filter((r): r is T & { minPrice: number } => r.minPrice !== null);
 
 const productResult = ({ isWeighted, ...p }: Found & { minPrice: number }) => ({
   kind: "product" as const,
@@ -66,7 +67,7 @@ const productResult = ({ isWeighted, ...p }: Found & { minPrice: number }) => ({
 export function searchProducts(db: Db, q: string, limit: number, storeId?: string) {
   const sqlite = db.$client;
   const store = storeId ?? null;
-  if (/^\d{8,}$/.test(q)) return priced(sqlite.prepare(CODE_SEARCH).all({ q, prefix: `${q}%`, limit, store }) as Found[]).map(productResult);
+  if (/^\d{8,}$/.test(q)) return (sqlite.prepare(CODE_SEARCH).all({ q, prefix: `${q}%`, limit, store }) as (Found & { minPrice: number })[]).map(productResult);
   // Quoted prefix terms keep AND/OR/NOT/NEAR literal; punctuation never reaches FTS (words are letter runs and numbers).
   const typed = nameWords(q);
   const words = typed.map((w) => w.norm);
@@ -82,7 +83,7 @@ export function searchProducts(db: Db, q: string, limit: number, storeId?: strin
     return { kind: "group" as const, ...g, minPrice: round2(minPrice), productCount: codes.length, storeCount: n };
   });
   groups.sort((a, b) => b.storeCount - a.storeCount);
-  return [...groups, ...priced(found).slice(0, limit).map(({ tier: _, ...p }) => productResult(p))];
+  return [...groups, ...withPrice(found).slice(0, limit).map(({ tier: _, ...p }) => productResult(p))];
 }
 
 const R = 6371;

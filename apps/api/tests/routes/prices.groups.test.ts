@@ -311,6 +311,32 @@ describe("product search at one store (storeId)", () => {
   it("401 without a session", async () => {
     expect((await at("בורגול", `${OSHER}-1`, false)).status).toBe(401);
   });
+
+  it("leaves search without storeId as it was: every store, the cheapest price anywhere", async () => {
+    const rows = await search("בורגול");
+    expect(rows[0]).toMatchObject({ kind: "group", ref: "בורגול|kg", minPrice: 6.8, storeCount: 2 });
+    expect(rows.filter((r) => r.kind === "product").map((r) => r.name)).toEqual(expect.arrayContaining(["בורגול גס מיה", "בורגול דק סוגת"]));
+    expect((await search("חלב 3%")).find((r) => r.code === milk3)).toMatchObject({ minPrice: 5.5, storeCount: 2 });
+  });
+
+  it("finds the store's product even when over 3000 other products match first", async () => {
+    const deps = buildDeps(loadConfig());
+    const big = createApp(deps);
+    const many: Item[] = Array.from({ length: 3001 }, (_, i) => [`p${i}`, `פסטה ${i}`, 5]);
+    const chains: [string, string, Item[]][] = [["osher-ad", OSHER, many], ["shufersal", SHUFERSAL, many], ["rami-levy", RAMI, [["p-rami", "פסטה רמי", 6]]]];
+    for (const [key, chain, items] of chains) {
+      ingestStores(deps, key, storesXml(chain));
+      ingestPrices(deps, key, pricesXml(chain, items));
+    }
+    const res = await big.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "cap@prices.test", password: "password1234", name: "Gal" }),
+    });
+    const auth = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    const rows = (await (await big.request(`/api/products/search?q=${encodeURIComponent("פסטה")}&storeId=${RAMI}-1`, { headers: { cookie: auth } })).json()) as Row[];
+    expect(rows.filter((r) => r.kind === "product").map((r) => r.name)).toEqual(["פסטה רמי"]);
+  });
 });
 
 describe("product groups: leading and substitute words", () => {
