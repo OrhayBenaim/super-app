@@ -18,16 +18,17 @@ export type ItemPage = "form" | "category" | "product";
 /**
  * Sheet route app/item/[id]: edit name, category (picker pushes inside), product match (pushes inside), delete.
  * `page` opens straight on a pushed page, e.g. product match from Compare's what's-missing sheet.
+ * `storeId` (a Missing item tapped in that store's Basket breakdown) is store mode: product search only, and one tap on a result saves it and closes.
  */
 export function ItemSheet() {
-  const { id, page: initialPage = "form" } = useLocalSearchParams<{ id: string; page?: ItemPage }>();
+  const { id, page: initialPage = "form", storeId } = useLocalSearchParams<{ id: string; page?: ItemPage; storeId?: string }>();
   const router = useRouter();
   const { colors } = useTheme();
   const listId = useCurrentListId();
   const item = useList(listId, { poll: false }).data?.items.find((i) => i.id === id) ?? null;
   const { update } = useItemMutations(listId);
   const categories = useCategories(listId).data ?? [];
-  const [page, setPage] = useState<ItemPage>(initialPage);
+  const [page, setPage] = useState<ItemPage>(storeId ? "product" : initialPage);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [newCategory, setNewCategory] = useState<string | null>(null);
@@ -60,6 +61,10 @@ export function ItemSheet() {
   };
   // An item is matched to one product or one Product group (null, null: no match).
   const pick = (code: string | null, ref: string | null, shown: string | null) => {
+    if (storeId) {
+      update.mutate({ id: item.id, productCode: code, groupRef: ref }, { onError: () => Alert.alert(t("common.error")) });
+      return onClose();
+    }
     setProductCode(code);
     setGroupRef(ref);
     setProductName(shown);
@@ -134,7 +139,7 @@ export function ItemSheet() {
 
       {page === "product" && (
         <>
-          <SheetHeader title={t("items.product")} start={back} />
+          <SheetHeader title={t("items.product")} start={storeId ? { title: t("common.cancel"), analyticsName: Taps.commonCancel, onPress: onClose } : back} />
           <SearchField label={t("items.product.placeholder")} value={query} onChangeText={setQuery} returnKeyType="search" />
           {search.isFetching && <ActivityIndicator color={colors.labelSecondary} />}
           {found.groups.length > 0 && (
@@ -145,6 +150,7 @@ export function ItemSheet() {
                   group={g}
                   selected={g.ref === groupRef}
                   trailing={<Layers size={20} color={colors.labelSecondary} strokeWidth={1.75} />}
+                  analyticsName={storeId ? Taps.compareMissingPick : undefined}
                   onPress={() => pick(null, g.ref, groupTitle(g, t))}
                   onRefine={(word) => setQuery(`${query.trim()} ${word}`)}
                 />
@@ -159,7 +165,7 @@ export function ItemSheet() {
                   title={p.name}
                   detail={productDetail(p, t, true)}
                   accessibilityState={{ selected: p.code === productCode }}
-                  analyticsName={Taps.itemsProductPick}
+                  analyticsName={storeId ? Taps.compareMissingPick : Taps.itemsProductPick}
                   leading={<ProductImage url={p.imageUrl} />}
                   trailing={<Barcode size={20} color={colors.labelSecondary} strokeWidth={1.75} />}
                   onPress={() => pick(p.code, null, p.name)}
@@ -168,14 +174,16 @@ export function ItemSheet() {
             </Group>
           )}
           {search.data?.length === 0 && <Row title={t("items.product.none")} />}
-          <Group>
-            <Row
-              title={t("items.product.noMatch")}
-              detail={t("items.product.noMatch.detail")}
-              analyticsName={Taps.itemsProductNoMatch}
-              onPress={() => pick(null, null, null)}
-            />
-          </Group>
+          {!storeId && (
+            <Group>
+              <Row
+                title={t("items.product.noMatch")}
+                detail={t("items.product.noMatch.detail")}
+                analyticsName={Taps.itemsProductNoMatch}
+                onPress={() => pick(null, null, null)}
+              />
+            </Group>
+          )}
         </>
       )}
     </Sheet>
