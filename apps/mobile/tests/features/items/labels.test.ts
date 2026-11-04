@@ -52,6 +52,13 @@ describe("groupFacts", () => {
     expect(groupFacts(group({ measure: "l" }), t)[1]).toBe("from ₪6.80 a liter");
     expect(groupFacts(group({ measure: "unit", size: 12, minPrice: 13 }), t)[1]).toBe("from ₪13.00");
   });
+
+  it("at one store, gives only that store's price, with no product or branch count", () => {
+    expect(groupFacts(group(), t, true)).toEqual(["₪6.80 a kilo"]);
+    expect(groupFacts(group({ soldBy: "weight", size: 1 }), t, true)).toEqual(["by weight", "₪6.80 a kilo"]);
+    expect(groupFacts(group({ measure: "l" }), t, true)).toEqual(["₪6.80 a liter"]);
+    expect(groupFacts(group({ measure: "unit", size: 12, minPrice: 13 }), t, true)).toEqual(["₪13.00"]);
+  });
 });
 
 describe("productDetail", () => {
@@ -60,8 +67,8 @@ describe("productDetail", () => {
   });
 
   it("adds the manufacturer only when asked and when there is one", () => {
-    expect(productDetail(product(), t, true)).toBe("500 g · סוגת · from ₪3.70 · in 4 branches");
-    expect(productDetail(product({ manufacturer: null }), t, true)).toBe("500 g · from ₪3.70 · in 4 branches");
+    expect(productDetail(product(), t, { manufacturer: true })).toBe("500 g · סוגת · from ₪3.70 · in 4 branches");
+    expect(productDetail(product({ manufacturer: null }), t, { manufacturer: true })).toBe("500 g · from ₪3.70 · in 4 branches");
   });
 
   it("marks a product sold by weight and gives its price per kilo, in place of its size", () => {
@@ -70,5 +77,10 @@ describe("productDetail", () => {
 
   it("leaves the size out when it cannot be read", () => {
     expect(productDetail(product({ measure: null, size: null }), t)).toBe("from ₪3.70 · in 4 branches");
+  });
+
+  it("at one store, gives only that store's price, with no branch count", () => {
+    expect(productDetail(product(), t, { manufacturer: true, atStore: true })).toBe("500 g · סוגת · ₪3.70");
+    expect(productDetail(product({ soldBy: "weight", size: 1, minPrice: 8.9 }), t, { atStore: true })).toBe("by weight · ₪8.90/kg");
   });
 });

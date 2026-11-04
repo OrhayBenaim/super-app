@@ -3,7 +3,7 @@ import { Barcode, Check, Layers } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert } from "react-native";
 import { fmt } from "@/features/compare/format";
-import { useCompareStores } from "@/features/compare/useBestStore";
+import { useCachedChainName } from "@/features/compare/api";
 import { useCategories, useCurrentListId, useItemMutations, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
@@ -27,12 +27,12 @@ export function ItemSheet() {
   const router = useRouter();
   const { colors } = useTheme();
   const listId = useCurrentListId();
-  const list = useList(listId, { poll: false }).data;
-  const item = list?.items.find((i) => i.id === id) ?? null;
-  const chain = useCompareStores(list).stores.find((s) => s.storeId === storeId)?.chainName; // Compare's cached result, as the breakdown title
+  const item = useList(listId, { poll: false }).data?.items.find((i) => i.id === id) ?? null;
+  const chain = useCachedChainName(storeId); // as the breakdown title
+  const storeMode = !!storeId;
   const { update } = useItemMutations(listId);
   const categories = useCategories(listId).data ?? [];
-  const [page, setPage] = useState<ItemPage>(storeId ? "product" : initialPage);
+  const [page, setPage] = useState<ItemPage>(initialPage);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [newCategory, setNewCategory] = useState<string | null>(null);
@@ -65,7 +65,7 @@ export function ItemSheet() {
   };
   // An item is matched to one product or one Product group (null, null: no match).
   const pick = (code: string | null, ref: string | null, shown: string | null) => {
-    if (storeId) {
+    if (storeMode) {
       update.mutate({ id: item.id, productCode: code, groupRef: ref }, { onError: () => Alert.alert(t("common.error")) });
       return onClose();
     }
@@ -143,7 +143,7 @@ export function ItemSheet() {
 
       {page === "product" && (
         <>
-          <SheetHeader title={chain ? fmt(t("items.product.atStore"), { chain }) : t("items.product")} start={storeId ? { title: t("common.cancel"), analyticsName: Taps.commonCancel, onPress: onClose } : back} />
+          <SheetHeader title={chain ? fmt(t("items.product.atStore"), { chain }) : t("items.product")} start={storeMode ? { title: t("common.cancel"), analyticsName: Taps.commonCancel, onPress: onClose } : back} />
           <SearchField label={t("items.product.placeholder")} value={query} onChangeText={setQuery} returnKeyType="search" />
           {search.isFetching && <ActivityIndicator color={colors.labelSecondary} />}
           {found.groups.length > 0 && (
@@ -154,7 +154,7 @@ export function ItemSheet() {
                   group={g}
                   selected={g.ref === groupRef}
                   trailing={<Layers size={20} color={colors.labelSecondary} strokeWidth={1.75} />}
-                  analyticsName={storeId ? Taps.compareMissingPick : undefined}
+                  atStore={storeMode}
                   onPress={() => pick(null, g.ref, groupTitle(g, t))}
                   onRefine={(word) => setQuery(`${query.trim()} ${word}`)}
                 />
@@ -167,9 +167,9 @@ export function ItemSheet() {
                 <Row
                   key={p.code}
                   title={p.name}
-                  detail={productDetail(p, t, true)}
+                  detail={productDetail(p, t, { manufacturer: true, atStore: storeMode })}
                   accessibilityState={{ selected: p.code === productCode }}
-                  analyticsName={storeId ? Taps.compareMissingPick : Taps.itemsProductPick}
+                  analyticsName={storeMode ? Taps.compareMissingPick : Taps.itemsProductPick}
                   leading={<ProductImage url={p.imageUrl} />}
                   trailing={<Barcode size={20} color={colors.labelSecondary} strokeWidth={1.75} />}
                   onPress={() => pick(p.code, null, p.name)}
@@ -178,7 +178,7 @@ export function ItemSheet() {
             </Group>
           )}
           {search.data?.length === 0 && <Row title={chain ? fmt(t("items.product.noneAtStore"), { chain }) : t("items.product.none")} />}
-          {!storeId && (
+          {!storeMode && (
             <Group>
               <Row
                 title={t("items.product.noMatch")}

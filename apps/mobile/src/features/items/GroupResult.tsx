@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { fmt } from "@/features/compare/format";
-import { Taps, type TapName } from "@/lib/analytics";
+import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Row, Tap, Text } from "@/ui";
@@ -15,14 +15,15 @@ type Props = {
   onRefine: (word: string) => void;
   selected?: boolean;
   trailing?: ReactNode;
-  analyticsName?: TapName;
+  /** A store-limited search (re-matching a Missing item): only that store's price, and tracked as its pick. */
+  atStore?: boolean;
 };
 
 /** A Product group search row ("בורגול · 63 products · from ₪6.80 a kilo") and its refinement chips. */
-export function GroupResult({ group, onPress, onRefine, selected, trailing, analyticsName = Taps.itemsGroupPick }: Props) {
+export function GroupResult({ group, onPress, onRefine, selected, trailing, atStore = false }: Props) {
   const { colors, space, radius } = useTheme();
   const title = groupTitle(group, t);
-  const facts = groupFacts(group, t);
+  const facts = groupFacts(group, t, atStore);
   return (
     <View>
       <Row
@@ -30,7 +31,7 @@ export function GroupResult({ group, onPress, onRefine, selected, trailing, anal
         detail={facts.join(" · ")}
         accessibilityLabel={[title, ...facts].join(", ")}
         accessibilityState={selected === undefined ? undefined : { selected }}
-        analyticsName={analyticsName}
+        analyticsName={atStore ? Taps.compareMissingPick : Taps.itemsGroupPick}
         trailing={trailing}
         onPress={onPress}
       />

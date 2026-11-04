@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import { api } from "@/lib/api";
 import type { Basket } from "@/features/lists/api";
@@ -29,7 +29,15 @@ export function useCompare(coords: Coords | null, radiusKm: number, { items, gro
     queryKey: ["compare", lat, lng, radiusKm, basket],
     queryFn: () => fetchCompare({ lat: lat!, lng: lng!, radiusKm, ...basket, sort: "price", limit: 100 }),
     enabled,
-    // A changed basket keeps showing the previous result until the new one lands; an emptied one shows nothing.
+    // When the List's items change, the previous result stays until the new one lands; with no items it shows nothing.
     placeholderData: enabled ? keepPreviousData : undefined,
   });
+}
+
+/** A store's chain name from a Compare result already in the cache; never fetches or asks for location. */
+export function useCachedChainName(storeId?: string) {
+  const client = useQueryClient();
+  if (!storeId) return undefined;
+  const cached = client.getQueriesData<CompareResponse>({ queryKey: ["compare"] });
+  return cached.flatMap(([, data]) => data?.stores ?? []).find((s) => s.storeId === storeId)?.chainName;
 }
