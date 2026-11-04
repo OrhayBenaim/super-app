@@ -24,7 +24,7 @@ export const basketText = (deal: BasketDeal, soldBy: SoldBy, t: typeof translate
     min: shekels(deal.minPurchase),
   });
 
-const audienceKey = { club: "compare.promo.club", card: "compare.promo.card", coupon: "compare.promo.coupon" } as const;
+export const audienceKey = { club: "compare.promo.club", card: "compare.promo.card", coupon: "compare.promo.coupon" } as const;
 const audienceLabel = (p: Promotion, t: typeof translate) => (p.audience === "all" ? undefined : t(audienceKey[p.audience]));
 
 /**

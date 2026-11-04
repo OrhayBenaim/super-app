@@ -17,7 +17,7 @@ import { CardControls } from "./CardControls";
 import { groupTarget } from "./GroupCard";
 import { LocationBanner, useBrowseLocation } from "./LocationBanner";
 import { ProductRow } from "./ProductRow";
-import { useCard } from "./useCard";
+import { useCard, type CardScreen } from "./useCard";
 
 /**
  * A group card's product page, pushed inside the Home tab (back = its Product type): the group's own stepper and
@@ -65,10 +65,10 @@ export function GroupScreen() {
 }
 
 /** The whole group's image, stepper and Add/Update, with a line on what Adding the group means or what is on the List. */
-function GroupTop({ page, type, listId, items }: { page: GroupPage; type: ProductType; listId: string | null; items: Item[] }) {
+export function GroupTop({ page, type, listId, items, screen = "home" }: { page: GroupPage; type: ProductType; listId: string | null; items: Item[]; screen?: CardScreen }) {
   const { colors, space, radius } = useTheme();
   const target = groupTarget(page.card, type);
-  const { view, step, act } = useCard(target, listId, items, "home");
+  const { view, step, act } = useCard(target, listId, items, screen);
   const image = useProductImage(page.card.code);
   const held = view.action === "add" ? null : view.item!;
   const heldName = held && (page.products.find((p) => p.code === held.productCode)?.name ?? held.name);

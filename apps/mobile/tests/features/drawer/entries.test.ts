@@ -16,6 +16,7 @@ describe("drawer entries", () => {
     expect(currentEntry("/type/dairy-eggs")).toBe("home");
     expect(currentEntry("/group/%D7%97%D7%9C%D7%91%7Cl")).toBe("home");
     expect(currentEntry("/promotions")).toBe("promotions");
+    expect(currentEntry("/promotions/group/%D7%97%D7%9C%D7%91%7Cl")).toBe("promotions");
     expect(currentEntry("/compare")).toBe("compare");
     expect(currentEntry("/items")).toBe("items");
     expect(currentEntry("/settings")).toBe("settings");

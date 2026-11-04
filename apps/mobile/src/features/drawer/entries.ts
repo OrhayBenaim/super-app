@@ -30,7 +30,8 @@ export const DRAWER_SECTIONS: DrawerSection[] = [
 
 /** The entry whose page is showing; Share list and Recently bought sit on top of a page, so none is current there. */
 export function currentEntry(pathname: string): DrawerEntryKey | null {
-  const page = /^\/(type|group)\//.test(pathname) ? "/" : pathname; // pages pushed inside the Home tab are Home
+  // Pages pushed inside the Home and Promotions tabs belong to their tab.
+  const page = /^\/(type|group)\//.test(pathname) ? "/" : pathname.startsWith("/promotions/") ? "/promotions" : pathname;
   const entry = DRAWER_SECTIONS.flatMap((s) => s.entries).find((e) => e.href === page);
   return entry && entry.key !== "share" && entry.key !== "recent" ? entry.key : null;
 }

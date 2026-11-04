@@ -9,20 +9,20 @@ import { Text } from "@/ui";
 import type { GroupProduct } from "./api";
 import type { CardTarget } from "./card";
 import { CardControls } from "./CardControls";
-import { useCard } from "./useCard";
+import { useCard, type CardScreen } from "./useCard";
 
 /** "1 L", "by weight", or nothing when the pack size can't be read. */
 export const packSize = (p: GroupProduct) =>
   p.soldBy === "weight" ? t("items.product.byWeight") : p.measure && p.size ? sizeLabel(p.measure, p.size, t) : null;
 
 /**
- * One Product on its group's product page (Figma ProductRow): image, name, pack size and cheapest nearby price on the
- * first line, the stepper and the action across the full width below. The action can also be "switch to this".
+ * One Product on its group's product page (Figma ProductRow): image, name, pack size and cheapest nearby price (when
+ * known) on the first line, the stepper and the action across the full width below. The action can also be "switch to this".
  */
-export function ProductRow({ product, group, listId, items }: { product: GroupProduct; group: CardTarget; listId: string | null; items: Item[] }) {
+export function ProductRow({ product, group, listId, items, screen = "home" }: { product: GroupProduct; group: CardTarget; listId: string | null; items: Item[]; screen?: CardScreen }) {
   const { space } = useTheme();
   const target: CardTarget = { name: product.name, category: group.category, soldBy: product.soldBy, productCode: product.code };
-  const { view, step, act } = useCard(target, listId, items, "home", group);
+  const { view, step, act } = useCard(target, listId, items, screen, group);
   const image = useProductImage(product.code);
   const size = packSize(product);
   const price = product.minPrice === null ? null : priceLabel(product.minPrice, product.soldBy, t);

@@ -118,6 +118,7 @@ export const Taps = {
   promotionsClearFilter: "promotions.clearFilter",
   promotionsEmptyRadius: "promotions.empty.radius",
   promotionsLocationAllow: "promotions.location.allow",
+  promotionsOpen: "promotions.open",
   promotionsLocationRetry: "promotions.location.retry",
   promotionsLocationSettings: "promotions.location.settings",
   promotionsRetry: "promotions.retry",

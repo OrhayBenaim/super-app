@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { View } from "react-native";
 import { CardControls } from "@/features/home/CardControls";
 import { groupTarget } from "@/features/home/GroupCard";
@@ -5,15 +6,17 @@ import { useCard } from "@/features/home/useCard";
 import { ProductImage } from "@/features/items/ProductImage";
 import { useProductImage } from "@/features/items/products";
 import type { Item } from "@/features/lists/api";
+import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
-import { Text } from "@/ui";
+import { Tap, Text } from "@/ui";
 import { promoLines, type PromoCard as Card } from "./promo";
 
 /**
  * A Promotions card (Figma PromoCard): Home's group card with the lowest Promotion price in Saving green next to the
  * struck Shelf price (or the reward's text when there is no price), the Restricted label and "at N Chains". Add matches
- * the whole group, as on Home. The image, name and prices are one element.
+ * the whole group, as on Home. The image, name and prices are one button that opens the card's product page, apart
+ * from the stepper and the action.
  */
 export function PromoCard({ card, listId, items }: { card: Card; listId: string | null; items: Item[] }) {
   const { colors, space, radius } = useTheme();
@@ -24,7 +27,13 @@ export function PromoCard({ card, listId, items }: { card: Card; listId: string 
   const label = [target.name, lines.price, lines.shelfLabel, lines.deal, lines.restricted, lines.chains].filter(Boolean).join(", ");
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: radius.group, padding: space[4] }}>
-      <View accessible accessibilityLabel={label} style={{ gap: space[3] }}>
+      <Tap
+        accessibilityLabel={label}
+        accessibilityHint={t("promotions.open.hint")}
+        analyticsName={Taps.promotionsOpen}
+        onPress={() => router.push({ pathname: "/promotions/group/[ref]", params: { ref: card.ref, type: card.type } })}
+        style={{ gap: space[3] }}
+      >
         <ProductImage url={image} style={{ width: "100%", height: 96 }} />
         <View style={{ gap: space[1] }}>
           <Text variant="headline" numberOfLines={2}>
@@ -58,7 +67,7 @@ export function PromoCard({ card, listId, items }: { card: Card; listId: string 
             {lines.chains}
           </Text>
         </View>
-      </View>
+      </Tap>
       <View style={{ flex: 1, minHeight: space[4] }} />
       <CardControls name={target.name} view={view} onStep={step} onAct={act} />
     </View>
