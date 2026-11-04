@@ -51,9 +51,9 @@
         "expo-localization",
         {
           "supportedLocales": [
-            "he",
-            "en"
-          ]
+            "he"
+          ],
+          "forcesRTL": true
         }
       ],
       "expo-image",
