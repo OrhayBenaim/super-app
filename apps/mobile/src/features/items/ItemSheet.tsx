@@ -19,7 +19,7 @@ export type ItemPage = "form" | "category" | "product";
 
 /**
  * Sheet route app/item/[id]: edit name, category (picker pushes inside), product match (pushes inside), delete.
- * `page` opens straight on a pushed page, e.g. product match from Compare's what's-missing sheet.
+ * `page` opens straight on a pushed page, e.g. product match from Compare's Basket breakdown.
  * `storeId` (a Missing item tapped in that store's Basket breakdown) is store mode: product search only, and one tap on a result saves it and closes.
  */
 export function ItemSheet() {
@@ -28,7 +28,7 @@ export function ItemSheet() {
   const { colors } = useTheme();
   const listId = useCurrentListId();
   const item = useList(listId, { poll: false }).data?.items.find((i) => i.id === id) ?? null;
-  const chain = useCachedChainName(storeId); // as the breakdown title
+  const chainName = useCachedChainName(storeId); // as the breakdown title
   const storeMode = !!storeId;
   const { update } = useItemMutations(listId);
   const categories = useCategories(listId).data ?? [];
@@ -143,7 +143,7 @@ export function ItemSheet() {
 
       {page === "product" && (
         <>
-          <SheetHeader title={chain ? fmt(t("items.product.atStore"), { chain }) : t("items.product")} start={storeMode ? { title: t("common.cancel"), analyticsName: Taps.commonCancel, onPress: onClose } : back} />
+          <SheetHeader title={chainName ? fmt(t("items.product.atStore"), { chain: chainName }) : t("items.product")} start={storeMode ? { title: t("common.cancel"), analyticsName: Taps.commonCancel, onPress: onClose } : back} />
           <SearchField label={t("items.product.placeholder")} value={query} onChangeText={setQuery} returnKeyType="search" />
           {search.isFetching && <ActivityIndicator color={colors.labelSecondary} />}
           {found.groups.length > 0 && (
@@ -155,6 +155,7 @@ export function ItemSheet() {
                   selected={g.ref === groupRef}
                   trailing={<Layers size={20} color={colors.labelSecondary} strokeWidth={1.75} />}
                   atStore={storeMode}
+                  analyticsName={storeMode ? Taps.compareMissingPick : Taps.itemsGroupPick}
                   onPress={() => pick(null, g.ref, groupTitle(g, t))}
                   onRefine={(word) => setQuery(`${query.trim()} ${word}`)}
                 />
@@ -177,7 +178,7 @@ export function ItemSheet() {
               ))}
             </Group>
           )}
-          {search.data?.length === 0 && <Row title={chain ? fmt(t("items.product.noneAtStore"), { chain }) : t("items.product.none")} />}
+          {search.data?.length === 0 && <Row title={chainName ? fmt(t("items.product.noneAtStore"), { chain: chainName }) : t("items.product.none")} />}
           {!storeMode && (
             <Group>
               <Row

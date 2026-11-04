@@ -67,7 +67,7 @@ const productResult = ({ isWeighted, ...p }: Found & { minPrice: number }) => ({
 export function searchProducts(db: Db, q: string, limit: number, storeId?: string) {
   const sqlite = db.$client;
   const store = storeId ?? null;
-  if (/^\d{8,}$/.test(q)) return (sqlite.prepare(CODE_SEARCH).all({ q, prefix: `${q}%`, limit, store }) as (Found & { minPrice: number })[]).map(productResult);
+  if (/^\d{8,}$/.test(q)) return withPrice(sqlite.prepare(CODE_SEARCH).all({ q, prefix: `${q}%`, limit, store }) as Found[]).map(productResult);
   // Quoted prefix terms keep AND/OR/NOT/NEAR literal; punctuation never reaches FTS (words are letter runs and numbers).
   const typed = nameWords(q);
   const words = typed.map((w) => w.norm);
@@ -77,8 +77,8 @@ export function searchProducts(db: Db, q: string, limit: number, storeId?: strin
   const groupWords = withoutSizes(words);
   const pool = groupWords.length === words.length ? found : find(ftsMatch(groupWords));
   // Groups form from every candidate; a member the store does not price costs Infinity, so a group with none there drops out.
-  const named = searchGroups(groupWords, pool.map((p) => ({ ...p, minPrice: p.minPrice ?? Infinity })));
-  const groups = named.filter((g) => g.minPrice !== Infinity).map(({ codes, minPrice, ...g }) => {
+  const candidateGroups = searchGroups(groupWords, pool.map((p) => ({ ...p, minPrice: p.minPrice ?? Infinity })));
+  const groups = candidateGroups.filter((g) => g.minPrice !== Infinity).map(({ codes, minPrice, ...g }) => {
     const { n } = sqlite.prepare("SELECT count(DISTINCT store_id) AS n FROM prices WHERE code IN (SELECT value FROM json_each(?))").get(JSON.stringify(codes)) as { n: number };
     return { kind: "group" as const, ...g, minPrice: round2(minPrice), productCount: codes.length, storeCount: n };
   });
