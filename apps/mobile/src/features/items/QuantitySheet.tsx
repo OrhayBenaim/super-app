@@ -50,7 +50,8 @@ export function QuantitySheet() {
         end={{ title: t("common.save"), analyticsName: Taps.quantitySave, onPress: save }}
       />
       <Group footer={footer}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space[4], padding: space[4] }}>
+        {/* − left, + right in both directions (DESIGN.md "Stepper"). */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space[4], padding: space[4], direction: "ltr" }}>
           <IconButton
             icon={Minus}
             accessibilityLabel={`${t("quantity.less")}, ${label}`}

@@ -1,0 +1,13 @@
+{
+  "id": "chatcmpl-Bx4cV3hd7Q",
+  "object": "chat.completion",
+  "created": 1793800002,
+  "model": "gpt-4.1-mini-2025-04-14",
+  "choices": [
+    {
+      "index": 0,
+      "message": { "role": "assistant", "content": "{\"types\":[{\"i\":0,\"type\":\"dairy-eggs\"},{\"i\":1,\"ty" },
+      "finish_reason": "length"
+    }
+  ]
+}

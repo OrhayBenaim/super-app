@@ -116,6 +116,18 @@ describe("item quantities", () => {
     expect((await patch(item.id, { productCode: banana, quantity: 1.25 })).status).toBe(400);
   });
 
+  it("re-matches an Item from a Product group to a specific Product: the group is dropped, the Quantity starts over when Sold by changes", async () => {
+    const bananas = await add({ groupRef: "בננה|kg", quantity: 2.5 });
+    expect(await (await patch(bananas.id, { productCode: banana })).json()).toMatchObject({ productCode: banana, groupRef: null, quantity: 2.5, soldBy: "weight" });
+
+    const kilos = await add({ groupRef: "בננה|kg", quantity: 2.5 });
+    expect(await (await patch(kilos.id, { productCode: melon })).json()).toMatchObject({ productCode: melon, groupRef: null, quantity: 1, soldBy: "unit" });
+    expect(await detailItem(kilos.id)).toMatchObject({ productCode: melon, groupRef: null, quantity: 1, soldBy: "unit" });
+
+    const rices = await add({ groupRef: "אורז|kg", quantity: 3 });
+    expect(await (await patch(rices.id, { productCode: rice })).json()).toMatchObject({ productCode: rice, groupRef: null, quantity: 3, soldBy: "unit" });
+  });
+
   it("401 without a session, 404 for a non-member", async () => {
     const item = await add({ name: "Tea" });
     expect((await call("PATCH", `/${listId}/items/${item.id}`, { quantity: 2 }, null)).status).toBe(401);

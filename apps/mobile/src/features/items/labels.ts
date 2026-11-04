@@ -32,7 +32,11 @@ export const lineDetail = (q: number, price: number, soldBy: SoldBy, t: T) =>
   `${soldBy === "unit" ? q : formatQuantity(q, soldBy, t)} × ${priceLabel(price, soldBy, t)}`;
 
 /** A group's name, plus the pack count of a unit group ("ביצים · 12 יח׳"). */
-export const groupTitle = (g: ProductGroup, t: T) => (g.measure === "unit" ? `${g.name} · ${sizeLabel("unit", g.size, t)}` : g.name);
+export const groupTitle = (g: Pick<ProductGroup, "name" | "measure" | "size">, t: T) => (g.measure === "unit" ? `${g.name} · ${sizeLabel("unit", g.size, t)}` : g.name);
+
+/** A group's lowest price: "from ₪6.80 a kilo", "from ₪5.90 a liter", or a pack's "from ₪12.90". */
+export const fromPrice = (measure: Measure, price: number, t: T) =>
+  fmt(t(measure === "kg" ? "items.group.perKg" : measure === "l" ? "items.group.perL" : "items.product.from"), { price: shekels(price) });
 
 /**
  * "by weight" for produce, "63 products", "from ₪6.80 a kilo" (a unit group: its cheapest pack), "in 120 branches".
@@ -45,7 +49,7 @@ export const groupFacts = (g: ProductGroup, t: T, atStore = false) => {
   return [
     ...weight,
     fmt(t("items.group.products"), { n: g.productCount }),
-    fmt(t(g.measure === "kg" ? "items.group.perKg" : g.measure === "l" ? "items.group.perL" : "items.product.from"), { price }),
+    fromPrice(g.measure, g.minPrice, t),
     fmt(t("items.product.stores"), { n: g.storeCount }),
   ];
 };

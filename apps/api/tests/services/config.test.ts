@@ -14,6 +14,13 @@ describe("loadConfig", () => {
     });
   });
 
+  it("has no default LLM provider or model: the operator configures all three", () => {
+    const c = loadConfig({});
+    expect([c.LLM_BASE_URL, c.LLM_API_KEY, c.LLM_MODEL]).toEqual([undefined, undefined, undefined]);
+    expect(loadConfig({ LLM_BASE_URL: "https://llm.test/v1", LLM_MODEL: "m" })).toMatchObject({ LLM_BASE_URL: "https://llm.test/v1", LLM_MODEL: "m" });
+    expect(() => loadConfig({ LLM_BASE_URL: "not a url" })).toThrow();
+  });
+
   it("treats empty strings as unset", () => {
     const c = loadConfig({ PORT: "", DATABASE_URL: "", GOOGLE_CLIENT_ID: "", NOMINATIM_URL: "", BETTER_AUTH_URL: "" });
     expect(c.PORT).toBe(3000);

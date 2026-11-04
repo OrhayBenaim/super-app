@@ -9,10 +9,10 @@ import { Text } from "./Text";
 /** Makes the title a pull-down: a Tint chevron after it, and `hint` says what a tap opens. */
 type TitleMenu = { hint: string; analyticsName: TapName; onPress: () => void };
 
-export type LargeTitleProps = { title: string; subtitle?: string; /** Nav-bar items, shown at the trailing end. */ nav?: ReactNode; menu?: TitleMenu };
+export type LargeTitleProps = { title: string; subtitle?: string; /** Nav-bar items, shown at the trailing end. */ nav?: ReactNode; /** Nav-bar item at the start corner (the drawer menu icon). */ start?: ReactNode; menu?: TitleMenu };
 
 /** Top-level screen header: nav bar items, the large title (optionally a pull-down), one summary line. */
-export function LargeTitle({ title, subtitle, nav, menu }: LargeTitleProps) {
+export function LargeTitle({ title, subtitle, nav, start, menu }: LargeTitleProps) {
   const { colors, space, size } = useTheme();
   const heading = (
     // flexShrink lets a long title truncate while the chevron keeps its place.
@@ -22,7 +22,11 @@ export function LargeTitle({ title, subtitle, nav, menu }: LargeTitleProps) {
   );
   return (
     <View style={{ paddingBottom: space[3] }}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: space[2], minHeight: size.target }}>{nav}</View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space[2], minHeight: size.target }}>
+        {start}
+        <View style={{ flex: 1 }} />
+        {nav}
+      </View>
       {menu ? (
         // Still the screen's heading for screen readers; it stays activatable, and the hint says what a tap opens.
         <Tap

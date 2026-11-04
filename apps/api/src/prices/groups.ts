@@ -181,27 +181,31 @@ function refinementsOf(names: Word[][], at: number) {
     .map(([norm]) => commonest(next.filter((w) => w.norm === norm).map((w) => w.raw))!);
 }
 
-type Candidate = Sized & { code: string; minPrice: number };
+export type Candidate = Sized & { code: string; minPrice: number };
+/** Search keeps the measure most members have and groups of 2+; browse keeps every measure and lone products. */
+export type GroupRules = { minProducts: number; everyMeasure: boolean };
 
 /**
- * The groups the `group` words name among search candidates: products whose names start with them, measured the way
- * most of them are, one group per pack count when counted by the unit, each with 2+ products. `minPrice` is per kilo
- * or liter, or per pack. Refinements come from every candidate that starts with the words, qualifiers such as "אורגני"
- * included.
+ * The groups the `group` words name among candidates: products whose names start with them, measured the way most of
+ * them are (or each measure, with `everyMeasure`), one group per pack count when counted by the unit, each with
+ * `minProducts`+ products. `minPrice` is per kilo or liter, or per pack. Refinements come from every candidate that
+ * starts with the words, qualifiers such as "אורגני" included.
  */
-export function searchGroups(group: string[], candidates: Candidate[]) {
+export function groupsFrom(group: string[], candidates: Candidate[], { minProducts, everyMeasure }: GroupRules) {
   if (!group.length) return [];
   const prefixed = candidates
     .map((p) => ({ ...p, words: nameWords(p.name), size: measureOf(p) }))
     .filter((p) => p.size && startsWith(p.words, group));
   const members = prefixed.filter((p) => startsGroup(p.words, group));
-  const measure = commonest(members.map((p) => p.size!.measure));
-  if (!measure) return [];
-  const counts = measure === "unit" ? [...new Set(members.filter((p) => p.size!.measure === "unit").map((p) => p.size!.size))] : [1];
-  return counts.flatMap((count) => {
-    const size: Size = { measure, size: count };
+  const all = members.map((p) => p.size!.measure);
+  const measures = everyMeasure ? [...new Set(all)] : [commonest(all)].filter((m) => m !== undefined);
+  const sizes = measures.flatMap((measure): Size[] =>
+    measure === "unit" ? [...new Set(members.filter((p) => p.size!.measure === "unit").map((p) => p.size!.size))].map((size) => ({ measure, size })) : [{ measure, size: 1 }],
+  );
+  return sizes.flatMap((size) => {
+    const { measure, size: count } = size;
     const inGroup = members.filter((p) => sameMeasure(p.size, size));
-    if (inGroup.length < 2) return [];
+    if (inGroup.length < minProducts) return [];
     return [{
       ref: groupRef(group, size),
       name: commonest(inGroup.map((p) => p.words.slice(0, group.length).map((w) => w.raw).join(" ")))!,
@@ -214,6 +218,9 @@ export function searchGroups(group: string[], candidates: Candidate[]) {
     }];
   });
 }
+
+/** The groups search shows for the `group` words: the commonest measure, 2+ products each. */
+export const searchGroups = (group: string[], candidates: Candidate[]) => groupsFrom(group, candidates, { minProducts: 2, everyMeasure: false });
 
 /** Every product in the group the ref names, with its size (kilos, liters or pack count), and how the group is sold. */
 export function groupMembers(db: Db, ref: string) {

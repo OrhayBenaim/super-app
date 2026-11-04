@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { useTheme } from "@/theme";
 import { Skeleton } from "@/ui";
@@ -8,8 +8,9 @@ import { Skeleton } from "@/ui";
 /**
  * A Product's image for a row's `leading`: a skeleton while `url` is undefined (looking up) or still loading,
  * the image fading in once loaded, nothing when there is none (null) or it fails. Decorative: screen readers skip it.
+ * 40pt square unless `style` sizes it (a browse card's is full width).
  */
-export function ProductImage({ url }: { url: string | null | undefined }) {
+export function ProductImage({ url, style }: { url: string | null | undefined; style?: StyleProp<ViewStyle> }) {
   const { radius, motion } = useTheme();
   const reduced = useReducedMotion();
   // Keyed by URL so a new Product starts over at the skeleton.
@@ -17,7 +18,7 @@ export function ProductImage({ url }: { url: string | null | undefined }) {
   const done = settled?.url === url ? settled : null;
   if (url === null || done?.ok === false) return null;
   return (
-    <View style={styles.box} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View style={[styles.box, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       {!done && <Skeleton style={StyleSheet.absoluteFill} />}
       {url && (
         <Image

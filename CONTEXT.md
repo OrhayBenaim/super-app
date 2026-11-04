@@ -53,7 +53,7 @@ _Avoid_: Unavailable item, out of stock (Grocer only knows what a store prices, 
 ### Prices
 
 **Price sync**:
-One run that brings every Chain's prices up to date: download each Chain's newest Stores and PriceFull files for all its stores, load them, and geocode every store that has no location yet (new, moved, or not found before). A Chain that fails does not stop the others. Only one Price sync runs at a time.
+One run that brings every Chain's prices up to date: download each Chain's newest Stores and PriceFull files for all its stores, load them, geocode every store that has no location yet (new, moved, or not found before), and give a Product type to every Product that has none yet (what one Price sync doesn't reach is left for the next). A Chain that fails does not stop the others, and a classification that fails leaves Products as they were. Only one Price sync runs at a time.
 _Avoid_: Fetch, scrape, import (each names only one part of it)
 
 **Scheduled sync**:
@@ -83,6 +83,10 @@ _Avoid_: Photo, thumbnail, picture (as separate terms)
 **Product group**:
 Products that are the same thing to a shopper, whatever their brand, pack size or Chain label: סוגת's, מיה's and Rami Levy's own bulgur are all the Product group "בורגול". More words make a narrower Product group: a word that changes what the product is (a variety, organic, fat percent, lactose-free) narrows it ("בורגול דק", "בורגול אורגני"), while brand, size and Chain label never split one. A dish made from the product is not in its group ("בורגול עם גרגירי חומוס" is not bulgur). Produce follows the same rules: names match once origin, grade, "by weight" and "loose" words, spellings and plurals are evened out ("בננות ישראל" and "בננה מובחרת" are both "בננה"), and packed and loose are different groups ("גזר ארוז" vs "גזר"). A product is in a group only when its name starts with the group's words ("שוקולד חלב" is not milk). A product made "with" something, or a substitute for the real thing, is only in a group whose words say so: "קוטג עם זיתים" is not in "קוטג", and neither is "קוטג' טבעוני". Every product in a group is measured the same way: by kilo, by liter or by the unit. Produce is always by kilo. Sweetened condensed milk is sold by weight, so it is not in "חלב". Things counted by the unit are a different product for each pack count: a carton of 12 eggs and a carton of 30 are not one group. A User matches an Item to a Product group by picking it, the same way they pick a single product; nothing is matched for them. For a group measured by kilo or liter, Compare picks each store's cheapest product by price per kilo or liter, so a 1 ק"ג bag at ₪6.80 beats a 500 גרם bag at ₪3.70, and the Item's Quantity is kilos when the group is Sold by weight (produce), or else a number of the group's commonest pack size. For a group counted by the unit, every product is the same pack (a carton of 12 eggs). Compare picks the cheapest pack, and the Item's Quantity is a number of packs. Compare names the product each store's price comes from.
 _Avoid_: Generic product, canonical product, Produce group, kind, category (an Item's category is something else)
+
+**Product type**:
+The broad kind a Product is: one of a fixed list we own (dairy and eggs, meat and fish, produce…, Other last), given to each Product from its name. A Product that fits none of them is of the Product type Other, and so is a Product not given a type yet. Users browse Home by Product type. An Item added from Home or Promotions takes its Product type's name as its category.
+_Avoid_: Category (an Item's category is the household's own), department
 
 ### Account lifecycle
 

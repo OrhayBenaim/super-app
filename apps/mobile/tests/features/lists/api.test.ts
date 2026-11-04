@@ -5,7 +5,7 @@ vi.mock("@/lib/analytics", () => ({ Events: {}, track: vi.fn() }));
 vi.mock("@/lib/strings", () => ({ t: (k: string) => k }));
 vi.mock("expo-secure-store", () => ({ getItem: () => null, setItemAsync: vi.fn(), deleteItemAsync: vi.fn() }));
 
-import { basketSize, currentListId, matchKey, missingBasket, type Item, type ListDetail } from "@/features/lists/api";
+import { basketSize, currentListId, matchKey, missingBasket, optimisticItem, type Item, type ListDetail } from "@/features/lists/api";
 
 const item = (id: string, over: Partial<Item> = {}): Item => ({
   id, listId: "l", name: id, category: "c", productCode: null, groupRef: null, missing: true, quantity: 1, soldBy: "unit", createdAt: "", updatedAt: "", ...over,
@@ -70,5 +70,19 @@ describe("currentListId", () => {
   });
   it("trusts the stored pick until the lists load", () => {
     expect(currentListId("b", undefined)).toBe("b");
+  });
+});
+
+describe("optimisticItem", () => {
+  it("shows a new item at once with what was sent, and the API's defaults for the rest", () => {
+    expect(optimisticItem({ name: "חלב", category: "אחר", groupRef: "חלב|l", quantity: 2, soldBy: "unit" }, "l", "now")).toMatchObject({
+      listId: "l", name: "חלב", category: "אחר", groupRef: "חלב|l", productCode: null, missing: true, quantity: 2, soldBy: "unit",
+    });
+    expect(optimisticItem({ name: "x", category: "y", missing: false }, "l", "now")).toMatchObject({ missing: false, quantity: 1, soldBy: "unit" });
+  });
+
+  it("gives every pending item its own id", () => {
+    const body = { name: "x", category: "y" };
+    expect(optimisticItem(body, "l", "now").id).not.toBe(optimisticItem(body, "l", "now").id);
   });
 });

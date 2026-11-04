@@ -92,6 +92,13 @@
       "when": 1793827929327,
       "tag": "0012_hesitant_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1793829709984,
+      "tag": "0013_wooden_warstar",
+      "breakpoints": true
     }
   ]
 }
