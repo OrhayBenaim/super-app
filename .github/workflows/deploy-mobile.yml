@@ -3,7 +3,8 @@ name: deploy-mobile
 # Builds Android only, iOS is not set up yet, on this runner (eas build --local), so it uses no EAS cloud build quota:
 # main -> staging profile, uploaded to EAS for internal distribution; a published release -> production profile, submitted to Google Play.
 # App variables and secrets live in EAS, not GitHub: the staging profile reads the EAS "preview" environment,
-# production reads "production" (eas.json). Run this by hand (Actions > deploy-mobile > Run workflow) after changing them.
+# production reads "production" (eas.json). Secret-visibility EAS variables only reach EAS cloud builders, so the Sentry
+# upload token comes from the GitHub secret SENTRY_AUTH_TOKEN instead. Run this by hand (Actions > deploy-mobile > Run workflow) after changing them.
 on:
   push:
     branches: [main]
@@ -56,6 +57,8 @@ jobs:
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Release tag $TAG is not vX.Y.Z"; exit 1; }
           jq --arg v "$version" '.expo.version = $v' app.json > app.json.tmp && mv app.json.tmp app.json
       - name: Build and ship
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           if [ "$DEPLOY_ENV" = production ]; then
             eas build --local --platform android --profile production --non-interactive --output app.aab
