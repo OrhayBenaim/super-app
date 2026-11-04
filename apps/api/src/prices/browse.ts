@@ -226,7 +226,7 @@ export function promotionPage(db: Db, storeIds: string[], now: Date, type: Produ
       shelfPrice: off ? shelf : null,
       saving: off?.saving ?? null,
       kind: promo.kind, minQty: promo.minQty, amount: promo.amount, audience: promo.audience,
-      text: promotionText(promo, shelf),
+      text: off ? promotionText(promo, shelf) : promo.description, // no price: the Chain's own words
     }));
   };
   return { card, products: page.products.map((p) => ({ ...p, chains: chains(p.code) })) };
