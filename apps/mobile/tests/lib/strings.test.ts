@@ -1,6 +1,4 @@
-import { expect, it, vi } from "vitest";
-
-vi.mock("expo-localization", () => ({ getLocales: () => [{ languageCode: "he" }] }));
+import { expect, it } from "vitest";
 
 it("en and he have the same keys, all non-empty", async () => {
   const { en, he } = await import("@/lib/strings");
@@ -8,7 +6,7 @@ it("en and he have the same keys, all non-empty", async () => {
   expect(Object.values(he).every(Boolean)).toBe(true);
 });
 
-it("t() picks the device language", async () => {
+it("t() is always Hebrew", async () => {
   const { t, he } = await import("@/lib/strings");
   expect(t("common.next")).toBe(he["common.next"]);
 });
