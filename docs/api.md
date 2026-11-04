@@ -49,14 +49,21 @@ type ProductGroup = { kind: "group"; ref; name; measure: Measure; size: number; 
 type Chain = { id; name; nameHe; orderUrl: string|null }   // orderUrl: online shop home or search URL template with {code}
 type StoreResult = {
   storeId; chainId; chainName; storeName; address; city; lat; lng; distanceKm;
-  total: number;              // Σ lineTotal (after Promotions), rounded to agorot
+  total: number;              // Σ lineTotal (after Promotions) − Σ basket[].saving, rounded to agorot
   matched: number;            // codes and groups this store carries (products, not amounts)
   missingCodes: string[];     // codes and group refs it does not carry
   // price is the Shelf price per one of quantity; lineTotal is after the line's Promotion (price × quantity without one);
   // a group line names the product priced, unitPrice per kilo/liter; its promotion, hints and info are that product's
   items: ({ code; price; quantity; lineTotal; promotion?: Promotion; hints?: Promotion[]; info?: { id; description }[] } | { ref; code; name; size; unitPrice?; price; quantity; lineTotal; promotion?: Promotion; hints?: Promotion[]; info?: { id; description }[] })[];
+  basket?: BasketDeal[];      // spend deals that apply (absent when none); their lines keep their Shelf lineTotal
   orderUrl: string|null;
 }
+// A spend deal ("₪8.90 במקום ₪16.90 מעל ₪75"): a Promotion that counts only when the rest of the List, the lines not
+// on its products (a group line counts as on them when its product is), costs at least minPurchase at that store after
+// its own Promotions. It stacks on the other lines' Promotions unless the Chain says it doesn't combine
+// (AllowMultipleDiscounts 0); then Compare uses it only when it beats them, with every other line at its Shelf price.
+// saving: what it takes off the store total (shown as a "−₪x" row); codes: the List lines (code) it is on.
+type BasketDeal = Promotion & { minPurchase: number; saving: number; codes: string[] }
 // The line's Promotion in the store's combination with the lowest total (docs/adr/0003). kind price: one unit at amount;
 // bundle: minQty units for amount in total; percent: amount percent off; nth: the cheapest of every minQty units amount
 // percent off (100 = "2+1"); off: ₪amount off every minQty units. Units beyond full sets at the Shelf price. For a

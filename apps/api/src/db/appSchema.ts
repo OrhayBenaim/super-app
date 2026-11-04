@@ -169,6 +169,10 @@ export const promotions = sqliteTable(
     endsAt: integer("ends_at", { mode: "timestamp_ms" }).notNull(),
     days: text("days"), // weekdays it runs, "1,6" (1 = Sunday); null = every day
     limitQty: real("limit_qty"), // units per purchase that get it; null = no limit
+    // A spend deal: it counts only when the rest of the List, without its own products, costs at least this; null = none.
+    minPurchase: real("min_purchase"),
+    // AllowMultipleDiscounts: false = a spend deal leaves the rest of the List at Shelf prices when it is used.
+    combines: integer("combines", { mode: "boolean" }).notNull().default(true),
   },
   (t) => [uniqueIndex("promotions_store_promotion_idx").on(t.storeId, t.promotionId)],
 );

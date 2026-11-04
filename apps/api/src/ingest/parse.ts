@@ -151,6 +151,8 @@ export type ParsedPromotion = (PromotionReward | { kind: "info"; minQty: 0; amou
   endsAt: number;
   days: string | null;
   limitQty: number | null;
+  minPurchase: number | null; // a spend deal: the rest of the List must cost this much (CONTEXT.md "Promotion")
+  combines: boolean; // AllowMultipleDiscounts: whether a spend deal stacks on the rest of the List's Promotions
   codes: string[];
 };
 
@@ -183,12 +185,11 @@ const percentOff = (minQty: number, rate: number): PromotionReward | undefined =
  * (price-data.md section 3c): 1 = N for a total, 2 = percent off, 7 and 9 = "N+1" (the cheapest of every MinQty units
  * `DiscountRate` off). `percentUnit` 100 is Keshet's DiscountRate in hundredths of a percent. Seen in every Keshet flat
  * file and Rami Levy 039 on 2026-11-04: 1, 2 and 9 only; 3 (amount off) and 6 never, so they stay info-only until a real
- * one shows which field holds the amount. A spend minimum (`MinPurchaseAmnt`) is info-only too.
+ * one shows which field holds the amount. A spend minimum (`MinPurchaseAmnt`) makes it a spend deal (parsePromotions).
  */
 function flatReward(p: Node, percentUnit: number): PromotionReward | string {
   const type = str(p.rewardtype);
   const [minQty, price, rate] = [num(p.minqty) ?? 0, num(p.discountedprice) ?? 0, (num(p.discountrate) ?? 0) / percentUnit];
-  if ((num(p.minpurchaseamnt) ?? 0) > 0) return `RewardType ${type} above a purchase amount`;
   // Keshet writes a weighed item's DiscountedPrice per kilo, also for a weight MinQty ("2 ב 69.90": MinQty 2, price 34.95).
   if (isWeighted(p.isweightedpromo) && type !== "2")
     return type === "1" ? weightedReward(type, minQty, minQty > 0.01 + 1e-6 ? Math.round(price * minQty * 100) / 100 : price) : `RewardType ${type} weighted`;
@@ -254,6 +255,14 @@ function weightedReward(type: string, minQty: number, price: number): PromotionR
   return `weighted MinQty ${minQty}: per kilo or per pack unclear`;
 }
 
+const minPurchaseOf = (rows: Node[], g: number) => Math.max(0, ...rows.map((r) => num(r.groups.group[g]?.minpurchaseamount) ?? 0));
+/**
+ * A spend condition: a group with a MinPurchaseAmount on the whole store (item 0000000000000, RewardType 0) whose other
+ * rows (RewardType 12) name the deal's own products, which don't count toward it (Stop Market, Carrefour, Yohananof).
+ */
+const isSpendCondition = (rows: Node[], items: Node[], g: number) =>
+  minPurchaseOf(rows, g) > 0 && items.some((i) => /^0+$/.test(str(i.itemcode))) && items.every((i) => ["0", "12"].includes(str(i.rewardtype)));
+
 const weekdays = (v: unknown) => {
   const days = [...new Set(str(v).split(",").map((d) => d.trim()).filter((d) => /^[1-7]$/.test(d)))].sort().join(",");
   return days === "" || days === "1,2,3,4,5,6,7" ? null : days;
@@ -310,14 +319,19 @@ export function parsePromotions(xml: string, chainKey: string) {
     const idRows = [p!, ...more];
     let items: Node[];
     let reward: PromotionReward | string;
+    let minPurchase: number;
     if (layout === "grouped") {
       const groupCount = Math.max(...idRows.map((row) => row.groups.group.length));
       const groups = Array.from({ length: groupCount }, (_, g) => idRows.flatMap((row): Node[] => row.groups.group[g]?.promotionitems?.promotionitem ?? []));
-      items = groups[0]!;
-      reward = (groupCount === 2 && nthReward(idRows, groups)) || groupedReward(groupCount, items);
+      // A spend deal is one group with a minimum, or a spend condition group beside the reward group (either order).
+      const cond = groupCount === 2 ? [0, 1].find((g) => isSpendCondition(idRows, groups[g]!, g)) : undefined;
+      items = groups[cond === undefined ? 0 : 1 - cond]!;
+      reward = cond !== undefined ? groupedReward(1, items) : (groupCount === 2 && nthReward(idRows, groups)) || groupedReward(groupCount, items);
+      minPurchase = cond !== undefined ? minPurchaseOf(idRows, cond) : groupCount === 1 ? minPurchaseOf(idRows, 0) : 0;
     } else {
       items = idRows.flatMap((row): Node[] => row.promotionitems.item);
       reward = flatReward(p!, layout === "flat" ? 100 : 1);
+      minPurchase = num(p!.minpurchaseamnt) ?? 0;
     }
     const [startsAt, endsAt] = [fromJerusalem(str(p!.promotionstartdatetime)), fromJerusalem(str(p!.promotionenddatetime))];
     if (Number.isNaN(startsAt) || Number.isNaN(endsAt)) {
@@ -336,6 +350,8 @@ export function parsePromotions(xml: string, chainKey: string) {
       endsAt,
       days: weekdays(p!.promotiondays),
       limitQty: limit && limit > 0 ? limit : null,
+      minPurchase: minPurchase > 0 ? minPurchase : null,
+      combines: num(p!.allowmultiplediscounts) !== 0,
       codes: [...new Set(items.map((i) => str(i.itemcode)).filter(Boolean))],
     });
   }

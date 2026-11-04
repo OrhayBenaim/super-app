@@ -159,7 +159,8 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
       const options = g.members.flatMap((m) => optionsOf(m.code, g.byQuantity ? (g.perStep * g.quantity) / m.size : g.quantity));
       return options.length ? [{ g, options }] : [];
     });
-    const lines = priceLines([...products, ...groupLines.map((l) => l.options)]).map(({ option: { promo: _, ...line }, ...rest }) => ({ ...line, ...rest }));
+    const priced = priceLines([...products, ...groupLines.map((l) => l.options)]);
+    const lines = priced.lines.map(({ option: { promo: _, ...line }, ...rest }) => ({ ...line, ...rest }));
     const items: (Line | GroupLine)[] = lines.slice(0, products.length);
     groupLines.forEach(({ g }, j) => {
       const { code, price, quantity: _, ...rest } = lines[products.length + j]!;
@@ -173,10 +174,12 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
     return {
       ...store,
       distanceKm: round2(distanceKm),
-      total: round2(items.reduce((a, i) => a + i.lineTotal, 0)), // the sum of the lines as shown
+      // the sum of the lines as shown, less the spend deals' savings
+      total: round2(items.reduce((a, i) => a + i.lineTotal, 0) - priced.basket.reduce((a, d) => a + d.saving, 0)),
       matched: items.length,
       missingCodes: asked.filter((k) => !have.has(k)),
       items,
+      ...(priced.basket.length ? { basket: priced.basket } : {}),
       orderUrl: orderUrl?.replace("{code}", encodeURIComponent(items[0]!.code)) ?? null,
     };
   });
