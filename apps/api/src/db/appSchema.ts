@@ -1,6 +1,6 @@
 // App (non-auth) tables go here; re-exported from schema.ts.
 import { sql } from "drizzle-orm";
-import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { user } from "#/db/schema.ts"; // circular with schema.ts, safe because references() is lazy
 
 const createdAt = () =>
@@ -138,6 +138,45 @@ export const syncChainResults = sqliteTable(
     storesGeocoded: integer("stores_geocoded").notNull(),
     durationMs: integer("duration_ms").notNull(),
     error: text("error"),
+    // The Chain's Promotions, apart from its own status (CONTEXT.md "Promotion failure"); null when the Chain failed first.
+    promotionsLoaded: integer("promotions_loaded").notNull().default(0),
+    promotionStatus: text("promotion_status", { enum: ["ok", "failed"] }),
+    promotionError: text("promotion_error"),
   },
   (t) => [primaryKey({ columns: [t.syncRunId, t.chainId] })],
+);
+
+// A store's Promotions as its newest promotion files publish them (docs/adr/0003); Compare applies the running ones.
+// kind and audience are TS-only enums (SQLite text), so a later reward kind or audience needs no migration.
+export const promotions = sqliteTable(
+  "promotions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    promotionId: text("promotion_id").notNull(), // the Chain's PromotionID
+    description: text("description").notNull(),
+    // price: one unit at `amount`; bundle: `minQty` units for `amount` in total; percent: `amount` percent off.
+    kind: text("kind", { enum: ["price", "bundle", "percent"] }).notNull(),
+    minQty: real("min_qty").notNull(),
+    amount: real("amount").notNull(),
+    audience: text("audience", { enum: ["all", "club", "card", "coupon"] }).notNull(),
+    startsAt: integer("starts_at", { mode: "timestamp_ms" }).notNull(),
+    endsAt: integer("ends_at", { mode: "timestamp_ms" }).notNull(),
+    days: text("days"), // weekdays it runs, "1,6" (1 = Sunday); null = every day
+    limitQty: real("limit_qty"), // units per purchase that get it; null = no limit
+  },
+  (t) => [uniqueIndex("promotions_store_promotion_idx").on(t.storeId, t.promotionId)],
+);
+
+export const promotionItems = sqliteTable(
+  "promotion_items",
+  {
+    promotionId: integer("promotion_id")
+      .notNull()
+      .references(() => promotions.id, { onDelete: "cascade" }),
+    code: text("code").notNull(), // keyed like prices.code; no FK, a promoted product may have no price row
+  },
+  (t) => [primaryKey({ columns: [t.promotionId, t.code] }), index("promotion_items_code_idx").on(t.code)],
 );

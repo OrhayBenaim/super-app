@@ -3,7 +3,7 @@ import { basename } from "node:path";
 import type { Deps } from "#/deps.ts";
 import { chainByKey } from "#/ingest/chains.ts";
 import { parseFileName, storeOfFileName } from "#/ingest/files.ts";
-import { decodeXml, isGtin, parsePrices, parseStores } from "#/ingest/parse.ts";
+import { decodeXml, isGtin, parsePrices, parsePromotions, parseStores } from "#/ingest/parse.ts";
 
 type IngestDeps = Pick<Deps, "db" | "clock">;
 
@@ -11,6 +11,22 @@ function chainFor(key: string, fileChainId: string) {
   const chain = chainByKey(key);
   if (!chain.ids.includes(fileChainId)) throw new Error(`file ChainId ${fileChainId} is not ${key} (${chain.ids.join(", ")})`);
   return chain.ids[0]!;
+}
+
+// GS1 barcodes are global; internal and weighed codes mean different things per chain, so they are chain-scoped.
+const productCode = (chainId: string, code: string) => (isGtin(code) ? code : `${chainId}:${code}`);
+
+/**
+ * The store a price or promotion file is for: its file name wins over the StoreID inside. Null (with a warning) when the
+ * store is not in the Chain's Stores file: Shufersal still lists months-old files of closed stores.
+ */
+function storeOf({ db }: IngestDeps, chainId: string, fileName: string | undefined, insideId: string, what: string) {
+  // Carrefour's former Yeinot Bitan stores (files 400-473) carry their old StoreID inside, and 26 of those are other live
+  // stores (file 407 says 117); the name matches the Stores file (2026-11-01).
+  const storeId = `${chainId}-${(fileName ? storeOfFileName(fileName) : null) ?? insideId}`;
+  if (db.$client.prepare("SELECT 1 FROM stores WHERE id = ?").get(storeId)) return storeId;
+  console.warn(`store ${storeId} is not in the chain's Stores file; skipped its ${what}`);
+  return null;
 }
 
 /** Upserts a Stores file. Clears lat/lng of a store whose address changed so geocode picks it up again. */
@@ -43,21 +59,13 @@ export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: s
   const update = parseFileName(basename(fileName ?? ""))?.type === "price";
   const parsed = parsePrices(xml);
   const chainId = chainFor(chainKey, parsed.chainId);
-  // Carrefour's former Yeinot Bitan stores (files 400-473) carry their old StoreID inside, and 26 of those are other live
-  // stores (file 407 says 117); the name matches the Stores file (2026-11-01).
-  const storeId = `${chainId}-${(fileName ? storeOfFileName(fileName) : null) ?? parsed.storeId}`;
-  // Shufersal still lists months-old PriceFull files of closed stores; they must not abort the rest of the chain.
-  if (!sqlite.prepare("SELECT 1 FROM stores WHERE id = ?").get(storeId)) {
-    console.warn(`store ${storeId} is not in the chain's Stores file; skipped its prices`);
-    return 0;
-  }
+  const storeId = storeOf({ db, clock }, chainId, fileName, parsed.storeId, "prices");
+  if (!storeId) return 0;
   const now = clock.now().getTime();
   const valid = parsed.items.filter((it) => it.price > 0 || (update && it.removed)); // also drops NaN
   if (valid.length < parsed.items.length) console.warn(`${storeId}: skipped ${parsed.items.length - valid.length} items with price <= 0`);
   // Real files repeat an ItemCode now and then (Keshet: 7.90 and 8.90 for one code); the last row wins, as the upsert would.
-  // GS1 barcodes are global; internal and weighed codes mean different things per chain, so they are chain-scoped.
-  const key = (code: string) => (isGtin(code) ? code : `${chainId}:${code}`);
-  const items = [...new Map(valid.map((it) => [key(it.code), it])).entries()];
+  const items = [...new Map(valid.map((it) => [productCode(chainId, it.code), it])).entries()];
   // First chain to publish a barcode names it; later files only fill blanks (keeps names and FTS rows stable).
   const upsertProduct = sqlite.prepare(
     `INSERT INTO products (code, item_code, name, manufacturer, unit_qty, is_weighted) VALUES (?, ?, ?, ?, ?, ?)
@@ -81,6 +89,39 @@ export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: s
     }
   })();
   return items.length;
+}
+
+export type PromotionsOutcome =
+  | { layout: "unknown" }
+  | { layout: "grouped"; loaded: number; unpriced: { promotionId: string; kind: string }[] };
+
+/**
+ * Loads a promotion file. A full file (named `PromoFull…`) replaces the store's Promotions, so one it no longer lists has
+ * ended; an update (named `Promo…`) replaces only the Promotions it lists, each by its PromotionID. A file in a layout
+ * Grocer can't read yet leaves the store's Promotions untouched. Returns how many were loaded and the ones it couldn't price.
+ */
+export function ingestPromotions(deps: IngestDeps, chainKey: string, xml: string, fileName: string): PromotionsOutcome {
+  const sqlite = deps.db.$client;
+  const parsed = parsePromotions(xml);
+  const chainId = chainFor(chainKey, parsed.chainId);
+  if (parsed.layout === "unknown") return { layout: "unknown" };
+  const storeId = storeOf(deps, chainId, fileName, parsed.storeId, "promotions");
+  if (!storeId) return { layout: parsed.layout, loaded: 0, unpriced: [] };
+  const update = parseFileName(basename(fileName))?.type === "promo";
+  const insertPromotion = sqlite.prepare(
+    `INSERT INTO promotions (store_id, promotion_id, description, kind, min_qty, amount, audience, starts_at, ends_at, days, limit_qty)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const insertItem = sqlite.prepare("INSERT OR IGNORE INTO promotion_items (promotion_id, code) VALUES (?, ?)");
+  sqlite.transaction(() => {
+    if (update) sqlite.prepare("DELETE FROM promotions WHERE store_id = ? AND promotion_id IN (SELECT value FROM json_each(?))").run(storeId, JSON.stringify(parsed.ids));
+    else sqlite.prepare("DELETE FROM promotions WHERE store_id = ?").run(storeId);
+    for (const p of parsed.promotions) {
+      const { lastInsertRowid } = insertPromotion.run(storeId, p.promotionId, p.description, p.kind, p.minQty, p.amount, p.audience, p.startsAt, p.endsAt, p.days, p.limitQty);
+      for (const code of p.codes) insertItem.run(lastInsertRowid, productCode(chainId, code));
+    }
+  })();
+  return { layout: parsed.layout, loaded: parsed.promotions.length, unpriced: parsed.unpriced };
 }
 
 export const readXml = (file: string) => decodeXml(readFileSync(file));
