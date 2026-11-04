@@ -1,7 +1,7 @@
 name: deploy-mobile
 
-# Starts EAS cloud builds of Android only, iOS is not set up yet (the runner only triggers them, --no-wait):
-# main -> staging profile (internal distribution), a published release -> production profile, submitted to the stores.
+# Builds Android only, iOS is not set up yet, on this runner (eas build --local), so it uses no EAS cloud build quota:
+# main -> staging profile, uploaded to EAS for internal distribution; a published release -> production profile, submitted to Google Play.
 # App variables and secrets live in EAS, not GitHub: the staging profile reads the EAS "preview" environment,
 # production reads "production" (eas.json). Run this by hand (Actions > deploy-mobile > Run workflow) after changing them.
 on:
@@ -55,10 +55,19 @@ jobs:
           version="${TAG#v}"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Release tag $TAG is not vX.Y.Z"; exit 1; }
           jq --arg v "$version" '.expo.version = $v' app.json > app.json.tmp && mv app.json.tmp app.json
-      - name: Start EAS builds
+      - name: Build and ship
         run: |
           if [ "$DEPLOY_ENV" = production ]; then
-            eas build --platform android --profile production --auto-submit --non-interactive --no-wait
+            eas build --local --platform android --profile production --non-interactive --output app.aab
+            eas submit --platform android --profile production --path app.aab --non-interactive
           else
-            eas build --platform android --profile staging --non-interactive --no-wait
+            eas build --local --platform android --profile staging --non-interactive --output app.apk
+            eas upload --platform android --build-path app.apk --non-interactive
           fi
+      # Kept so a failed submit or upload can be finished by hand without a rebuild (production already bumped versionCode).
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-${{ env.DEPLOY_ENV }}
+          path: apps/mobile/app.*
+          if-no-files-found: ignore
