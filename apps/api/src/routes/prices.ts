@@ -27,6 +27,7 @@ const compareBody = z
   .refine((b) => b.items.length + b.groups.length <= 200, "at most 200 items and groups"); // a group is one entry, however many products it holds
 
 const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
+const TOP_CODES = 5;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // minPrice is the lowest price anywhere, or with @store that store's price (null when it does not price the product).
@@ -80,7 +81,8 @@ export function searchProducts(db: Db, q: string, limit: number, storeId?: strin
   const candidateGroups = searchGroups(groupWords, pool.map((p) => ({ ...p, minPrice: p.minPrice ?? Infinity })));
   const groups = candidateGroups.filter((g) => g.minPrice !== Infinity).map(({ codes, minPrice, ...g }) => {
     const { n } = sqlite.prepare("SELECT count(DISTINCT store_id) AS n FROM prices WHERE code IN (SELECT value FROM json_each(?))").get(JSON.stringify(codes)) as { n: number };
-    return { kind: "group" as const, ...g, minPrice: round2(minPrice), productCount: codes.length, storeCount: n };
+    // topCodes: the best-matching members first (search order), for the app to show the first one with an image.
+    return { kind: "group" as const, ...g, minPrice: round2(minPrice), productCount: codes.length, storeCount: n, topCodes: codes.slice(0, TOP_CODES) };
   });
   groups.sort((a, b) => b.storeCount - a.storeCount);
   return [...groups, ...withPrice(found).slice(0, limit).map(({ tier: _, ...p }) => productResult(p))];

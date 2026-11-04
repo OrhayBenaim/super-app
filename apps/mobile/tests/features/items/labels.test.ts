@@ -7,7 +7,7 @@ import type { Product, ProductGroup } from "@/features/items/products";
 const t = (k: StringKey) => en[k];
 
 const group = (over: Partial<ProductGroup> = {}): ProductGroup => ({
-  kind: "group", ref: "בורגול|kg", name: "בורגול", measure: "kg", size: 0.5, soldBy: "unit", productCount: 63, storeCount: 120, minPrice: 6.8, refinements: [], ...over,
+  kind: "group", ref: "בורגול|kg", name: "בורגול", measure: "kg", size: 0.5, soldBy: "unit", productCount: 63, storeCount: 120, minPrice: 6.8, refinements: [], topCodes: [], ...over,
 });
 const product = (over: Partial<Product> = {}): Product => ({
   kind: "product", code: "1", name: "x", manufacturer: "סוגת", unitQty: null, measure: "kg", size: 0.5, soldBy: "unit", storeCount: 4, minPrice: 3.7, ...over,
