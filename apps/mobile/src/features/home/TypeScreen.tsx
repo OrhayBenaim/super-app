@@ -1,4 +1,3 @@
-import { PRODUCT_TYPES, type ProductType } from "@grocer/shared/product-types";
 import { useIsFocused, useLocalSearchParams } from "expo-router";
 import { SearchX, TriangleAlert } from "lucide-react-native";
 import { View } from "react-native";
@@ -10,7 +9,7 @@ import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { EmptyState, LargeTitle, Screen, Skeleton } from "@/ui";
 import { useTypeCards } from "./api";
-import { typeNameKey } from "./card";
+import { productTypeOf, typeNameKey } from "./card";
 import { CardGrid } from "./CardGrid";
 import { GroupCard } from "./GroupCard";
 import { LocationBanner, useBrowseLocation } from "./LocationBanner";
@@ -18,7 +17,7 @@ import { LocationBanner, useBrowseLocation } from "./LocationBanner";
 /** Home → a Product type: its group cards, most nearby stores first. Pushed inside the Home tab (back = Home). */
 export function TypeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const type: ProductType = PRODUCT_TYPES.find((p) => p === id) ?? "other";
+  const type = productTypeOf(id);
   const { space } = useTheme();
   const { location, coords, radiusKm, off, known } = useBrowseLocation();
   const setRadiusKm = useRadius((s) => s.set);

@@ -2,7 +2,7 @@
 import type { ProductType } from "@grocer/shared/product-types";
 import type { SoldBy } from "@grocer/shared/quantity";
 import { fmt, shekels } from "@/features/compare/format";
-import { audienceKey, promotionText } from "@/features/compare/promotion";
+import { AUDIENCE_KEYS, audienceLabel, promotionText } from "@/features/compare/promotion";
 import type { Promotion } from "@/features/compare/sort";
 import { nearQuery, type Card, type GroupProduct } from "@/features/home/api";
 import { fromPrice, priceLabel } from "@/features/items/labels";
@@ -24,7 +24,7 @@ export type PromoCard = Card & {
 
 /** The short label for a Restricted price on a card ("במועדון", "בכרטיס", "עם קופון"); none for everyone. */
 export const restrictedKey = (audience: Audience): StringKey | undefined =>
-  audience === "all" ? undefined : ({ club: "promotions.club", card: "promotions.card", coupon: "promotions.coupon" } as const)[audience];
+  audience === "all" ? undefined : AUDIENCE_KEYS[audience].short;
 
 /** "ב-2 רשתות", "ברשת אחת". */
 export const chainsLabel = (n: number, t: T) => (n === 1 ? t("promotions.chains.one") : fmt(t("promotions.chains"), { n }));
@@ -74,7 +74,7 @@ export function chainLine(c: ChainPromo, chainName: string, soldBy: SoldBy, t: T
   const price = info ? undefined : priceLabel(c.promoPrice!, soldBy, t);
   const shelf = info ? undefined : priceLabel(c.shelfPrice!, soldBy, t);
   const text = info ? c.text : promotionText({ ...c, kind: c.kind as Promotion["kind"], id: c.chainId }, soldBy, t);
-  const restricted = c.audience === "all" ? undefined : t(audienceKey[c.audience]);
+  const restricted = audienceLabel(c.audience, t);
   const spokenShelf = shelf && fmt(t("promotions.instead"), { price: shelf });
   return { price, shelf, text, restricted, info, label: [chainName, price, spokenShelf, text, restricted].filter(Boolean).join(", ") };
 }

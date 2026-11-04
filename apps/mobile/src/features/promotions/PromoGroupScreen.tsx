@@ -1,9 +1,8 @@
-import { PRODUCT_TYPES, type ProductType } from "@grocer/shared/product-types";
 import { useIsFocused, useLocalSearchParams } from "expo-router";
 import { TriangleAlert } from "lucide-react-native";
 import { Fragment } from "react";
 import { View } from "react-native";
-import { groupTarget } from "@/features/home/card";
+import { groupTarget, productTypeOf } from "@/features/home/card";
 import { GroupTop } from "@/features/home/GroupScreen";
 import { LocationBanner, useBrowseLocation } from "@/features/home/LocationBanner";
 import { ProductRow } from "@/features/home/ProductRow";
@@ -23,7 +22,7 @@ import { pageSubtitle } from "./promo";
  */
 export function PromoGroupScreen() {
   const params = useLocalSearchParams<{ ref: string; type: string }>();
-  const type: ProductType = PRODUCT_TYPES.find((p) => p === params.type) ?? "other";
+  const type = productTypeOf(params.type);
   const { colors, space, radius } = useTheme();
   const { location, coords, radiusKm, off } = useBrowseLocation();
   const page = usePromotionPage(type, params.ref, coords, radiusKm);

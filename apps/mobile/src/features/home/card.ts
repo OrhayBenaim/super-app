@@ -1,5 +1,5 @@
 // What a browse card (Home, Promotions, product pages) shows and sends. Pure (no RN imports) so vitest can load it.
-import type { ProductType } from "@grocer/shared/product-types";
+import { PRODUCT_TYPES, type ProductType } from "@grocer/shared/product-types";
 import { QUANTITY, type SoldBy } from "@grocer/shared/quantity";
 import { groupTitle } from "@/features/items/labels";
 import type { Item } from "@/features/lists/api";
@@ -109,6 +109,9 @@ const TYPE_NAMES: Record<ProductType, StringKey> = {
 
 /** The strings key of a Product type's name. */
 export const typeNameKey = (type: ProductType): StringKey => TYPE_NAMES[type];
+
+/** The Product type a route param names, Other when it names none. */
+export const productTypeOf = (param: string | undefined): ProductType => PRODUCT_TYPES.find((p) => p === param) ?? "other";
 
 /**
  * What Add puts on the List for a browse card: the group, named as search names it, in its Product type's category; a

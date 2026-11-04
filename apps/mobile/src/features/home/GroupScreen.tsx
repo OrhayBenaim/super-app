@@ -1,4 +1,4 @@
-import { PRODUCT_TYPES, type ProductType } from "@grocer/shared/product-types";
+import type { ProductType } from "@grocer/shared/product-types";
 import { Stack, useIsFocused, useLocalSearchParams } from "expo-router";
 import { TriangleAlert } from "lucide-react-native";
 import { ScrollView, View } from "react-native";
@@ -12,9 +12,8 @@ import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { EmptyState, Group, LargeTitle, Screen, Skeleton, Text } from "@/ui";
 import { useGroupPage, type GroupPage } from "./api";
-import { typeNameKey } from "./card";
 import { CardControls } from "./CardControls";
-import { groupTarget } from "./card";
+import { groupTarget, productTypeOf, typeNameKey } from "./card";
 import { LocationBanner, useBrowseLocation } from "./LocationBanner";
 import { ProductRow } from "./ProductRow";
 import { useCard, type CardScreen } from "./useCard";
@@ -25,7 +24,7 @@ import { useCard, type CardScreen } from "./useCard";
  */
 export function GroupScreen() {
   const params = useLocalSearchParams<{ ref: string; type: string }>();
-  const type: ProductType = PRODUCT_TYPES.find((p) => p === params.type) ?? "other";
+  const type = productTypeOf(params.type);
   const { space } = useTheme();
   const { location, coords, radiusKm, off, known } = useBrowseLocation();
   const page = useGroupPage(type, params.ref, coords, radiusKm, known);
