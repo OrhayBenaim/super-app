@@ -64,6 +64,7 @@ export const chains = sqliteTable("chains", {
   name: text("name").notNull(),
   nameHe: text("name_he").notNull(),
   orderUrl: text("order_url"), // shop home, or a cart link template with {items}
+  onlineStoreId: text("online_store_id"), // stores.id of the store whose prices are the online shop's, if the files have one
 });
 
 export const stores = sqliteTable(
