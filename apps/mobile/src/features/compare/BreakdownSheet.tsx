@@ -1,17 +1,36 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ScrollView } from "react-native";
+import { Tag } from "lucide-react-native";
+import { ScrollView, View } from "react-native";
 import { lineDetail } from "@/features/items/labels";
 import { missingItems, useCurrentListId, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
+import { useTheme, type ColorName } from "@/theme";
 import { Button, Group, Row, Sheet, SheetHeader, Text } from "@/ui";
 import { useCompareStores } from "./useBestStore";
 import { breakdown } from "./breakdown";
 import { fmt, shekels } from "./format";
+import { promotionText } from "./promotion";
+
+/** A Promotion under a breakdown line: a decorative Tag on the start side, then its text (wraps). */
+function PromotionRow({ text }: { text: string }) {
+  const { colors, space } = useTheme();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: space[2] }}>
+      <View style={{ width: 16, height: 18, justifyContent: "center" }} accessibilityElementsHidden importantForAccessibility="no">
+        <Tag size={16} color={colors.saving} />
+      </View>
+      <Text variant="footnote" color="saving" style={{ flex: 1, fontWeight: "600" }}>
+        {text}
+      </Text>
+    </View>
+  );
+}
 
 /**
- * Sheet route app/breakdown: the Basket breakdown of the branch open on Compare (param `storeId`). A line per priced item (quantity × price, line
- * total), the total, then the items it doesn't price and the unmatched ones (with Match).
+ * Sheet route app/breakdown: the Basket breakdown of the branch open on Compare (param `storeId`). A line per priced item (quantity × Shelf
+ * price, line total; on a Promotion its text, the lowered total and the struck Shelf total), the total, then the items it doesn't price and the
+ * unmatched ones (with Match).
  */
 export function BreakdownSheet() {
   const router = useRouter();
@@ -21,8 +40,8 @@ export function BreakdownSheet() {
   if (!store) return null;
   const { priced, notHere, unmatched } = breakdown(missingItems(list), store);
   const missing = notHere.length + unmatched.length;
-  const price = (n: number) => (
-    <Text variant="priceRow" tabular>
+  const price = (n: number, color: ColorName = "label") => (
+    <Text variant="priceRow" tabular color={color}>
       {shekels(n)}
     </Text>
   );
@@ -31,8 +50,31 @@ export function BreakdownSheet() {
       <Sheet>
         <SheetHeader title={fmt(t("compare.breakdown.title"), { store: store.chainName })} end={{ title: t("common.done"), analyticsName: Taps.commonDone, onPress: () => router.back() }} />
         <Group footer={t("compare.breakdown.footer")}>
-          {priced.map(({ item, price: each, lineTotal }) => (
-            <Row key={item.id} title={item.name} detail={lineDetail(item.quantity, each, item.soldBy, t)} trailing={price(lineTotal)} />
+          {priced.map(({ item, price: each, lineTotal, shelfTotal, promotion }) => (
+            <Row
+              key={item.id}
+              title={item.name}
+              detail={lineDetail(item.quantity, each, item.soldBy, t)}
+              below={promotion && <PromotionRow text={promotionText(promotion, item.soldBy, t)} />}
+              trailing={
+                promotion && lineTotal < shelfTotal ? (
+                  <View style={{ alignItems: "flex-end" }}>
+                    {price(lineTotal, "saving")}
+                    <Text
+                      variant="footnote"
+                      color="labelSecondary"
+                      tabular
+                      style={{ textDecorationLine: "line-through" }}
+                      accessibilityLabel={fmt(t("compare.promo.insteadOf"), { price: shekels(shelfTotal) })}
+                    >
+                      {shekels(shelfTotal)}
+                    </Text>
+                  </View>
+                ) : (
+                  price(lineTotal)
+                )
+              }
+            />
           ))}
           <Row title={t("compare.breakdown.total")} detail={fmt(t("compare.breakdown.count"), { n: priced.length })} trailing={price(store.total)} />
         </Group>
