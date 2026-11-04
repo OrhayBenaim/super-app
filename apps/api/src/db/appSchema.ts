@@ -158,7 +158,7 @@ export const syncChainResults = sqliteTable(
   (t) => [primaryKey({ columns: [t.syncRunId, t.chainId] })],
 );
 
-// A store's Promotions as its newest promotion files publish them (docs/adr/0003); Compare applies the running ones.
+// A store's Promotions as its newest promotion files publish them (#118); Compare applies the running ones.
 // kind and audience are TS-only enums (SQLite text), so a later reward kind or audience needs no migration.
 export const promotionKinds = ["price", "bundle", "percent", "nth", "off", "info"] as const;
 export type PromotionKind = (typeof promotionKinds)[number];

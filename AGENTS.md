@@ -14,10 +14,14 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/app.ts              createApp(deps): deps on the context, CORS, /api/auth/*, /health, onError; mounts routers
   src/deps.ts             Deps + buildDeps(config, overrides): the composition root
   src/middleware.ts       AppEnv type (c.var.deps, c.var.user), requireUser, rateLimit (per-IP, mounted for every route in app.ts)
-  src/services/           vendor-neutral services (config, error-handler, geocoder, mailer, otp, price-portal)
-  src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, price-portals, resend, sentry)
+  src/services/           vendor-neutral services (config, error-handler, geocoder, mailer, otp, price-portal,
+                          classifier: Product types for the Price sync)
+  src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, openai, price-portals, resend, sentry)
   src/jobs/               fetch-prices, ingest-prices, geocode-stores, price-sync (one Price sync), sync-worker (once-a-minute check)
-  src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts)
+  src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts),
+                          the Price sync's Product type step (product-types.ts)
+  src/prices/             query-time price rules: Product groups (groups.ts), stores within a radius (nearby.ts),
+                          Promotions (promotions.ts), Home and Promotions cards and product pages (browse.ts)
   src/auth.ts             createAuth(db, config, otp): better-auth (email+password, optional Google/Apple, expo plugin)
   src/auth/               one auth feature per file as better-auth plugins (password-reset.ts: Reset codes from the OtpService)
   src/deletion/           web page for Account deletion and Data deletion (/account; /delete-account, /delete-data lead there): logic + htmx steps
@@ -26,27 +30,30 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/db/schema.ts        better-auth tables (generated) + re-export of appSchema.ts
   src/db/appSchema.ts     app tables (lists, items, stores, prices...)
   src/db/users.ts         queries about Users that no single route owns (hasPassword)
-  src/routes/*.ts         feature routers (lists.ts, prices.ts, privacy.ts, deletion.ts)
+  src/routes/*.ts         feature routers (lists.ts, prices.ts, browse.ts, privacy.ts, deletion.ts)
   src/utils/clock.ts      Clock, systemClock, fakeClock
   tests/                  all API tests, mirroring src/; fixtures in tests/__fixtures__/
   drizzle/                generated SQL migrations (committed)
 apps/mobile/              Expo SDK 58 + expo-router app
-  app/                    file routes: (auth)/onboarding|sign-in, (drawer)/ (drawer navigator: (tabs)/index|compare,
-                          home and promotions tabs to come; items, settings as drawer screens), recent, share (modal),
-                          item/[id], quantity/[id], breakdown and lists (form sheets), join/[code]
+  app/                    file routes: (auth)/onboarding|sign-in, (drawer)/ (drawer navigator: (tabs)/ with
+                          (home)/index|type/[id]|group/[ref], list, promotions/index|group/[ref] and compare; items,
+                          settings as drawer screens), recent, share (modal), item/[id], quantity/[id], breakdown and
+                          lists (form sheets), join/[code]
   src/lib/auth-client.ts  better-auth Expo client (SecureStore)
   src/lib/api.ts          api<T>(path, init): fetch wrapper with base URL + auth cookie
   src/lib/analytics.ts    the only PostHog import: track(event), screen, identity (useAnalytics.ts: root layout hook)
   src/lib/strings.ts      en + he strings; t("key") picks the device language (expo-localization)
   src/features/<feature>/ auth, onboarding, lists (data layer + shopping list), items, compare (+ format.ts: fmt,
-                          shekels, formatDistance), share, geofence (task.ts = background task, imported by _layout), tabs, drawer
+                          shekels, formatDistance), share, geofence (task.ts = background task, imported by _layout), tabs, drawer,
+                          home (Product types, group cards, product pages; card.ts: what a card shows and sends), promotions
   src/ui/                 UI kit: Button, Text, TextField, Screen, Tap, Divider, IconButton, Group/SectionHeader, Row, ListRow,
                           LargeTitle, SearchField, EmptyState, SwipeRow, Toast, Sheet/SheetHeader/SheetField/SheetTextField
                           (sheet route body) (import from "@/ui")
   src/theme/              useTheme(), springs, text() (imports docs/design/tokens.json directly; import from "@/theme")
   tests/                  all mobile tests, mirroring src/ (vitest.config.ts maps "@/" to src/)
 packages/shared/          @grocer/shared: rules both apps share, as plain TS with no build (otp.ts: OTP,
-                          codeStatus). Import by subpath: "@grocer/shared/otp". Tests in packages/shared/tests/
+                          codeStatus; quantity.ts; product-types.ts: PRODUCT_TYPES in display order). Import by subpath:
+                          "@grocer/shared/otp", "@grocer/shared/product-types". Tests in packages/shared/tests/
 docs/                     research and design notes (docs/research/, docs/design/)
 ```
 

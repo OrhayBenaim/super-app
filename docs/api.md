@@ -64,7 +64,7 @@ type StoreResult = {
 // its own Promotions. It stacks on the other lines' Promotions (AllowMultipleDiscounts is not read yet).
 // saving: what it takes off the store total (shown as a "−₪x" row); codes: the List lines (code) it is on.
 type BasketDeal = Promotion & { minPurchase: number; saving: number; codes: string[] }
-// The line's Promotion in the store's combination with the lowest total (docs/adr/0003). kind price: one unit at amount;
+// The line's Promotion in the store's combination with the lowest total (#118). kind price: one unit at amount;
 // bundle: minQty units for amount in total; percent: amount percent off; nth: the cheapest of every minQty units amount
 // percent off (100 = "2+1"); off: ₪amount off every minQty units. Units beyond full sets at the Shelf price. For a
 // product sold by weight a unit is a kilo: price is per kilo, bundle is minQty kilos (may be fractional: 0.25) for amount.
