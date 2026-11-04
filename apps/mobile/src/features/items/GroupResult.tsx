@@ -6,6 +6,7 @@ import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Row, Tap, Text } from "@/ui";
 import { groupFacts, groupTitle } from "./labels";
+import { ProductImage } from "./ProductImage";
 import type { ProductGroup } from "./products";
 
 type Props = {
@@ -33,6 +34,7 @@ export function GroupResult({ group, onPress, onRefine, selected, trailing, atSt
         accessibilityLabel={[title, ...facts].join(", ")}
         accessibilityState={selected === undefined ? undefined : { selected }}
         analyticsName={analyticsName}
+        leading={<ProductImage url={group.imageUrl} />}
         trailing={trailing}
         onPress={onPress}
       />

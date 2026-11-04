@@ -28,6 +28,7 @@ const compareBody = z
   .refine((b) => b.items.length + b.groups.length <= 200, "at most 200 items and groups"); // a group is one entry, however many products it holds
 
 const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
+const TOP_CODES = 5;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // minPrice is the lowest price anywhere, or with @store that store's price (null when it does not price the product).
@@ -81,14 +82,15 @@ export function searchProducts(db: Db, q: string, limit: number, storeId?: strin
   const candidateGroups = searchGroups(groupWords, pool.map((p) => ({ ...p, minPrice: p.minPrice ?? Infinity })));
   const groups = candidateGroups.filter((g) => g.minPrice !== Infinity).map(({ codes, minPrice, ...g }) => {
     const { n } = sqlite.prepare("SELECT count(DISTINCT store_id) AS n FROM prices WHERE code IN (SELECT value FROM json_each(?))").get(JSON.stringify(codes)) as { n: number };
-    return { kind: "group" as const, ...g, minPrice: round2(minPrice), productCount: codes.length, storeCount: n };
+    // topCodes: the best-matching members first (search order), for the app to show the first one with an image.
+    return { kind: "group" as const, ...g, minPrice: round2(minPrice), productCount: codes.length, storeCount: n, topCodes: codes.slice(0, TOP_CODES) };
   });
   groups.sort((a, b) => b.storeCount - a.storeCount);
   return [...groups, ...withPrice(found).slice(0, limit).map(({ tier: _, ...p }) => productResult(p))];
 }
 
 type PriceRow = {
-  storeId: string; chainId: string; chainName: string; orderUrl: string | null; storeName: string;
+  storeId: string; chainId: string; chainName: string; orderUrl: string | null; onlineStoreId: string | null; storeName: string;
   address: string; city: string; lat: number; lng: number; code: string; price: number;
 };
 // price is the Shelf price; lineTotal is after the line's Promotion (its share of one shared with other lines), when one
@@ -128,7 +130,8 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
   const wantedCodes = [...new Set([...codes.keys(), ...groups.flatMap((g) => g.members.map((m) => m.code))])];
   const rows = db.$client
     .prepare(
-      `SELECT s.id AS storeId, s.chain_id AS chainId, ch.name AS chainName, ch.order_url AS orderUrl, s.name AS storeName,
+      `SELECT s.id AS storeId, s.chain_id AS chainId, ch.name AS chainName, ch.order_url AS orderUrl,
+         ch.online_store_id AS onlineStoreId, s.name AS storeName,
          s.address, s.city, s.lat, s.lng, pr.code, pr.price
        FROM prices pr JOIN stores s ON s.id = pr.store_id JOIN chains ch ON ch.id = s.chain_id
        WHERE pr.store_id IN (SELECT value FROM json_each(?)) AND pr.code IN (SELECT value FROM json_each(?))`,
@@ -143,6 +146,27 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
   }
 
   const promos = runningPromotions(db, [...byStore.keys()], wantedCodes, now);
+  // The online stores' prices of the groups' products: a cart link buys each group's product from its chain's online store.
+  const onlineIds = [...new Set([...byStore.values()].flatMap((s) => (s.row.onlineStoreId ? [s.row.onlineStoreId] : [])))];
+  const online = new Map<string, Map<string, number>>();
+  if (groups.length && onlineIds.length) {
+    const memberCodes = [...new Set(groups.flatMap((g) => g.members.map((m) => m.code)))];
+    const onlineRows = db.$client
+      .prepare("SELECT store_id AS storeId, code, price FROM prices WHERE store_id IN (SELECT value FROM json_each(?)) AND code IN (SELECT value FROM json_each(?))")
+      .all(JSON.stringify(onlineIds), JSON.stringify(memberCodes)) as { storeId: string; code: string; price: number }[];
+    for (const r of onlineRows) online.set(r.storeId, (online.get(r.storeId) ?? new Map()).set(r.code, r.price));
+  }
+  /** The group's barcoded product the online store prices cheapest (per kilo or liter for those groups), and how many to buy. */
+  const onlinePick = (g: (typeof groups)[number], prices: Map<string, number> | undefined) => {
+    let best: { code: string; quantity: number; each: number } | undefined;
+    for (const m of g.members) {
+      const price = prices?.get(m.code);
+      if (price === undefined || m.code.includes(":")) continue;
+      const each = g.byQuantity ? price / m.size : price;
+      if (!best || each < best.each) best = { code: m.code, quantity: g.byQuantity ? (g.perStep * g.quantity) / m.size : g.quantity, each };
+    }
+    return best;
+  };
   const carried = new Set<string>();
   const stores = [...byStore.values()].map(({ row, distanceKm, prices }) => {
     const optionsOf = (code: string, quantity: number) => {
@@ -168,16 +192,22 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
     });
     const have = new Set(items.map((i) => ("ref" in i ? i.ref : i.code)));
     have.forEach((k) => carried.add(k));
-    // The chain's online shop takes `barcode,quantity;...` (docs/research/price-data.md section 6): the lines as priced
-    // here, a group as the packs of the product it bought, chain-local codes left out (no shop knows them).
-    const cart = lines
-      .flatMap(({ code, quantity }, i) => {
-        if (code.includes(":")) return [];
-        const packs = groupLines[i - products.length]?.g.soldBy === "unit";
-        return [`${code},${packs ? Math.ceil(round2(quantity)) : round2(quantity)}`];
-      })
+    // The chain's online shop takes `barcode,quantity;...` (docs/research/price-data.md section 6): the products as priced
+    // here, chain-local codes left out (no shop knows them). Every group on the list, even one missing here, buys the
+    // product the chain's online store prices cheapest, by Shelf price (Promotions are the shop's to apply), or else the
+    // one bought here.
+    const bought = new Map(groupLines.map(({ g }, j) => [g.ref, lines[products.length + j]!]));
+    const onlinePrices = online.get(row.onlineStoreId ?? "");
+    const cart = [
+      ...lines.slice(0, products.length).map((l) => ({ ...l, packs: false })),
+      ...groups.flatMap((g) => {
+        const pick = onlinePick(g, onlinePrices) ?? bought.get(g.ref);
+        return pick ? [{ ...pick, packs: g.soldBy === "unit" }] : [];
+      }),
+    ]
+      .flatMap(({ code, quantity, packs }) => (code.includes(":") ? [] : [`${code},${packs ? Math.ceil(round2(quantity)) : round2(quantity)}`]))
       .join(";");
-    const { code: _c, price: _p, orderUrl, ...store } = row;
+    const { code: _c, price: _p, orderUrl, onlineStoreId: _o, ...store } = row;
     const fillsCart = !!cart && !!orderUrl?.includes("{items}");
     return {
       ...store,

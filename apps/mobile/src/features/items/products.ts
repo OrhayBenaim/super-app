@@ -1,4 +1,4 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import type { SoldBy } from "@grocer/shared/quantity";
@@ -23,6 +23,10 @@ export type Product = {
 export type ProductGroup = {
   kind: "group"; ref: string; name: string; measure: Measure; size: number; soldBy: SoldBy;
   productCount: number; storeCount: number; minPrice: number; refinements: string[];
+  /** The best-matching products first; the group shows the first one's image that has one. */
+  topCodes: string[];
+  /** As Product.imageUrl. */
+  imageUrl?: string | null;
 };
 export type SearchResult = Product | ProductGroup;
 
@@ -49,6 +53,25 @@ const imageQuery = (code: string | null) => ({
   gcTime: Infinity,
 });
 
+/** The first image `lookup` finds for these codes, in order, skipping codes with no barcode; null when none has one. */
+export async function firstImage(codes: string[], lookup: (code: string) => Promise<string | null>) {
+  for (const code of codes.filter(hasBarcode)) {
+    const url = await lookup(code);
+    if (url) return url;
+  }
+  return null;
+}
+
+/** A group's image: its first top product with one, each code looked up through (and cached as) its own imageQuery. */
+const groupImageQuery = (client: QueryClient, codes: string[]) => ({
+  queryKey: ["products", "groupImage", codes],
+  queryFn: () => firstImage(codes, (code) => client.fetchQuery(imageQuery(code))),
+  enabled: codes.some(hasBarcode),
+  initialData: codes.some(hasBarcode) ? undefined : null,
+  staleTime: Infinity,
+  gcTime: Infinity,
+});
+
 /** The Product image of a product code: undefined while looking up, null with no code, no barcode or no image. */
 export function useProductImage(code: string | null): string | null | undefined {
   return useQuery(imageQuery(code)).data;
@@ -56,7 +79,7 @@ export function useProductImage(code: string | null): string | null | undefined 
 
 /**
  * Product search for "Match a product" (the API's default 20 results), debounced 250ms; idle under 2 characters.
- * Results arrive without waiting for images; `imageUrl` fills in as each Product's lookup settles.
+ * Results arrive without waiting for images; `imageUrl` fills in as each Product's (or group's) lookup settles.
  * With `storeId`, only what that store prices, at its prices.
  */
 export function useProductSearch(q: string, storeId?: string) {
@@ -72,12 +95,16 @@ export function useProductSearch(q: string, storeId?: string) {
     enabled: debounced.length >= SEARCH.minLength,
     staleTime: 60_000,
   });
-  // Only specific products have a barcode to look up; group rows pass through untouched.
-  const { products } = splitResults(search.data);
+  const client = useQueryClient();
+  const { groups, products } = splitResults(search.data);
   const images = useQueries({ queries: products.map((p) => imageQuery(p.code)) });
+  const groupImages = useQueries({ queries: groups.map((g) => groupImageQuery(client, g.topCodes)) });
   const imageOf = new Map(products.map((p, i) => [p.code, images[i].data]));
+  const groupImageOf = new Map(groups.map((g, i) => [g.ref, groupImages[i].data]));
   return {
     isFetching: search.isFetching,
-    data: search.data?.map((r): SearchResult => (r.kind === "product" ? { ...r, imageUrl: imageOf.get(r.code) } : r)),
+    data: search.data?.map((r): SearchResult =>
+      r.kind === "product" ? { ...r, imageUrl: imageOf.get(r.code) } : { ...r, imageUrl: groupImageOf.get(r.ref) },
+    ),
   };
 }

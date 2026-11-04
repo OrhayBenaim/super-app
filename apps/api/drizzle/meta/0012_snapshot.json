@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5b650d73-ceb9-477b-aff2-05967ecb984b",
+  "id": "59b2403d-3164-413a-b4d8-b2dc125aeda4",
   "prevId": "78a084b1-c0cf-44ed-826a-0a08ebc25edc",
   "tables": {
     "account": {
@@ -393,6 +393,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "online_store_id": {
+          "name": "online_store_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -756,30 +763,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "product_types": {
-      "name": "product_types",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "products": {
       "name": "products",
       "columns": {
@@ -825,31 +808,10 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
-        },
-        "product_type": {
-          "name": "product_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "products_product_type_product_types_id_fk": {
-          "name": "products_product_type_product_types_id_fk",
-          "tableFrom": "products",
-          "tableTo": "product_types",
-          "columnsFrom": [
-            "product_type"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -1320,27 +1282,6 @@
         },
         "finished_at": {
           "name": "finished_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "products_typed": {
-          "name": "products_typed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "products_other": {
-          "name": "products_other",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "type_requests_failed": {
-          "name": "type_requests_failed",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
