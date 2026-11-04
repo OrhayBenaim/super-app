@@ -54,13 +54,15 @@ type StoreResult = {
   missingCodes: string[];     // codes and group refs it does not carry
   // price is the Shelf price per one of quantity; lineTotal is after the line's Promotion (price × quantity without one);
   // a group line names the product priced, unitPrice per kilo/liter
-  items: ({ code; price; quantity; lineTotal; promotion?: Promotion } | { ref; code; name; size; unitPrice?; price; quantity; lineTotal })[];
+  items: ({ code; price; quantity; lineTotal; promotion?: Promotion; info?: { id; description }[] } | { ref; code; name; size; unitPrice?; price; quantity; lineTotal })[];
   orderUrl: string|null;
 }
 // The running Promotion that gives the line its lowest total (docs/adr/0003). kind price: one unit at amount; bundle:
 // minQty units for amount in total (units beyond full sets at the Shelf price); percent: amount percent off.
 // text is Hebrew-first ("3 ב-₪10", "20% הנחה", "₪4.90 במקום ₪6.90"); id is the Chain's PromotionID.
 type Promotion = { id: string; kind: "price"|"bundle"|"percent"; minQty: number; amount: number; audience: "all"|"club"|"card"|"coupon"; text: string }
+// info: running information-only Promotions on the line (a gift, a deal priced only in its description, a reward Grocer
+// can't price), with the Chain's own description; never in lineTotal or total.
 ```
 Promotions apply to product lines (not yet to group lines): only those running at the server's now (start, end, Israeli weekday), at most one per line, units above its limit per purchase at the Shelf price. Sort semantics: `price` → fewest missing first, then lowest total (after Promotions); `distance` → nearest; `coverage` → most matched, then price. Stores without coordinates are excluded. Duplicate codes (or refs) are merged by summing their quantities. A product sold by weight is priced per kilo × kilos. A group is charged its cheapest product at each store: a group sold by weight by price per kilo × kilos; another kilo or liter group by price per kilo/liter (`unitPrice`) × the group's commonest pack size × `quantity` (packs); a unit group by the cheapest pack × `quantity`. `unmatched` = codes and group refs no store in radius carries.
 

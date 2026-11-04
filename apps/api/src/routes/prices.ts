@@ -89,7 +89,7 @@ type PriceRow = {
   address: string; city: string; lat: number; lng: number; code: string; price: number;
 };
 // price is the Shelf price; lineTotal is after the line's Promotion, when one applies.
-type Line = { code: string; price: number; quantity: number; lineTotal: number; promotion?: ReturnType<typeof priceLine>["promotion"] };
+type Line = { code: string; price: number; quantity: number; lineTotal: number } & Omit<ReturnType<typeof priceLine>, "total">;
 type GroupLine = Line & { ref: string; name: string; size: number; unitPrice?: number };
 
 /** Quantities summed per key (two items matched to one product), in first-seen order. */
@@ -147,9 +147,9 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
     const items: (Line | GroupLine)[] = [...codes].flatMap(([code, quantity]) => {
       const price = prices.get(code);
       if (price === undefined) return [];
-      const { total, promotion } = priceLine(price, quantity, promos.get(`${row.storeId} ${code}`));
+      const { total, ...shown } = priceLine(price, quantity, promos.get(`${row.storeId} ${code}`));
       sum += total;
-      return [{ code, price, quantity, lineTotal: round2(total), ...(promotion ? { promotion } : {}) }];
+      return [{ code, price, quantity, lineTotal: round2(total), ...shown }];
     });
     for (const g of groups) {
       let best: { code: string; name: string; size: number; each: number } | undefined;
