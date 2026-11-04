@@ -84,6 +84,49 @@ describe("breakdown", () => {
     const r = breakdown([none, here, gone], store([{ code: "1", price: 1, quantity: 1, lineTotal: 1 }], ["2"]));
     expect(r).toEqual({ priced: [{ item: here, price: 1, lineTotal: 1, shelfTotal: 1 }], notHere: [gone], unmatched: [none] });
   });
+
+  it("passes a Restricted promotion through with its audience as sent", () => {
+    const promotion = { id: "p1", kind: "percent" as const, minQty: 1, amount: 20, audience: "club" as const, text: "" };
+    const x = item("x", { productCode: "111" });
+    const [p] = breakdown([x], store([{ code: "111", price: 10, quantity: 1, lineTotal: 8, promotion }])).priced;
+    expect(p.promotion).toBe(promotion);
+    expect(p.promotion?.audience).toBe("club");
+    expect(p.partners).toBeUndefined();
+  });
+
+  it("passes hints through on a line with no promotion", () => {
+    const hints = [{ id: "h1", kind: "bundle" as const, minQty: 3, amount: 10, audience: "all" as const, text: "" }];
+    const x = item("x", { productCode: "111" });
+    const [p] = breakdown([x], store([{ code: "111", price: 5.9, quantity: 1, lineTotal: 5.9, hints }])).priced;
+    expect(p.hints).toEqual(hints);
+    expect(p.promotion).toBeUndefined();
+    expect(p.info).toBeUndefined();
+  });
+
+  it("passes info through", () => {
+    const info = [{ id: "i1", description: "מבצע מיוחד" }];
+    const x = item("x", { productCode: "111" });
+    const [p] = breakdown([x], store([{ code: "111", price: 5, quantity: 1, lineTotal: 5, info }])).priced;
+    expect(p.info).toEqual(info);
+    expect(p.hints).toBeUndefined();
+    expect(p.promotion).toBeUndefined();
+  });
+
+  it("names the partners of a mix-and-match Promotion, each with its own totals", () => {
+    const promotion = { id: "p9", kind: "bundle" as const, minQty: 2, amount: 8, audience: "all" as const, text: "" };
+    const a = item("a", { productCode: "111" });
+    const b = item("b", { productCode: "222" });
+    const c = item("c", { productCode: "333" });
+    const other = { id: "p10", kind: "percent" as const, minQty: 1, amount: 10, audience: "all" as const, text: "" };
+    const { priced } = breakdown([a, b, c], store([
+      { code: "111", price: 5.9, quantity: 1, lineTotal: 4.37, promotion },
+      { code: "222", price: 4.9, quantity: 1, lineTotal: 3.63, promotion },
+      { code: "333", price: 3, quantity: 1, lineTotal: 2.7, promotion: other },
+    ]));
+    expect(priced[0]).toMatchObject({ lineTotal: 4.37, shelfTotal: 5.9, partners: ["b"] });
+    expect(priced[1]).toMatchObject({ lineTotal: 3.63, shelfTotal: 4.9, partners: ["a"] });
+    expect(priced[2].partners).toBeUndefined();
+  });
 });
 
 describe("missingCount", () => {

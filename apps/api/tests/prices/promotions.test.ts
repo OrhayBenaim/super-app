@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { priceLines, type LineOption, type RunningPromotion } from "#/prices/promotions.ts";
+import { priceLines as priceList, type LineOption, type RunningPromotion } from "#/prices/promotions.ts";
 
+const priceLines = (lines: LineOption[][]) => priceList(lines).lines;
 const rp = (code: string, o: Partial<RunningPromotion> & Pick<RunningPromotion, "id" | "kind" | "minQty" | "amount">): RunningPromotion => ({
   storeId: "s1",
   code,
@@ -8,6 +9,8 @@ const rp = (code: string, o: Partial<RunningPromotion> & Pick<RunningPromotion, 
   limitQty: null,
   weighted: 0,
   description: "",
+  minPurchase: null,
+  combines: 1,
   ...o,
 });
 /** One List line: its no-Promotion option, then one option per Promotion row. */

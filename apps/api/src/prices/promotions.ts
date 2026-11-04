@@ -189,14 +189,16 @@ const isDeal = (p?: RunningPromotion) => (p?.minPurchase ?? 0) > 0;
  * (at most one Promotion per unit); a Promotion pools the units of every line that took it (mix-and-match), and the
  * choice is the one with the lowest total. Line totals are rounded to agorot so the lines on one Promotion add up to
  * its rounded total. `hints` are the line's Promotions it didn't get because the List's Quantity of their products is
- * below their minimum. Info-only Promotions never enter the search: they are listed in the line's `info`.
+ * below their minimum. Info-only Promotions never enter the search: they are listed in the line's `info`. A line's
+ * options may be different products (a Product group's members); its `hints` and `info` are the chosen product's.
  *
- * A spend deal (`minPurchase`) counts only when the lines not on its products cost at least its minimum after their own
+ * A spend deal (`minPurchase`) counts only when the lines not on its products (a group line counts as on them when one
+ * of its members is) cost at least its minimum after their own
  * Promotions. One that doesn't combine is only taken alone, with every other line at its Shelf price. Its lines keep
  * their Shelf totals and its saving is in `basket`.
  */
 export function priceLines(withInfo: LineOption[][]) {
-  const info = withInfo.map((options) => options.flatMap(({ promo: p }) => (p?.kind === "info" ? [{ id: p.id, description: p.description }] : [])));
+  const info = withInfo.map((options) => options.flatMap(({ code, promo: p }) => (p?.kind === "info" ? [{ code, id: p.id, description: p.description }] : [])));
   const all = withInfo.map((options) => options.filter((o) => o.promo?.kind !== "info"));
   const plain = all.map((options) => options.filter((o) => !isDeal(o.promo)));
 
@@ -251,9 +253,10 @@ export function priceLines(withInfo: LineOption[][]) {
     // A hint only for a set Promotion (price and percent have no minimum) that would save something at its minimum.
     const saves = (o: LineOption) => poolCosts(o.promo!, [{ line: 0, option: { ...o, quantity: o.promo!.minQty } }])[0]! < o.price * o.promo!.minQty - EPS;
     const sets = (o: LineOption) => o.promo && o.promo.kind !== "price" && o.promo.kind !== "percent";
-    const short = plain[l]!.filter((o) => sets(o) && o.promo!.id !== promo?.id && o.promo!.minQty > listQuantity(o.promo!.id) + EPS && saves(o));
+    const short = plain[l]!.filter((o) => o.code === option.code && sets(o) && o.promo!.id !== promo?.id && o.promo!.minQty > listQuantity(o.promo!.id) + EPS && saves(o));
     const hints = [...new Map(short.map((o) => [o.promo!.id, applied(o.promo!, o.price)])).values()];
-    return { option, lineTotal: lineTotal[l]!, ...(promo ? { promotion: applied(promo, option.price) } : {}), ...(hints.length ? { hints } : {}), ...(info[l]!.length ? { info: info[l] } : {}) };
+    const shown = info[l]!.flatMap(({ code, ...i }) => (code === option.code ? [i] : []));
+    return { option, lineTotal: lineTotal[l]!, ...(promo ? { promotion: applied(promo, option.price) } : {}), ...(hints.length ? { hints } : {}), ...(shown.length ? { info: shown } : {}) };
   });
   return { lines, basket };
 }
