@@ -2,7 +2,9 @@
 // nearby stores, like search (docs/adr/0001). Nothing is stored.
 import { PRODUCT_TYPES, type ProductType } from "@grocer/shared/product-types";
 import type { Db } from "#/db/index.ts";
-import { groupsFrom, nameWords, parseRef, withoutSizes, type Measure } from "#/prices/groups.ts";
+import type { Audience, PromotionKind } from "#/db/appSchema.ts";
+import { groupsFrom, measureOf, nameWords, parseRef, withoutSizes, type Measure } from "#/prices/groups.ts";
+import { promotionPrice, promotionText, runningPromotions, type RunningPromotion } from "#/prices/promotions.ts";
 import type { SoldBy } from "@grocer/shared/quantity";
 
 /** A Product with a current price at the stores asked about: its cheapest price there and how many of them price it. */
@@ -97,4 +99,58 @@ export function cardsOf(db: Db, products: Priced[], storeIds: string[] | null): 
     codes,
   }));
   return cards.sort((a, b) => b.storeCount - a.storeCount || a.name.localeCompare(b.name, "he"));
+}
+
+/**
+ * A Promotions card: a group card of the Products on a Promotion, headlined by its lowest Promotion price per kilo, liter
+ * or pack (`promoPrice`, null when none can be worked out) with that offer's Shelf price, saving in percent, kind,
+ * audience (Restricted when not "all") and text. `chainCount` = the Chains running a Promotion on its Products.
+ */
+export type PromoCard = Card & {
+  promoPrice: number | null; shelfPrice: number | null; saving: number | null; kind: PromotionKind; audience: Audience; text: string;
+  chainCount: number;
+};
+
+type Offer = { code: string; chainId: string; promo: RunningPromotion; shelf: number; off: ReturnType<typeof promotionPrice> };
+
+/**
+ * Cards of the Products with a Promotion running at `now` (#118's timing; every stored audience counts) at `storeIds`,
+ * optionally of one Product type or at one Chain's stores. Biggest saving first, those with no price last.
+ */
+export function promotionCards(db: Db, storeIds: string[], now: Date, { type, chain }: { type?: ProductType; chain?: string } = {}): PromoCard[] {
+  const chainOf = new Map(
+    (db.$client.prepare("SELECT id, chain_id AS chainId FROM stores WHERE id IN (SELECT value FROM json_each(?))").all(JSON.stringify(storeIds)) as { id: string; chainId: string }[])
+      .filter((s) => !chain || s.chainId === chain)
+      .map((s) => [s.id, s.chainId]),
+  );
+  const stores = [...chainOf.keys()];
+  const priced = pricedProducts(db, stores, type);
+  const running = runningPromotions(db, stores, priced.map((p) => p.code), now);
+  const shelves = db.$client
+    .prepare("SELECT store_id AS storeId, code, price FROM prices WHERE store_id IN (SELECT value FROM json_each(?)) AND code IN (SELECT value FROM json_each(?))")
+    .all(JSON.stringify(stores), JSON.stringify([...new Set([...running.values()].flat().map((r) => r.code))])) as { storeId: string; code: string; price: number }[];
+  const offers = new Map<string, Offer[]>(); // by code
+  for (const s of shelves)
+    for (const promo of running.get(`${s.storeId} ${s.code}`) ?? [])
+      offers.set(s.code, [...(offers.get(s.code) ?? []), { code: s.code, chainId: chainOf.get(s.storeId)!, promo, shelf: s.price, off: promotionPrice(promo, s.price) }]);
+  const byCode = new Map(priced.map((p) => [p.code, p]));
+  const cards = cardsOf(db, priced.filter((p) => offers.has(p.code)), stores).map((card): PromoCard => {
+    const perUnit = (code: string) => (card.measure === "unit" ? 1 : measureOf(byCode.get(code)!)!.size);
+    const mine = card.codes.flatMap((code) => offers.get(code)!).map((o) => ({ ...o, each: o.off ? o.off.price / perUnit(o.code) : null }));
+    // The lowest price, then the bigger saving, then the one for everyone.
+    const [best] = mine.sort(
+      (a, b) => (a.each ?? Infinity) - (b.each ?? Infinity) || (b.off?.saving ?? 0) - (a.off?.saving ?? 0) || +(a.promo.audience !== "all") - +(b.promo.audience !== "all"),
+    ) as [(typeof mine)[number]];
+    return {
+      ...card,
+      promoPrice: best.each === null ? null : round2(best.each),
+      shelfPrice: best.each === null ? null : round2(best.shelf / perUnit(best.code)),
+      saving: best.off?.saving ?? null,
+      kind: best.promo.kind,
+      audience: best.promo.audience,
+      text: promotionText(best.promo, best.shelf),
+      chainCount: new Set(mine.map((o) => o.chainId)).size,
+    };
+  });
+  return cards.sort((a, b) => (b.saving ?? -1) - (a.saving ?? -1));
 }

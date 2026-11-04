@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { requireUser, type AppEnv } from "#/middleware.ts";
-import { cardsOf, pricedProducts, typeCounts } from "#/prices/browse.ts";
+import { cardsOf, pricedProducts, promotionCards, typeCounts } from "#/prices/browse.ts";
 import { nearbyStoreIds } from "#/prices/nearby.ts";
 
 /** Where the User is, as Compare takes it, or nothing (location off). Both lat and lng, or neither. */
@@ -14,6 +14,8 @@ export const nearQuery = z
   })
   .refine((q) => (q.lat === undefined) === (q.lng === undefined), "lat and lng go together");
 export const typeParam = z.enum(PRODUCT_TYPES);
+/** Promotions' filters: a Product type and a Chain (its id, as GET /api/chains lists it). */
+export const promotionsQuery = z.object({ type: typeParam.optional(), chain: z.string().regex(/^\d{1,20}$/, "invalid chain").optional() });
 
 const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
 
@@ -37,4 +39,13 @@ export const browseRoutes = new Hono<AppEnv>()
     if (!q.success) return bad(c, q.error);
     const stores = storesFor(c, q.data);
     return c.json(cardsOf(c.var.deps.db, pricedProducts(c.var.deps.db, stores, type.data), stores));
+  })
+  // Promotions: group cards of the Products on a Promotion running nearby; nothing without a location.
+  .get("/promotions", (c) => {
+    const q = nearQuery.safeParse(c.req.query());
+    if (!q.success) return bad(c, q.error);
+    const f = promotionsQuery.safeParse(c.req.query());
+    if (!f.success) return bad(c, f.error);
+    const stores = storesFor(c, q.data);
+    return c.json(stores ? promotionCards(c.var.deps.db, stores, c.var.deps.clock.now(), f.data) : []);
   });

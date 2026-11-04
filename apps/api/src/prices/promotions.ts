@@ -131,6 +131,25 @@ const applied = (p: RunningPromotion, price: number) => ({
   text: textOf(p, price) + (p.minPurchase ? ` מעל ${shekels(p.minPurchase)}` : ""),
 });
 export type AppliedPromotion = ReturnType<typeof applied>;
+/** A Promotion's text as Compare shows it ("3 ב-₪10", "₪4.90 במקום ₪6.90"; info: the Chain's description). */
+export const promotionText = (p: RunningPromotion, shelf: number) => applied(p, shelf).text;
+
+/**
+ * What one unit (a kilo when weighed) costs on a running Promotion against its Shelf price `shelf`, and the saving in
+ * whole percent (never below 0). A set Promotion (3 for ₪10, 2+1, ₪5 off 2) is averaged over its set. Null when no
+ * unit price can be worked out: info-only, or a spend deal (it depends on the rest of the List).
+ */
+export function promotionPrice(p: RunningPromotion, shelf: number) {
+  if (p.kind === "info" || isDeal(p)) return null;
+  const each = {
+    price: p.amount,
+    bundle: p.amount / p.minQty,
+    percent: shelf * (1 - p.amount / 100),
+    nth: shelf * (1 - p.amount / 100 / p.minQty),
+    off: Math.max(0, shelf - p.amount / p.minQty),
+  }[p.kind];
+  return { price: round2(each), saving: Math.max(0, Math.round((1 - each / shelf) * 100)) };
+}
 
 // shortcut: past this many combinations in one group of linked lines, a local search replaces the exhaustive one;
 // it can miss the lowest total. Only a List with many items on the same overlapping Promotions gets there.
