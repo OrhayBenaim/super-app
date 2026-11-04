@@ -9,7 +9,7 @@ import { Tap, Text } from "@/ui";
 
 /** The Product type bar: "All", then the fixed list (Other last), as 32pt chips in 44pt targets; scrolls sideways. */
 export function TypeBar({ value, onChange }: { value: ProductType | null; onChange: (type: ProductType | null) => void }) {
-  const { colors, space, size } = useTheme();
+  const { colors, space, radius, size } = useTheme();
   const chips: [ProductType | null, string][] = [[null, t("promotions.all")], ...PRODUCT_TYPES.map((p): [ProductType, string] => [p, t(typeNameKey(p))])];
   return (
     <ScrollView
@@ -36,8 +36,8 @@ export function TypeBar({ value, onChange }: { value: ProductType | null; onChan
             }}
             style={{ minHeight: size.target, justifyContent: "center" }}
           >
-            <View style={{ height: 32, justifyContent: "center", paddingHorizontal: 14, borderRadius: 16, backgroundColor: selected ? colors.tint : colors.surface }}>
-              <Text variant="subhead" color={selected ? "tintOn" : "label"} style={selected ? { fontWeight: "600" } : undefined} numberOfLines={1}>
+            <View style={{ height: size.segmented, justifyContent: "center", paddingHorizontal: space[5], borderRadius: radius.full, backgroundColor: selected ? colors.tint : colors.surface }}>
+              <Text variant="subhead" color={selected ? "tintOn" : "label"} numberOfLines={1}>
                 {name}
               </Text>
             </View>
