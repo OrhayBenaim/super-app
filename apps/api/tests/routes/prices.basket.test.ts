@@ -280,3 +280,32 @@ describe("Compare with a basket deal from real Yohananof files (downloaded 2026-
     expect(store.total).toBe(16.9);
   });
 });
+
+describe("Compare with a flat-layout spend deal (Keshet MinPurchaseAmnt)", () => {
+  const KESHET = "7290785400000";
+  // The shape of Keshet store 2's real 191060 "בקניה 100 שח קבל צידנית קשת טעמים ב 9.90" (PromoFull 2026-11-04).
+  const flat = (code: string) =>
+    `<?xml version="1.0" encoding="utf-8"?><Root><ChainId>${KESHET}</ChainId><SubChainId>1</SubChainId><StoreId>2</StoreId><Promotions><Promotion><PromotionId>191060</PromotionId><PromotionDescription>צידנית ב 9.90 מעל 100</PromotionDescription><PromotionUpdateDate>2024-09-27 00:00</PromotionUpdateDate><PromotionStartDate>2022-02-03</PromotionStartDate><PromotionStartHour>00:00:00</PromotionStartHour><PromotionEndDate>2026-11-28</PromotionEndDate><PromotionEndHour>23:59:00</PromotionEndHour><RewardType>1</RewardType><AllowMultipleDiscounts>1</AllowMultipleDiscounts><IsWeightedPromo>0</IsWeightedPromo><AdditionalRestrictions><AdditionalIsCoupon>0</AdditionalIsCoupon></AdditionalRestrictions><MinQty>1.00</MinQty><MaxQty>1.00</MaxQty><MinPurchaseAmnt>100.00</MinPurchaseAmnt><DiscountedPrice>9.90</DiscountedPrice><DiscountedPricePerMida>9.90</DiscountedPricePerMida><MinNoOfItemOfered>10</MinNoOfItemOfered><PromotionItems><Item><ItemCode>${code}</ItemCode><ItemType>0</ItemType><IsGiftItem>0</IsGiftItem></Item></PromotionItems><Clubs><ClubId>0</ClubId></Clubs></Promotion></Promotions></Root>`;
+  const store2 = (xml: string) => xml.replace("<StoreID>1</StoreID>", "<StoreID>2</StoreID>");
+
+  async function keshet() {
+    const w = await world([]);
+    ingestStores(w.deps, "keshet", store2(storesXml(KESHET)));
+    ingestPrices(w.deps, "keshet", store2(pricesXml(KESHET, [[A, 29.9], [B, 60]])), `PriceFull${KESHET}-002-202611040010.xml`);
+    ingestPromotions(w.deps, "keshet", flat(A), `PromoFull${KESHET}-002-202611040011.xml`);
+    w.deps.db.$client.prepare("UPDATE stores SET lat = ?, lng = ? WHERE chain_id = ?").run(here.lat, here.lng, KESHET);
+    return w;
+  }
+
+  it("applies when the rest reaches 100, and not below", async () => {
+    const w = await keshet();
+    const reached = await w.first([[A, 1], [B, 2]]);
+    expect(reached.store.basket).toEqual([
+      { id: "191060", kind: "price", minQty: 1, amount: 9.9, audience: "all", text: "₪9.90 במקום ₪29.90 מעל ₪100", minPurchase: 100, saving: 20, codes: [A] },
+    ]);
+    expect(reached.store.total).toBe(129.9); // 29.90 + 2 x 60 - 20
+    const short = await w.first([[A, 1], [B, 1]]);
+    expect(short.store).not.toHaveProperty("basket");
+    expect(short.store.total).toBe(89.9);
+  });
+});

@@ -71,8 +71,9 @@ async function shufersalList(jar: Jar): Promise<PriceFile[]> {
     return res.text();
   };
   const files: PriceFile[] = [];
-  for (const cat of [5, 2]) {
-    // 5 Stores, 2 PriceFull (20 rows a page). Every page takes 15-20 s however short, so fetch the rest 6 at a time.
+  for (const cat of [5, 2, 1, 4, 3]) {
+    // 5 Stores, 2 PriceFull, 1 Price, 4 PromoFull, 3 Promo (20 rows a page). Every page takes 15-40 s however short, so
+    // fetch the rest 6 at a time.
     const pages = [await page(cat, 1)];
     for (let n = 2, last = shufersalLastPage(pages[0]!); n <= last; n += 6)
       pages.push(...(await Promise.all(Array.from({ length: Math.min(6, last - n + 1) }, (_, i) => page(cat, n + i)))));

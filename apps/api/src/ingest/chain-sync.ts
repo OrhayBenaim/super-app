@@ -97,7 +97,7 @@ async function syncPromotions(deps: Deps, chain: ChainSeed, promos: PickedFile[]
     }
     if (f.update) {
       const u = await ingest(f.update).catch((e: unknown) => (console.error(`${f.update!.name}: skipped this promotion update`, e), null));
-      if (u?.layout === "grouped") counts.promotionsLoaded += u.loaded;
+      if (u && u.layout !== "unknown") counts.promotionsLoaded += u.loaded;
     }
   }
   counts.promotionStatus = tried > 0 && failed === tried ? "failed" : "ok";
