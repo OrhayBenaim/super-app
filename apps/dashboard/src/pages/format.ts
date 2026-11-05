@@ -18,11 +18,14 @@ export const TYPE_NAMES = {
   "personal-care": "Personal care", baby: "Baby", pets: "Pets", alcohol: "Alcohol", other: "Other", none: "No type yet",
 } as const satisfies Record<ProductTypeFilter, string>;
 
+/** Who a Promotion is for. */
+export const AUDIENCES = { all: "Everyone", club: "Club", card: "Card", coupon: "Coupon" } as const;
+
 // Price syncs run on Israel time (SYNC_TIMES), so the dashboard shows it whatever the browser's zone.
-const dateTime = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", dateStyle: "medium", timeStyle: "short" });
+export const ZONE = "Asia/Jerusalem";
+const dateTime = new Intl.DateTimeFormat("en-GB", { timeZone: ZONE, dateStyle: "medium", timeStyle: "short" });
 export const when = (iso: string | null) => (iso ? dateTime.format(new Date(iso)) : "—");
 
-const ZONE = "Asia/Jerusalem";
 const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: ZONE, dateStyle: "short" });
 const hourMinute = new Intl.DateTimeFormat("en-GB", { timeZone: ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const monthDay = new Intl.DateTimeFormat("en-US", { timeZone: ZONE, month: "short", day: "numeric" });

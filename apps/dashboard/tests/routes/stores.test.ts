@@ -131,7 +131,7 @@ describe("Store page", () => {
       ])
       .run();
     const promo = (promotionId: string) =>
-      ({ storeId: `${RAMI}-1`, promotionId, description: "2 for 10", kind: "bundle" as const, minQty: 2, amount: 10, audience: "all" as const, startsAt: NOW, endsAt: NOW });
+      ({ storeId: `${RAMI}-1`, promotionId, description: "2 for 10", kind: "bundle" as const, minQty: 2, amount: 10, audience: "all" as const, startsAt: NOW, endsAt: new Date(NOW.getTime() + 86_400_000) }); // running, as the count is
     api.db.insert(promotions).values([promo("A"), promo("B")]).run();
 
     const res = await app.request(`/stores/${RAMI}-1`);

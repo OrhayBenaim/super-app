@@ -3,10 +3,10 @@ import { html } from "hono/html";
 import { SEARCH } from "@grocer/shared/search";
 import { PRODUCT_TYPE_FILTERS, PRODUCT_TYPES, type ProductTypeFilter } from "@grocer/shared/product-types";
 import type { ApiClient } from "#/api-client.ts";
-import { day, num, plural, shekels, shortDate, size, SOLD_BY, TYPE_NAMES } from "#/pages/format.ts";
+import { AUDIENCES, day, num, plural, shekels, shortDate, size, SOLD_BY, TYPE_NAMES } from "#/pages/format.ts";
 import { notice, type Html } from "#/pages/layout.ts";
 import { imageDialog, imageTile, type ProductImage } from "#/pages/product-image.ts";
-import { badge, button, pageHeader, section, table } from "#/pages/ui.ts";
+import { button, pageHeader, promotionBadge, section, table } from "#/pages/ui.ts";
 
 type Found = InferResponseType<ApiClient["products"]["$get"], 200>;
 type Counts = InferResponseType<ApiClient["products"]["types"]["$get"], 200>;
@@ -98,14 +98,7 @@ export const typeForm = (code: string, productType: string | null, saved = false
 </form>`;
 
 const MEASURES: Record<string, string> = { kg: "by the kilo", l: "by the liter" };
-const AUDIENCES = { all: "Everyone", club: "Club", card: "Card", coupon: "Coupon" } as const;
 const ON_TERMS = { all: "", club: "for club members", card: "with the card", coupon: "with a coupon" } as const;
-const STATE_BADGES = { running: ["ok", "Running"], notToday: ["finished", "Not today"], future: ["finished", "Starts"], ended: ["skipped", "Ended"] } as const;
-
-const promotionBadge = (p: Detail["promotions"][number]) => {
-  const [kind, text] = STATE_BADGES[p.state];
-  return badge(kind, p.state === "future" ? `${text} ${shortDate(p.startsAt)}` : text);
-};
 
 /** The Product group it is in: its name (linking to it), how many Products it holds and how it is priced. */
 const groupFact = (g: Detail["group"]) =>
@@ -165,7 +158,7 @@ const promotionsTable = (rows: ReturnType<typeof promotionRows>) =>
             <td>${p.chainName} · ${plural(stores, "store")}</td>
             <td>${AUDIENCES[p.audience]}</td>
             <td>${shortDate(p.startsAt)} – ${shortDate(p.endsAt)}</td>
-            <td>${promotionBadge(p)}</td>
+            <td>${promotionBadge(p.state, p.state === "future" ? `Starts ${shortDate(p.startsAt)}` : undefined)}</td>
           </tr>`,
         ),
       );

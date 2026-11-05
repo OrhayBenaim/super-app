@@ -1,5 +1,6 @@
 // The dashboard's shared page parts (docs/design/dashboard.md, Components). Styles: pages/styles.ts.
 import { html, raw } from "hono/html";
+import { num } from "#/pages/format.ts";
 import type { Html } from "#/pages/layout.ts";
 
 type Content = Html | string;
@@ -25,6 +26,15 @@ export const section = (title: string, body: Content, count?: Content | number) 
 
 export type BadgeKind = "ok" | "failed" | "warning" | "interrupted" | "running" | "finished" | "skipped" | "requested" | "ignored";
 export const badge = (kind: BadgeKind, text: string) => html`<span class="badge badge-${kind}">${text}</span>`;
+
+/** A Promotion's state as the api decides it (not today: within its dates, not on today's weekday), badged the same on every page. */
+export const PROMOTION_STATES = {
+  running: ["ok", "Running"],
+  notToday: ["finished", "Not today"],
+  future: ["finished", "Starts later"],
+  ended: ["skipped", "Ended"],
+} as const satisfies Record<string, [BadgeKind, string]>;
+export const promotionBadge = (state: keyof typeof PROMOTION_STATES, text: string = PROMOTION_STATES[state][1]) => badge(PROMOTION_STATES[state][0], text);
 
 type ButtonVariant = "filled" | "tinted" | "plain" | "destructive";
 /** A button that names its action. A disabled one shows its reason next to it. */
@@ -56,7 +66,7 @@ export const errorRow = (colspan: number, text: Content, tone: "failed" | "warni
 /** Filter chips as links; the selected one is marked. Each shows its count. */
 export const chips = (label: string, options: { text: string; count: number; href: string; selected?: boolean }[]) => html`<nav class="chips" aria-label="${label}">
   ${options.map(
-    (o) => html`<a class="chip" href="${o.href}"${o.selected ? html` aria-current="true"` : ""}>${o.text} <span class="count">${o.count.toLocaleString("en-US")}</span></a>`,
+    (o) => html`<a class="chip" href="${o.href}"${o.selected ? html` aria-current="true"` : ""}>${o.text} <span class="count">${num(o.count)}</span></a>`,
   )}
 </nav>`;
 

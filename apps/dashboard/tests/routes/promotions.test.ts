@@ -46,9 +46,10 @@ describe("Promotions page", () => {
     const html = await res.text();
     expect(html).toContain('href="/promotions" aria-current="page"');
     expect(html).toContain("3 running in 2 stores · 1 are information only");
-    expect(html).toMatch(/<td><a href="\/promotions\/\d+" lang="he" dir="rtl">2 חלב ב-10<\/a><\/td>\s*<td>Rami Levy<\/td>\s*<td><strong>2 for ₪10.00<\/strong><\/td>\s*<td>Club<\/td>\s*<td>Nov 4 – Nov 6<\/td>\s*<td class="num">2<\/td>\s*<td class="num">1<\/td>/);
+    expect(html).toMatch(/<td><a href="\/promotions\/\d+" lang="he" dir="rtl">2 חלב ב-10<\/a><\/td>\s*<td>Rami Levy<\/td>\s*<td><strong lang="he" dir="rtl">2 ב-₪10<\/strong><\/td>\s*<td>Club<\/td>\s*<td>Nov 4 – Nov 6<\/td>\s*<td class="num">2<\/td>\s*<td class="num">1<\/td>/);
     expect(html).toContain(`href="/promotions/${deal}"`);
-    expect(html).toContain("<strong>₪1.00</strong>"); // the weekend one, within its dates
+    // the weekend one: within its dates, so under Running, but badged as its page badges it
+    expect(html).toMatch(/<strong lang="he" dir="rtl">₪1<\/strong><\/td>\s*<td>Club<\/td>\s*<td>Nov 4 – Nov 8 <span class="badge badge-finished">Not today<\/span><\/td>/);
     expect(html).toContain('<span class="muted">Information only</span>');
     expect(html).toContain("Information only: the Chain describes it but gives no price");
     expect(html).not.toContain("בקרוב");
@@ -104,7 +105,7 @@ describe("Promotion page", () => {
     expect(html).toContain("2 חלב ב-10");
     expect(html).toContain("Rami Levy · Promotion P1 · 2 stores · 1 Product");
     expect(html).toContain('<span class="badge badge-ok">Running</span>');
-    expect(html).toContain("2 for ₪10.00 (₪5.00 each)");
+    expect(html).toContain('<strong lang="he" dir="rtl">2 ב-₪10</strong> (₪5.00 each)');
     expect(html).toContain("Up to 4");
     expect(html).toContain("Nov 4 – Nov 6, 2026 · every day");
     expect(html).toContain("kind bundle · minQty 2 · amount 10 · limitQty 4 · combines 1");

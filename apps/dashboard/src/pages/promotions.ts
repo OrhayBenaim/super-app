@@ -1,55 +1,25 @@
 import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
 import type { ApiClient } from "#/api-client.ts";
-import { num, plural, shekels } from "#/pages/format.ts";
+import { AUDIENCES, num, plural, shekels, ZONE } from "#/pages/format.ts";
 import { imageCell } from "#/pages/products.ts";
-import { badge as stateBadge, chips, pageHeader, section, table, type BadgeKind } from "#/pages/ui.ts";
+import { chips, pageHeader, promotionBadge, PROMOTION_STATES, section, table } from "#/pages/ui.ts";
 
 type List = InferResponseType<ApiClient["promotions"]["$get"], 200>;
 type Detail = InferResponseType<ApiClient["promotions"][":id"]["$get"], 200>;
 type Chain = InferResponseType<ApiClient["chains"]["$get"], 200>["chains"][number];
-type Terms = Pick<List["promotions"][number], "kind" | "minQty" | "amount" | "audience" | "startsAt" | "endsAt" | "days" | "limitQty" | "minPurchase">;
+type Terms = Pick<List["promotions"][number], "kind" | "deal" | "startsAt" | "endsAt" | "limitQty" | "minPurchase">;
 export type Filter = { chain?: string; store?: string; kind?: string; state?: string; page?: string };
 
-// A Promotion's state, badged as on the Product page: on its page as Compare decides it (not today: within its dates,
-// not on today's weekday); the list's chips go by dates alone.
-const STATES = {
-  running: ["ok", "Running"],
-  notToday: ["finished", "Not today"],
-  future: ["finished", "Starts later"],
-  ended: ["skipped", "Ended"],
-} as const satisfies Record<Detail["promotion"]["state"], [BadgeKind, string]>;
+// The api's list states: a Promotion not running today but within its dates is under Running, with its own badge.
 const CHIPS = ["running", "future", "ended"] as const;
 const KINDS = { price: "Price", bundle: "Bundle", percent: "Percent off", nth: "Nth unit off", off: "Amount off", info: "Information only" } as const;
-const AUDIENCES = { all: "Everyone", club: "Club", card: "Card", coupon: "Coupon" } as const;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SHOWN_STORES = 8;
 
-const badge = (s: Detail["promotion"]["state"]) => stateBadge(STATES[s][0], STATES[s][1]);
-
-/** What it gives, as the Chain published it: "2 for ₪16.90", "₪1.00", "10% off", "2+1", "₪5.00 off 2"; info gives no price. */
-function deal(p: Pick<Terms, "kind" | "minQty" | "amount">) {
-  switch (p.kind) {
-    case "price":
-      return shekels(p.amount);
-    case "bundle":
-      return `${p.minQty} for ${shekels(p.amount)}`;
-    case "percent":
-      return `${p.amount}% off`;
-    case "nth":
-      return p.amount === 100 ? `${p.minQty - 1}+1` : `${p.amount}% off 1 in ${p.minQty}`;
-    case "off":
-      return `${shekels(p.amount)} off${p.minQty > 1 ? ` ${p.minQty}` : ""}`;
-    case "info":
-      return null;
-  }
-}
-const dealCell = (p: Terms) => {
-  const d = deal(p);
-  return d === null ? html`<span class="muted">Information only</span>` : html`<strong>${d}</strong>`;
-};
-
-const ZONE = "Asia/Jerusalem";
+/** What it gives, in the api's words as Compare shows them ("2 ב-₪10", "2+1"); information only gives no price. */
+const dealText = (p: Pick<Terms, "kind" | "deal">) =>
+  p.kind === "info" ? html`<span class="muted">Information only</span>` : html`<strong lang="he" dir="rtl">${p.deal}</strong>`;
 const year = new Intl.DateTimeFormat("en-US", { timeZone: ZONE, year: "numeric" });
 const withYear = new Intl.DateTimeFormat("en-US", { timeZone: ZONE, month: "short", day: "numeric", year: "numeric" });
 const withoutYear = new Intl.DateTimeFormat("en-US", { timeZone: ZONE, month: "short", day: "numeric" });
@@ -100,7 +70,7 @@ const filters = (list: List, chains: Chain[], filter: Filter) => html`<form
   </span>
   ${chips(
     "State",
-    CHIPS.map((s) => ({ text: STATES[s][1], count: list.counts[s], href: listHref(filter, { state: s }), selected: (filter.state ?? "running") === s })),
+    CHIPS.map((s) => ({ text: PROMOTION_STATES[s][1], count: list.counts[s], href: listHref(filter, { state: s }), selected: (filter.state ?? "running") === s })),
   )}
 </form>`;
 
@@ -118,9 +88,9 @@ function pager(list: List, filter: Filter) {
 const row = (now: Date) => (p: List["promotions"][number]) => html`<tr>
   <td><a href="/promotions/${p.id}" lang="he" dir="rtl">${p.description}</a></td>
   <td>${p.chainName}</td>
-  <td>${dealCell(p)}</td>
+  <td>${dealText(p)}</td>
   <td>${AUDIENCES[p.audience]}</td>
-  <td>${dates(p, now)}</td>
+  <td>${dates(p, now)}${p.state === "notToday" ? html` ${promotionBadge(p.state)}` : ""}</td>
   <td class="num">${num(p.stores)}</td>
   <td class="num">${num(p.products)}</td>
 </tr>`;
@@ -142,7 +112,6 @@ export const promotionsPage = (list: List, chains: Chain[], filter: Filter, now:
   <p class="footnote muted">Information only: the Chain describes it but gives no price, so Compare shows its text and leaves it out of totals.</p>`;
 
 const terms = (p: Detail["promotion"], now: Date) => {
-  const d = deal(p);
   const published = [
     `kind ${p.kind}`,
     `minQty ${p.minQty}`,
@@ -154,7 +123,7 @@ const terms = (p: Detail["promotion"], now: Date) => {
   ].filter(Boolean);
   return html`<dl class="terms">
     <dt>Deal</dt>
-    <dd>${d === null ? html`<span class="muted">Information only</span>` : html`<strong>${d}${p.kind === "bundle" ? ` (${shekels(p.amount / p.minQty)} each)` : ""}</strong>`}</dd>
+    <dd>${dealText(p)}${p.kind === "bundle" ? ` (${shekels(p.amount / p.minQty)} each)` : ""}</dd>
     <dt>Who</dt>
     <dd>${AUDIENCES[p.audience]}</dd>
     <dt>Dates</dt>
@@ -198,7 +167,7 @@ export const promotionPage = ({ promotion: p, stores, products }: Detail, now: D
     breadcrumb: { href: "/promotions", text: "Promotions" },
     title: html`<span lang="he" dir="rtl">${p.description}</span>`,
     summary: `${p.chainName} · Promotion ${p.promotionId} · ${plural(p.stores, "store")} · ${plural(p.products, "Product")}`,
-    action: badge(p.state),
+    action: promotionBadge(p.state),
   })}
   <div class="promotion-layout">
     <div>
