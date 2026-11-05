@@ -9,7 +9,8 @@ compares what the list costs at nearby supermarkets. This file is for AI agents 
 apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, no build). Structure: apps/api/ARCHITECTURE.md
   src/api.ts              entry point: loadConfig() -> buildDeps() -> serve createApp(deps) (PORT, default 3000),
                           and createInternalApp(deps) on INTERNAL_HOST:INTERNAL_PORT when SYNC_TOKEN is set
-  src/internal-app.ts     private trigger app: POST /sync records a Manual sync request (never on the public port)
+  src/internal-app.ts     private app (SYNC_TOKEN bearer, never on the public port): POST /sync records a Manual sync request;
+                          mounts src/routes/internal/*.ts, the Internal dashboard's JSON endpoints (syncs.ts: GET /syncs)
   src/worker.ts           entry point: runs one job from src/jobs/ by name (npm run fetch|ingest|geocode|sync|worker)
   src/app.ts              createApp(deps): deps on the context, CORS, /api/auth/*, /health, onError; mounts routers
   src/deps.ts             Deps + buildDeps(config, overrides): the composition root
@@ -34,6 +35,13 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/utils/clock.ts      Clock, systemClock, fakeClock
   tests/                  all API tests, mirroring src/; fixtures in tests/__fixtures__/
   drizzle/                generated SQL migrations (committed)
+apps/dashboard/           the Internal dashboard (docs/adr/0005): Hono + htmx, Node TS like the api, tailnet only, no sign-in
+  src/dashboard.ts        entry point: loadConfig() -> buildDeps() -> serve createApp(deps) on HOST:PORT (127.0.0.1:3002)
+  src/app.ts              createApp(deps): deps on the context, csrf, /assets/htmx.min.js, onError; mounts one router per page
+  src/api-client.ts       apiClient(config, fetch?): hono/client typed from createInternalApp, with the SYNC_TOKEN bearer
+  src/routes/*.ts         one router per page (syncs.ts: Price sync history, Manual sync button)
+  src/pages/*.ts          HTML with hono's html helper (layout.ts: the shell and styles; syncs.ts)
+  tests/                  seam.ts: the dashboard's fetch routed in-process to createInternalApp(buildDeps(loadConfig()))
 apps/mobile/              Expo SDK 58 + expo-router app
   app/                    file routes: (auth)/onboarding|sign-in, (drawer)/ (drawer navigator: (tabs)/ with
                           (home)/index|type/[id]|group/[ref], list, promotions/index|group/[ref] and compare; items,
@@ -63,6 +71,7 @@ docs/                     research and design notes (docs/research/, docs/design
 npm install                       # all workspaces
 npm run dev:api                   # node --watch, http://localhost:3000
 npm run dev:mobile                # expo start for the dev build (expo-dev-client); no Expo Go
+npm run dev:dashboard             # node --watch, http://localhost:3002 (needs the api with SYNC_TOKEN)
 npm run ios|android -w apps/mobile   # expo run:ios|android: build + install the dev build locally
 npm run typecheck                 # tsc --noEmit in both apps
 npm test                          # vitest run in both apps
@@ -104,6 +113,12 @@ API (`apps/api`): follow `apps/api/ARCHITECTURE.md`
 - Tables live in `src/db/appSchema.ts`. Never hand-edit the better-auth tables in `schema.ts`.
 - Schema change: edit `appSchema.ts`, run `npm run db:generate -w apps/api`, and commit the new `drizzle/` files.
   Never edit a migration after it has been committed.
+
+Dashboard (`apps/dashboard`)
+- It holds no data and never opens SQLite: every read and write is a private endpoint in `apps/api/src/routes/internal/`,
+  called through `c.var.deps.api` (hono/client). The api is the only writer and keeps every rule.
+- One router per page in `src/routes/`, HTML in `src/pages/` with hono's `html` helper (it escapes); htmx for partial updates.
+- Tests go through `tests/seam.ts`: seed the api's db, request a dashboard page, assert on the HTML and on what the private app returns.
 
 Mobile (`apps/mobile`)
 - Screens are expo-router file routes under `app/`. Keep route files thin and put logic in `src/features/<feature>/`.
@@ -165,8 +180,9 @@ Mobile (`apps/mobile`)
 | design | `docs/design/` (tokens.json, screen specs). `apps/mobile/src/theme/tokens.ts` imports tokens.json directly |
 | api | `apps/api/src/` (routes, jobs, services, providers, ingest, db/appSchema.ts), `apps/api/drizzle/`, `apps/api/src/app.ts` (router mounting only) |
 | mobile | `apps/mobile/app/`, `apps/mobile/src/features/`, `apps/mobile/src/ui/`, `apps/mobile/src/theme/` |
+| dashboard | `apps/dashboard/src/`, `apps/dashboard/serve.json` (its private endpoints are api work in `apps/api/src/routes/internal/`) |
 | api, mobile | `packages/shared/` (ask first: a change reaches both apps) |
-| test | `apps/api/tests/`, `apps/mobile/tests/` and `packages/shared/tests/`. Changes no production code except to fix a bug it found, flagged in the commit |
+| test | `apps/api/tests/`, `apps/dashboard/tests/`, `apps/mobile/tests/` and `packages/shared/tests/`. Changes no production code except to fix a bug it found, flagged in the commit |
 
 Agents working in parallel stay inside their own paths. Ask before changing a shared file such as
 `app.ts`, `_layout.tsx`, `package.json` or this file.

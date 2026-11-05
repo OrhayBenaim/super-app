@@ -4,6 +4,7 @@ Grocery list + cheapest-supermarket finder for Israel. npm-workspaces monorepo:
 
 - `apps/api` — Node 24.14+ (runs TypeScript natively) + TypeScript, Hono, Drizzle ORM on SQLite (better-sqlite3), better-auth.
 - `apps/mobile` — Expo SDK 58 + expo-router app (iOS/Android).
+- `apps/dashboard` — the Internal dashboard: Hono + htmx pages over the api's private app, tailnet only (`docs/adr/0005`).
 
 ## Run
 
@@ -12,8 +13,10 @@ nvm use                       # Node 24
 npm install                   # installs both apps
 cp apps/api/.env.example apps/api/.env
 cp apps/mobile/.env.example apps/mobile/.env
+cp apps/dashboard/.env.example apps/dashboard/.env   # same SYNC_TOKEN as the api's
 npm run dev:api               # http://localhost:3000 (GET /health)
 npm run dev:mobile            # Metro for the dev build (expo-dev-client); Expo Go is not supported
+npm run dev:dashboard         # http://localhost:3002, needs the api running with SYNC_TOKEN set
 npm run typecheck && npm test # both apps
 ```
 
@@ -38,8 +41,8 @@ On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN IP, not lo
 | api | `TRUST_PROXY` | `true` behind a reverse proxy: rate limits key by the last `X-Forwarded-For` hop; default `false` (socket address). The API port must then be reachable only through the proxy, or clients can spoof the header |
 | api | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional; Google sign-in on when both set. The OAuth client must allow `<BETTER_AUTH_URL>/api/auth/callback/google` (the deletion page at `/account` signs in through it) |
 | api | `SYNC_TIMES` | Scheduled sync times, comma-separated `HH:MM` in Asia/Jerusalem time, default `05:00,12:00,23:30` |
-| api | `SYNC_TOKEN` | shared secret for the private trigger (`Authorization: Bearer <token>`); the private port starts only when set |
-| api | `INTERNAL_PORT`, `INTERNAL_HOST` | private trigger address, default `127.0.0.1:3001`; never expose it publicly |
+| api | `SYNC_TOKEN` | shared secret for the private app (Manual syncs and the Internal dashboard, `Authorization: Bearer <token>`); the private port starts only when set |
+| api | `INTERNAL_PORT`, `INTERNAL_HOST` | private app address, default `127.0.0.1:3001`; never expose it publicly (production binds `0.0.0.0` inside the container, unpublished) |
 | api | `RESEND_API_KEY` | required; Resend API key for sending email (Reset codes and Deletion codes) |
 | api | `EMAIL_FROM` | sender address, default `Grocer <no-reply@example.com>` |
 | api | `NOMINATIM_URL` | optional geocoder base URL for `npm run geocode`, default `https://nominatim.openstreetmap.org` |
@@ -47,6 +50,9 @@ On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN IP, not lo
 | api | `SENTRY_ENVIRONMENT` | default `development`; set `production` in deploys. Traces: 100% in development, 20% in production, the same rule as mobile (`packages/shared/src/sentry.ts`) |
 | api | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | optional; the Product type classifier in the Price sync: any OpenAI-compatible Chat Completions API's base URL, its key and a model. No defaults: unless all three are set, the step is skipped (logged once per sync) and Products stay untyped. Product names are sent to the provider |
 | api | `APPLE_CLIENT_ID`, `APPLE_CLIENT_SECRET`, `APPLE_APP_BUNDLE_IDENTIFIER` | optional; Apple sign-in on when id + secret set |
+| dashboard | `API_URL` | the api's private app, default `http://127.0.0.1:3001` (production: `http://api:3001`) |
+| dashboard | `SYNC_TOKEN` | required; the api's `SYNC_TOKEN` |
+| dashboard | `PORT`, `HOST` | where it listens, default `127.0.0.1:3002`; in production only `tailscale serve` reaches it |
 | mobile | `EXPO_PUBLIC_API_URL` | e.g. `http://localhost:3000` |
 | mobile | `EXPO_PUBLIC_SENTRY_DSN` | optional; same DSN as the API's `SENTRY_DSN` (events tagged `app:mobile`). Unset: the SDK stays off. `.env` is not uploaded to EAS, so set it as an EAS env var for cloud builds |
 | mobile | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | build time only, for source map upload; set as EAS secrets, never in git |
@@ -70,7 +76,7 @@ A Price sync (`CONTEXT.md`, "Prices") does fetch, ingest and geocode for every c
 - `npm run worker -w apps/api`: the long-running worker, a second process next to the API on the same SQLite file. Once a
   minute it runs Scheduled syncs at `SYNC_TIMES` and any waiting Manual sync request. SIGTERM stops a sync after its current
   chain (recorded as interrupted).
-- Manual sync from the internal dashboard: `curl -X POST -H "Authorization: Bearer $SYNC_TOKEN" http://127.0.0.1:3001/sync`
+- Manual sync from the Internal dashboard's button, or by hand: `curl -X POST -H "Authorization: Bearer $SYNC_TOKEN" http://127.0.0.1:3001/sync`
   answers 202 `{ "id": n }` (recorded; the worker runs it within a minute), 409 while a sync is running or waiting, 401 without
   the token. A finished Manual sync skips the next Scheduled sync.
 
@@ -113,6 +119,13 @@ as its Tailscale exit node. Price syncs fail while that machine is off or offlin
 | --- | --- |
 | `TS_AUTHKEY` | Tailscale auth key for the container (admin console > Settings > Keys); used on first start, state lives in the `tailscale-state` volume |
 | `TS_EXIT_NODE` | the Tailscale IP (`100.x.y.z`) of the machine in Israel; it runs Tailscale with "Run exit node" on, approved in the admin console |
+| `SYNC_TOKEN` | required: `openssl rand -base64 32`. The api's private app starts with it and the dashboard calls it with it |
+
+The Internal dashboard (`dashboard` service) shares the `tailscale` container's network (`network_mode: service:tailscale`), and
+`tailscale serve` publishes it on the tailnet only, from `apps/dashboard/serve.json` (`TS_SERVE_CONFIG`): open
+`https://grocer-worker.<tailnet>.ts.net` from any device on the tailnet. Give it no domain in Coolify. It needs MagicDNS and HTTPS
+certificates on in the admin console (DNS page). It has no sign-in: the tailnet is the access control. It reaches the api's private
+app at `http://api:3001`; inbound tailnet traffic does not use the exit node, so it keeps working while the machine in Israel is off.
 
 To move an existing database in: stop the resource, copy the file into the `grocer-data` volume as `grocer.db`
 (`/var/lib/docker/volumes/<volume>/_data/`), delete any `grocer.db-wal` and `grocer.db-shm` there (they belong to the old file and
