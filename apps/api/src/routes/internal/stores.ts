@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNull, max, or, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, isNull, max, ne, or, type SQL } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { chains, prices, stores } from "#/db/appSchema.ts";
@@ -8,6 +8,7 @@ const PAGE_SIZE = 100;
 const listQuery = z.object({
   chain: z.string().min(1).optional(),
   noLocation: z.stringbool().optional(),
+  publishedDiffers: z.stringbool().optional(),
   page: z.coerce.number().int().min(1).default(1),
 });
 
@@ -21,6 +22,8 @@ const columns = {
   city: stores.city,
   lat: stores.lat,
   lng: stores.lng,
+  publishedAddress: stores.publishedAddress,
+  publishedCity: stores.publishedCity,
 };
 
 /** The Internal dashboard's stores table and map, on the private app. */
@@ -29,11 +32,12 @@ export const storesRoutes = new Hono<AppEnv>()
   .get("/", (c) => {
     const query = listQuery.safeParse(c.req.query());
     if (!query.success) return c.json({ error: query.error.issues[0]?.message ?? "invalid query" }, 400);
-    const { chain, noLocation, page } = query.data;
+    const { chain, noLocation, publishedDiffers, page } = query.data;
     const { db } = c.var.deps;
     const filters: SQL[] = [];
     if (chain) filters.push(eq(stores.chainId, chain));
     if (noLocation) filters.push(or(isNull(stores.lat), isNull(stores.lng))!);
+    if (publishedDiffers) filters.push(or(ne(stores.address, stores.publishedAddress), ne(stores.city, stores.publishedCity))!);
     const where = and(...filters);
     const rows = db
       .select(columns)

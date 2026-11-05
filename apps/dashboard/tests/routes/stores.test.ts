@@ -5,7 +5,7 @@ import { setup } from "../seam.ts";
 const RAMI = "7290058140886";
 const SHUFERSAL = "7290027600007";
 const store = (chainId: string, storeId: string, name: string, lat: number | null) =>
-  ({ id: `${chainId}-${storeId}`, chainId, storeId, subChainId: "1", name, address: "Herzl 1", city: "Haifa", lat, lng: lat === null ? null : 35.2 });
+  ({ id: `${chainId}-${storeId}`, chainId, storeId, subChainId: "1", name, address: "Herzl 1", city: "Haifa", lat, lng: lat === null ? null : 35.2, publishedAddress: "Herzl 1", publishedCity: "Haifa" });
 
 describe("Stores page", () => {
   it("filters a Chain's stores to those with no location, which the table lists and the map leaves out", async () => {
@@ -33,6 +33,23 @@ describe("Stores page", () => {
     expect(unplaced).toContain("No location");
     expect(unplaced).toContain('data-stores="[]"');
     expect(unplaced).toContain(`href="/stores/${RAMI}-2"`);
+  });
+
+  it("filters stores whose Chain now publishes a different address, showing both addresses side by side", async () => {
+    const { api, app } = setup();
+    api.db
+      .insert(stores)
+      .values([store(RAMI, "1", "Talpiot", 31.75), { ...store(RAMI, "2", "Afula", null), publishedAddress: "Jaffa 9", publishedCity: "Tel Aviv" }])
+      .run();
+
+    expect(await (await app.request("/stores")).text()).not.toContain("Chain publishes");
+    const res = await app.request("/stores?publishedDiffers=true");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Afula");
+    expect(html).not.toContain("Talpiot");
+    expect(html).toContain(`name="publishedDiffers" value="true" checked`);
+    expect(html).toMatch(/<td>Herzl 1<\/td>\s*<td>Haifa<\/td>\s*<td>Jaffa 9, Tel Aviv<\/td>/);
   });
 
   it("shows every Chain's stores when the form sends All Chains", async () => {
@@ -83,6 +100,16 @@ describe("Store page", () => {
     expect(html).toContain("Herzl 1");
     expect(html).toContain("<dd>2</dd>");
     expect(html).toContain("4 Nov 2026, 07:00"); // the newest price, in Israel time
+  });
+
+  it("shows the address the Chain publishes next to Grocer's when they differ", async () => {
+    const { api, app } = setup();
+    api.db.insert(stores).values([store(RAMI, "1", "Talpiot", 31.75), { ...store(RAMI, "2", "Afula", null), publishedAddress: "Jaffa 9" }]).run();
+
+    expect(await (await app.request(`/stores/${RAMI}-1`)).text()).not.toContain("Chain publishes");
+    const html = await (await app.request(`/stores/${RAMI}-2`)).text();
+    expect(html).toMatch(/<th scope="row">Address<\/th>\s*<td>Herzl 1<\/td>\s*<td>Jaffa 9<\/td>/);
+    expect(html).toMatch(/<th scope="row">City<\/th>\s*<td>Haifa<\/td>\s*<td>Haifa<\/td>/);
   });
 
   it("answers an unknown store with 404", async () => {

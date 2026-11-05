@@ -81,6 +81,9 @@ export const stores = sqliteTable(
     city: text("city").notNull(),
     lat: real("lat"),
     lng: real("lng"),
+    // What the Chain's Stores file says now, set every Price sync; the fields above change only on the dashboard (ADR 0006).
+    publishedAddress: text("published_address").notNull().default(""),
+    publishedCity: text("published_city").notNull().default(""),
   },
   (t) => [index("stores_lat_lng_idx").on(t.lat, t.lng)],
 );

@@ -11,7 +11,7 @@ const setup = () => buildDeps(loadConfig({ ...process.env, SYNC_TOKEN: TOKEN }))
 const get = (deps: Deps, path: string, auth = `Bearer ${TOKEN}`) =>
   createInternalApp(deps).request(path, { headers: { Authorization: auth } });
 const store = (chainId: string, storeId: string, name: string, lat: number | null) =>
-  ({ id: `${chainId}-${storeId}`, chainId, storeId, subChainId: "1", name, address: "Herzl 1", city: "Haifa", lat, lng: lat === null ? null : 35 });
+  ({ id: `${chainId}-${storeId}`, chainId, storeId, subChainId: "1", name, address: "Herzl 1", city: "Haifa", lat, lng: lat === null ? null : 35, publishedAddress: "Herzl 1", publishedCity: "Haifa" });
 
 type List = { stores: { id: string; name: string }[]; total: number; page: number; pageSize: number; locations: { id: string }[] };
 
@@ -32,14 +32,32 @@ describe("GET /stores (private)", () => {
     expect(res.status).toBe(200);
     const rami = (await res.json()) as List;
     expect(rami.stores).toEqual([
-      { id: `${RAMI}-2`, chainId: RAMI, chainName: "Rami Levy", storeId: "2", name: "Afula", address: "Herzl 1", city: "Haifa", lat: null, lng: null },
-      { id: `${RAMI}-1`, chainId: RAMI, chainName: "Rami Levy", storeId: "1", name: "Talpiot", address: "Herzl 1", city: "Haifa", lat: 31.75, lng: 35 },
+      { id: `${RAMI}-2`, chainId: RAMI, chainName: "Rami Levy", storeId: "2", name: "Afula", address: "Herzl 1", city: "Haifa", lat: null, lng: null, publishedAddress: "Herzl 1", publishedCity: "Haifa" },
+      { id: `${RAMI}-1`, chainId: RAMI, chainName: "Rami Levy", storeId: "1", name: "Talpiot", address: "Herzl 1", city: "Haifa", lat: 31.75, lng: 35, publishedAddress: "Herzl 1", publishedCity: "Haifa" },
     ]);
     expect(rami.locations).toEqual([{ id: `${RAMI}-1`, name: "Talpiot", lat: 31.75, lng: 35 }]);
 
     const unplaced = (await (await get(deps, "/stores?noLocation=true")).json()) as List;
     expect(unplaced.stores.map((s) => s.name)).toEqual(["Afula"]);
     expect(unplaced.locations).toEqual([]);
+  });
+
+  it("filters stores whose Chain now publishes a different address or city, with both addresses", async () => {
+    const deps = setup();
+    deps.db
+      .insert(stores)
+      .values([
+        store(RAMI, "1", "Same", 31.75),
+        { ...store(RAMI, "2", "Moved", 31.75), publishedAddress: "Jaffa 9" },
+        { ...store(RAMI, "3", "Other city", 31.75), publishedCity: "Tel Aviv" },
+      ])
+      .run();
+
+    const res = await get(deps, "/stores?publishedDiffers=true");
+    expect(res.status).toBe(200);
+    const moved = (await res.json()) as { stores: Record<string, unknown>[] };
+    expect(moved.stores.map((s) => s.name)).toEqual(["Moved", "Other city"]);
+    expect(moved.stores[0]).toMatchObject({ address: "Herzl 1", city: "Haifa", publishedAddress: "Jaffa 9", publishedCity: "Haifa" });
   });
 
   it("pages the table, while the map gets every filtered store with a location", async () => {
@@ -59,6 +77,7 @@ describe("GET /stores (private)", () => {
     const deps = setup();
     expect((await get(deps, "/stores?noLocation=maybe")).status).toBe(400);
     expect((await get(deps, "/stores?page=0")).status).toBe(400);
+    expect((await get(deps, "/stores?publishedDiffers=maybe")).status).toBe(400);
     expect((await get(deps, "/stores?chain=")).status).toBe(400);
   });
 
@@ -96,6 +115,8 @@ describe("GET /stores/:id (private)", () => {
         city: "Haifa",
         lat: 31.75,
         lng: 35,
+        publishedAddress: "Herzl 1",
+        publishedCity: "Haifa",
         priceCount: 2,
         pricesUpdatedAt: "2026-11-04T05:00:00.000Z",
       },
