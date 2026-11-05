@@ -14,7 +14,7 @@ On top of that, the Internal dashboard can correct a group and make new ones, an
   ref form next to the words form, so a List item can match one like any other group.
 
 Search, Compare, browse (Home) and the Promotions pages all read a group's members through the one group-members
-rule, which applies the edits after the word rules. A Made group is found by search when the query's words start its
+rule, which applies the edits after the word rules. A Product the team added to several groups shows on Home on one card: its Made group's, else the first word group it was added to. A Made group is found by search when the query's words start its
 name, and shows on Home under its Product type. Deleting a Made group leaves List items that matched it unmatched,
 as a vanished Product does. A Price sync never changes edits or Made groups.
 

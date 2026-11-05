@@ -8,7 +8,7 @@ import type { Db } from "#/db/index.ts";
 import { catalog, nameOf, promotionStrings, runningPromotionsOf, storeData, type Catalog, type StoreData, type StorePromotion } from "#/prices/browse-data.ts";
 import { BROWSE } from "#/prices/browse-groups.ts";
 import {
-  commonest, editedCodes, groupEdits, groupRef, groupSoldBy, groupsFrom, madeGroups, madeId, measureOf, parseRef, sameMeasure, soldByOf, type Measure,
+  commonest, editedMembers, groupEdits, groupRef, groupSoldBy, groupsFrom, madeGroups, madeId, measureOf, parseRef, soldByOf, type Measure,
 } from "#/prices/groups.ts";
 import { promotionPrice, promotionText, round2, savingOf, unitPrice } from "#/prices/promotions.ts";
 
@@ -178,8 +178,9 @@ function refCard(nr: Near, ref: string, ids: number[]): Built | undefined {
   const g = word && groupsFrom(word.words, rows, BROWSE).find((g) => g.ref === ref);
   const edit = groupEdits(db, [ref]).get(ref);
   if (!size || (!g && !edit)) return undefined;
-  const codes = new Set(editedCodes(g?.codes ?? [], edit)); // the group-members rule over these Products
-  const mine = rows.filter((p) => codes.has(p.code) && sameMeasure(measureOf(p), size));
+  const byCode = new Map(rows.map((p) => [p.code, p]));
+  const lookup = (codes: string[]) => codes.flatMap((c) => byCode.get(c) ?? []);
+  const mine = editedMembers(lookup(g?.codes ?? []), edit, size, lookup); // the group-members rule over these Products
   if (!mine.length) return undefined;
   const meta = {
     ref, name: edit?.name ?? g?.name ?? word!.words.join(" "), measure: size.measure, soldBy: groupSoldBy(size.measure, mine),
