@@ -36,6 +36,10 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
         .badge-failed { background: #fde8e8; color: #9b1c1c; border-color: #f3b0b0; }
         nav { display: flex; gap: 16px; margin-bottom: 16px; }
         a { color: #1f6f43; }
+        tr.errors td { white-space: normal; padding-top: 0; color: #9b1c1c; font-size: 14px; }
+        dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 16px 0 0; }
+        dt { color: #5c5c58; }
+        dd { margin: 0; }
         .badge-ignored { background: #fff; color: #6b6b64; border-color: #d6d3cd; border-style: dotted; }
       </style>
     </head>
