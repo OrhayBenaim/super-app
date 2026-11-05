@@ -17,7 +17,7 @@ const store = (storeId: string, lat: number | null) =>
 type Chain = { id: string; lastStatus: string | null };
 
 describe("GET /chains (private)", () => {
-  it("returns every Chain with its names, stores, stores without location, last outcome and last good sync", async () => {
+  it("returns every Chain with its names, stores, stores without location, last outcome with its error and Promotion status, and last good sync", async () => {
     const deps = setup();
     deps.db.insert(stores).values([store("1", 32.8), store("2", null), store("3", null)]).run();
     deps.db
@@ -35,7 +35,7 @@ describe("GET /chains (private)", () => {
         { syncRunId: 1, chainId: RAMI, status: "ok", ...counts },
         { syncRunId: 2, chainId: RAMI, status: "ok", ...counts },
         { syncRunId: 3, chainId: RAMI, status: "failed", error: "boom", ...counts },
-        { syncRunId: 2, chainId: "7290027600007", status: "ok", ...counts },
+        { syncRunId: 2, chainId: "7290027600007", status: "ok", promotionStatus: "failed", promotionError: "no promo file", ...counts },
       ])
       .run();
 
@@ -51,9 +51,11 @@ describe("GET /chains (private)", () => {
       stores: 3,
       storesWithoutLocation: 2,
       lastStatus: "failed",
+      lastError: "boom",
+      lastPromotionStatus: null,
       lastGoodSyncAt: "2026-11-04T05:00:00.000Z",
     });
-    expect(chains.find((c) => c.id === "7290027600007")).toMatchObject({ stores: 0, lastStatus: "ok", lastGoodSyncAt: "2026-11-04T05:00:00.000Z" });
+    expect(chains.find((c) => c.id === "7290027600007")).toMatchObject({ stores: 0, lastStatus: "ok", lastError: null, lastPromotionStatus: "failed", lastGoodSyncAt: "2026-11-04T05:00:00.000Z" });
     expect(chains.find((c) => c.id === "7290803800003")).toEqual({
       id: "7290803800003",
       key: "yohananof",
@@ -62,6 +64,8 @@ describe("GET /chains (private)", () => {
       stores: 0,
       storesWithoutLocation: 0,
       lastStatus: null,
+      lastError: null,
+      lastPromotionStatus: null,
       lastGoodSyncAt: null,
     });
   });
