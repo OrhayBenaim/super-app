@@ -36,12 +36,19 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
         .badge-failed { background: #fde8e8; color: #9b1c1c; border-color: #f3b0b0; }
         nav { display: flex; gap: 16px; margin-bottom: 16px; }
         a { color: #1f6f43; }
+        .filters { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-top: 16px; }
+        select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid #c9c9c3; background: #fff; }
+        #map { height: 420px; margin-top: 16px; border-radius: 10px; }
+        .pager { display: flex; gap: 16px; align-items: center; margin-top: 12px; }
+        .details { display: grid; grid-template-columns: max-content 1fr; gap: 6px 20px; margin-top: 16px; padding: 16px; background: #fff; border-radius: 10px; }
+        .details dt { color: #5c5c58; font-weight: 600; }
+        .details dd { margin: 0; }
         .badge-ignored { background: #fff; color: #6b6b64; border-color: #d6d3cd; border-style: dotted; }
       </style>
     </head>
     <body>
       <main>
-        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a></nav>
+        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a><a href="/stores">Stores</a></nav>
         ${body}
       </main>
     </body>
