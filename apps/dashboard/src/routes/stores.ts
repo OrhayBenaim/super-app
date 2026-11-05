@@ -4,7 +4,7 @@ import { ID } from "@grocer/shared/ids";
 import { found, unexpected } from "#/api-client.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { layout, notFound, notice } from "#/pages/layout.ts";
-import { storeHref, storePage, storesPage } from "#/pages/stores.ts";
+import { storeHref, storePage, storesPage, type Edit, type Refused } from "#/pages/stores.ts";
 
 // As the private app's: an id it would refuse names no store.
 const idParam = z.object({ id: z.string().min(1).max(ID.maxLength) });
@@ -38,12 +38,12 @@ export const storesRoutes = new Hono<AppEnv>()
     if (res.status === 400) return refused(c, (await res.json()).error);
     if (res.status !== 200) throw unexpected(res, "GET /stores");
     if (chainsRes.status !== 200) throw unexpected(chainsRes, "GET /chains");
-    return c.html(layout("Stores", storesPage(await res.json(), (await chainsRes.json()).chains, filter)));
+    return c.html(layout("Stores", storesPage(await res.json(), (await chainsRes.json()).chains, filter), "stores"));
   })
   .get("/stores/:id", async (c) => {
     const param = idParam.safeParse(c.req.param());
     const store = param.success && (await storeDetail(c, param.data.id));
-    return store ? c.html(layout(store.name, storePage(store))) : missing(c);
+    return store ? c.html(layout(store.name, storePage(store, c.var.deps.now()), "stores")) : missing(c);
   })
   // The store's edit form: saved, it goes back to the store's page; refused, the page shows why with what was typed.
   .post("/stores/:id", async (c) => {
@@ -53,14 +53,18 @@ export const storesRoutes = new Hono<AppEnv>()
     const edit = editForm.parse(await c.req.parseBody().catch(() => ({})));
     const lat = coordinate.safeParse(edit.lat);
     const lng = coordinate.safeParse(edit.lng);
-    let error = "Latitude and longitude must be numbers.";
+    let refusal: Omit<Refused, "edit"> = lat.success
+      ? { field: "lng", error: "Longitude must be a number." }
+      : { field: "lat", error: "Latitude must be a number." };
     if (lat.success && lng.success) {
       const res = await c.var.deps.api.stores[":id"].$put({ param: { id }, json: { name: edit.name, address: edit.address, city: edit.city, lat: lat.data, lng: lng.data } });
       if (res.status === 200) return c.redirect(storeHref(id), 303);
       if (res.status === 404) return missing(c);
       if (res.status !== 400) throw unexpected(res, "PUT /stores/:id");
-      error = (await res.json()).error;
+      const body = await res.json();
+      const named = "field" in body ? body.field : null;
+      refusal = { error: body.error, field: (Object.keys(edit) as (keyof Edit)[]).find((k) => k === named) ?? null };
     }
     const store = await storeDetail(c, id);
-    return store ? c.html(layout(store.name, storePage(store, { edit, error })), 400) : missing(c);
+    return store ? c.html(layout(store.name, storePage(store, c.var.deps.now(), { edit, ...refusal }), "stores"), 400) : missing(c);
   });
