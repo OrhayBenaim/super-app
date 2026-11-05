@@ -11,8 +11,6 @@ type Chain = InferResponseType<ApiClient["chains"]["$get"], 200>["chains"][numbe
 type Terms = Pick<List["promotions"][number], "kind" | "deal" | "startsAt" | "endsAt" | "limitQty" | "minPurchase">;
 export type Filter = { chain?: string; store?: string; kind?: string; state?: string; page?: string };
 
-// The api's list states: a Promotion not running today but within its dates is under Running, with its own badge.
-const CHIPS = ["running", "future", "ended"] as const;
 const KINDS = { price: "Price", bundle: "Bundle", percent: "Percent off", nth: "Nth unit off", off: "Amount off", info: "Information only" } as const;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SHOWN_STORES = 8;
@@ -70,7 +68,8 @@ const filters = (list: List, chains: Chain[], filter: Filter) => html`<form
   </span>
   ${chips(
     "State",
-    CHIPS.map((s) => ({ text: PROMOTION_STATES[s][1], count: list.counts[s], href: listHref(filter, { state: s }), selected: (filter.state ?? "running") === s })),
+    // The api's list states, in its order: a Promotion within its dates but not running today is under Running, with its own badge.
+    (Object.keys(list.counts) as (keyof List["counts"])[]).map((s) => ({ text: PROMOTION_STATES[s][1], count: list.counts[s], href: listHref(filter, { state: s }), selected: (filter.state ?? "running") === s })),
   )}
 </form>`;
 

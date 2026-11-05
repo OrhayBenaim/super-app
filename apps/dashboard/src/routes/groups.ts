@@ -22,8 +22,7 @@ const listQuery = z.object({
   ref: z.string().trim().min(1).max(200).optional().catch(undefined),
 });
 const nameField = z.string().trim().min(1, "Give the group a name.").max(GROUP.nameMaxLength, `At most ${GROUP.nameMaxLength} characters.`);
-const { min, max } = GROUP.packCount;
-const packCount = z.coerce.number().int().min(min).max(max);
+const packCount = z.coerce.number().int().min(GROUP.packCount.min).max(GROUP.packCount.max);
 const code = z.string().trim().min(1).max(ID.maxLength);
 const pickedItem = z.object({
   code,
@@ -59,6 +58,7 @@ async function groupList(c: Ctx, type: ProductType, q: string, page: number) {
 
 // hc puts a param into the path as it is, so a ref (Hebrew words, "|") is encoded here, and so is a code.
 const inPath = (ref: string) => ({ ref: encodeURIComponent(ref) });
+const inPathWith = (ref: string, code: string) => ({ ...inPath(ref), code: encodeURIComponent(code) });
 const groupDetail = async (c: Ctx, ref: string) => found(await c.var.deps.api.groups[":ref"].$get({ param: inPath(ref) }), "GET /groups/:ref");
 const gone = () => notice("No such group. It may have been deleted: reload the page.");
 
@@ -140,7 +140,7 @@ export const groupsRoutes = new Hono<AppEnv>()
     const size = draft.measure === "unit" ? packCount.safeParse(draft.size) : null;
     const errors: DraftErrors = {
       ...(!name.success && { name: name.error.issues[0]!.message }),
-      ...(size && !size.success && { size: `A pack count from ${min} to ${max}.` }),
+      ...(size && !size.success && { size: `A pack count from ${GROUP.packCount.min} to ${GROUP.packCount.max}.` }),
     };
     if (!name.success || (size && !size.success)) return newGroupPage(c, draft, errors, 400);
     const json = { name: name.data, productType: draft.productType, measure: draft.measure, size: size?.data ?? 1, codes: draft.items.map((p) => p.code) };
@@ -160,7 +160,7 @@ export const groupsRoutes = new Hono<AppEnv>()
     const ref = c.req.param("ref");
     const product = code.safeParse((await formOf(c)).one("code"));
     if (!product.success) return panel(c, ref, { error: "Not changed: no Product given." });
-    const res = await c.var.deps.api.groups[":ref"].products[":code"].$delete({ param: { ...inPath(ref), code: encodeURIComponent(product.data) } });
+    const res = await c.var.deps.api.groups[":ref"].products[":code"].$delete({ param: inPathWith(ref, product.data) });
     return afterEdit(c, ref, res, "DELETE /groups/:ref/products/:code");
   })
   // Add keeps Add Products open on its search, so the next Product is one click away.

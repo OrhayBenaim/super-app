@@ -3,8 +3,8 @@ import { html } from "hono/html";
 import type { ApiClient } from "#/api-client.ts";
 import { chainOutcome } from "@grocer/shared/sync-history";
 import { day, num, plural } from "#/pages/format.ts";
-import { byOutcome, outcomeBadge } from "#/pages/syncs.ts";
-import { errorRow, pageHeader, section, table, type Column } from "#/pages/ui.ts";
+import { byOutcome } from "#/pages/syncs.ts";
+import { errorRow, outcomeBadge, pageHeader, section, table, type Column } from "#/pages/ui.ts";
 
 type Chain = InferResponseType<ApiClient["chains"]["$get"], 200>["chains"][number];
 

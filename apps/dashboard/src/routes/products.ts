@@ -8,12 +8,10 @@ import { PRODUCT_TYPE_FILTERS, PRODUCT_TYPES } from "@grocer/shared/product-type
 import { SEARCH } from "@grocer/shared/search";
 import { found, unexpected, type ApiClient } from "#/api-client.ts";
 import type { AppEnv } from "#/middleware.ts";
-import { plural } from "#/pages/format.ts";
 import { imageOf } from "#/pages/product-image.ts";
 import { layout, notFound, notice, type Html } from "#/pages/layout.ts";
 import { PAGE_SIZE, productCards, productPage, productsPage, thumbnail, typeForm, type TypeFilter } from "#/pages/products.ts";
-import { storesTable } from "#/pages/stores.ts";
-import { section } from "#/pages/ui.ts";
+import { storesFound } from "#/pages/stores.ts";
 
 // type: "" (Any) or anything outside the list is no filter.
 const searchQuery = z.object({
@@ -53,9 +51,7 @@ export const productsRoutes = new Hono<AppEnv>()
     // The top bar's find field (no type) finds stores by name too, above the Products; the type filter narrows Products only.
     const storesRes = q && !type && n === 1 ? await api.stores.$get({ query: { q } }) : null;
     if (storesRes && storesRes.status !== 200) throw unexpected(storesRes, "GET /stores");
-    const stores = storesRes ? await storesRes.json() : null;
-    const storesFound = stores?.stores.length ? section("Stores", storesTable(stores.stores), plural(stores.total, "store")) : "";
-    return c.html(page(q, type, html`${storesFound}${cards}`));
+    return c.html(page(q, type, html`${storesRes ? storesFound(await storesRes.json()) : ""}${cards}`));
   })
   .get("/products/:code", async (c) => {
     const param = codeParam.safeParse(c.req.param());

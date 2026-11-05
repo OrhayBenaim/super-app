@@ -3,7 +3,7 @@ import { html } from "hono/html";
 import { CHAIN_OUTCOMES, SYNC_HISTORY, type ChainOutcome } from "@grocer/shared/sync-history";
 import type { ApiClient } from "#/api-client.ts";
 import { day, minutes, plural, shortDate, time } from "#/pages/format.ts";
-import { badge, button, pageHeader, section, table, type BadgeKind } from "#/pages/ui.ts";
+import { badge, button, outcomeBadge, pageHeader, section, table, type BadgeKind } from "#/pages/ui.ts";
 
 export type Syncs = InferResponseType<ApiClient["syncs"]["$get"], 200>;
 type Sync = Syncs["syncs"][number];
@@ -27,8 +27,6 @@ const DAY = 86_400_000;
 /** A run's status badge: its own state, so a run that finished with failures is Finished, never green. */
 export const statusBadge = (s: Status) => badge(s, STATUSES[s]);
 /** A Chain's outcome in a Price sync (chainOutcome), badged the same on every page. */
-const OUTCOME_BADGES = { failed: ["failed", "Failed"], promotionFailed: ["warning", "Promotion failure"], ok: ["ok", "Ok"] } as const satisfies Record<ChainOutcome, [BadgeKind, string]>;
-export const outcomeBadge = (o: ChainOutcome, text: string = OUTCOME_BADGES[o][1]) => badge(OUTCOME_BADGES[o][0], text);
 /** Failures first, then Promotion failures, then the rest. */
 export const byOutcome = <T>(outcome: (t: T) => ChainOutcome) => (a: T, b: T) => CHAIN_OUTCOMES.indexOf(outcome(a)) - CHAIN_OUTCOMES.indexOf(outcome(b));
 /** When it was due: scheduled, or requested for a Manual sync. */

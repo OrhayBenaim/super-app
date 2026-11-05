@@ -16,6 +16,7 @@ const tinted = (color: string, percent: number) => `color-mix(in srgb, var(--${c
 export const stylesheet = `:root {
   ${vars}
   --family: -apple-system, system-ui, "Segoe UI", sans-serif;
+  --radius-navItem: 8px; /* dashboard only: the top bar's and the type list's items */
 }
 * { box-sizing: border-box; }
 body { margin: 0; font: var(--font-subhead) var(--family); color: var(--label); background: var(--groupedBg); font-variant-numeric: tabular-nums; }

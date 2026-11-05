@@ -1,5 +1,8 @@
 // The dashboard's shared page parts (docs/design/dashboard.md, Components). Styles: pages/styles.ts.
+import type { InferResponseType } from "hono/client";
 import { html, raw } from "hono/html";
+import type { ChainOutcome } from "@grocer/shared/sync-history";
+import type { ApiClient } from "#/api-client.ts";
 import { num } from "#/pages/format.ts";
 import type { Html } from "#/pages/layout.ts";
 
@@ -27,13 +30,14 @@ export const section = (title: string, body: Content, count?: Content | number) 
 export type BadgeKind = "ok" | "failed" | "warning" | "interrupted" | "running" | "finished" | "skipped" | "requested" | "ignored";
 export const badge = (kind: BadgeKind, text: string) => html`<span class="badge badge-${kind}">${text}</span>`;
 
+type PromotionState = InferResponseType<ApiClient["promotions"][":id"]["$get"], 200>["promotion"]["state"];
 /** A Promotion's state as the api decides it (not today: within its dates, not on today's weekday), badged the same on every page. */
 export const PROMOTION_STATES = {
   running: ["ok", "Running"],
   notToday: ["finished", "Not today"],
   future: ["finished", "Starts later"],
   ended: ["skipped", "Ended"],
-} as const satisfies Record<string, [BadgeKind, string]>;
+} as const satisfies Record<PromotionState, [BadgeKind, string]>;
 export const promotionBadge = (state: keyof typeof PROMOTION_STATES, text: string = PROMOTION_STATES[state][1]) => badge(PROMOTION_STATES[state][0], text);
 
 type ButtonVariant = "filled" | "tinted" | "plain" | "destructive";
@@ -86,3 +90,7 @@ export const field = (p: { label: string; name: string; value?: string; error?: 
   <input type="${p.type ?? "text"}" name="${p.name}" value="${p.value ?? ""}"${p.error ? html` aria-invalid="true" aria-describedby="${p.name}-error"` : ""}${attrs(p.attrs)} />
   ${p.error ? html`<span class="message" id="${p.name}-error">${p.error}</span>` : ""}
 </label>`;
+
+/** A Chain's outcome in one Price sync, badged the same on every page. */
+const OUTCOME_BADGES = { failed: ["failed", "Failed"], promotionFailed: ["warning", "Promotion failure"], ok: ["ok", "Ok"] } as const satisfies Record<ChainOutcome, [BadgeKind, string]>;
+export const outcomeBadge = (o: ChainOutcome, text: string = OUTCOME_BADGES[o][1]) => badge(OUTCOME_BADGES[o][0], text);

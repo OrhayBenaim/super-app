@@ -32,6 +32,8 @@ const row = (s: Store) => html`<tr>
 
 /** Stores as the Stores page lists them: name (linking to the store), Chain, address and city. */
 export const storesTable = (stores: Store[]) => table(["Store", "Chain", "Address", "City"], stores.map(row));
+/** The find field's stores, above its Products: nothing when no store name holds the words. */
+export const storesFound = (list: { stores: Store[]; total: number }) => (list.stores.length ? section("Stores", storesTable(list.stores), plural(list.total, "store")) : "");
 
 /** "1–100 of 399", the note on cities, and previous/next links that keep the filter. */
 function tableFoot(list: List, filter: Filter) {
