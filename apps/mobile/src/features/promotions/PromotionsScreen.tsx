@@ -35,7 +35,7 @@ export function PromotionsScreen() {
   const data = off ? [] : (promos.data ?? []);
   const loading = !off && (!coords || promos.isPending);
 
-  const chainName = chains.find((c) => c.id === chain)?.nameHe;
+  const chainName = chains.find((c) => c.id === chain)?.name;
   const filteredTitle = type && chainName
     ? fmt(t("promotions.filtered.both"), { type: t(typeNameKey(type)), chain: chainName })
     : type

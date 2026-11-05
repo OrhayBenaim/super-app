@@ -10,3 +10,9 @@ it("t() is always Hebrew", async () => {
   const { t, he } = await import("@/lib/strings");
   expect(t("common.next")).toBe(he["common.next"]);
 });
+
+it("chainName() gives a known chain's Hebrew name and any other name as sent", async () => {
+  const { chainName } = await import("@/lib/strings");
+  expect(chainName("Rami Levy")).toBe("רמי לוי");
+  expect(chainName("New Chain")).toBe("New Chain");
+});

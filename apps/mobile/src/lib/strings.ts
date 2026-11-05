@@ -274,6 +274,21 @@ export const en = {
   "promotions.loading": "Finding promotions near you…",
   "promotions.all": "All",
   "promotions.types": "Product types",
+  "chain.Shufersal": "Shufersal",
+  "chain.RamiLevy": "Rami Levy",
+  "chain.Yohananof": "Yohananof",
+  "chain.OsherAd": "Osher Ad",
+  "chain.TivTaam": "Tiv Taam",
+  "chain.Victory": "Victory",
+  "chain.Carrefour": "Carrefour",
+  "chain.HaziHinam": "Hazi Hinam",
+  "chain.KeshetTaamim": "Keshet Taamim",
+  "chain.StopMarket": "Stop Market",
+  "chain.DorAlon": "Dor Alon",
+  "chain.MachsaneiHashuk": "Machsanei Hashuk",
+  "chain.FreshMarket": "Fresh Market",
+  "chain.Politzer": "Politzer",
+  "chain.SalachDabach": "Salach Dabach",
   "promotions.allChains": "All chains",
   "promotions.chainFilter": "Filter by chain",
   "promotions.club": "Club price",
@@ -591,6 +606,21 @@ export const he: Record<StringKey, string> = {
   "promotions.loading": "מחפשים מבצעים לידך…",
   "promotions.all": "הכל",
   "promotions.types": "סוגי מוצרים",
+  "chain.Shufersal": "שופרסל",
+  "chain.RamiLevy": "רמי לוי",
+  "chain.Yohananof": "יוחננוף",
+  "chain.OsherAd": "אושר עד",
+  "chain.TivTaam": "טיב טעם",
+  "chain.Victory": "ויקטורי",
+  "chain.Carrefour": "קרפור",
+  "chain.HaziHinam": "חצי חינם",
+  "chain.KeshetTaamim": "קשת טעמים",
+  "chain.StopMarket": "סטופ מרקט",
+  "chain.DorAlon": "דור אלון",
+  "chain.MachsaneiHashuk": "מחסני השוק",
+  "chain.FreshMarket": "פרש מרקט",
+  "chain.Politzer": "פוליצר",
+  "chain.SalachDabach": "סאלח דבאח",
   "promotions.allChains": "כל הרשתות",
   "promotions.chainFilter": "סינון לפי רשת",
   "promotions.club": "במועדון",
@@ -632,3 +662,7 @@ export const he: Record<StringKey, string> = {
 
 // Always Hebrew, whatever the device language; en stays as the source table.
 export const t = (key: StringKey): string => he[key];
+
+/** A chain's name as the API sends it (chains.name), in Hebrew when it has a key ("Rami Levy" -> "chain.RamiLevy"), else as sent. */
+export const chainName = (name: string): string =>
+  (he as Record<string, string | undefined>)[`chain.${name.replace(/[^a-zA-Z0-9]/g, "")}`] ?? name;

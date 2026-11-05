@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import { api } from "@/lib/api";
+import { chainName } from "@/lib/strings";
 import type { Basket } from "@/features/lists/api";
 import type { Coords } from "@/lib/location";
 import type { CompareResponse, Sort } from "./sort";
@@ -10,8 +11,10 @@ export const RADII = [5, 10, 20] as const;
 /** Search radius, shared by Compare and the List's "cheapest now" row so both read the same query. */
 export const useRadius = create<{ km: number; set: (km: number) => void }>((set) => ({ km: 10, set: (km) => set({ km }) }));
 
-export const fetchCompare = (body: Coords & Basket & { radiusKm: number; sort: Sort; limit: number }) =>
-  api<CompareResponse>("api/compare", { method: "POST", body: JSON.stringify(body) });
+export async function fetchCompare(body: Coords & Basket & { radiusKm: number; sort: Sort; limit: number }): Promise<CompareResponse> {
+  const res = await api<CompareResponse>("api/compare", { method: "POST", body: JSON.stringify(body) });
+  return { ...res, stores: res.stores.map((s) => ({ ...s, chainName: chainName(s.chainName) })) };
+}
 
 // Sort is applied client-side (see sortStores), so it is not part of the key: re-sorting never refetches.
 // Quantities are: changing one refetches.
