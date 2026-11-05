@@ -10,6 +10,7 @@ import { groupsRoutes } from "#/routes/groups.ts";
 import { productsRoutes } from "#/routes/products.ts";
 import { promotionsRoutes } from "#/routes/promotions.ts";
 import { storesRoutes } from "#/routes/stores.ts";
+import { stylesheet } from "#/pages/styles.ts";
 import { syncsRoutes } from "#/routes/syncs.ts";
 
 const asset = (path: string) => readFileSync(createRequire(import.meta.url).resolve(path), "utf8");
@@ -28,6 +29,7 @@ export function createApp(deps: Deps) {
     .use(csrf())
     .get("/assets/htmx.min.js", (c) => c.body(htmx, 200, cached("text/javascript")))
     .get("/assets/leaflet.js", (c) => c.body(leaflet.js, 200, cached("text/javascript")))
+    .get("/assets/dashboard.css", (c) => c.body(stylesheet, 200, cached("text/css")))
     .get("/assets/leaflet.css", (c) => c.body(leaflet.css, 200, cached("text/css")))
     .route("/", syncsRoutes)
     .route("/", chainsRoutes)
