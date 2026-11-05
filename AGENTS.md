@@ -184,3 +184,9 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 
 Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Frontend and design
+
+Any UI or design work, and any request to "use frontend skills", runs the `frontend` skill
+(`.claude/skills/frontend/SKILL.md`) first: it loads impeccable, emil-design-eng, awesome-design-md,
+frontend-design and the rest of the design skills in order.
