@@ -3,6 +3,7 @@ import { html } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import type { ApiClient } from "#/api-client.ts";
+import { notice } from "#/pages/layout.ts";
 import { when } from "#/pages/syncs.ts";
 
 type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
@@ -49,8 +50,6 @@ export const typeForm = (code: string, productType: string | null, saved = false
   <button type="submit">Save</button>
   ${saved ? html`<span role="status">Saved.</span>` : ""}
 </form>`;
-
-export const notice = (text: string) => html`<p class="notice">${text}</p>`;
 
 /** One page of Products the search or the type filter found, with links to the pages around it. */
 export const productsFound = (q: string, type: TypeFilter, page: number, { products, hasMore }: Found) =>

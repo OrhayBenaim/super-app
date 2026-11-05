@@ -4,8 +4,7 @@ import { z } from "zod";
 import { SEARCH } from "@grocer/shared/search";
 import type { AppEnv } from "#/middleware.ts";
 import { groupSection, groupsPage } from "#/pages/groups.ts";
-import { layout } from "#/pages/layout.ts";
-import { notice } from "#/pages/products.ts";
+import { layout, notice } from "#/pages/layout.ts";
 
 const wordsQuery = z.object({ q: z.string().trim().max(100).default("") });
 // shortcut: Product images for the 50 cheapest members only, so a big group doesn't send hundreds of lookups; raise if one is missed.

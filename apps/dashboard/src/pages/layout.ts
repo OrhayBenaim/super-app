@@ -1,7 +1,9 @@
 import { html } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
 
-type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
+export type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
+
+export const notice = (text: string) => html`<p class="notice">${text}</p>`;
 
 /** Every dashboard page: the shell, its styles and htmx (served by app.ts, so the page loads no third-party script). */
 export const layout = (title: string, body: Html) => html`<!doctype html>
@@ -64,3 +66,6 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
       </main>
     </body>
   </html>`;
+
+/** The page for a store, Product or Promotion that does not exist (or an id that names none). */
+export const notFound = (text: string) => layout("Not found", html`<p class="notice busy">${text}</p>`);

@@ -130,17 +130,22 @@ describe("Changing a Product's type", () => {
     expect(await typeOf(privateApp, LOCAL)).toBe("produce");
   });
 
+  // htmx swaps only a 2xx, so a refusal is a 200 fragment, as the Manual sync button's.
   it("refuses a type outside the fixed list and keeps the old one", async () => {
     const { app, privateApp } = seeded();
     const res = await change(app, MILK, "soup");
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
     expect(await res.text()).toContain("Choose one of the Product types");
     expect(await typeOf(privateApp, MILK)).toBe("dairy-eggs");
   });
 
-  it("answers 404 for an unknown Product", async () => {
+  it("says when there is no such Product", async () => {
     const { app } = seeded();
-    expect((await change(app, "123", "produce")).status).toBe(404);
+    for (const code of ["123", "1".repeat(65)]) {
+      const res = await change(app, code, "produce");
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain("No Product with this code");
+    }
   });
 });
 
@@ -172,6 +177,6 @@ describe("Product page", () => {
     const { app } = seeded();
     const res = await app.request("/products/123");
     expect(res.status).toBe(404);
-    expect(await res.text()).toContain("No Product with code 123");
+    expect(await res.text()).toContain("No Product with this code");
   });
 });
