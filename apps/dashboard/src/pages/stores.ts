@@ -7,17 +7,19 @@ type List = InferResponseType<ApiClient["stores"]["$get"], 200>;
 type Store = List["stores"][number];
 type StoreDetail = InferResponseType<ApiClient["stores"][":id"]["$get"], 200>["store"];
 type Chain = InferResponseType<ApiClient["chains"]["$get"], 200>["chains"][number];
-export type Filter = { chain?: string; noLocation?: string };
+export type Filter = { chain?: string; noLocation?: string; publishedDiffers?: string };
 
 const location = (s: { lat: number | null; lng: number | null }) =>
   s.lat === null || s.lng === null ? html`<span class="muted">No location</span>` : `${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`;
 const storeHref = (id: string) => `/stores/${encodeURIComponent(id)}`;
 
-const row = (s: Store) => html`<tr>
+// With the "published address differs" filter on, each row also shows what the Chain publishes now (ADR 0006).
+const row = (published: boolean) => (s: Store) => html`<tr>
   <td><a href="${storeHref(s.id)}">${s.name}</a></td>
   <td>${s.chainName}</td>
   <td>${s.address}</td>
   <td>${s.city}</td>
+  ${published ? html`<td>${s.publishedAddress}, ${s.publishedCity}</td>` : ""}
   <td>${location(s)}</td>
 </tr>`;
 
@@ -65,6 +67,10 @@ export const storesPage = (list: List, chains: Chain[], filter: Filter) => html`
       </select></label
     >
     <label><input type="checkbox" name="noLocation" value="true"${filter.noLocation === "true" ? html` checked` : ""} /> No location</label>
+    <label
+      ><input type="checkbox" name="publishedDiffers" value="true"${filter.publishedDiffers === "true" ? html` checked` : ""} /> Published address
+      differs</label
+    >
     <button type="submit">Filter</button>
   </form>
   <div id="map" role="region" aria-label="Map of the stores that have a location" data-stores="${JSON.stringify(list.locations)}"></div>
@@ -79,15 +85,46 @@ export const storesPage = (list: List, chains: Chain[], filter: Filter) => html`
               <th scope="col">Chain</th>
               <th scope="col">Address</th>
               <th scope="col">City</th>
+              ${filter.publishedDiffers === "true" ? html`<th scope="col">Chain publishes</th>` : ""}
               <th scope="col">Location</th>
             </tr>
           </thead>
           <tbody>
-            ${list.stores.map(row)}
+            ${list.stores.map(row(filter.publishedDiffers === "true"))}
           </tbody>
         </table>
       </div>`}
   ${pager(list, filter)}`;
+
+const differs = (s: StoreDetail) => s.address !== s.publishedAddress || s.city !== s.publishedCity;
+
+/** Grocer's address next to the one the Chain publishes now, for the operator to decide which is right (ADR 0006). */
+const addresses = (s: StoreDetail) => html`<div class="scroll">
+  <table>
+    <caption>
+      The Chain publishes a different address
+    </caption>
+    <thead>
+      <tr>
+        <td></td>
+        <th scope="col">Grocer</th>
+        <th scope="col">Chain publishes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th scope="row">Address</th>
+        <td>${s.address}</td>
+        <td>${s.publishedAddress}</td>
+      </tr>
+      <tr>
+        <th scope="row">City</th>
+        <td>${s.city}</td>
+        <td>${s.publishedCity}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>`;
 
 /** One store: its details, how many prices it has and when they were last updated (a store that stopped publishing). */
 export const storePage = (s: StoreDetail) => html`<header><h1>${s.name}</h1><a href="${storeHref(s.id)}/promotions">Promotions</a></header>
@@ -96,14 +133,17 @@ export const storePage = (s: StoreDetail) => html`<header><h1>${s.name}</h1><a h
     <dd><a href="/stores?chain=${s.chainId}">${s.chainName}</a></dd>
     <dt>Store id</dt>
     <dd>${s.storeId}</dd>
-    <dt>Address</dt>
-    <dd>${s.address}</dd>
-    <dt>City</dt>
-    <dd>${s.city}</dd>
+    ${differs(s)
+      ? ""
+      : html`<dt>Address</dt>
+          <dd>${s.address}</dd>
+          <dt>City</dt>
+          <dd>${s.city}</dd>`}
     <dt>Location</dt>
     <dd>${location(s)}</dd>
     <dt>Prices</dt>
     <dd>${s.priceCount}</dd>
     <dt>Prices last updated</dt>
     <dd>${when(s.pricesUpdatedAt)}</dd>
-  </dl>`;
+  </dl>
+  ${differs(s) ? addresses(s) : ""}`;

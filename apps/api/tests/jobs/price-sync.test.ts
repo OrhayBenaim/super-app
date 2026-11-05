@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { buildDeps, type Deps } from "#/deps.ts";
 import { chainSeeds } from "#/ingest/chains.ts";
+import { decodeXml } from "#/ingest/parse.ts";
 import { priceSyncJob } from "#/jobs/price-sync.ts";
 import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
 import { fakeGeocoder } from "#/providers/nominatim/fake.ts";
@@ -150,5 +151,27 @@ describe("priceSyncJob", () => {
     expect(rows(deps, "SELECT id FROM sync_runs ORDER BY id").map((r) => r.id)).toEqual([kept, latest]);
     expect(one(deps, "SELECT count(*) AS n FROM sync_chain_results WHERE sync_run_id = ?", old).n).toBe(0);
     expect(one(deps, "SELECT count(*) AS n FROM sync_chain_results WHERE sync_run_id = ?", kept).n).toBe(chainSeeds.length);
+  });
+
+  it("never changes a store it has seen, keeps the address the Chain publishes next to it, and adds new stores (ADR 0006)", async () => {
+    const storesFile = `Stores${OSHER}-000-20261021-080500.xml`;
+    const files = { ...osherFiles };
+    const deps = setup({ pricePortal: fakePricePortal(files) });
+    await priceSyncJob(deps)({});
+    const fixed = `${OSHER}-1`;
+    const store = (id: string) => one(deps, "SELECT name, address, city, lat, lng, published_address, published_city FROM stores WHERE id = ?", id);
+    // A correction made on the Internal dashboard.
+    deps.db.$client.prepare("UPDATE stores SET name = 'Fixed', address = 'Fixed 1', city = 'Fixedville', lat = 31.1, lng = 34.1 WHERE id = ?").run(fixed);
+
+    // The Chain now publishes store 001 renamed and moved, and a store Grocer has not seen.
+    files[storesFile] = new TextEncoder().encode(
+      decodeXml(Buffer.from(osherFiles[storesFile]!))
+        .replace(/(<StoreID>001<\/StoreID>.*?<StoreName>)[^<]*(<\/StoreName><Address>)[^<]*(<\/Address><City>)[^<]*/, "$1Renamed$2Moved 7$3Haifa")
+        .replace("</Stores>", "<Store><StoreID>005</StoreID><StoreName>Newcomer</StoreName><Address>New 5</Address><City>Ashdod</City></Store></Stores>"),
+    );
+    await priceSyncJob(deps)({});
+
+    expect(store(fixed)).toEqual({ name: "Fixed", address: "Fixed 1", city: "Fixedville", lat: 31.1, lng: 34.1, published_address: "Moved 7", published_city: "Haifa" });
+    expect(store(`${OSHER}-5`)).toEqual({ name: "Newcomer", address: "New 5", city: "Ashdod", lat: 32, lng: 34, published_address: "New 5", published_city: "Ashdod" });
   });
 });
