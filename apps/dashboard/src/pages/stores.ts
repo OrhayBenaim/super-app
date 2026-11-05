@@ -42,6 +42,7 @@ const MAP_SCRIPT = html`<script>
     const el = document.getElementById("map");
     const points = JSON.parse(el.dataset.stores);
     const map = L.map(el).setView([31.5, 34.9], 7);
+    const color = getComputedStyle(el).getPropertyValue("--tint"); // the tokens stylesheet's, as no colour is written here
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -50,7 +51,7 @@ const MAP_SCRIPT = html`<script>
       const link = document.createElement("a");
       link.href = "/stores/" + encodeURIComponent(p.id);
       link.textContent = p.name;
-      L.circleMarker([p.lat, p.lng], { radius: 6, color: "#1f6f43", weight: 2, fillOpacity: 0.6 }).bindPopup(link).addTo(map);
+      L.circleMarker([p.lat, p.lng], { radius: 6, color, weight: 2, fillOpacity: 0.6 }).bindPopup(link).addTo(map);
     }
     if (points.length) map.fitBounds(points.map((p) => [p.lat, p.lng]), { padding: [24, 24], maxZoom: 15 });
   });

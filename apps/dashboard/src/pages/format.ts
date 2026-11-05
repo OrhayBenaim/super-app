@@ -7,3 +7,43 @@ export const SOLD_BY = { weight: "By weight", unit: "By the unit" } as const;
 // Price syncs run on Israel time (SYNC_TIMES), so the dashboard shows it whatever the browser's zone.
 const dateTime = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", dateStyle: "medium", timeStyle: "short" });
 export const when = (iso: string | null) => (iso ? dateTime.format(new Date(iso)) : "—");
+
+const ZONE = "Asia/Jerusalem";
+const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: ZONE, dateStyle: "short" });
+const hourMinute = new Intl.DateTimeFormat("en-GB", { timeZone: ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const monthDay = new Intl.DateTimeFormat("en-US", { timeZone: ZONE, month: "short", day: "numeric" });
+const DAY = 86_400_000;
+
+/** "06:41", Israel time. */
+export const time = (iso: string | Date) => hourMinute.format(new Date(iso));
+/** "Oct 29", Israel time. */
+export const shortDate = (iso: string | Date) => monthDay.format(new Date(iso));
+/** "Today 06:00", "Yesterday 20:00", else "Oct 29, 06:00". */
+export function day(iso: string, now: Date) {
+  const d = new Date(iso);
+  // shortcut: "Yesterday" is 24 h back, so for an hour after midnight on a daylight-saving day it can name the wrong day.
+  const label = dayKey.format(d) === dayKey.format(now) ? "Today" : dayKey.format(d) === dayKey.format(now.getTime() - DAY) ? "Yesterday" : `${shortDate(d)},`;
+  return `${label} ${time(d)}`;
+}
+
+/** A Price sync's length: "45 s", "41 min", "2 h 0 min". */
+export function minutes(ms: number) {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s} s`;
+  const m = Math.round(s / 60);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+}
+
+/** What one Chain took: "0.4 s", "45 s", "2 min 37 s", "1 h 5 min". */
+export function took(ms: number) {
+  if (ms < 10_000) return `${(ms / 1000).toFixed(1)} s`;
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s} s`;
+  return s < 3600 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min`;
+}
+
+const count = new Intl.NumberFormat("en-US");
+/** "1,204" */
+export const num = (n: number) => count.format(n);
+/** "1 run", "22 runs" */
+export const plural = (n: number, word: string) => `${num(n)} ${word}${n === 1 ? "" : "s"}`;
