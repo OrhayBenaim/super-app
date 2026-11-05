@@ -1,10 +1,10 @@
 import { useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
+import { hasBarcode, lookupProductImage } from "@grocer/shared/product-image";
 import type { SoldBy } from "@grocer/shared/quantity";
 import { SEARCH } from "@grocer/shared/search";
 import { api } from "@/lib/api";
-import { hasBarcode, lookupProductImage } from "./imageLookup";
 
 export type Measure = "kg" | "l" | "unit";
 /** One product. `size` is in kilos or liters, or a pack count; null when it can't be read. */
