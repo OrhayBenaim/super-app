@@ -12,7 +12,9 @@ the server" out-of-scope line.
 - The dashboard sends the file to the api's private app (ADR 0005), which checks it (PNG, JPEG or WebP by its bytes,
   at most 5 MB) and stores it on the api's data volume, one file per Product code, under `IMAGES_DIR`.
 - The public api serves an uploaded image at `/api/products/:code/image` with cache headers, and lists the codes that
-  have one at `/api/products/images` (small; it changes only when the team uploads or removes one).
+  have one at `/api/products/images` (small; it changes only when the team uploads or removes one). The list is a
+  map `{ images: { <code>: <version> } }`: the version changes with each upload (the file's modification time), and
+  the image URL carries it as `?v=<version>`, so a replaced image is a new URL and the day-long cache never shows the old one.
 - `@grocer/shared/product-image` takes that list as its first source: a code in it answers the api's URL; any other
   code is looked up by barcode as before. So the app makes no extra request per image, only one for the list.
 - A Product without a barcode (a Chain-only code) can have an uploaded image.
