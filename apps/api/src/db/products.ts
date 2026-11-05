@@ -11,3 +11,6 @@ export const productsByCode = (db: Db, codes: string[]) =>
   db.$client
     .prepare("SELECT code, name, unit_qty AS unitQty, is_weighted AS isWeighted FROM products WHERE code IN (SELECT value FROM json_each(?))")
     .all(JSON.stringify(codes)) as { code: string; name: string; unitQty: string | null; isWeighted: number }[];
+
+/** Whether a Product has this code. */
+export const isProduct = (db: Db, code: string) => !!db.$client.prepare("SELECT 1 FROM products WHERE code = ?").get(code);

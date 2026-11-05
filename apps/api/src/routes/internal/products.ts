@@ -6,6 +6,7 @@ import { ID } from "@grocer/shared/ids";
 import { PRODUCT_TYPE_FILTERS, PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
 import { imageType, MAX_IMAGE_BYTES, removeProductImage, saveProductImage } from "#/db/product-images.ts";
+import { isProduct } from "#/db/products.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { regroupProduct } from "#/prices/browse-groups.ts";
 import { findProducts, productDetail, productTypeCounts } from "#/prices/products.ts";
@@ -23,8 +24,6 @@ const codeParam = z.object({ code: z.string().trim().min(1).max(ID.maxLength) })
 const typeBody = z.object({ productType: z.enum(PRODUCT_TYPES) });
 const imageForm = z.object({ image: z.instanceof(File, { message: "Choose an image." }) });
 const tooLarge = { error: "The image must be at most 5 MB." };
-const isProduct = (c: { var: AppEnv["Variables"] }, code: string) =>
-  !!c.var.deps.db.$client.prepare("SELECT 1 FROM products WHERE code = ?").get(code);
 
 /**
  * The Internal dashboard's Products, on the private app: the public search and Compare's price rules, and setting a
@@ -71,7 +70,7 @@ export const productsRoutes = new Hono<AppEnv>()
       if (image.size > MAX_IMAGE_BYTES) return c.json(tooLarge, 413);
       const bytes = new Uint8Array(await image.arrayBuffer());
       if (!imageType(bytes)) return c.json({ error: "The image must be a PNG, JPEG or WebP." }, 400);
-      if (!isProduct(c, code)) return c.json({ error: "not found" }, 404);
+      if (!isProduct(c.var.deps.db, code)) return c.json({ error: "not found" }, 404);
       await saveProductImage(c.var.deps.imagesDir, code, bytes);
       return c.json({ code }, 200);
     },

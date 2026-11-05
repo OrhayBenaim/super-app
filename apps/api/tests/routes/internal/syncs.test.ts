@@ -121,8 +121,8 @@ it("counts each run's Chains by outcome: ok, Chain failure, Promotion failure", 
 
     const { attention } = (await (await get(deps, "/syncs")).json()) as { attention: unknown };
     expect(attention).toEqual([
-      { chainId: SHUFERSAL, name: "Shufersal", nameHe: "שופרסל", failure: "chain", error: "No Stores file among 0 listed files", syncId: 4, since: "2026-11-02T10:00:00.000Z", runs: 3 },
-      { chainId: RAMI_LEVY, name: "Rami Levy", nameHe: "רמי לוי", failure: "promotion", error: "PromoFull files timed out after 30 s", syncId: 4, since: "2026-11-04T10:00:00.000Z", runs: 1 },
+      { chainId: SHUFERSAL, name: "Shufersal", nameHe: "שופרסל", failure: "failed", error: "No Stores file among 0 listed files", syncId: 4, since: "2026-11-02T10:00:00.000Z", runs: 3 },
+      { chainId: RAMI_LEVY, name: "Rami Levy", nameHe: "רמי לוי", failure: "promotionFailed", error: "PromoFull files timed out after 30 s", syncId: 4, since: "2026-11-04T10:00:00.000Z", runs: 1 },
     ]);
   });
 
