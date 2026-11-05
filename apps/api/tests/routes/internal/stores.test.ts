@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { prices, products, stores } from "#/db/appSchema.ts";
+import { prices, products, promotions, stores } from "#/db/appSchema.ts";
 import { buildDeps, type Deps } from "#/deps.ts";
 import { createInternalApp } from "#/internal-app.ts";
 import { loadConfig } from "#/services/config.ts";
@@ -40,6 +40,22 @@ describe("GET /stores (private)", () => {
     const unplaced = (await (await get(deps, "/stores?noLocation=true")).json()) as List;
     expect(unplaced.stores.map((s) => s.name)).toEqual(["Afula"]);
     expect(unplaced.locations).toEqual([]);
+  });
+
+  it("counts the Chain's stores for each filter, whichever filter is on", async () => {
+    const deps = setup();
+    deps.db
+      .insert(stores)
+      .values([
+        store(RAMI, "1", "Talpiot", 31.75),
+        store(RAMI, "2", "Afula", null),
+        { ...store(RAMI, "3", "Moved", null), publishedAddress: "Jaffa 9" },
+        { ...store(SHUFERSAL, "1", "Bat Yam", null), publishedCity: "Tel Aviv" },
+      ])
+      .run();
+
+    expect(((await (await get(deps, `/stores?chain=${RAMI}&noLocation=true`)).json()) as { counts: unknown }).counts).toEqual({ all: 3, noLocation: 2, publishedDiffers: 1 });
+    expect(((await (await get(deps, "/stores")).json()) as { counts: unknown }).counts).toEqual({ all: 4, noLocation: 3, publishedDiffers: 2 });
   });
 
   it("filters stores whose Chain now publishes a different address or city, with both addresses", async () => {
@@ -120,8 +136,18 @@ describe("GET /stores/:id (private)", () => {
         publishedCity: "Haifa",
         priceCount: 2,
         pricesUpdatedAt: "2026-11-04T05:00:00.000Z",
+        promotionCount: 0,
       },
     });
+  });
+
+  it("counts the Promotions the store's newest promotion files publish", async () => {
+    const deps = setup();
+    deps.db.insert(stores).values([store(RAMI, "1", "Talpiot", null), store(RAMI, "2", "Afula", null)]).run();
+    const promo = (storeId: string, promotionId: string) =>
+      ({ storeId, promotionId, description: "2 for 10", kind: "bundle" as const, minQty: 2, amount: 10, audience: "all" as const, startsAt: new Date(0), endsAt: new Date(1) });
+    deps.db.insert(promotions).values([promo(`${RAMI}-1`, "A"), promo(`${RAMI}-1`, "B"), promo(`${RAMI}-2`, "C")]).run();
+    expect(await (await get(deps, `/stores/${RAMI}-1`)).json()).toMatchObject({ store: { promotionCount: 2 } });
   });
 
   it("a store with no prices has a count of 0 and no update time", async () => {
@@ -168,18 +194,20 @@ describe("PUT /stores/:id (private)", () => {
     expect(await (await get(deps, `/stores/${RAMI}-1`)).json()).toMatchObject({ store: { lat: null, lng: null } });
   });
 
-  it("400 with a clear message for an empty name, a location outside Israel, half a location or not a number, and keeps the store", async () => {
+  it("400 with a clear message and the field it is about, and keeps the store", async () => {
     const deps = seeded();
     const refused = async (body: unknown) => {
       const res = await put(deps, `${RAMI}-1`, body);
       expect(res.status).toBe(400);
-      return ((await res.json()) as { error: string }).error;
+      return await res.json();
     };
-    expect(await refused({ ...edit, name: "  " })).toBe("The name is required.");
-    expect(await refused({ ...edit, lat: 40.7, lng: -74 })).toBe("The location is outside Israel.");
-    expect(await refused({ ...edit, lat: 31.75, lng: null })).toBe("Give both latitude and longitude, or neither.");
-    expect(await refused({ ...edit, lat: "north" })).toBe("Latitude and longitude must be numbers.");
-    expect(await refused({ name: "Talpiot" })).toMatch(/address/i);
+    expect(await refused({ ...edit, name: "  " })).toEqual({ error: "The name is required.", field: "name" });
+    expect(await refused({ ...edit, lng: 3.47812 })).toEqual({ error: "Outside Israel. Longitude runs from 34.2 to 35.95: check the digits.", field: "lng" });
+    expect(await refused({ ...edit, lat: 40.7 })).toEqual({ error: "Outside Israel. Latitude runs from 29.4 to 33.4: check the digits.", field: "lat" });
+    expect(await refused({ ...edit, lat: 31.75, lng: null })).toEqual({ error: "Give both latitude and longitude, or neither.", field: "lng" });
+    expect(await refused({ ...edit, lat: null })).toEqual({ error: "Give both latitude and longitude, or neither.", field: "lat" });
+    expect(await refused({ ...edit, lat: "north" })).toEqual({ error: "Latitude and longitude must be numbers.", field: "lat" });
+    expect(await refused({ name: "Talpiot" })).toMatchObject({ error: expect.stringMatching(/address/i), field: "address" });
     expect(await (await get(deps, `/stores/${RAMI}-1`)).json()).toMatchObject({ store: { name: "Talpiot", lat: 31.75 } });
   });
 
