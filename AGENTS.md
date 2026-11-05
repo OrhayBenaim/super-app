@@ -10,7 +10,8 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/api.ts              entry point: loadConfig() -> buildDeps() -> serve createApp(deps) (PORT, default 3000),
                           and createInternalApp(deps) on INTERNAL_HOST:INTERNAL_PORT when SYNC_TOKEN is set
   src/internal-app.ts     private app (SYNC_TOKEN bearer, never on the public port): POST /sync records a Manual sync request;
-                          mounts src/routes/internal/*.ts, the Internal dashboard's JSON endpoints (syncs.ts: GET /syncs; products.ts: GET /products, /products/:code)
+                          mounts src/routes/internal/*.ts, the Internal dashboard's JSON endpoints, one router per resource:
+                          syncs, chains, stores, products, groups, promotions (valid.ts: their zod 400s)
   src/worker.ts           entry point: runs one job from src/jobs/ by name (npm run fetch|ingest|geocode|sync|worker)
   src/app.ts              createApp(deps): deps on the context, CORS, /api/auth/*, /health, onError; mounts routers
   src/deps.ts             Deps + buildDeps(config, overrides): the composition root
@@ -22,7 +23,8 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts),
                           the Price sync's Product type step (product-types.ts)
   src/prices/             query-time price rules: Product groups (groups.ts), stores within a radius (nearby.ts),
-                          Promotions (promotions.ts), Home and Promotions cards and product pages (browse.ts)
+                          Promotions (promotions.ts), Product search (search.ts), Home and Promotions cards and product
+                          pages (browse.ts), the Internal dashboard's Product reads (products.ts)
   src/auth.ts             createAuth(db, config, otp): better-auth (email+password, optional Google/Apple, expo plugin)
   src/auth/               one auth feature per file as better-auth plugins (password-reset.ts: Reset codes from the OtpService)
   src/deletion/           web page for Account deletion and Data deletion (/account; /delete-account, /delete-data lead there): logic + htmx steps
@@ -39,8 +41,9 @@ apps/dashboard/           the Internal dashboard (docs/adr/0005): Hono + htmx, N
   src/dashboard.ts        entry point: loadConfig() -> buildDeps() -> serve createApp(deps) on HOST:PORT (127.0.0.1:3002)
   src/app.ts              createApp(deps): deps on the context, csrf, /assets/htmx.min.js, onError; mounts one router per page
   src/api-client.ts       apiClient(config, fetch?): hono/client typed from createInternalApp, with the SYNC_TOKEN bearer
-  src/routes/*.ts         one router per page (syncs.ts: Price sync history, Manual sync button; products.ts: Product search and detail)
-  src/pages/*.ts          HTML with hono's html helper (layout.ts: the shell and styles; syncs.ts)
+  src/routes/*.ts         one router per page: syncs (history, Manual sync button), chains, stores (table, map, edit),
+                          products (search, detail, type form, image fragment), groups, promotions
+  src/pages/*.ts          HTML with hono's html helper (layout.ts: the shell, styles, notice and notFound)
   tests/                  seam.ts: the dashboard's fetch routed in-process to createInternalApp(buildDeps(loadConfig()))
 apps/mobile/              Expo SDK 58 + expo-router app
   app/                    file routes: (auth)/onboarding|sign-in, (drawer)/ (drawer navigator: (tabs)/ with
@@ -59,8 +62,9 @@ apps/mobile/              Expo SDK 58 + expo-router app
                           (sheet route body) (import from "@/ui")
   src/theme/              useTheme(), springs, text() (imports docs/design/tokens.json directly; import from "@/theme")
   tests/                  all mobile tests, mirroring src/ (vitest.config.ts maps "@/" to src/)
-packages/shared/          @grocer/shared: rules both apps share, as plain TS with no build (otp.ts: OTP,
-                          codeStatus; quantity.ts; product-types.ts: PRODUCT_TYPES in display order). Import by subpath:
+packages/shared/          @grocer/shared: rules the apps share, as plain TS with no build (otp.ts: OTP,
+                          codeStatus; quantity.ts; product-types.ts: PRODUCT_TYPES in display order; sync-history.ts:
+                          SYNC_HISTORY, how long Price syncs are kept). Import by subpath:
                           "@grocer/shared/otp", "@grocer/shared/product-types". Tests in packages/shared/tests/
 docs/                     research and design notes (docs/research/, docs/design/)
 ```
@@ -73,8 +77,8 @@ npm run dev:api                   # node --watch, http://localhost:3000
 npm run dev:mobile                # expo start for the dev build (expo-dev-client); no Expo Go
 npm run dev:dashboard             # node --watch, http://localhost:3002 (needs the api with SYNC_TOKEN)
 npm run ios|android -w apps/mobile   # expo run:ios|android: build + install the dev build locally
-npm run typecheck                 # tsc --noEmit in both apps
-npm test                          # vitest run in both apps
+npm run typecheck                 # tsc --noEmit in every workspace (api, dashboard, mobile, shared)
+npm test                          # vitest run in every workspace
 npm run db:generate -w apps/api   # drizzle-kit generate after schema changes
 npm run db:migrate -w apps/api    # apply migrations manually (the API also does it on startup)
 npm run fetch -w apps/api -- --chain <key> --out <dir> [--max-stores N] [--stores-only]   # download Stores + PriceFull (outside the repo)
@@ -93,7 +97,7 @@ If api.expo.dev is unreachable, prefix it with `EXPO_OFFLINE=1`.
 General
 - TypeScript strict everywhere. ESM. In `apps/api`, import through `#/` with the `.ts` extension, never relative (`#/deps.ts`).
 - Smallest change that works. No new dependency for a few lines.
-- A rule both apps must agree on (limits, durations, pure logic) lives once in `packages/shared`, never copied.
+- A rule the apps (api, dashboard, mobile) must agree on (limits, durations, pure logic) lives once in `packages/shared`, never copied.
   Erasable TS only (no enum), no dependencies, no Node or React Native imports; add each module to its `exports`.
 - All product analytics (screen views, taps, feature events) are captured by the mobile app through
   `@/lib/analytics`, never the PostHog SDK directly; the API sends none. The distinct id is the better-auth `user.id`. Event properties carry ids, counts and enums only: no names, emails, item names or free text.
@@ -149,8 +153,8 @@ Mobile (`apps/mobile`)
 
 ## Testing
 
-- Both apps use vitest (`npm test`). Tests live in each app's `tests/` folder, mirroring `src/`
-  (`src/routes/lists.ts` -> `tests/routes/lists.test.ts`), and import the code through `#/` (api) or `@/` (mobile).
+- Every app uses vitest (`npm test`). Tests live in each app's `tests/` folder, mirroring `src/`
+  (`src/routes/lists.ts` -> `tests/routes/lists.test.ts`), and import the code through `#/` (api, dashboard) or `@/` (mobile).
 - API tests call `createApp(deps).request()` with `deps = buildDeps(loadConfig())`: `vitest.config.ts` sets
   `DATABASE_URL=:memory:`, so each `buildDeps` opens a fresh DB (see `apps/api/tests/app.test.ts`). Swap a dependency
   with an override (`buildDeps(config, { geocoder: fakeGeocoder() })`). Sign up through
@@ -181,7 +185,7 @@ Mobile (`apps/mobile`)
 | api | `apps/api/src/` (routes, jobs, services, providers, ingest, db/appSchema.ts), `apps/api/drizzle/`, `apps/api/src/app.ts` (router mounting only) |
 | mobile | `apps/mobile/app/`, `apps/mobile/src/features/`, `apps/mobile/src/ui/`, `apps/mobile/src/theme/` |
 | dashboard | `apps/dashboard/src/`, `apps/dashboard/serve.json` (its private endpoints are api work in `apps/api/src/routes/internal/`) |
-| api, mobile | `packages/shared/` (ask first: a change reaches both apps) |
+| api, dashboard, mobile | `packages/shared/` (ask first: a change reaches every app) |
 | test | `apps/api/tests/`, `apps/dashboard/tests/`, `apps/mobile/tests/` and `packages/shared/tests/`. Changes no production code except to fix a bug it found, flagged in the commit |
 
 Agents working in parallel stay inside their own paths. Ask before changing a shared file such as
