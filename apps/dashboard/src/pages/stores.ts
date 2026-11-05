@@ -127,7 +127,7 @@ const addresses = (s: StoreDetail) => html`<div class="scroll">
 </div>`;
 
 /** One store: its details, how many prices it has and when they were last updated (a store that stopped publishing). */
-export const storePage = (s: StoreDetail) => html`<header><h1>${s.name}</h1></header>
+export const storePage = (s: StoreDetail) => html`<header><h1>${s.name}</h1><a href="${storeHref(s.id)}/promotions">Promotions</a></header>
   <dl class="details">
     <dt>Chain</dt>
     <dd><a href="/stores?chain=${s.chainId}">${s.chainName}</a></dd>
