@@ -24,10 +24,22 @@ const typeBody = z.object({ productType: z.enum(PRODUCT_TYPES) });
 const codeParam = z.object({ code: z.string().trim().min(1).max(ID.maxLength) });
 
 /** The uploaded Product images (docs/adr/0008), served to the browser by this dashboard's /api/products/:code/image. */
-async function uploadedImages(api: ApiClient): Promise<UploadedImages> {
+async function fetchUploadedImages(api: ApiClient): Promise<UploadedImages> {
   const res = await api.products.images.$get();
   if (res.status !== 200) throw unexpected(res, "GET /products/images");
   return { base: "/api", versions: (await res.json()).images };
+}
+// A page's thumbnails share one answer for 30 seconds. Only this dashboard uploads or removes images, and it drops the
+// answer when it does, so an upload still shows at once.
+const UPLOADED_FOR_MS = 30_000;
+const uploaded = new WeakMap<ApiClient, { at: number; images: Promise<UploadedImages> }>();
+function uploadedImages(api: ApiClient) {
+  const cached = uploaded.get(api);
+  if (cached && Date.now() - cached.at < UPLOADED_FOR_MS) return cached.images;
+  const images = fetchUploadedImages(api);
+  images.catch(() => uploaded.get(api)?.images === images && uploaded.delete(api));
+  uploaded.set(api, { at: Date.now(), images });
+  return images;
 }
 // The private app checks the image's size; this limit only stops a far larger body before it is read.
 const tooLarge = `The image must be at most ${MAX_IMAGE_MB} MB.`;
@@ -60,8 +72,8 @@ export const productsRoutes = new Hono<AppEnv>()
     const { code } = param.data;
     const detail = await found(await c.var.deps.api.products[":code"].$get({ param: { code } }), "GET /products/:code");
     if (!detail) return missing();
-    const uploaded = await uploadedImages(c.var.deps.api);
-    const image = imageOf(code, await c.var.deps.productImage(code, uploaded), uploaded);
+    const images = await uploadedImages(c.var.deps.api);
+    const image = imageOf(code, await c.var.deps.productImage(code, images), images);
     return c.html(layout(detail.product.name, productPage(detail, image, c.var.deps.now()), "products"));
   })
   // A list's image cell (htmx, on reveal): the one Product image lookup.
@@ -77,6 +89,7 @@ export const productsRoutes = new Hono<AppEnv>()
     const { image } = await c.req.parseBody();
     if (!(image instanceof File)) return c.html(notice("Choose an image."));
     const res = await c.var.deps.api.products[":code"].image.$put({ param: { code: param.data.code }, form: { image } });
+    uploaded.delete(c.var.deps.api);
     if (res.status === 404) return c.html(notice("No Product with this code."));
     if (res.status === 400 || res.status === 413) return c.html(notice((await res.json()).error));
     if (res.status !== 200) throw unexpected(res, "PUT /products/:code/image");
@@ -87,6 +100,7 @@ export const productsRoutes = new Hono<AppEnv>()
     const param = codeParam.safeParse(c.req.param());
     if (!param.success) return c.html(notice("No Product with this code."));
     const res = await c.var.deps.api.products[":code"].image.$delete({ param: { code: param.data.code } });
+    uploaded.delete(c.var.deps.api);
     if (res.status !== 200 && res.status !== 404) throw unexpected(res, "DELETE /products/:code/image");
     return c.html("", 200, refresh);
   })

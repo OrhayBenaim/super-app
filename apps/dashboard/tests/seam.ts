@@ -13,7 +13,7 @@ export const TOKEN = "test-sync-token";
 /**
  * `api`: the private app's deps (seed its db); `app`: the dashboard; `privateApp`: to read what the api returns after.
  * The Product image lookup answers none unless a test passes its own, so no test reaches the image servers.
- * `now` fixes the time for both: the api's clock and the dashboard's.
+ * `now` fixes the time for both: the api's clock and the dashboard's. `requests`: each path the dashboard asked the private app for.
  */
 export function setup({
   api: apiOverrides = {},
@@ -24,8 +24,13 @@ export function setup({
   const api = buildApiDeps(loadApiConfig({ ...process.env, SYNC_TOKEN: TOKEN }), { ...(now && { clock: fakeClock(now) }), ...apiOverrides });
   const privateApp = createInternalApp(api);
   const config = loadConfig({ API_URL: "http://api.internal:3001", SYNC_TOKEN: token });
-  const app = createApp(buildDeps(config, { api: apiClient(config, (input, init) => privateApp.request(input, init)), productImage, ...(now && { now: () => now }) }));
-  return { api, app, privateApp };
+  const requests: string[] = [];
+  const fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    requests.push(new URL(input instanceof Request ? input.url : input).pathname);
+    return privateApp.request(input, init);
+  };
+  const app = createApp(buildDeps(config, { api: apiClient(config, fetch), productImage, ...(now && { now: () => now }) }));
+  return { api, app, privateApp, requests };
 }
 
 /** A same-origin htmx POST, as the browser sends it (csrf passes on Sec-Fetch-Site). */
