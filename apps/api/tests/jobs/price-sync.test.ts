@@ -95,6 +95,16 @@ describe("priceSyncJob", () => {
     expect(errorHandler.reported).toHaveLength(chainSeeds.length);
   });
 
+  it("a failed browse refresh is reported and the sync still loads every Chain and finishes", async () => {
+    const errorHandler = fakeErrorHandler();
+    const deps = setup({ errorHandler });
+    deps.db.$client.exec("CREATE TRIGGER browse_broken BEFORE INSERT ON browse_catalog BEGIN SELECT RAISE(ABORT, 'browse broken'); END");
+    const id = await priceSyncJob(deps)({});
+    expect(one(deps, "SELECT status FROM sync_runs WHERE id = ?", id)).toEqual({ status: "finished" });
+    expect(one(deps, "SELECT status FROM sync_chain_results WHERE sync_run_id = ? AND chain_id = ?", id, OSHER)).toEqual({ status: "ok" });
+    expect(errorHandler.reported.filter((e) => e instanceof Error && e.message === "browse broken")).toHaveLength(2); // before and after the Chains
+  });
+
   it("a geocoder error leaves stores without coordinates and does not fail the Chain", async () => {
     const deps = setup({ geocoder: fakeGeocoder(() => { throw new Error("rate limited"); }) });
     const id = await priceSyncJob(deps)({});

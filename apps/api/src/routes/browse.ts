@@ -3,7 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { requireUser, type AppEnv } from "#/middleware.ts";
-import { cardsOf, groupPage, pricedProducts, promotionCards, promotionPage, typeCounts } from "#/prices/browse.ts";
+import { groupPage, promotionCards, promotionPage, typeCards, typeCounts } from "#/prices/browse.ts";
 import { groupRefSchema } from "#/prices/groups.ts";
 import { nearbyStoreIds } from "#/prices/nearby.ts";
 
@@ -35,19 +35,17 @@ function storesFor(c: Context<AppEnv>) {
 export const browseRoutes = new Hono<AppEnv>()
   .use(requireUser)
   // Home: the Product types sold nearby, each with its count of group cards.
-  .get("/types", (c) => c.json(typeCounts(pricedProducts(c.var.deps.db, storesFor(c)))))
+  .get("/types", (c) => c.json(typeCounts(c.var.deps.db, storesFor(c))))
   // One Product type's group cards.
   .get("/types/:type", (c) => {
     const type = parse(typeParam, c.req.param("type"));
-    const stores = storesFor(c);
-    return c.json(cardsOf(c.var.deps.db, pricedProducts(c.var.deps.db, stores, type), stores));
+    return c.json(typeCards(c.var.deps.db, storesFor(c), type));
   })
   // A group card's product page: the card and its Products sold nearby, each with its cheapest nearby price.
   .get("/types/:type/groups/:ref", (c) => {
     const type = parse(typeParam, c.req.param("type"));
     const ref = parse(groupRefSchema, c.req.param("ref"));
-    const stores = storesFor(c);
-    const page = groupPage(c.var.deps.db, pricedProducts(c.var.deps.db, stores, type), stores, ref);
+    const page = groupPage(c.var.deps.db, storesFor(c), type, ref);
     return page ? c.json(page) : c.json({ error: "not found" }, 404);
   })
   // Promotions: group cards of the Products on a Promotion running nearby; nothing without a location.

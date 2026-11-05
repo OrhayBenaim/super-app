@@ -148,6 +148,14 @@ describe("GET /api/browse/types/:type", () => {
     ]);
   });
 
+  it("prices each request's cards from its own stores, whatever was asked before", async () => {
+    const milk = async (query: string) => (await cards("dairy-eggs", query)).find((c) => c.ref === "חלב|l");
+    const nearOnly = `lat=${here.lat}&lng=${here.lng}&radiusKm=1`; // "close" is just over 1 km away
+    expect(await milk(near)).toMatchObject({ minPrice: 5.5, storeCount: 2 });
+    expect(await milk(nearOnly)).toMatchObject({ minPrice: 6, storeCount: 1 });
+    expect(await milk(near)).toMatchObject({ minPrice: 5.5, storeCount: 2 });
+  });
+
   it("keeps cards apart per Product type: chocolate milk is a drinks card, not part of the dairy milk card", async () => {
     expect(await cards("drinks")).toEqual([expect.objectContaining({ ref: "חלב שוקו|l", name: "חלב שוקו", code: sku(SHOKO.code), minPrice: 7, storeCount: 1 })]);
     expect((await cards("snacks-sweets")).map((c) => [c.ref, c.storeCount, c.minPrice])).toEqual([["במבה|kg", 2, 50], ["שוקולד חלב|kg", 1, 60]]);

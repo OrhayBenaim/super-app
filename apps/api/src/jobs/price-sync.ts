@@ -5,6 +5,7 @@ import type { Deps } from "#/deps.ts";
 import { syncChain, type ChainCounts } from "#/ingest/chain-sync.ts";
 import { chainSeeds } from "#/ingest/chains.ts";
 import { typeProducts } from "#/ingest/product-types.ts";
+import { refreshBrowse } from "#/prices/browse-groups.ts";
 
 export const priceSyncData = z.object({ maxStores: z.coerce.number().int().min(1).optional() });
 export type PriceSyncData = z.input<typeof priceSyncData>;
@@ -13,12 +14,15 @@ export type PriceSyncData = z.input<typeof priceSyncData>;
  * Runs the recorded Price sync `runId` over every Chain, one after another, recording each Chain's result. A Chain failure
  * is logged, reported and recorded, and the next Chain still runs. `signal` is checked between Chains, never inside one:
  * once it fires the sync stops and is recorded as interrupted. After the Chains, gives untyped Products a Product type
- * (skipped when interrupted). Marks the run `running` before its first await.
+ * (skipped when interrupted). Brings browse's copy up to date before the Chains (a deploy may have changed its rules) and
+ * after the Product types; a failure there is logged and reported, and leaves browse as it was. Marks the run `running`
+ * before its first await.
  */
 export async function runPriceSync(deps: Deps, runId: number, { signal, maxStores = Infinity }: { signal?: AbortSignal; maxStores?: number }) {
   const { db, clock } = deps;
   db.update(syncRuns).set({ status: "running", startedAt: clock.now() }).where(eq(syncRuns.id, runId)).run();
   let interrupted = false;
+  await refreshBrowseOrReport(deps);
   for (const chain of chainSeeds) {
     if (signal?.aborted) {
       interrupted = true;
@@ -43,10 +47,21 @@ export async function runPriceSync(deps: Deps, runId: number, { signal, maxStore
     console.log(`price sync ${runId}: ${chain.key} ${error ? "failed" : "ok"} in ${durationMs} ms`, counts);
   }
   const typed = interrupted ? null : await typeProducts(deps, signal);
+  await refreshBrowseOrReport(deps);
   db.update(syncRuns)
     .set({ status: interrupted || signal?.aborted ? "interrupted" : "finished", finishedAt: clock.now(), ...typed })
     .where(eq(syncRuns.id, runId))
     .run();
+}
+
+/** refreshBrowse, logging and reporting a failure: it must not leave the run `running`, which blocks every later sync. */
+async function refreshBrowseOrReport({ db, errorHandler }: Deps) {
+  try {
+    await refreshBrowse(db);
+  } catch (e) {
+    console.error("price sync: browse refresh failed", e);
+    errorHandler.report(e);
+  }
 }
 
 /**

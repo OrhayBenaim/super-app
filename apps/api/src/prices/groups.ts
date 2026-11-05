@@ -132,7 +132,7 @@ export const startsGroup = (words: Word[], group: string[]) =>
 /** Same measure, and for the unit the same pack count. */
 export const sameMeasure = (a: Size | null, b: Size) => !!a && a.measure === b.measure && (b.measure !== "unit" || a.size === b.size);
 
-const groupRef = (words: string[], { measure, size }: Size) => [words.join(" "), measure, ...(measure === "unit" ? [size] : [])].join("|");
+export const groupRef = (words: string[], { measure, size }: Size) => [words.join(" "), measure, ...(measure === "unit" ? [size] : [])].join("|");
 
 /** A group ref's words and measure, or null when it is not one. A kilo or liter group's size is always 1. */
 export function parseRef(ref: string): { words: string[]; size: Size } | null {

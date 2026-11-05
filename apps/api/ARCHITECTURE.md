@@ -22,7 +22,7 @@ How the code inside `apps/api` is organised.
 | `src/services/` | One file per vendor-neutral service (see [Services and providers](#services-and-providers)). |
 | `src/providers/<vendor>/` | Each vendor's implementation of a service, and its fake. |
 | `src/ingest/` | Price-file rules: chain seeds, file names, XML parsing, writing stores and prices; `product-types.ts`: the Price sync's Product type step. |
-| `src/prices/` | Price rules search, Compare and browse apply at query time: `groups.ts` (Product groups, CONTEXT.md, docs/adr/0001), `nearby.ts` (the stores within a radius, for Compare and browse), `promotions.ts` (running Promotions and their prices), `browse.ts` (Home's Product types and group cards, Promotions cards, and their product pages, for `routes/browse.ts`). |
+| `src/prices/` | Price rules search, Compare and browse apply at query time: `groups.ts` (Product groups, CONTEXT.md, docs/adr/0001), `nearby.ts` (the stores within a radius, for Compare and browse), `promotions.ts` (running Promotions and their prices), `browse.ts` (Home's Product types and group cards, Promotions cards, and their product pages, for `routes/browse.ts`), `browse-data.ts` (browse's copy of the price data in SQLite, docs/adr/0004: each store's prices and Promotions packed into one row as ingest writes them, read per request), `browse-groups.ts` (browse's group cards, worked out over every priced Product and stored by each Price sync). |
 | `src/db/` | Drizzle schema and `openDb()`. Migrations are in `drizzle/`. Queries that belong to no single route take `db` first and live by what they ask about (e.g. `users.ts`: `hasPassword(db, email)`). |
 | `src/utils/` | Small stateless helpers (e.g. `clock.ts`). |
 | `tests/` | All tests (see [Tests](#tests)). |

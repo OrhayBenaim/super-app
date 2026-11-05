@@ -16,10 +16,19 @@ export type RunningPromotion = {
   weighted: 0 | 1; // the product is weighed, so Quantity, minQty and limitQty are kilos
   minPurchase: number | null; // a spend deal: counts only when the rest of the List costs this much
 };
+/** What a Promotion gives, whatever store and product it is on. */
+export type PromotionTerms = Omit<RunningPromotion, "storeId" | "code">;
 
 const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jerusalem", weekday: "short" });
 /** The Israeli weekday of `d` as promotion files number it (`days`): 1 = Sunday ... 7 = Saturday. */
 const jerusalemWeekday = (d: Date) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday.format(d)) + 1;
+
+/** Whether a Promotion runs at `now`, as runningPromotions selects them: `days` is the file's list ("1,6") or null. */
+export function runningAt(now: Date) {
+  const t = now.getTime();
+  const day = `,${jerusalemWeekday(now)},`;
+  return (p: { startsAt: number; endsAt: number; days: string | null }) => p.startsAt <= t && p.endsAt > t && (p.days === null || `,${p.days},`.includes(day));
+}
 
 /** The Promotions on `codes` at `storeIds` running at `now` (start, end, Israeli weekday), by `${storeId} ${code}`. */
 export function runningPromotions(db: Db, storeIds: string[], codes: string[], now: Date) {
@@ -44,7 +53,7 @@ type Chosen = { line: number; option: LineOption };
 const EPS = 1e-9;
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 /** Priced in full sets of `minQty` (price and percent apply per unit). */
-const isSetKind = (p: RunningPromotion) => p.kind === "bundle" || p.kind === "nth" || p.kind === "off";
+const isSetKind = (p: PromotionTerms) => p.kind === "bundle" || p.kind === "nth" || p.kind === "off";
 
 /**
  * What each line in one Promotion's pool costs (unrounded), in pool order. Units are taken most expensive first: up to
@@ -106,7 +115,7 @@ const weight = (kg: number) => (kg < 1 ? `${Math.round(kg * 1000)} גרם` : `${
  * Hebrew-first text built from the reward ("3 ב-₪10", "2+1", "₪4.90 במקום ₪6.90"; weighed: "2 ק״ג ב-₪80",
  * "250 גרם ב-₪22", "₪29.90 לק״ג"); the app builds its own from the fields.
  */
-function textOf(p: RunningPromotion, price: number) {
+function textOf(p: PromotionTerms, price: number) {
   switch (p.kind) {
     case "bundle":
       return `${p.weighted ? weight(p.minQty) : p.minQty} ב-${shekels(p.amount)}`;
@@ -122,7 +131,7 @@ function textOf(p: RunningPromotion, price: number) {
       return p.description;
   }
 }
-const applied = (p: RunningPromotion, price: number) => ({
+const applied = (p: PromotionTerms, price: number) => ({
   id: p.id,
   kind: p.kind,
   minQty: p.minQty,
@@ -132,23 +141,36 @@ const applied = (p: RunningPromotion, price: number) => ({
 });
 export type AppliedPromotion = ReturnType<typeof applied>;
 /** A Promotion's text as Compare shows it ("3 ב-₪10", "₪4.90 במקום ₪6.90"; info: the Chain's description). */
-export const promotionText = (p: RunningPromotion, shelf: number) => applied(p, shelf).text;
+export const promotionText = (p: PromotionTerms, shelf: number) => applied(p, shelf).text;
 
 /**
  * What one unit (a kilo when weighed) costs on a running Promotion against its Shelf price `shelf`, and the saving in
  * whole percent (never below 0). A set Promotion (3 for ₪10, 2+1, ₪5 off 2) is averaged over its set. Null when no
  * unit price can be worked out: info-only, or a spend deal (it depends on the rest of the List).
  */
-export function promotionPrice(p: RunningPromotion, shelf: number) {
+export function promotionPrice(p: Omit<PromotionTerms, "weighted" | "id" | "description">, shelf: number) {
+  const each = unitPrice(p, shelf);
+  return each === null ? null : { price: round2(each), saving: savingOf(each, shelf) };
+}
+
+/** The saving in whole percent of a unit price (before rounding) against the Shelf price, never below 0. */
+export const savingOf = (each: number, shelf: number) => Math.max(0, Math.round((1 - each / shelf) * 100));
+
+/** promotionPrice's unit price before rounding, without allocating (browse ranks millions of offers per request). */
+export function unitPrice(p: Omit<PromotionTerms, "weighted" | "id" | "description">, shelf: number) {
   if (p.kind === "info" || isDeal(p)) return null;
-  const each = {
-    price: p.amount,
-    bundle: p.amount / p.minQty,
-    percent: shelf * (1 - p.amount / 100),
-    nth: shelf * (1 - p.amount / 100 / p.minQty),
-    off: Math.max(0, shelf - p.amount / p.minQty),
-  }[p.kind];
-  return { price: round2(each), saving: Math.max(0, Math.round((1 - each / shelf) * 100)) };
+  switch (p.kind) {
+    case "price":
+      return p.amount;
+    case "bundle":
+      return p.amount / p.minQty;
+    case "percent":
+      return shelf * (1 - p.amount / 100);
+    case "nth":
+      return shelf * (1 - p.amount / 100 / p.minQty);
+    case "off":
+      return Math.max(0, shelf - p.amount / p.minQty);
+  }
 }
 
 // shortcut: past this many combinations in one group of linked lines, a local search replaces the exhaustive one;
@@ -205,7 +227,7 @@ function search(lines: LineOption[][]) {
   return lines.map((options, l) => ({ line: l, option: options[pick[l]!]! }));
 }
 
-const isDeal = (p?: RunningPromotion) => (p?.minPurchase ?? 0) > 0;
+const isDeal = (p?: Pick<PromotionTerms, "minPurchase">) => (p?.minPurchase ?? 0) > 0;
 
 /** The cheapest choice of `priced` options (no info-only ones) with the spend deals that reach their minimum. */
 function chooseDeals(priced: LineOption[][]) {

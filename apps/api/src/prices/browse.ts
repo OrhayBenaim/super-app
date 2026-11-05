@@ -1,16 +1,14 @@
-// Browse (Home, Promotions): Product group cards worked out per request from the Products with a current price at
-// nearby stores, like search (docs/adr/0001). Nothing is stored.
+// Browse (Home, Promotions): the group cards with Products priced at nearby stores, read from browse's copy of the price
+// data (browse-data.ts): the nearby stores' packed prices and Promotions, and every Product's group card as the last
+// Price sync stored it (browse-groups.ts, the rules of docs/adr/0001). A request adds them up in a loop.
 import { PRODUCT_TYPES, type ProductType } from "@grocer/shared/product-types";
-import type { Db } from "#/db/index.ts";
-import type { Audience, PromotionKind } from "#/db/appSchema.ts";
-import { groupsFrom, measureOf, nameWords, parseRef, soldByOf, withoutSizes, type Measure } from "#/prices/groups.ts";
-import { promotionPrice, promotionText, round2, runningPromotions, type RunningPromotion } from "#/prices/promotions.ts";
 import type { SoldBy } from "@grocer/shared/quantity";
-
-/** A Product with a current price at the stores asked about: its cheapest price there and how many of them price it. */
-export type Priced = {
-  code: string; name: string; unitQty: string | null; isWeighted: number; type: ProductType; minPrice: number; storeCount: number;
-};
+import type { Audience, PromotionKind } from "#/db/appSchema.ts";
+import type { Db } from "#/db/index.ts";
+import { catalog, nameOf, promotionStrings, runningPromotionsOf, storeData, type Catalog, type StoreData, type StorePromotion } from "#/prices/browse-data.ts";
+import { BROWSE } from "#/prices/browse-groups.ts";
+import { commonest, groupRef, groupsFrom, measureOf, parseRef, soldByOf, type Measure } from "#/prices/groups.ts";
+import { promotionPrice, promotionText, round2, savingOf, unitPrice } from "#/prices/promotions.ts";
 
 /**
  * A group card (`ref` null for a lone Product with no group ref: it is matched by `code`). `minPrice` is per kilo, liter or pack at nearby stores (null without a location); `code` is its commonest
@@ -21,144 +19,169 @@ export type Card = {
   codes: string[];
 };
 
-const COLS = `p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted, coalesce(p.product_type, 'other') AS type,
-  min(pr.price) AS minPrice, count(*) AS storeCount`;
+/**
+ * Per Product (browse_products id): its cheapest price at the stores asked about and how many of them price it. Without
+ * a location every store counts and nothing is priced (there is no "nearby" to price).
+ */
+type Near = { db: Db; cat: Catalog; stores: StoreData[] | null; min: Float64Array | null; count: Int32Array };
+
+/** `storeIds`' prices (optionally one Chain's stores, and with `offers` their Promotions), or every store's counts when null. */
+function near(db: Db, storeIds: string[] | null, { chain, offers = false }: { chain?: string; offers?: boolean } = {}): Near {
+  const cat = catalog(db);
+  if (!storeIds) return { db, cat, stores: null, min: null, count: cat.stores };
+  const stores = storeData(db, storeIds, offers).filter((s) => !chain || s.chainId === chain);
+  const n = cat.groups.length; // a Product numbered since the last grouping has no card yet
+  const min = new Float64Array(n).fill(Infinity);
+  const count = new Int32Array(n);
+  for (const { products, prices } of stores)
+    for (let i = 0; i < products.length; i++) {
+      const k = products[i]!;
+      if (k >= n) continue;
+      count[k]!++;
+      if (prices[i]! < min[k]!) min[k] = prices[i]!;
+    }
+  return { db, cat, stores, min, count };
+}
+
+/** How many group cards each Product type has nearby, in display order (Other last), leaving out types with none. */
+export function typeCounts(db: Db, storeIds: string[] | null) {
+  const { cat, count } = near(db, storeIds);
+  const counted = new Uint8Array(cat.groupTypes.length);
+  const counts = new Uint32Array(PRODUCT_TYPES.length);
+  for (let k = 0; k < count.length; k++) {
+    const g = cat.groups[k]!;
+    if (count[k] && g >= 0 && !counted[g]) {
+      counted[g] = 1;
+      counts[cat.groupTypes[g]!]!++;
+    }
+  }
+  return PRODUCT_TYPES.flatMap((type, t) => (counts[t] ? [{ type, cardCount: counts[t] }] : []));
+}
+
+type Meta = { ref: string | null; name: string; measure: Measure; size: number; soldBy: SoldBy };
+type Built = Card & { group: number; members: number[]; lead: { lead: string; leadRaw: string }[] };
+
+const hebrew = new Intl.Collator("he"); // localeCompare(b, "he") without a new collator per call
+const byStoresThenName = (a: { storeCount: number; name: string }, b: { storeCount: number; name: string }) =>
+  b.storeCount - a.storeCount || hebrew.compare(a.name, b.name);
+const typeIndex = (type: ProductType) => PRODUCT_TYPES.indexOf(type);
 
 /**
- * Products with a current price at `storeIds` (at any store when null), optionally of one Product type. An untyped
- * Product counts as Other.
+ * Cards of these groups' Products (browse_products ids) priced nearby: a card's store count is the nearby stores pricing
+ * any of them (without a location, the stores pricing any of its group's), `code` the one most of them price.
  */
-export function pricedProducts(db: Db, storeIds: string[] | null, type?: ProductType): Priced[] {
-  const where = [
-    ...(storeIds ? ["pr.store_id IN (SELECT value FROM json_each(@stores))"] : []),
-    ...(type ? ["coalesce(p.product_type, 'other') = @type"] : []),
-  ];
-  return db.$client
-    .prepare(`SELECT ${COLS} FROM prices pr JOIN products p ON p.code = pr.code ${where.length ? `WHERE ${where.join(" AND ")}` : ""} GROUP BY p.code`)
-    .all({ stores: JSON.stringify(storeIds ?? []), type: type ?? null }) as Priced[];
+function build(nr: Near, cards: { group: number; meta: Meta; members: number[] }[]): Built[] {
+  const { cat, count, min, stores } = nr;
+  const storeCount = new Int32Array(cards.length);
+  if (stores) {
+    const cardOf = new Int32Array(count.length).fill(-1);
+    cards.forEach((c, i) => c.members.forEach((k) => (cardOf[k] = i)));
+    const lastStore = new Int32Array(cards.length).fill(-1);
+    stores.forEach(({ products }, s) => {
+      for (const k of products) {
+        const c = k < cardOf.length ? cardOf[k]! : -1;
+        if (c >= 0 && lastStore[c] !== s) {
+          lastStore[c] = s;
+          storeCount[c]!++;
+        }
+      }
+    });
+  } else cards.forEach((c, i) => (storeCount[i] = cat.groupStores[c.group]!));
+  const codeOf = new Map(cards.flatMap((c) => c.members).map((k) => [k, nameOf(cat, k)]));
+  return cards.map(({ group, meta, members }, i): Built => {
+    const ks = members.sort((a, b) => (codeOf.get(a)!.code < codeOf.get(b)!.code ? -1 : 1)); // code order, as ties fall
+    let price = Infinity;
+    if (min) for (const k of ks) price = Math.min(price, min[k]! / cat.perUnit[k]!);
+    return {
+      ...meta,
+      code: codeOf.get(ks.reduce((a, b) => (count[b]! > count[a]! ? b : a)))!.code,
+      minPrice: min ? round2(price) : null,
+      storeCount: storeCount[i]!,
+      codes: ks.map((k) => codeOf.get(k)!.code),
+      group,
+      members: ks,
+      lead: ks.map((k) => codeOf.get(k)!),
+    };
+  });
 }
 
-/** How many of `storeIds` (of all stores when null) price any of these codes. */
-function storeCountOf(db: Db, codes: string[], storeIds: string[] | null) {
-  const { n } = db.$client
-    .prepare(
-      `SELECT count(DISTINCT store_id) AS n FROM prices WHERE code IN (SELECT value FROM json_each(@codes))
-         AND (@all OR store_id IN (SELECT value FROM json_each(@stores)))`,
-    )
-    .get({ codes: JSON.stringify(codes), stores: JSON.stringify(storeIds ?? []), all: storeIds ? 0 : 1 }) as { n: number };
-  return n;
-}
+/** Name rows of these Products, with their cheapest nearby price (0 without a location), as groupsFrom takes them. */
+const candidates = ({ db, min }: Near, ids: number[]) =>
+  (db.$client
+    .prepare("SELECT b.id, p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted FROM browse_products b JOIN products p ON p.code = b.code WHERE b.id IN (SELECT value FROM json_each(?))")
+    .all(JSON.stringify(ids)) as { id: number; code: string; name: string; unitQty: string | null; isWeighted: number }[]).map((p) => ({ ...p, minPrice: min ? min[p.id]! : 0 }));
 
-/** A Product's first normalized word, unless it is a size ("500 גרם ..."), which never names a group. */
-function firstWord(name: string) {
-  const words = nameWords(name).map((w) => w.norm);
-  const first = withoutSizes(words)[0];
-  return first !== undefined && first === words[0] ? [first] : [];
-}
-
-const ownWords = (name: string) => withoutSizes(nameWords(name).map((w) => w.norm));
-
-/** Per Product type, the groups `wordsOf` each Product's name makes, one per measure (and pack count), lone Products included. */
-function groupsBy(products: Priced[], wordsOf: (name: string) => string[]) {
-  const buckets = new Map<string, { type: ProductType; words: string[]; members: Priced[] }>();
-  for (const p of products) {
-    const words = wordsOf(p.name);
-    if (!words.length) continue;
-    const key = `${p.type}|${words.join(" ")}`;
-    const bucket = buckets.get(key) ?? { type: p.type, words, members: [] };
-    bucket.members.push(p);
-    buckets.set(key, bucket);
+/**
+ * Narrows each card that holds only some of its group's Products to the lead words those share, as the Price sync
+ * narrowed the group over all of them (browse-groups.ts): a Promotions card of Tnuva's milk only is "חלב תנובה".
+ */
+function narrowHere(nr: Near, cards: Built[]) {
+  const { cat } = nr;
+  const groupSize = new Int32Array(cat.groupTypes.length);
+  for (let k = 0; k < cat.groups.length; k++) if (cat.groups[k]! >= 0 && cat.stores[k]) groupSize[cat.groups[k]!]!++;
+  const partial = cards.filter((c) => c.ref !== null && c.members.length < groupSize[c.group]!);
+  for (const card of partial) {
+    const leads = card.lead.map(({ lead }) => lead.split(" "));
+    const [first, ...rest] = leads as [string[]];
+    const n = rest.reduce((n, lead) => {
+      let i = 0;
+      while (i < n && lead[i] === first[i]) i++;
+      return i;
+    }, first.length);
+    if (n <= parseRef(card.ref!)!.words.length) continue;
+    // The same Products under longer words: groupsFrom would keep every one (no qualifier is left out) and their measure.
+    const size = card.measure === "unit" ? card.size : commonest(card.members.map((k) => cat.perUnit[k]!))!;
+    const ref = groupRef(first.slice(0, n), { measure: card.measure, size });
+    if (parseRef(ref)) Object.assign(card, { ref, name: commonest(card.lead.map(({ leadRaw }) => leadRaw.split(" ").slice(0, n).join(" ")))!, size });
   }
-  return [...buckets.values()].flatMap(({ type, words, members }) =>
-    groupsFrom(words, members, BROWSE)
-      .map((g) => narrowed(g, words, members))
-      .filter((g) => parseRef(g.ref)) // a ref the List and Compare accept
-      .map((g) => ({ ...g, ref: g.ref as string | null, type })),
+}
+
+/** The cards with a Product priced nearby that `keep` keeps, with those Products only, most nearby stores first, then by name. */
+function cardsOf(nr: Near, keep: (k: number) => boolean): Built[] {
+  const { db, cat, count } = nr;
+  const members = new Map<number, number[]>();
+  for (let k = 0; k < count.length; k++) {
+    const g = cat.groups[k]!;
+    if (count[k] && g >= 0 && keep(k)) (members.get(g) ?? members.set(g, []).get(g)!).push(k);
+  }
+  const meta = db.$client
+    .prepare("SELECT id, ref, name, measure, size, sold_by AS soldBy FROM browse_groups WHERE id IN (SELECT value FROM json_each(?))")
+    .all(JSON.stringify([...members.keys()])) as ({ id: number } & Meta)[];
+  const cards = build(nr, meta.map(({ id, ...m }) => ({ group: id, meta: m, members: members.get(id)! })));
+  narrowHere(nr, cards);
+  return cards.sort(byStoresThenName);
+}
+
+/** The Products priced nearby of Product type `type` whose names start with `ref`'s words. */
+function refIds({ db, cat, count }: Near, type: ProductType, ref: string) {
+  const t = typeIndex(type);
+  const prefix = parseRef(ref)!.words.join(" ");
+  return (db.$client.prepare("SELECT id FROM browse_products WHERE words = ? OR substr(words, 1, ?) = ?").pluck().all(prefix, prefix.length + 1, `${prefix} `) as number[]).filter(
+    (k) => k < count.length && count[k] && cat.groups[k]! >= 0 && cat.groupTypes[cat.groups[k]!] === t,
   );
 }
 
-const BROWSE = { minProducts: 1, everyMeasure: true };
-
-/** A name's normalized words before its first number or size ("דיאט קולה 1.5 ליטר סופר" -> דיאט קולה). */
-function leadWords(name: string) {
-  const words = nameWords(name).map((w) => w.norm);
-  const kept = withoutSizes(words);
-  const end = words.findIndex((w, i) => /^\d/.test(w) || w !== kept[i]);
-  return end < 0 ? words : words.slice(0, end);
-}
-
 /**
- * The group named by every lead word its Products share ("דיאט קוקה קולה", not just "דיאט"), so a card says what it
- * holds and Compare prices only those; the group itself when they share no more than `words`.
+ * The card `ref` names among these Products (refIds): the group its words make of them (so a ref a card was narrowed to
+ * under a filter opens too), or undefined.
  */
-function narrowed<G extends ReturnType<typeof groupsFrom>[number]>(group: G, words: string[], members: Priced[]) {
-  const mine = members.filter((p) => group.codes.includes(p.code));
-  const [first = [], ...rest] = mine.map((p) => leadWords(p.name));
-  const n = rest.reduce((n, w) => {
-    let i = 0;
-    while (i < n && w[i] === first[i]) i++;
-    return i;
-  }, first.length);
-  if (n <= words.length) return group;
-  return groupsFrom(first.slice(0, n), mine, BROWSE)[0] ?? group;
+function refCard(nr: Near, ref: string, ids: number[]): Built | undefined {
+  const { cat } = nr;
+  const rows = candidates(nr, ids);
+  const g = groupsFrom(parseRef(ref)!.words, rows, BROWSE).find((g) => g.ref === ref);
+  if (!g) return undefined;
+  const idOf = new Map(rows.map((p) => [p.code, p.id]));
+  const members = g.codes.map((code) => idOf.get(code)!);
+  return build(nr, [{ group: cat.groups[members[0]!]!, meta: { ref: g.ref, name: g.name, measure: g.measure, size: g.size, soldBy: g.soldBy }, members }])[0];
 }
 
-/** The group a ref names among these Products of one Product type, or undefined. */
-function refGroup(products: Priced[], ref: string) {
-  const parsed = parseRef(ref);
-  const group = parsed && groupsFrom(parsed.words, products, BROWSE).find((g) => g.ref === ref);
-  return group ? { ...group, ref: group.ref as string | null, type: products[0]!.type } : undefined;
-}
+const withoutIds = ({ group, members, lead, ...card }: Built): Card => card;
 
-/** A card for one Product with no group ref: Add matches its code. Priced per kilo, liter or pack; a pack of one without a size. */
-function loneCard(p: Priced) {
-  const { measure, size } = measureOf(p) ?? { measure: "unit" as const, size: 1 };
-  const minPrice = measure === "unit" ? p.minPrice : p.minPrice / size;
-  return { ref: null, name: p.name, measure, soldBy: soldByOf(p), size, minPrice, refinements: [], codes: [p.code], type: p.type };
-}
-
-/**
- * The group cards of these Products without prices or store counts, each Product on exactly one: per Product type, the
- * groups search would make from each Product's first normalized word (every measure, lone Products included). A Product
- * none holds (a qualifier such as סויה, its size first, no readable size) gets its own: the group its own words make,
- * or else a card with no group ref.
- */
-function groupsOf(products: Priced[]) {
-  const grouped = groupsBy(products, firstWord);
-  const held = new Set(grouped.flatMap((g) => g.codes));
-  const refs = new Set(grouped.map((g) => `${g.type}|${g.ref}`));
-  const own = groupsBy(products.filter((p) => !held.has(p.code)), ownWords).filter((g) => !refs.has(`${g.type}|${g.ref}`));
-  for (const code of own.flatMap((g) => g.codes)) held.add(code);
-  return [...grouped, ...own, ...products.filter((p) => !held.has(p.code)).map(loneCard)];
-}
-
-/** How many group cards each Product type has, in display order (Other last), leaving out types with none. */
-export function typeCounts(products: Priced[]) {
-  const counts = new Map<ProductType, number>();
-  for (const g of groupsOf(products)) counts.set(g.type, (counts.get(g.type) ?? 0) + 1);
-  return PRODUCT_TYPES.filter((t) => counts.has(t)).map((type) => ({ type, cardCount: counts.get(type)! }));
-}
-
-/**
- * Cards for these Products, most nearby stores first, then by name. Store counts are over `storeIds` (all stores when
- * null, and then no prices are shown: there is no "nearby" to price).
- */
-export function cardsOf(db: Db, products: Priced[], storeIds: string[] | null): Card[] {
-  return groupsOf(products).map(toCard(db, products, storeIds)).sort(byStoresThenName);
-}
-
-const byStoresThenName = (a: { storeCount: number; name: string }, b: { storeCount: number; name: string }) =>
-  b.storeCount - a.storeCount || a.name.localeCompare(b.name, "he");
-
-function toCard(db: Db, products: Priced[], storeIds: string[] | null) {
-  const byCode = new Map(products.map((p) => [p.code, p]));
-  return ({ ref, name, measure, soldBy, size, minPrice, codes }: ReturnType<typeof groupsOf>[number]): Card => ({
-    ref, name, measure, soldBy, size,
-    code: codes.reduce((a, b) => (byCode.get(b)!.storeCount > byCode.get(a)!.storeCount ? b : a)),
-    minPrice: storeIds ? round2(minPrice) : null,
-    storeCount: storeCountOf(db, codes, storeIds),
-    codes,
-  });
+/** One Product type's group cards nearby (at any store without a location). */
+export function typeCards(db: Db, storeIds: string[] | null, type: ProductType): Card[] {
+  const nr = near(db, storeIds);
+  const t = typeIndex(type);
+  return cardsOf(nr, (k) => nr.cat.groupTypes[nr.cat.groups[k]!] === t).map(withoutIds);
 }
 
 /** A Product on a product page: its pack size (null when unreadable) and its cheapest price nearby (null without a location). */
@@ -166,23 +189,28 @@ export type GroupProduct = {
   code: string; name: string; measure: Measure | null; size: number | null; soldBy: SoldBy; minPrice: number | null; storeCount: number;
 };
 
+/** A card's Products as its product page lists them, most nearby stores first, then by name. */
+function pageProducts(nr: Near, card: Built): GroupProduct[] {
+  const { min, count } = nr;
+  return candidates(nr, card.members)
+    .map(({ id, code, name, unitQty, isWeighted }): GroupProduct => ({
+      code, name,
+      ...(measureOf({ name, unitQty, isWeighted }) ?? { measure: null, size: null }),
+      soldBy: soldByOf({ unitQty, isWeighted }),
+      minPrice: min ? min[id]! : null,
+      storeCount: count[id]!,
+    }))
+    .sort(byStoresThenName);
+}
+
 /**
- * A group card's product page: the card and its Products, most nearby stores first, then by name. Null when these
- * Products make no such card (not sold nearby, or of another Product type).
+ * A group card's product page: the card and its Products priced nearby. Null when these Products make no such card (not
+ * sold nearby, or of another Product type).
  */
-export function groupPage(db: Db, products: Priced[], storeIds: string[] | null, ref: string) {
-  // A card's group narrows to the words its Products share, so a page over more Products (all Chains, not the one a
-  // Promotions card was filtered to) may name the group otherwise: then its ref's own Products make it.
-  const group = groupsOf(products).find((g) => g.ref === ref) ?? refGroup(products, ref);
-  if (!group) return null;
-  const members = products.filter((p) => group.codes.includes(p.code)).map(({ code, name, unitQty, isWeighted, minPrice, storeCount }): GroupProduct => ({
-    code, name,
-    ...(measureOf({ name, unitQty, isWeighted }) ?? { measure: null, size: null }),
-    soldBy: soldByOf({ unitQty, isWeighted }),
-    minPrice: storeIds ? minPrice : null,
-    storeCount,
-  }));
-  return { card: toCard(db, products, storeIds)(group), products: members.sort(byStoresThenName) };
+export function groupPage(db: Db, storeIds: string[] | null, type: ProductType, ref: string) {
+  const nr = near(db, storeIds);
+  const card = refCard(nr, ref, refIds(nr, type, ref));
+  return card ? { card: withoutIds(card), products: pageProducts(nr, card) } : null;
 }
 
 /**
@@ -196,63 +224,123 @@ export type PromoCard = Card & {
   kind: PromotionKind; minQty: number; amount: number; audience: Audience; text: string; chainCount: number;
 };
 
-type Offer = { code: string; chainId: string; promo: RunningPromotion; shelf: number; off: ReturnType<typeof promotionPrice> };
+type Offer = { product: number; chainId: string; promo: StorePromotion; shelf: number; off: ReturnType<typeof promotionPrice> };
 type Ranked = Offer & { each: number | null };
 /** The lowest price, then the bigger saving, then the one for everyone. */
 const byBestOffer = (a: Ranked, b: Ranked) =>
   (a.each ?? Infinity) - (b.each ?? Infinity) || (b.off?.saving ?? 0) - (a.off?.saving ?? 0) || +(a.promo.audience !== "all") - +(b.promo.audience !== "all");
 
+type Strings = ReturnType<typeof promotionStrings>;
+/** An offer's Promotion text as Compare words it (by the kilo when the Product is weighed). */
+const offerText = (cat: Catalog, strings: Strings, { product, promo, shelf }: Offer) =>
+  promotionText({ ...promo, ...strings.get(promo.rowid)!, weighted: cat.weighted[product] ? 1 : 0 }, shelf);
+
 /**
- * The Products priced at `storeIds` (optionally of one Product type, at one Chain's stores) and, by code, the offers of
- * those with a Promotion running at `now` (#118's timing; every stored audience counts): one per store and Promotion.
+ * Calls `visit` with every offer at the nearby stores among `promos` (#118's timing; every stored audience counts): one
+ * per store, Promotion and Product it covers that the store prices at `shelf`, of Product type `type` when given, of
+ * the Products `only` marks when given. One Chain's stores come one after another.
  */
-function promotionOffers(db: Db, storeIds: string[], now: Date, { type, chain }: { type?: ProductType; chain?: string }) {
-  const chainOf = new Map(
-    (db.$client.prepare("SELECT id, chain_id AS chainId FROM stores WHERE id IN (SELECT value FROM json_each(?))").all(JSON.stringify(storeIds)) as { id: string; chainId: string }[])
-      .filter((s) => !chain || s.chainId === chain)
-      .map((s) => [s.id, s.chainId]),
-  );
-  const stores = [...chainOf.keys()];
-  const priced = pricedProducts(db, stores, type);
-  const running = runningPromotions(db, stores, priced.map((p) => p.code), now);
-  const shelves = db.$client
-    .prepare("SELECT store_id AS storeId, code, price FROM prices WHERE store_id IN (SELECT value FROM json_each(?)) AND code IN (SELECT value FROM json_each(?))")
-    .all(JSON.stringify(stores), JSON.stringify([...new Set([...running.values()].flat().map((r) => r.code))])) as { storeId: string; code: string; price: number }[];
-  const offers = new Map<string, Offer[]>(); // by code
-  for (const s of shelves)
-    for (const promo of running.get(`${s.storeId} ${s.code}`) ?? [])
-      (offers.get(s.code) ?? offers.set(s.code, []).get(s.code)!).push({ code: s.code, chainId: chainOf.get(s.storeId)!, promo, shelf: s.price, off: promotionPrice(promo, s.price) });
-  return { stores, pool: priced.filter((p) => offers.has(p.code)), offers };
+function forEachOffer(
+  nr: Near, promos: Map<number, StorePromotion>, type: ProductType | undefined, only: Uint8Array | undefined,
+  visit: (k: number, chainId: string, promo: StorePromotion, shelf: number) => void,
+) {
+  const { cat } = nr;
+  const t = type && typeIndex(type);
+  const n = cat.groups.length;
+  const byChain = [...nr.stores!].sort((a, b) => (a.chainId < b.chainId ? -1 : a.chainId > b.chainId ? 1 : 0));
+  for (const { chainId, products, prices, offerProducts, offerPromotions } of byChain) {
+    let p = 0; // both lists are in Product order: walk them side by side
+    for (let j = 0; j < offerProducts.length; j++) {
+      const k = offerProducts[j]!;
+      if (k >= n) break; // numbered since the last grouping, as are the rest
+      if (only && !only[k]) continue;
+      while (p < products.length && products[p]! < k) p++;
+      if (p === products.length) break;
+      if (products[p] !== k) continue; // no Shelf price here
+      const promo = promos.get(offerPromotions[j]!);
+      if (promo && (t === undefined || cat.groupTypes[cat.groups[k]!] === t)) visit(k, chainId, promo, prices[p]!);
+    }
+  }
+}
+
+/** The Chain Promotions the nearby stores run on the Products `only` marks (on any when not given), running at `now`. */
+function promotionsNear(nr: Near, now: Date, only: Uint8Array | undefined) {
+  const max = nr.db.$client.prepare("SELECT coalesce(max(id), 0) FROM chain_promotions").pluck().get() as number;
+  const seen = new Uint8Array(max + 1);
+  for (const { offerProducts, offerPromotions } of nr.stores!)
+    for (let j = 0; j < offerPromotions.length; j++) if (!only || only[offerProducts[j]!]) seen[offerPromotions[j]!] = 1;
+  const ids: number[] = [];
+  for (let id = 0; id <= max; id++) if (seen[id]) ids.push(id); // in order: SQLite looks them up faster
+  return runningPromotionsOf(nr.db, ids, now);
+}
+
+/** byBestOffer(offerOf(promo, shelf), b) < 0, without making the offer: most of a city's ~2M offers lose. */
+function beats(promo: StorePromotion, shelf: number, b: Ranked) {
+  const unit = unitPrice(promo, shelf);
+  const each = unit === null ? Infinity : round2(unit);
+  if (each !== (b.each ?? Infinity)) return each < (b.each ?? Infinity);
+  const saving = unit === null ? 0 : savingOf(unit, shelf);
+  if (saving !== (b.off?.saving ?? 0)) return saving > (b.off?.saving ?? 0);
+  return promo.audience === "all" && b.promo.audience !== "all";
+}
+
+/** One offer, ranked by its own price (`each`). */
+function offerOf(k: number, chainId: string, promo: StorePromotion, shelf: number): Ranked {
+  const off = promotionPrice(promo, shelf);
+  return { product: k, chainId, promo, shelf, off, each: off?.price ?? null };
+}
+
+/**
+ * The Promotions running at `now` at the stores of `nr` (read with their offers), and per Product on one (optionally of
+ * one Product type, of the Products `only` marks) its best offer and the Chains running one on it.
+ */
+function promotionOffers(nr: Near, now: Date, type?: ProductType, only?: Uint8Array) {
+  const promos = promotionsNear(nr, now, only);
+  const n = nr.cat.groups.length;
+  const best = new Array<Ranked | undefined>(n);
+  const chains = new Array<Set<string> | undefined>(n);
+  const lastChain = new Array<string | undefined>(n);
+  forEachOffer(nr, promos, type, only, (k, chainId, promo, shelf) => {
+    if (lastChain[k] !== chainId) {
+      lastChain[k] = chainId; // a Chain's stores come one after another, so each Chain is added once
+      (chains[k] ??= new Set()).add(chainId);
+    }
+    const b = best[k];
+    if (!b || beats(promo, shelf, b)) best[k] = offerOf(k, chainId, promo, shelf);
+  });
+  return { nr, promos, only, type, best, chains };
+}
+
+/** A card of Products on a Promotion's best offer: the lowest price per kilo, liter or pack. */
+const topOffer = ({ nr: { cat }, best }: ReturnType<typeof promotionOffers>, card: Built) =>
+  card.members.map((k) => best[k]!).map((o) => ({ ...o, each: o.off ? o.off.price / cat.perUnit[o.product]! : null })).sort(byBestOffer)[0]!;
+
+/** A card of Products on a Promotion, headlined by its best offer `top`. */
+function promoCard({ nr: { cat }, chains }: ReturnType<typeof promotionOffers>, strings: Strings, { group, members, lead, ...card }: Built, top: Ranked): PromoCard {
+  return {
+    ...card,
+    type: PRODUCT_TYPES[cat.groupTypes[group]!]!,
+    promoPrice: top.each === null ? null : round2(top.each),
+    shelfPrice: top.each === null ? null : round2(top.shelf / cat.perUnit[top.product]!),
+    saving: top.off?.saving ?? null,
+    kind: top.promo.kind,
+    minQty: top.promo.minQty,
+    amount: top.promo.amount,
+    audience: top.promo.audience,
+    text: offerText(cat, strings, top),
+    chainCount: new Set(members.flatMap((k) => [...chains[k]!])).size,
+  };
 }
 
 /**
  * Cards of the Products with a Promotion running at `now` at `storeIds`, optionally of one Product type or at one
  * Chain's stores. Biggest saving first, those with no price last.
  */
-export const promotionCards = (db: Db, storeIds: string[], now: Date, filters: { type?: ProductType; chain?: string } = {}) =>
-  promoCardsOf(db, promotionOffers(db, storeIds, now, filters));
-
-function promoCardsOf(db: Db, { stores, pool, offers }: ReturnType<typeof promotionOffers>): PromoCard[] {
-  const byCode = new Map(pool.map((p) => [p.code, p]));
-  const cards = cardsOf(db, pool, stores).map((card): PromoCard => {
-    const perUnit = (code: string) => (card.measure === "unit" ? 1 : measureOf(byCode.get(code)!)!.size);
-    const mine = card.codes.flatMap((code) => offers.get(code)!).map((o) => ({ ...o, each: o.off ? o.off.price / perUnit(o.code) : null }));
-    const [best] = mine.sort(byBestOffer) as [Ranked];
-    return {
-      ...card,
-      type: byCode.get(card.code)!.type, // a group's Products share a type
-      promoPrice: best.each === null ? null : round2(best.each),
-      shelfPrice: best.each === null ? null : round2(best.shelf / perUnit(best.code)),
-      saving: best.off?.saving ?? null,
-      kind: best.promo.kind,
-      minQty: best.promo.minQty,
-      amount: best.promo.amount,
-      audience: best.promo.audience,
-      text: promotionText(best.promo, best.shelf),
-      chainCount: new Set(mine.map((o) => o.chainId)).size,
-    };
-  });
-  return cards.sort((a, b) => (b.saving ?? -1) - (a.saving ?? -1));
+export function promotionCards(db: Db, storeIds: string[], now: Date, filters: { type?: ProductType; chain?: string } = {}): PromoCard[] {
+  const promoted = promotionOffers(near(db, storeIds, { chain: filters.chain, offers: true }), now, filters.type);
+  const cards = cardsOf(promoted.nr, (k) => !!promoted.best[k]).map((card) => ({ card, top: topOffer(promoted, card) }));
+  const strings = promotionStrings(db, cards.map(({ top }) => top.promo.rowid));
+  return cards.map(({ card, top }) => promoCard(promoted, strings, card, top)).sort((a, b) => (b.saving ?? -1) - (a.saving ?? -1));
 }
 
 /**
@@ -269,26 +357,38 @@ export type ChainPromo = {
  * Chain (lowest price first, no-price last) into every Promotion it runs, each with its own audience. Null when no such card is on a Promotion at `storeIds`.
  */
 export function promotionPage(db: Db, storeIds: string[], now: Date, type: ProductType, ref: string) {
-  const promoted = promotionOffers(db, storeIds, now, { type });
-  const page = groupPage(db, promoted.pool, promoted.stores, ref);
-  if (!page) return null;
-  // Grouping only the group's Products gives back that one card, without the whole Promotions list.
-  const [card] = promoCardsOf(db, { ...promoted, pool: promoted.pool.filter((p) => page.card.codes.includes(p.code)) }) as [PromoCard];
-  const chains = (code: string) => {
-    const lines = new Map<string, Ranked>(); // per Chain and Promotion: its lowest price at the Chain's nearby stores
-    for (const o of promoted.offers.get(code)!.map((o) => ({ ...o, each: o.off?.price ?? null })).sort(byBestOffer)) {
-      const key = `${o.chainId} ${o.promo.id}`;
-      if (!lines.has(key)) lines.set(key, o);
-    }
-    const ranked = [...lines.values()];
-    return [...new Set(ranked.map((o) => o.chainId))].flatMap((id) => ranked.filter((o) => o.chainId === id)).map(({ chainId, promo, shelf, off }): ChainPromo => ({
-      chainId,
-      promoPrice: off?.price ?? null,
-      shelfPrice: off ? shelf : null,
-      saving: off?.saving ?? null,
-      kind: promo.kind, minQty: promo.minQty, amount: promo.amount, audience: promo.audience,
-      text: off ? promotionText(promo, shelf) : promo.description, // no price: the Chain's own words
+  const nr = near(db, storeIds, { offers: true });
+  const ids = refIds(nr, type, ref);
+  const only = new Uint8Array(nr.cat.groups.length);
+  for (const k of ids) only[k] = 1;
+  const promoted = promotionOffers(nr, now, type, only); // only this page's Products
+  const { cat } = nr;
+  const card = refCard(nr, ref, ids.filter((k) => promoted.best[k]));
+  if (!card) return null;
+  narrowHere(promoted.nr, [card]); // named by what it holds, as its card on Promotions is
+  const mine = new Set(card.members);
+  const offers: Ranked[] = [];
+  forEachOffer(nr, promoted.promos, type, only, (k, chainId, promo, shelf) => mine.has(k) && offers.push(offerOf(k, chainId, promo, shelf)));
+  const top = topOffer(promoted, card);
+  const strings = promotionStrings(db, [top, ...offers].map((o) => o.promo.rowid));
+  const lines = new Map<number, Map<string, Ranked>>(); // per Product, per Chain and PromotionID: its lowest price at the Chain's nearby stores
+  for (const o of offers) {
+    const byPromo = lines.get(o.product) ?? lines.set(o.product, new Map()).get(o.product)!;
+    const key = `${o.chainId} ${strings.get(o.promo.rowid)!.id}`;
+    const b = byPromo.get(key);
+    if (!b || byBestOffer(o, b) < 0) byPromo.set(key, o);
+  }
+  const chainsOf = (k: number) => {
+    const ranked = [...lines.get(k)!.values()].sort(byBestOffer);
+    return [...new Set(ranked.map((o) => o.chainId))].flatMap((id) => ranked.filter((o) => o.chainId === id)).map((o): ChainPromo => ({
+      chainId: o.chainId,
+      promoPrice: o.off?.price ?? null,
+      shelfPrice: o.off ? o.shelf : null,
+      saving: o.off?.saving ?? null,
+      kind: o.promo.kind, minQty: o.promo.minQty, amount: o.promo.amount, audience: o.promo.audience,
+      text: o.off ? offerText(cat, strings, o) : strings.get(o.promo.rowid)!.description, // no price: the Chain's own words
     }));
   };
-  return { card, products: page.products.map((p) => ({ ...p, chains: chains(p.code) })) };
+  const idOf = new Map(card.codes.map((code, i) => [code, card.members[i]!]));
+  return { card: promoCard(promoted, strings, card, top), products: pageProducts(promoted.nr, card).map((p) => ({ ...p, chains: chainsOf(idOf.get(p.code)!) })) };
 }
