@@ -1,4 +1,4 @@
-import { asc, desc, eq, gte } from "drizzle-orm";
+import { asc, desc, eq, gte, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { SYNC_HISTORY } from "@grocer/shared/sync-history";
@@ -20,18 +20,66 @@ const listed = {
   finishedAt: syncRuns.finishedAt,
 };
 
+type Failure = "chain" | "promotion";
+const failureOf = (r: { status: "ok" | "failed"; promotionStatus: "ok" | "failed" | null }): Failure | null =>
+  r.status === "failed" ? "chain" : r.promotionStatus === "failed" ? "promotion" : null;
+
 /** The Internal dashboard's Price syncs, on the private app. */
 export const syncsRoutes = new Hono<AppEnv>()
-  // The Price syncs requested in the last SYNC_HISTORY.days (all the Price sync keeps), newest first.
+  // The Price syncs requested in the last SYNC_HISTORY.days (all the Price sync keeps), newest first, each with its Chains
+  // counted by outcome; `attention`: each Chain the latest run that reached it failed, with the streak of that failure.
   .get("/", (c) => {
-    const { db, clock } = c.var.deps;
-    const syncs = db
-      .select(listed)
-      .from(syncRuns)
-      .where(gte(syncRuns.requestedAt, new Date(clock.now().getTime() - SYNC_HISTORY.days * DAY)))
-      .orderBy(desc(syncRuns.requestedAt), desc(syncRuns.id))
+    const { db, clock, config } = c.var.deps;
+    const since = gte(syncRuns.requestedAt, new Date(clock.now().getTime() - SYNC_HISTORY.days * DAY));
+    const runs = db.select(listed).from(syncRuns).where(since).orderBy(desc(syncRuns.requestedAt), desc(syncRuns.id)).all();
+    const results = db
+      .select({
+        syncId: syncRuns.id,
+        due: sql<number>`coalesce(${syncRuns.scheduledAt}, ${syncRuns.requestedAt})`,
+        chainId: syncChainResults.chainId,
+        name: chains.name,
+        nameHe: chains.nameHe,
+        status: syncChainResults.status,
+        error: syncChainResults.error,
+        promotionStatus: syncChainResults.promotionStatus,
+        promotionError: syncChainResults.promotionError,
+      })
+      .from(syncChainResults)
+      .innerJoin(syncRuns, eq(syncRuns.id, syncChainResults.syncRunId))
+      .innerJoin(chains, eq(chains.id, syncChainResults.chainId))
+      .where(since)
+      .orderBy(desc(syncRuns.id))
       .all();
-    return c.json({ syncs }, 200);
+
+    const counts = new Map<number, { ok: number; failed: number; promotionFailed: number }>();
+    const streaks = new Map<string, { row: (typeof results)[number]; failure: Failure | null; since: number; runs: number; open: boolean }>();
+    for (const r of results) {
+      const n = counts.get(r.syncId) ?? { ok: 0, failed: 0, promotionFailed: 0 };
+      const failure = failureOf(r);
+      n[failure === "chain" ? "failed" : failure === "promotion" ? "promotionFailed" : "ok"]++;
+      counts.set(r.syncId, n);
+      // Newest run first: a Chain's streak is its latest failure and the runs before it that failed it the same way.
+      const streak = streaks.get(r.chainId);
+      if (!streak) streaks.set(r.chainId, { row: r, failure, since: r.due, runs: 1, open: true });
+      else if (streak.open && failure === streak.failure) Object.assign(streak, { since: r.due, runs: streak.runs + 1 });
+      else streak.open = false;
+    }
+
+    const syncs = runs.map((run) => ({ ...run, chains: counts.get(run.id) ?? { ok: 0, failed: 0, promotionFailed: 0 } }));
+    const attention = [...streaks.values()]
+      .filter((s): s is typeof s & { failure: Failure } => s.failure !== null)
+      .sort((a, b) => (a.failure === b.failure ? b.runs - a.runs || a.row.name.localeCompare(b.row.name) : a.failure === "chain" ? -1 : 1))
+      .map(({ row, failure, since, runs }) => ({
+        chainId: row.chainId,
+        name: row.name,
+        nameHe: row.nameHe,
+        failure,
+        error: failure === "chain" ? row.error : row.promotionError,
+        syncId: row.syncId,
+        since: new Date(since).toISOString(),
+        runs,
+      }));
+    return c.json({ syncs, attention, syncTimes: config.SYNC_TIMES }, 200);
   })
   // One run: its per-Chain results (each Chain's own outcome and, apart, its Promotion outcome) and its Product type step.
   .get("/:id", (c) => {
