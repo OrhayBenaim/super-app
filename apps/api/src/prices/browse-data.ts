@@ -9,7 +9,7 @@ import { runningAt } from "#/prices/promotions.ts";
 
 type Sqlite = Db["$client"];
 
-const pack = (a: Int32Array | Float64Array | Uint8Array) => Buffer.from(a.buffer, a.byteOffset, a.byteLength);
+export const pack = (a: Int32Array | Float64Array | Uint8Array) => Buffer.from(a.buffer, a.byteOffset, a.byteLength);
 const none = () => Buffer.alloc(0);
 // A typed array needs an aligned offset; a small Buffer may sit at any offset of a shared pool.
 export const i32 = (b: Buffer) => (b.byteOffset % 4 ? new Int32Array(Uint8Array.from(b).buffer) : new Int32Array(b.buffer, b.byteOffset, b.length / 4));
@@ -94,14 +94,14 @@ export function prunePromotions(sqlite: Sqlite) {
   sqlite.prepare("DELETE FROM chain_promotions WHERE id IN (SELECT value FROM json_each(?))").run(JSON.stringify(gone));
 }
 
-/** db/appSchema.ts browseCatalog, read: per Product (browse_products id) and per group. Empty before the first grouping. */
+/** db/appSchema.ts browseCatalog, browseGroupData and browseNames, read: per Product (browse_products id) and per group. Empty before the first grouping. */
 export type Catalog = {
   groups: Int32Array; perUnit: Float64Array; weighted: Uint8Array; stores: Int32Array; groupTypes: Uint8Array; groupStores: Int32Array;
   names: Buffer; nameEnds: Int32Array;
 };
 
 export function catalog(db: Db): Catalog {
-  const row = db.$client.prepare("SELECT groups, per_unit, weighted, stores, group_types, group_stores, names, name_ends FROM browse_catalog WHERE id = 1").raw().get() as Buffer[] | undefined;
+  const row = db.$client.prepare("SELECT groups, per_unit, weighted, stores, group_types, group_stores, names, name_ends FROM browse_catalog JOIN browse_group_data USING (id) JOIN browse_names USING (id) WHERE id = 1").raw().get() as Buffer[] | undefined;
   if (!row) {
     return { groups: new Int32Array(), perUnit: new Float64Array(), weighted: new Uint8Array(), stores: new Int32Array(), groupTypes: new Uint8Array(), groupStores: new Int32Array(), names: none(), nameEnds: new Int32Array() };
   }
@@ -120,9 +120,9 @@ export function writeCatalog(sqlite: Sqlite, c: Omit<Catalog, "names" | "nameEnd
   const bytes = names.map((s) => Buffer.from(s));
   let end = 0;
   const nameEnds = Int32Array.from(bytes, (b) => (end += b.length));
-  sqlite
-    .prepare("INSERT OR REPLACE INTO browse_catalog (id, groups, per_unit, weighted, stores, group_types, group_stores, names, name_ends) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(pack(c.groups), pack(c.perUnit), pack(c.weighted), pack(c.stores), pack(c.groupTypes), pack(c.groupStores), Buffer.concat(bytes), pack(nameEnds));
+  sqlite.prepare("INSERT OR REPLACE INTO browse_catalog (id, groups, per_unit, weighted, stores) VALUES (1, ?, ?, ?, ?)").run(pack(c.groups), pack(c.perUnit), pack(c.weighted), pack(c.stores));
+  sqlite.prepare("INSERT OR REPLACE INTO browse_group_data (id, group_types, group_stores) VALUES (1, ?, ?)").run(pack(c.groupTypes), pack(c.groupStores));
+  sqlite.prepare("INSERT OR REPLACE INTO browse_names (id, names, name_ends) VALUES (1, ?, ?)").run(Buffer.concat(bytes), pack(nameEnds));
 }
 
 /**

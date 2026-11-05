@@ -1,0 +1,34 @@
+// The private routers' zod checks at the HTTP boundary, each refusal a 400 with the first issue's message.
+import type { Context } from "hono";
+import { validator } from "hono/validator";
+import type { z } from "zod";
+
+export const bad = (c: Context, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
+
+/** The JSON body `schema` accepts, read with `c.req.valid("json")`. A body that is not JSON reads as {}; malformed JSON is the validator's own 400. */
+export const jsonBody = <S extends z.ZodType>(schema: S) =>
+  validator("json", (value, c) => {
+    const body = schema.safeParse(value);
+    return body.success ? (body.data as z.output<S>) : bad(c, body.error);
+  });
+
+/** The query `schema` accepts, read with `c.req.valid("query")`, so the dashboard's client knows its fields. */
+export const queryOf = <S extends z.ZodType>(schema: S) =>
+  validator("query", (value, c) => {
+    const query = schema.safeParse(value);
+    return query.success ? (query.data as z.output<S>) : bad(c, query.error);
+  });
+
+/** The path params `schema` accepts, read with `c.req.valid("param")`. */
+export const paramOf = <S extends z.ZodType>(schema: S) =>
+  validator("param", (value, c) => {
+    const param = schema.safeParse(value);
+    return param.success ? (param.data as z.output<S>) : bad(c, param.error);
+  });
+
+/** The multipart or urlencoded form `schema` accepts, read with `c.req.valid("form")`. */
+export const formOf = <S extends z.ZodType>(schema: S) =>
+  validator("form", (value, c) => {
+    const form = schema.safeParse(value);
+    return form.success ? (form.data as z.output<S>) : bad(c, form.error);
+  });

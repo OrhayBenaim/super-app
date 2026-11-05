@@ -34,21 +34,23 @@ function storeOf({ db }: IngestDeps, chainId: string, fileName: string | undefin
   return null;
 }
 
-/** Upserts a Stores file. Clears lat/lng of a store whose address changed so geocode picks it up again. */
+/**
+ * Loads a Stores file. A store Grocer has not seen is added from it; an existing one keeps its name, address, city and
+ * location (corrected only on the Internal dashboard, ADR 0006) and gets the address and city the Chain publishes now.
+ */
 export function ingestStores({ db }: IngestDeps, chainKey: string, xml: string) {
   const sqlite = db.$client;
   const parsed = parseStores(xml);
   const chainId = chainFor(chainKey, parsed.chainId);
   const upsertStore = sqlite.prepare(
-    `INSERT INTO stores (id, chain_id, store_id, sub_chain_id, name, address, city) VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET sub_chain_id = excluded.sub_chain_id, name = excluded.name,
-       lat = CASE WHEN stores.address = excluded.address AND stores.city = excluded.city THEN stores.lat END,
-       lng = CASE WHEN stores.address = excluded.address AND stores.city = excluded.city THEN stores.lng END,
-       address = excluded.address, city = excluded.city`,
+    `INSERT INTO stores (id, chain_id, store_id, sub_chain_id, name, address, city, published_address, published_city)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET sub_chain_id = excluded.sub_chain_id,
+       published_address = excluded.published_address, published_city = excluded.published_city`,
   );
   sqlite.transaction(() => {
     for (const s of parsed.stores)
-      upsertStore.run(`${chainId}-${s.storeId}`, chainId, s.storeId, s.subChainId, s.name, s.address, s.city);
+      upsertStore.run(`${chainId}-${s.storeId}`, chainId, s.storeId, s.subChainId, s.name, s.address, s.city, s.address, s.city);
   })();
   return parsed.stores.length;
 }

@@ -136,40 +136,6 @@ describe("price updates", () => {
   });
 });
 
-describe("store changes", () => {
-  const geo = (id: string) => sqlite.prepare("SELECT lat, lng FROM stores WHERE id = ?").get(id);
-
-  it("a changed address or city clears lat/lng so geocode picks it up again", () => {
-    const id = `${OSHER}-70`;
-    ing.ingestStores(deps, "osher-ad", storesXml(OSHER, [{ id: "70", address: "Herzl 1", city: "Ashdod" }, { id: "71", address: "Herzl 2", city: "Ashdod" }]));
-    sqlite.prepare("UPDATE stores SET lat = 31.8, lng = 34.6 WHERE id IN (?, ?)").run(id, `${OSHER}-71`);
-
-    ing.ingestStores(deps, "osher-ad", storesXml(OSHER, [{ id: "70", address: "Herzl 99", city: "Ashdod" }, { id: "71", address: "Herzl 2", city: "Haifa" }]));
-    expect(geo(id)).toEqual({ lat: null, lng: null });
-    expect(geo(`${OSHER}-71`)).toEqual({ lat: null, lng: null });
-    expect(store(id)).toMatchObject({ address: "Herzl 99", city: "Ashdod" });
-  });
-
-  it("an unchanged address keeps lat/lng even when the name changes or the file is re-ingested", () => {
-    const id = `${OSHER}-72`;
-    ing.ingestStores(deps, "osher-ad", storesXml(OSHER, [{ id: "72", name: "Old name", address: "Same 1", city: "Same" }]));
-    sqlite.prepare("UPDATE stores SET lat = 32.1, lng = 34.8 WHERE id = ?").run(id);
-    ing.ingestStores(deps, "osher-ad", storesXml(OSHER, [{ id: "72", name: "Old name", address: "Same 1", city: "Same" }]));
-    expect(geo(id)).toEqual({ lat: 32.1, lng: 34.8 });
-    ing.ingestStores(deps, "osher-ad", storesXml(OSHER, [{ id: "72", name: "New name", address: "Same 1", city: "Same" }]));
-    expect(geo(id)).toEqual({ lat: 32.1, lng: 34.8 });
-    expect(store(id)?.name).toBe("New name");
-  });
-
-  it("a store with a clash on only part of the address still clears coordinates (address+city compared as a pair)", () => {
-    const id = `${OSHER}-73`;
-    ing.ingestStores(deps, "osher-ad", storesXml(OSHER, [{ id: "73", address: "A", city: "B" }]));
-    sqlite.prepare("UPDATE stores SET lat = 1, lng = 2 WHERE id = ?").run(id);
-    ing.ingestStores(deps, "osher-ad", storesXml(OSHER, [{ id: "73", address: "B", city: "A" }])); // swapped
-    expect(geo(id)).toEqual({ lat: null, lng: null });
-  });
-});
-
 describe("chain validation", () => {
   it("rejects a Stores or Price file whose ChainId is not the --chain, writing nothing", () => {
     const before = snapshot();
@@ -252,7 +218,8 @@ describe("file encodings (readXml)", () => {
 
   it("ingests the UTF-16LE Stores fixture with Hebrew names intact", () => {
     expect(ing.ingestStores(deps, "osher-ad", ing.readXml(fixture("Stores7290103152017-000-20261021-080500.xml")))).toBe(4);
-    expect(store(`${OSHER}-1`)).toMatchObject({ name: "אשדוד", address: "הרצל 11", city: "אשדוד" });
+    // Store 1 is already in the DB from earlier tests, so only what the Chain publishes now changes (ADR 0006).
+    expect(store(`${OSHER}-1`)).toMatchObject({ published_address: "הרצל 11", published_city: "אשדוד" });
   });
 
   it("ingests UTF-16LE and UTF-16BE Stores files written to disk", () => {

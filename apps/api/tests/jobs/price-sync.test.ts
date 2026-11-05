@@ -3,12 +3,15 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { buildDeps, type Deps } from "#/deps.ts";
 import { chainSeeds } from "#/ingest/chains.ts";
+import { createInternalApp } from "#/internal-app.ts";
+import { decodeXml } from "#/ingest/parse.ts";
 import { priceSyncJob } from "#/jobs/price-sync.ts";
 import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
 import { fakeGeocoder } from "#/providers/nominatim/fake.ts";
 import { fakePricePortal } from "#/providers/price-portals/fake.ts";
 import { loadConfig } from "#/services/config.ts";
 import type { PricePortal } from "#/services/price-portal.ts";
+import { fakeClock } from "#/utils/clock.ts";
 
 const fx = (f: string) => new Uint8Array(readFileSync(fileURLToPath(new URL(`../__fixtures__/${f}`, import.meta.url))));
 const OSHER = "7290103152017";
@@ -134,5 +137,63 @@ describe("priceSyncJob", () => {
     expect(done).toEqual(chainSeeds.slice(0, upTo + 1).map((c) => c.ids[0]));
     expect(one(deps, "SELECT status FROM sync_chain_results WHERE sync_run_id = ? AND chain_id = ?", id, OSHER)).toEqual({ status: "ok" });
     expect(one(deps, "SELECT count(*) AS n FROM prices").n).toBeGreaterThan(0);
+  });
+
+  it("deletes Price syncs that started more than 90 days before it, with their Chain results; newer ones stay", async () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const clock = fakeClock(new Date("2026-11-05T10:00:00+02:00"));
+    const deps = setup({ clock });
+    const old = await priceSyncJob(deps)({});
+    clock.advance(DAY);
+    const kept = await priceSyncJob(deps)({});
+    clock.advance(90 * DAY - 1);
+    const latest = await priceSyncJob(deps)({}); // 90 days after `kept` minus 1 ms, 91 days after `old`
+
+    expect(rows(deps, "SELECT id FROM sync_runs ORDER BY id").map((r) => r.id)).toEqual([kept, latest]);
+    expect(one(deps, "SELECT count(*) AS n FROM sync_chain_results WHERE sync_run_id = ?", old).n).toBe(0);
+    expect(one(deps, "SELECT count(*) AS n FROM sync_chain_results WHERE sync_run_id = ?", kept).n).toBe(chainSeeds.length);
+  });
+
+  it("never changes a store it has seen, keeps the address the Chain publishes next to it, and adds new stores (ADR 0006)", async () => {
+    const storesFile = `Stores${OSHER}-000-20261021-080500.xml`;
+    const files = { ...osherFiles };
+    const deps = setup({ pricePortal: fakePricePortal(files) });
+    await priceSyncJob(deps)({});
+    const fixed = `${OSHER}-1`;
+    const store = (id: string) => one(deps, "SELECT name, address, city, lat, lng, published_address, published_city FROM stores WHERE id = ?", id);
+    // A correction made on the Internal dashboard.
+    deps.db.$client.prepare("UPDATE stores SET name = 'Fixed', address = 'Fixed 1', city = 'Fixedville', lat = 31.1, lng = 34.1 WHERE id = ?").run(fixed);
+
+    // The Chain now publishes store 001 renamed and moved, and a store Grocer has not seen.
+    files[storesFile] = new TextEncoder().encode(
+      decodeXml(Buffer.from(osherFiles[storesFile]!))
+        .replace(/(<StoreID>001<\/StoreID>.*?<StoreName>)[^<]*(<\/StoreName><Address>)[^<]*(<\/Address><City>)[^<]*/, "$1Renamed$2Moved 7$3Haifa")
+        .replace("</Stores>", "<Store><StoreID>005</StoreID><StoreName>Newcomer</StoreName><Address>New 5</Address><City>Ashdod</City></Store></Stores>"),
+    );
+    await priceSyncJob(deps)({});
+
+    expect(store(fixed)).toEqual({ name: "Fixed", address: "Fixed 1", city: "Fixedville", lat: 31.1, lng: 34.1, published_address: "Moved 7", published_city: "Haifa" });
+    expect(store(`${OSHER}-5`)).toEqual({ name: "Newcomer", address: "New 5", city: "Ashdod", lat: 32, lng: 34, published_address: "New 5", published_city: "Ashdod" });
+  });
+
+  it("keeps a store edited on the Internal dashboard, and geocodes one whose location the edit cleared", async () => {
+    const deps = buildDeps(loadConfig({ ...process.env, SYNC_TOKEN: "t" }), {
+      pricePortal: fakePricePortal(osherFiles),
+      geocoder: fakeGeocoder(() => ({ lat: 32, lng: 34.8 })),
+    });
+    await priceSyncJob(deps)({});
+    const edit = (id: string, body: Record<string, unknown>) =>
+      createInternalApp(deps).request(`/stores/${id}`, {
+        method: "PUT",
+        headers: { Authorization: "Bearer t", "content-type": "application/json" },
+        body: JSON.stringify({ name: "Fixed", address: "Fixed 1", city: "Beersheba", ...body }),
+      });
+    expect((await edit(`${OSHER}-1`, { lat: 31.25, lng: 34.79 })).status).toBe(200);
+    expect((await edit(`${OSHER}-2`, { lat: null, lng: null })).status).toBe(200);
+
+    await priceSyncJob(deps)({});
+    const store = (id: string) => one(deps, "SELECT name, address, city, lat, lng FROM stores WHERE id = ?", id);
+    expect(store(`${OSHER}-1`)).toEqual({ name: "Fixed", address: "Fixed 1", city: "Beersheba", lat: 31.25, lng: 34.79 });
+    expect(store(`${OSHER}-2`)).toEqual({ name: "Fixed", address: "Fixed 1", city: "Beersheba", lat: 32, lng: 34.8 });
   });
 });

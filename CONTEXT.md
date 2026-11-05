@@ -53,7 +53,7 @@ _Avoid_: Unavailable item, out of stock (Grocer only knows what a store prices, 
 ### Prices
 
 **Price sync**:
-One run that brings every Chain's prices up to date: download each Chain's newest Stores and PriceFull files for all its stores, load them, geocode every store that has no location yet (new, moved, or not found before), and give a Product type to every Product that has none yet (what one Price sync doesn't reach is left for the next). A Chain that fails does not stop the others, and a classification that fails leaves Products as they were. Only one Price sync runs at a time.
+One run that brings every Chain's prices up to date: download each Chain's newest Stores and PriceFull files for all its stores, load them, geocode every store that has no location yet (new, or not found before), and give a Product type to every Product that has none yet (what one Price sync doesn't reach is left for the next). A Chain that fails does not stop the others, and a classification that fails leaves Products as they were. Only one Price sync runs at a time. It adds stores and Products it has not seen but never changes an existing one's name, address or location: those are set once and then only the Grocer team changes them, on the Internal dashboard. When a Chain publishes a different address for a store, the Internal dashboard shows it, and nothing changes until the team does.
 _Avoid_: Fetch, scrape, import (each names only one part of it)
 
 **Scheduled sync**:
@@ -73,16 +73,28 @@ A Scheduled sync that does not run, because a Price sync was running at its time
 _Avoid_: Cancelled sync
 
 **Chain failure**:
-A Chain that could not be brought up to date during a Price sync: its Stores file could not be downloaded or loaded, none of its price files could be loaded (failed, or all name stores missing from its Stores file), or its prices could not be saved. It is logged and recorded. Stores whose prices were saved before the failure keep them; the rest keep their previous prices until a later Price sync succeeds for that Chain. A single price file that cannot be downloaded or loaded is not a Chain failure: that store keeps its previous prices and the rest of the Chain still updates.
+A Chain that could not be brought up to date during a Price sync: its Stores file could not be downloaded or loaded, none of its price files could be loaded (failed, or all name stores missing from its Stores file), or its prices could not be saved. It is logged and recorded. Stores whose prices were saved before the failure keep them; the rest keep their previous prices until a later Price sync succeeds for that Chain. A single price file that cannot be downloaded or loaded is not a Chain failure but a Store failure: that store keeps its previous prices and the rest of the Chain still updates.
 _Avoid_: Sync failure (the Price sync itself still finishes)
 
+**Promotion failure**:
+A Chain whose Promotion files could not be downloaded or loaded during a Price sync while its prices still updated. Its stores keep their previous Promotions. It is logged and recorded, and shown apart from the Chain's own outcome: a Chain with a Promotion failure is not a Chain failure.
+_Avoid_: Promo error, partial failure
+
+**Store failure**:
+A store whose price file or Promotion file could not be downloaded or loaded during a Price sync while the rest of its Chain still updated. The store keeps its previous prices or Promotions. Store failures are kept for 7 days, then forgotten.
+_Avoid_: File failure, store error
+
 **Product image**:
-A picture of a Product, found by its barcode in outside sources (a Chain's online shop first, Open Food Facts second). Users cannot set or change it. A Product without a barcode, or one no source knows, has no Product image, and nothing is shown in its place. It is shown when picking a Product for an item and when editing an item.
+A picture of a Product: the one the Grocer team uploaded on the Internal dashboard when there is one, otherwise the one found by its barcode in outside sources (a Chain's online shop first, Open Food Facts second). Users cannot set or change it. A Product with no uploaded image and no barcode, or one no source knows, has no Product image, and nothing is shown in its place. It is shown when picking a Product for an item and when editing an item.
 _Avoid_: Photo, thumbnail, picture (as separate terms)
 
 **Product group**:
 Products that are the same thing to a shopper, whatever their brand, pack size or Chain label: סוגת's, מיה's and Rami Levy's own bulgur are all the Product group "בורגול". More words make a narrower Product group: a word that changes what the product is (a variety, organic, fat percent, lactose-free) narrows it ("בורגול דק", "בורגול אורגני"), while brand, size and Chain label never split one. A dish made from the product is not in its group ("בורגול עם גרגירי חומוס" is not bulgur). Produce follows the same rules: names match once origin, grade, "by weight" and "loose" words, spellings and plurals are evened out ("בננות ישראל" and "בננה מובחרת" are both "בננה"), and packed and loose are different groups ("גזר ארוז" vs "גזר"). A product is in a group only when its name starts with the group's words ("שוקולד חלב" is not milk). A product made "with" something, or a substitute for the real thing, is only in a group whose words say so: "קוטג עם זיתים" is not in "קוטג", and neither is "קוטג' טבעוני". Every product in a group is measured the same way: by kilo, by liter or by the unit. Produce is always by kilo. Sweetened condensed milk is sold by weight, so it is not in "חלב". Things counted by the unit are a different product for each pack count: a carton of 12 eggs and a carton of 30 are not one group. A User matches an Item to a Product group by picking it, the same way they pick a single product; nothing is matched for them. For a group measured by kilo or liter, Compare picks each store's cheapest product by price per kilo or liter, so a 1 ק"ג bag at ₪6.80 beats a 500 גרם bag at ₪3.70, and the Item's Quantity is kilos when the group is Sold by weight (produce), or else a number of the group's commonest pack size. For a group counted by the unit, every product is the same pack (a carton of 12 eggs). Compare picks the cheapest pack, and the Item's Quantity is a number of packs. Compare names the product each store's price comes from.
 _Avoid_: Generic product, canonical product, Produce group, kind, category (an Item's category is something else)
+
+**Made group**:
+A Product group the Grocer team made on the Internal dashboard: a name, a Product type, a measure and exactly the Products the team put in, not found from words. The team can also add a Product to a word-found Product group, remove one from it or rename it; those edits win over the words and no Price sync changes them.
+_Avoid_: Custom group, manual group
 
 **Product type**:
 The broad kind a Product is: one of a fixed list we own (dairy and eggs, meat and fish, produce…, Other last), given to each Product from its name. A Product that fits none of them is of the Product type Other, and so is a Product not given a type yet. Users browse Home by Product type. An Item added from Home or Promotions takes its Product type's name as its category.
@@ -113,6 +125,12 @@ _Avoid_: PIN, token
 **Deletion code**:
 The OTP emailed to a signed-in User before an Account deletion or a Data deletion done on the web. A correct code leads to a last confirmation, and confirming commits that deletion. It works only for the deletion it was requested for; cancelling kills it.
 _Avoid_: PIN, Reset code (that one is only for Password reset)
+
+### Operations
+
+**Internal dashboard**:
+The Grocer team's own pages for watching and correcting the price data: Chains and their stores, Products, Product groups, Promotions and Price syncs. Only people on the team's private network can open it, with no sign-in. It is where Manual syncs are started and where the team corrects a store's details and location, a Product's type or Product image, and Product groups. It shows; it never alerts.
+_Avoid_: Admin panel, back office, console
 
 ### Support
 

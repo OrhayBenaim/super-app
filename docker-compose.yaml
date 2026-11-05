@@ -1,7 +1,9 @@
 # Production stack for Coolify (Docker Compose build pack, compose file /docker-compose.yaml).
 # api: the public API; give it a domain in Coolify (https://api.example.com:3000).
 # worker: Price syncs. The chains' portals block non-Israeli IPs, so its HTTP goes through the tailscale
-#   container, which uses a machine in Israel as its exit node. Only the worker uses it; nothing else on the VPS does.
+#   container, which uses a machine in Israel as its exit node. Only the worker's outbound HTTP uses it.
+# dashboard: the Internal dashboard (docs/adr/0005). It shares the tailscale container's network, and `tailscale serve`
+#   publishes it on the tailnet only (apps/dashboard/serve.json); no domain in Coolify. It calls the api's private app.
 # api and worker share one SQLite file on the grocer-data volume, so they must run on the same host.
 x-env: &env
   BETTER_AUTH_URL: ${BETTER_AUTH_URL}
@@ -23,9 +25,27 @@ x-env: &env
 services:
   api:
     build: { context: ., dockerfile: apps/api/Dockerfile, target: api }
-    environment: *env
+    environment:
+      <<: *env
+      # The private app (Manual syncs, the Internal dashboard): all interfaces inside the container, but no domain and
+      # no published port, so only containers on this stack's network reach it.
+      SYNC_TOKEN: ${SYNC_TOKEN}
+      INTERNAL_HOST: 0.0.0.0
+      INTERNAL_PORT: "3001"
+      IMAGES_DIR: /data/images # uploaded Product images, on the same volume as the database (docs/adr/0008)
     volumes:
       - grocer-data:/data
+    restart: unless-stopped
+
+  dashboard:
+    build: { context: ., dockerfile: apps/dashboard/Dockerfile }
+    environment:
+      API_URL: http://api:3001
+      SYNC_TOKEN: ${SYNC_TOKEN}
+      HOST: 127.0.0.1 # reached only by `tailscale serve` in the shared network namespace
+      PORT: "3002"
+    network_mode: service:tailscale
+    depends_on: [tailscale, api]
     restart: unless-stopped
 
   worker:
@@ -55,8 +75,11 @@ services:
       TS_USERSPACE: "true" # no TUN device or NET_ADMIN; traffic leaves only through the proxy below
       TS_OUTBOUND_HTTP_PROXY_LISTEN: 0.0.0.0:1055
       TS_EXTRA_ARGS: --exit-node=${TS_EXIT_NODE}
+      # Publishes the dashboard at https://grocer-worker.<tailnet>.ts.net, tailnet only (no Funnel).
+      TS_SERVE_CONFIG: /config/serve.json
     volumes:
       - tailscale-state:/var/lib/tailscale
+      - ./apps/dashboard/serve.json:/config/serve.json:ro
     restart: unless-stopped
 
 volumes:
