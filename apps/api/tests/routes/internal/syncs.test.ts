@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { syncRuns } from "#/db/appSchema.ts";
+import { syncChainResults, syncRuns } from "#/db/appSchema.ts";
 import { buildDeps, type Deps } from "#/deps.ts";
 import { createInternalApp } from "#/internal-app.ts";
 import { loadConfig } from "#/services/config.ts";
@@ -83,5 +83,114 @@ describe("GET /syncs (private)", () => {
     const deps = setup();
     expect((await createInternalApp(deps).request("/syncs")).status).toBe(401);
     expect((await get(deps, "/syncs", "Bearer wrong")).status).toBe(401);
+  });
+});
+
+describe("GET /syncs/:id (private)", () => {
+  const SHUFERSAL = "7290027600007";
+  const RAMI_LEVY = "7290058140886";
+
+  it("returns one run with its per-Chain results, Promotion outcome and Product type step", async () => {
+    const deps = setup();
+    deps.db
+      .insert(syncRuns)
+      .values({
+        trigger: "scheduled",
+        status: "finished",
+        scheduledAt: ago(1),
+        requestedAt: ago(1),
+        startedAt: ago(1),
+        finishedAt: new Date(ago(1).getTime() + 60_000),
+        productsTyped: 40,
+        productsOther: 3,
+        typeRequestsFailed: 1,
+      })
+      .run();
+    deps.db
+      .insert(syncChainResults)
+      .values([
+        { syncRunId: 1, chainId: SHUFERSAL, status: "failed", filesDownloaded: 0, storesLoaded: 0, pricesLoaded: 0, storesGeocoded: 0, durationMs: 1200, error: "portal 503" },
+        {
+          syncRunId: 1,
+          chainId: RAMI_LEVY,
+          status: "ok",
+          filesDownloaded: 12,
+          storesLoaded: 6,
+          pricesLoaded: 9000,
+          storesGeocoded: 2,
+          durationMs: 45_000,
+          promotionsLoaded: 0,
+          promotionStatus: "failed",
+          promotionError: "bad promo file",
+        },
+      ])
+      .run();
+
+    const res = await get(deps, "/syncs/1");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      sync: {
+        id: 1,
+        trigger: "scheduled",
+        status: "finished",
+        skipReason: null,
+        scheduledAt: "2026-11-04T10:00:00.000Z",
+        requestedAt: "2026-11-04T10:00:00.000Z",
+        startedAt: "2026-11-04T10:00:00.000Z",
+        finishedAt: "2026-11-04T10:01:00.000Z",
+        productTypes: { typed: 40, other: 3, failedRequests: 1 },
+      },
+      chains: [
+        {
+          chainId: RAMI_LEVY,
+          name: "Rami Levy",
+          nameHe: "רמי לוי",
+          status: "ok",
+          error: null,
+          filesDownloaded: 12,
+          storesLoaded: 6,
+          pricesLoaded: 9000,
+          storesGeocoded: 2,
+          promotionsLoaded: 0,
+          durationMs: 45_000,
+          promotionStatus: "failed",
+          promotionError: "bad promo file",
+        },
+        {
+          chainId: SHUFERSAL,
+          name: "Shufersal",
+          nameHe: "שופרסל",
+          status: "failed",
+          error: "portal 503",
+          filesDownloaded: 0,
+          storesLoaded: 0,
+          pricesLoaded: 0,
+          storesGeocoded: 0,
+          promotionsLoaded: 0,
+          durationMs: 1200,
+          promotionStatus: null,
+          promotionError: null,
+        },
+      ],
+    });
+  });
+
+  it("has no Product type step when it did not run", async () => {
+    const deps = setup();
+    deps.db.insert(syncRuns).values({ trigger: "manual", status: "interrupted", requestedAt: ago(1), startedAt: ago(1) }).run();
+    expect(await (await get(deps, "/syncs/1")).json()).toMatchObject({ sync: { status: "interrupted", productTypes: null }, chains: [] });
+  });
+
+  it("404 for a run that does not exist", async () => {
+    expect((await get(setup(), "/syncs/7")).status).toBe(404);
+  });
+
+  it("400 for an id that is not a positive whole number", async () => {
+    const deps = setup();
+    for (const id of ["abc", "0", "-1", "1.5"]) expect((await get(deps, `/syncs/${id}`)).status).toBe(400);
+  });
+
+  it("401 without the token", async () => {
+    expect((await createInternalApp(setup()).request("/syncs/1")).status).toBe(401);
   });
 });

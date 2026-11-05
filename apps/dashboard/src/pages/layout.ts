@@ -32,6 +32,12 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
         .badge-requested { background: #fff; color: #1d4ed8; border-style: dashed; }
         .badge-interrupted { background: #fde8e8; color: #9b1c1c; border-color: #f3b0b0; }
         .badge-skipped { background: #f1f0ec; color: #57534e; border-color: #d6d3cd; }
+        .badge-ok { background: #e3f4e8; color: #1d5e36; border-color: #a9d8b8; }
+        .badge-failed { background: #fde8e8; color: #9b1c1c; border-color: #f3b0b0; }
+        tr.errors td { white-space: normal; padding-top: 0; color: #9b1c1c; font-size: 14px; }
+        dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 16px 0 0; }
+        dt { color: #5c5c58; }
+        dd { margin: 0; }
         .badge-ignored { background: #fff; color: #6b6b64; border-color: #d6d3cd; border-style: dotted; }
       </style>
     </head>
