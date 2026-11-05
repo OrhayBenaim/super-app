@@ -32,10 +32,17 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
         .badge-requested { background: #fff; color: #1d4ed8; border-style: dashed; }
         .badge-interrupted { background: #fde8e8; color: #9b1c1c; border-color: #f3b0b0; }
         .badge-skipped { background: #f1f0ec; color: #57534e; border-color: #d6d3cd; }
+        .badge-ok { background: #e3f4e8; color: #1d5e36; border-color: #a9d8b8; }
+        .badge-failed { background: #fde8e8; color: #9b1c1c; border-color: #f3b0b0; }
+        nav { display: flex; gap: 16px; margin-bottom: 16px; }
+        a { color: #1f6f43; }
         .badge-ignored { background: #fff; color: #6b6b64; border-color: #d6d3cd; border-style: dotted; }
       </style>
     </head>
     <body>
-      <main>${body}</main>
+      <main>
+        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a></nav>
+        ${body}
+      </main>
     </body>
   </html>`;

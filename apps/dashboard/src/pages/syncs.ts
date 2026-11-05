@@ -11,7 +11,7 @@ const NOTICES = { started: "Manual sync requested. The worker starts it within a
 
 // Price syncs run on Israel time (SYNC_TIMES), so the dashboard shows it whatever the browser's zone.
 const dateTime = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", dateStyle: "medium", timeStyle: "short" });
-const when = (iso: string | null) => (iso ? dateTime.format(new Date(iso)) : "—");
+export const when = (iso: string | null) => (iso ? dateTime.format(new Date(iso)) : "—");
 
 /** "4m 12s" under an hour, "2h 0m" from one; "—" until the sync has both a start and an end. */
 function duration(startedAt: string | null, finishedAt: string | null) {
