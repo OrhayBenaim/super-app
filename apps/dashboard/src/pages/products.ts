@@ -4,6 +4,7 @@ import type { HtmlEscapedString } from "hono/utils/html";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import type { ApiClient } from "#/api-client.ts";
 import { notice } from "#/pages/layout.ts";
+import { badge } from "#/pages/promotions.ts";
 import { when } from "#/pages/syncs.ts";
 
 type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
@@ -91,8 +92,39 @@ export const productsFound = (q: string, type: TypeFilter, page: number, { produ
           ${hasMore ? html`<a href="${pageHref(q, type, page + 1)}">Next</a>` : ""}
         </nav>`;
 
-/** One Product: its Product image, details, its price at every store (cheapest first) and the Promotions running there. */
-export const productPage = ({ product: p, prices }: Detail, image: string | null) => html`<header>
+/** Every Promotion on the Product at the stores that price it, running first, each linking to its page. */
+const promotionsTable = (promotions: Detail["promotions"]) =>
+  promotions.length === 0
+    ? notice("No store that prices it has a Promotion on it.")
+    : html`<div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">State</th>
+              <th scope="col">Promotion</th>
+              <th scope="col">Chain</th>
+              <th scope="col">Store</th>
+              <th scope="col">Starts</th>
+              <th scope="col">Ends</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${promotions.map(
+              (promo) => html`<tr>
+                <td>${badge(promo.state)}</td>
+                <td lang="he"><a href="/promotions/${promo.id}">${promo.text}</a> <span class="muted">${promo.description}</span></td>
+                <td>${promo.chainName}</td>
+                <td lang="he">${promo.storeName}</td>
+                <td>${when(promo.startsAt)}</td>
+                <td>${when(promo.endsAt)}</td>
+              </tr>`,
+            )}
+          </tbody>
+        </table>
+      </div>`;
+
+/** One Product: its Product image, details, its price at every store (cheapest first) with the Promotions running there, and all its Promotions. */
+export const productPage = ({ product: p, prices, promotions }: Detail, image: string | null) => html`<header>
     <h1 lang="he">${p.name}</h1>
     <a href="/products">Search Products</a>
   </header>
@@ -146,4 +178,6 @@ export const productPage = ({ product: p, prices }: Detail, image: string | null
             )}
           </tbody>
         </table>
-      </div>`}`;
+      </div>`}
+  <h2>Promotions</h2>
+  ${promotionsTable(promotions)}`;

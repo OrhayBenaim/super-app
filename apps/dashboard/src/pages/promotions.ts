@@ -13,7 +13,7 @@ const AUDIENCES = { all: "Everyone", club: "Club", card: "Card", coupon: "Coupon
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const shekels = (n: number) => `₪${n.toFixed(2)}`;
-const badge = (s: Promotion["state"]) => html`<span class="badge badge-promo-${s}">${STATES[s]}</span>`;
+export const badge = (s: Promotion["state"]) => html`<span class="badge badge-promo-${s}">${STATES[s]}</span>`;
 const amount = (p: Promotion) => (p.kind === "info" ? "—" : p.kind === "percent" || p.kind === "nth" ? `${p.amount}%` : shekels(p.amount));
 const days = (d: string | null) => (d === null ? "Every day" : d.split(",").map((n) => DAYS[Number(n) - 1] ?? n).join(", "));
 const limits = (p: Promotion) => [p.limitQty === null ? "" : `Up to ${p.limitQty}`, p.minPurchase ? `Spend ${shekels(p.minPurchase)}` : ""].filter(Boolean).join(" · ") || "—";

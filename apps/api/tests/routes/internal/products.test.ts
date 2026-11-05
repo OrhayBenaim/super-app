@@ -165,6 +165,30 @@ describe("GET /products/:code (private)", () => {
         // The ended Promotion is not running
         expect.objectContaining({ storeId: `${OSHER}-1`, price: 6.9, updatedAt: new Date(NOW.getTime() - DAY).toISOString(), promotions: [] }),
       ],
+      promotions: [expect.objectContaining({ promotionId: "P1" }), expect.objectContaining({ promotionId: "P2" })],
+    });
+  });
+
+  it("lists every Promotion on it at the stores that price it, each marked running, not today, future or ended, running first", async () => {
+    const deps = setup();
+    seed(deps);
+    const later = { kind: "price" as const, minQty: 1, amount: 5, audience: "all" as const, description: "5 ש״ח" };
+    const extra = deps.db
+      .insert(promotions)
+      .values([
+        { ...later, storeId: `${OSHER}-2`, promotionId: "P3", startsAt: new Date(NOW.getTime() + DAY), endsAt: new Date(NOW.getTime() + 2 * DAY) },
+        // Fridays and Saturdays only; NOW is a Thursday
+        { ...later, storeId: `${OSHER}-2`, promotionId: "P4", startsAt: new Date(NOW.getTime() - DAY), endsAt: new Date(NOW.getTime() + 7 * DAY), days: "6,7" },
+      ])
+      .returning({ id: promotions.id })
+      .all();
+    deps.db.insert(promotionItems).values(extra.map(({ id }) => ({ promotionId: id, code: MILK }))).run();
+    const body = (await (await get(deps, `/products/${MILK}`)).json()) as { promotions: Record<string, unknown>[] };
+    expect(body.promotions.map((p) => [p.promotionId, p.state])).toEqual([["P1", "running"], ["P4", "notToday"], ["P3", "future"], ["P2", "ended"]]);
+    expect(body.promotions[0]).toEqual({
+      id: expect.any(Number), promotionId: "P1", storeId: `${RAMI}-1`, storeName: "רמי לוי תלפיות", chainName: "Rami Levy", description: "2 ב-10",
+      kind: "bundle", audience: "club", startsAt: new Date(NOW.getTime() - DAY).toISOString(), endsAt: new Date(NOW.getTime() + DAY).toISOString(),
+      days: null, state: "running", text: "2 ב-₪10",
     });
   });
 

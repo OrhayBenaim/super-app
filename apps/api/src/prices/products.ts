@@ -3,7 +3,7 @@
 import type { ProductType } from "@grocer/shared/product-types";
 import type { Db } from "#/db/index.ts";
 import { groupMembers, measureOf, soldByOf } from "#/prices/groups.ts";
-import { promotionText, runningPromotions } from "#/prices/promotions.ts";
+import { PROMOTION_STATES, promotionStateAt, promotionText, runningPromotions, type PromotionTerms } from "#/prices/promotions.ts";
 import { searchProducts } from "#/prices/search.ts";
 
 /** A Product type, or "none" for Products with none yet. */
@@ -41,7 +41,21 @@ export function findProducts(db: Db, { q, type, page, pageSize }: { q?: string; 
 
 type PriceRow = { storeId: string; storeName: string; city: string; chainId: string; chainName: string; chainNameHe: string; price: number; updatedAt: number };
 
-/** One Product, its Shelf price at every store that prices it (cheapest first) and the Promotions running there now; null for none. */
+type PromotionRow = PromotionTerms & {
+  promotionDbId: number; storeId: string; storeName: string; chainName: string; startsAt: number; endsAt: number; days: string | null;
+};
+// Every Promotion on the Product at a store that prices it, with that store's Shelf price for its text.
+const PROMOTIONS = `SELECT p.id AS promotionDbId, p.promotion_id AS id, p.store_id AS storeId, s.name AS storeName, ch.name AS chainName,
+     p.description, p.kind, p.min_qty AS minQty, p.amount, p.audience, p.limit_qty AS limitQty, p.min_purchase AS minPurchase,
+     p.starts_at AS startsAt, p.ends_at AS endsAt, p.days, pr.price
+   FROM promotion_items pi JOIN promotions p ON p.id = pi.promotion_id JOIN prices pr ON pr.code = pi.code AND pr.store_id = p.store_id
+     JOIN stores s ON s.id = p.store_id JOIN chains ch ON ch.id = s.chain_id
+   WHERE pi.code = ? ORDER BY p.starts_at DESC, p.id`;
+
+/**
+ * One Product, its Shelf price at every store that prices it (cheapest first) with the Promotions running there now,
+ * and every Promotion on it at those stores marked by state, running first; null for none.
+ */
 export function productDetail(db: Db, code: string, now: Date) {
   const sqlite = db.$client;
   const p = sqlite
@@ -56,6 +70,18 @@ export function productDetail(db: Db, code: string, now: Date) {
     )
     .all(code) as PriceRow[];
   const running = runningPromotions(db, rows.map((r) => r.storeId), [code], now);
+  const state = promotionStateAt(now);
+  const weighted = p.isWeighted ? 1 : 0;
+  const promotions = (sqlite.prepare(PROMOTIONS).all(code) as (PromotionRow & { price: number })[])
+    .map(({ promotionDbId, id, price, startsAt, endsAt, ...promo }) => {
+      const dates = { startsAt: new Date(startsAt), endsAt: new Date(endsAt) };
+      return {
+        id: promotionDbId, promotionId: id, storeId: promo.storeId, storeName: promo.storeName, chainName: promo.chainName, description: promo.description,
+        kind: promo.kind, audience: promo.audience, ...dates, days: promo.days, state: state({ ...dates, days: promo.days }),
+        text: promotionText({ ...promo, id, weighted }, price),
+      };
+    })
+    .sort((a, b) => PROMOTION_STATES.indexOf(a.state) - PROMOTION_STATES.indexOf(b.state));
   return {
     product: asFound(p),
     prices: rows.map((r) => ({
@@ -63,9 +89,10 @@ export function productDetail(db: Db, code: string, now: Date) {
       updatedAt: new Date(r.updatedAt).toISOString(),
       promotions: (running.get(`${r.storeId} ${code}`) ?? []).map(({ storeId: _s, code: _c, weighted: _w, ...promo }) => ({
         ...promo,
-        text: promotionText({ ...promo, weighted: p.isWeighted ? 1 : 0 }, r.price),
+        text: promotionText({ ...promo, weighted }, r.price),
       })),
     })),
+    promotions,
   };
 }
 

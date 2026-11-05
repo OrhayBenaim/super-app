@@ -161,6 +161,25 @@ describe("Product page", () => {
     expect(html.indexOf("₪5.90")).toBeLessThan(html.indexOf("₪6.90"));
   });
 
+  it("lists the Product's Promotions at the stores that price it, each marked by state, linking to the Promotion", async () => {
+    const { app, api } = seeded();
+    const [ended] = api.db
+      .insert(promotions)
+      .values({
+        storeId: `${OSHER}-1`, promotionId: "P0", description: "חלב ב-5 שנגמר", kind: "price", minQty: 1, amount: 5, audience: "all",
+        startsAt: new Date(NOW.getTime() - 9 * DAY), endsAt: new Date(NOW.getTime() - 2 * DAY),
+      })
+      .returning({ id: promotions.id })
+      .all();
+    api.db.insert(promotionItems).values({ promotionId: ended!.id, code: MILK }).run();
+    const html = await (await app.request(`/products/${MILK}`)).text();
+    const section = html.slice(html.indexOf("<h2>Promotions</h2>"));
+    expect(section).toContain(`href="/promotions/${ended!.id}"`);
+    expect(section).toContain('class="badge badge-promo-ended"');
+    expect(section.indexOf("badge-promo-running")).toBeLessThan(section.indexOf("badge-promo-ended"));
+    expect(section).toContain("אושר עד גבעת שאול");
+  });
+
   it("shows a Chain-only Product with no image and no Product type yet, sold by weight", async () => {
     const { app, looked } = seeded();
     const res = await app.request(`/products/${encodeURIComponent(LOCAL)}`);
