@@ -146,7 +146,7 @@ const editForm = (id: string, v: Edit, error?: string) => html`<h2>Edit</h2>
 const editOf = (s: StoreDetail): Edit => ({ name: s.name, address: s.address, city: s.city, lat: s.lat === null ? "" : String(s.lat), lng: s.lng === null ? "" : String(s.lng) });
 
 /** One store: its details, how many prices it has and when they were last updated (a store that stopped publishing). */
-export const storePage = (s: StoreDetail, refused?: { edit: Edit; error: string }) => html`<header><h1>${s.name}</h1><a href="${storeHref(s.id)}/promotions">Promotions</a></header>
+export const storePage = (s: StoreDetail, refused?: { edit: Edit; error: string }) => html`<header><h1>${s.name}</h1><a href="/promotions?store=${encodeURIComponent(s.id)}">Promotions</a></header>
   <dl class="details">
     <dt>Chain</dt>
     <dd><a href="/stores?chain=${s.chainId}">${s.chainName}</a></dd>

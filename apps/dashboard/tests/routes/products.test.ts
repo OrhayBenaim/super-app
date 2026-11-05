@@ -182,8 +182,8 @@ describe("Product page", () => {
     const html = await (await app.request(`/products/${MILK}`)).text();
     const section = html.slice(html.indexOf("<h2>Promotions</h2>"));
     expect(section).toContain(`href="/promotions/${ended!.id}"`);
-    expect(section).toContain('class="badge badge-promo-ended"');
-    expect(section.indexOf("badge-promo-running")).toBeLessThan(section.indexOf("badge-promo-ended"));
+    expect(section).toContain('<span class="badge badge-finished">Ended</span>');
+    expect(section.indexOf(">Running</span>")).toBeLessThan(section.indexOf(">Ended</span>"));
     expect(section).toContain("אושר עד גבעת שאול");
   });
 

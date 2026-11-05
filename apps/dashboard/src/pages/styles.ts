@@ -127,6 +127,26 @@ tr.error.warning td { color: var(--warning); }
 .counts { display: flex; gap: var(--space-7); }
 .counts strong { font-size: 17px; margin-inline-end: var(--space-2); }
 
+/* Promotions: the filter bar, a Promotion's terms, Products and stores */
+.filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.filter-bar .select select { height: 36px; min-width: 150px; padding: 0 var(--space-9) 0 var(--space-4); border: 1px solid var(--separator); border-radius: var(--radius-control); background: var(--surface); font: inherit; color: var(--label); }
+.filter-bar .select::after { top: 12px; }
+.filter-bar .chips { margin-inline-start: var(--space-5); }
+td.saving { color: var(--saving); font-weight: 600; }
+td img { display: block; border-radius: var(--radius-control); }
+.promotion-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--space-5); align-items: start; }
+.promotion-layout > section > .section-header, .promotion-layout > div > section:first-child > .section-header { margin-top: 0; }
+.terms { grid-template-columns: 146px 1fr; gap: 0; margin: 0; }
+.terms dt, .terms dd { padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--separator); }
+.terms dd { padding-inline-start: 0; }
+.terms dt:last-of-type, .terms dd:last-of-type { border-bottom: 0; }
+.store-list { list-style: none; margin: 0; padding: 0; }
+.store-list li { display: flex; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--separator); }
+.store-list li:last-child { border-bottom: 0; }
+.store-list-more { border-top: 1px solid var(--separator); }
+.store-list-more summary { padding: var(--space-4) var(--space-5); color: var(--tint); cursor: pointer; list-style: none; }
+.store-list-more[open] summary { border-bottom: 1px solid var(--separator); }
+
 /* Other pages' bits, until their own tickets restyle them */
 dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-5); margin: var(--space-5) 0 0; }
 dt { color: var(--labelSecondary); }
