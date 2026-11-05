@@ -1,7 +1,7 @@
 // Product search (GET /api/products/search, and the Internal dashboard's Products and Product groups): Product groups
 // by their words, then Products, from products_fts and the prices index.
 import type { Db } from "#/db/index.ts";
-import { ftsMatch, measureOf, nameWords, searchGroups, soldByOf, withoutSizes } from "#/prices/groups.ts";
+import { commonest, ftsMatch, groupEdits, groupMembers, madeGroups, measureOf, nameWords, searchGroups, soldByOf, withoutSizes } from "#/prices/groups.ts";
 import { round2 } from "#/prices/promotions.ts";
 
 const TOP_CODES = 5;
@@ -39,6 +39,33 @@ export const withMeasure = <P extends { name: string; unitQty: string | null; is
 });
 const productResult = (p: Found & { minPrice: number }) => ({ kind: "product" as const, ...withMeasure(p) });
 
+const startsWords = (words: string[], start: string[]) => start.every((w, i) => words[i] === w);
+const STORE_COUNT = "SELECT count(DISTINCT store_id) AS n FROM prices WHERE code IN (SELECT value FROM json_each(?))";
+
+/**
+ * A search result for a group the team edited or made, from its members (groupMembers): its name (the team's, when
+ * renamed) and only the members priced anywhere; with @store, priced by that store. Nothing when none is priced there.
+ */
+function editedGroup(db: Db, g: { ref: string; name: string; refinements: string[] }, store: string | null) {
+  const sqlite = db.$client;
+  const { members, soldBy, size } = groupMembers(db, g.ref);
+  if (!size) return [];
+  const price = sqlite.prepare("SELECT count(*) AS storeCount, min(CASE WHEN @store IS NULL OR store_id = @store THEN price END) AS minPrice FROM prices WHERE code = @code");
+  const priced = members
+    .map((m) => ({ ...m, ...(price.get({ code: m.code, store }) as { storeCount: number; minPrice: number | null }) }))
+    .filter((m) => m.storeCount > 0)
+    .sort((a, b) => b.storeCount - a.storeCount);
+  const each = priced.flatMap((m) => (m.minPrice === null ? [] : [size.measure === "unit" ? m.minPrice : m.minPrice / m.size]));
+  if (!each.length) return [];
+  const codes = priced.map((m) => m.code);
+  const { n } = sqlite.prepare(STORE_COUNT).get(JSON.stringify(codes)) as { n: number };
+  return [{
+    kind: "group" as const, ref: g.ref, name: groupEdits(db, [g.ref]).get(g.ref)?.name ?? g.name, measure: size.measure, soldBy,
+    size: size.measure === "unit" ? size.size : commonest(priced.map((m) => m.size))!, refinements: g.refinements,
+    minPrice: round2(Math.min(...each)), productCount: codes.length, storeCount: n, topCodes: codes.slice(0, TOP_CODES),
+  }];
+}
+
 /**
  * Product search: the Product groups the query's words name come first (most stores first), then specific products.
  * A barcode (8+ digits) returns products only: the exact code, then code prefixes.
@@ -58,11 +85,16 @@ export function searchProducts(db: Db, q: string, limit: number, storeId?: strin
   const pool = groupWords.length === words.length ? found : find(ftsMatch(groupWords));
   // Groups form from every candidate; a member the store does not price costs Infinity, so a group with none there drops out.
   const candidateGroups = searchGroups(groupWords, pool.map((p) => ({ ...p, minPrice: p.minPrice ?? Infinity })));
-  const groups = candidateGroups.filter((g) => g.minPrice !== Infinity).map(({ codes, minPrice, ...g }) => {
-    const { n } = sqlite.prepare("SELECT count(DISTINCT store_id) AS n FROM prices WHERE code IN (SELECT value FROM json_each(?))").get(JSON.stringify(codes)) as { n: number };
+  // The team edited some (docs/adr/0007): those, and the Made groups whose names start with the words, read their members.
+  const edits = groupEdits(db, candidateGroups.map((g) => g.ref));
+  const made = groupWords.length ? madeGroups(db).filter((g) => startsWords(nameWords(g.name).map((w) => w.norm), groupWords)) : [];
+  const edited = [...candidateGroups.filter((g) => edits.has(g.ref)), ...made.map((g) => ({ ...g, refinements: [] }))].flatMap((g) => editedGroup(db, g, store));
+  const groups = candidateGroups.filter((g) => g.minPrice !== Infinity && !edits.has(g.ref)).map(({ codes, minPrice, ...g }) => {
+    const { n } = sqlite.prepare(STORE_COUNT).get(JSON.stringify(codes)) as { n: number };
     // topCodes: the best-matching members first (search order), for the app to show the first one with an image.
     return { kind: "group" as const, ...g, minPrice: round2(minPrice), productCount: codes.length, storeCount: n, topCodes: codes.slice(0, TOP_CODES) };
   });
+  groups.push(...edited);
   groups.sort((a, b) => b.storeCount - a.storeCount);
   return [...groups, ...withPrice(found).slice(0, limit).map(({ tier: _, ...p }) => productResult(p))];
 }
