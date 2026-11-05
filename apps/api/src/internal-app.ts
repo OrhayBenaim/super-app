@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import type { Deps } from "#/deps.ts";
 import { requestManualSync } from "#/jobs/price-sync.ts";
 import type { AppEnv } from "#/middleware.ts";
+import { productsRoutes } from "#/routes/internal/products.ts";
 import { syncsRoutes } from "#/routes/internal/syncs.ts";
 
 export function createInternalApp(deps: Deps) {
@@ -27,6 +28,7 @@ export function createInternalApp(deps: Deps) {
       return id === null ? c.json({ error: "busy" }, 409) : c.json({ id }, 202);
     })
     .route("/syncs", syncsRoutes)
+    .route("/products", productsRoutes)
     .onError((error, c) => {
       console.error(error);
       deps.errorHandler.report(error);
