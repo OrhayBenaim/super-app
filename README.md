@@ -55,7 +55,7 @@ On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN IP, not lo
 ## Ingest
 
 Prices come from the Israeli Price Transparency files (`docs/research/price-data.md`). In `apps/api`, per chain (keys in `src/ingest/chains.ts`):
-`npm run fetch -- --chain rami-levy --out /tmp/prices/rami-levy` (newest Stores + PriceFull of `--max-stores N` stores, default 3; every chain except Hazi Hinam: Cerberus, Shufersal, Carrefour, laibcatalog for Victory and Machsanei Hashuk),
+`npm run fetch -- --chain rami-levy --out /tmp/prices/rami-levy` (newest Stores + PriceFull of `--max-stores N` stores, default 3; every chain: Cerberus, Shufersal, Carrefour, Hazi Hinam, laibcatalog for Victory and Machsanei Hashuk),
 then `npm run ingest -- --chain rami-levy --stores /tmp/prices/rami-levy/Stores* --prices /tmp/prices/rami-levy/PriceFull*`,
 then `npm run geocode -- --chain rami-levy` to fill store coordinates from Nominatim at 1 req/s. Stores without coordinates are left out of `/api/compare`.
 Behind an HTTPS proxy, prefix `fetch`/`geocode` with `NODE_USE_ENV_PROXY=1`. The price portals and Nominatim may block non-Israeli or cloud IPs.

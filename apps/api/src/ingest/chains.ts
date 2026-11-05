@@ -1,5 +1,5 @@
-// Chains we know how to ingest. ChainIds and sources: docs/research/price-data.md section 1; every chain's ids[0] except
-// Hazi Hinam's (no downloader yet) was seen in its own portal's files on 2026-11-01 (sections "Verified live"). The second
+// Chains we know how to ingest. ChainIds and sources: docs/research/price-data.md section 1; every chain's ids[0] was seen in
+// its own portal's files on 2026-11-01 (Hazi Hinam's on 2026-11-04) (sections "Verified live"). The second
 // ids of Victory and Machsanei Hashuk were not: their portals list only ids[0].
 // orderUrl: the online shop (docs/research/price-data.md section 6), null when the chain sells nothing online. A cart link
 // template has {items}, filled with `barcode,quantity;...`: Rami Levy's /he/basket fills the cart; the Stor.ai shops'
