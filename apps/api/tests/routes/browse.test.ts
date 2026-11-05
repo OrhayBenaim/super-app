@@ -140,16 +140,17 @@ describe("GET /api/browse/types/:type", () => {
     expect(await cards("dairy-eggs")).toEqual([
       // the far store's ₪4 milk is outside the radius
       { ref: "חלב|l", name: "חלב", measure: "l", soldBy: "unit", size: 1, code: sku(MILK3.code), minPrice: 5.5, storeCount: 2, codes: [sku(MILK3.code), sku(MILK1.code)] },
-      { ref: "ביצ|unit|12", name: "ביצים", measure: "unit", soldBy: "unit", size: 12, code: sku(EGGS.code), minPrice: 14, storeCount: 1, codes: [sku(EGGS.code)] },
-      { ref: "חלב|kg", name: "חלב", measure: "kg", soldBy: "unit", size: 0.4, code: sku(POWDER.code), minPrice: 50, storeCount: 1, codes: [sku(POWDER.code)] },
+      // a card is named by every word its Products share before their size, not only the first
+      { ref: "ביצ l|unit|12", name: "ביצים L", measure: "unit", soldBy: "unit", size: 12, code: sku(EGGS.code), minPrice: 14, storeCount: 1, codes: [sku(EGGS.code)] },
+      { ref: "חלב אבקה|kg", name: "חלב אבקה", measure: "kg", soldBy: "unit", size: 0.4, code: sku(POWDER.code), minPrice: 50, storeCount: 1, codes: [sku(POWDER.code)] },
       // a Product that shares its first word with nothing still gets a card
       { ref: "קפיר|l", name: "קפיר", measure: "l", soldBy: "unit", size: 0.5, code: sku(KEFIR.code), minPrice: 10, storeCount: 1, codes: [sku(KEFIR.code)] },
     ]);
   });
 
   it("keeps cards apart per Product type: chocolate milk is a drinks card, not part of the dairy milk card", async () => {
-    expect(await cards("drinks")).toEqual([expect.objectContaining({ ref: "חלב|l", code: sku(SHOKO.code), minPrice: 7, storeCount: 1 })]);
-    expect((await cards("snacks-sweets")).map((c) => [c.ref, c.storeCount, c.minPrice])).toEqual([["במבה|kg", 2, 50], ["שוקולד|kg", 1, 60]]);
+    expect(await cards("drinks")).toEqual([expect.objectContaining({ ref: "חלב שוקו|l", name: "חלב שוקו", code: sku(SHOKO.code), minPrice: 7, storeCount: 1 })]);
+    expect((await cards("snacks-sweets")).map((c) => [c.ref, c.storeCount, c.minPrice])).toEqual([["במבה|kg", 2, 50], ["שוקולד חלב|kg", 1, 60]]);
   });
 
   it("counts untyped Products as Other", async () => {
@@ -162,7 +163,7 @@ describe("GET /api/browse/types/:type", () => {
 
   it("without a location shows every group with no prices, store counts over every store", async () => {
     expect((await cards("dairy-eggs", "")).slice(0, 1)).toEqual([expect.objectContaining({ ref: "חלב|l", minPrice: null, storeCount: 3 })]);
-    expect(await cards("canned", "")).toEqual([expect.objectContaining({ ref: "טונה|kg", code: sku(TUNA.code), minPrice: null, storeCount: 1 })]);
+    expect(await cards("canned", "")).toEqual([expect.objectContaining({ ref: "טונה בשמן|kg", code: sku(TUNA.code), minPrice: null, storeCount: 1 })]);
   });
 
   it("is 401 signed out and 400 for an unknown Product type or a bad location", async () => {
@@ -231,7 +232,7 @@ describe("every Product sold nearby is on exactly one card", () => {
     const dairy = await loneCards("dairy-eggs");
     expect(dairy).toHaveLength(3);
     expect(dairy).toEqual(expect.arrayContaining([
-      expect.objectContaining({ ref: "חלב|l", codes: [sku(MILK3.code)] }),
+      expect.objectContaining({ ref: "חלב תנובה|l", codes: [sku(MILK3.code)] }),
       expect.objectContaining({ ref: "חלב סויה|l", name: "חלב סויה", measure: "l", size: 1, minPrice: 12, codes: [sku(SOY.code)] }),
       { ref: null, name: SIZE_FIRST.name, measure: "kg", soldBy: "unit", size: 0.5, code: sku(SIZE_FIRST.code), minPrice: 20, storeCount: 1, codes: [sku(SIZE_FIRST.code)] },
     ]));

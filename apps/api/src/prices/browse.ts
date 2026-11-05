@@ -70,10 +70,44 @@ function groupsBy(products: Priced[], wordsOf: (name: string) => string[]) {
     buckets.set(key, bucket);
   }
   return [...buckets.values()].flatMap(({ type, words, members }) =>
-    groupsFrom(words, members, { minProducts: 1, everyMeasure: true })
+    groupsFrom(words, members, BROWSE)
+      .map((g) => narrowed(g, words, members))
       .filter((g) => parseRef(g.ref)) // a ref the List and Compare accept
       .map((g) => ({ ...g, ref: g.ref as string | null, type })),
   );
+}
+
+const BROWSE = { minProducts: 1, everyMeasure: true };
+
+/** A name's normalized words before its first number or size ("דיאט קולה 1.5 ליטר סופר" -> דיאט קולה). */
+function leadWords(name: string) {
+  const words = nameWords(name).map((w) => w.norm);
+  const kept = withoutSizes(words);
+  const end = words.findIndex((w, i) => /^\d/.test(w) || w !== kept[i]);
+  return end < 0 ? words : words.slice(0, end);
+}
+
+/**
+ * The group named by every lead word its Products share ("דיאט קוקה קולה", not just "דיאט"), so a card says what it
+ * holds and Compare prices only those; the group itself when they share no more than `words`.
+ */
+function narrowed<G extends ReturnType<typeof groupsFrom>[number]>(group: G, words: string[], members: Priced[]) {
+  const mine = members.filter((p) => group.codes.includes(p.code));
+  const [first = [], ...rest] = mine.map((p) => leadWords(p.name));
+  const n = rest.reduce((n, w) => {
+    let i = 0;
+    while (i < n && w[i] === first[i]) i++;
+    return i;
+  }, first.length);
+  if (n <= words.length) return group;
+  return groupsFrom(first.slice(0, n), mine, BROWSE)[0] ?? group;
+}
+
+/** The group a ref names among these Products of one Product type, or undefined. */
+function refGroup(products: Priced[], ref: string) {
+  const parsed = parseRef(ref);
+  const group = parsed && groupsFrom(parsed.words, products, BROWSE).find((g) => g.ref === ref);
+  return group ? { ...group, ref: group.ref as string | null, type: products[0]!.type } : undefined;
 }
 
 /** A card for one Product with no group ref: Add matches its code. Priced per kilo, liter or pack; a pack of one without a size. */
@@ -137,7 +171,9 @@ export type GroupProduct = {
  * Products make no such card (not sold nearby, or of another Product type).
  */
 export function groupPage(db: Db, products: Priced[], storeIds: string[] | null, ref: string) {
-  const group = groupsOf(products).find((g) => g.ref === ref);
+  // A card's group narrows to the words its Products share, so a page over more Products (all Chains, not the one a
+  // Promotions card was filtered to) may name the group otherwise: then its ref's own Products make it.
+  const group = groupsOf(products).find((g) => g.ref === ref) ?? refGroup(products, ref);
   if (!group) return null;
   const members = products.filter((p) => group.codes.includes(p.code)).map(({ code, name, unitQty, isWeighted, minPrice, storeCount }): GroupProduct => ({
     code, name,

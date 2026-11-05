@@ -160,49 +160,49 @@ const cards = async (query = "") => {
 describe("GET /api/browse/promotions", () => {
   it("shows a card per group with a Promotion running now nearby, biggest saving first, no-price ones last", async () => {
     expect((await cards()).map((c) => [c.ref, c.saving])).toEqual([
-      ["חלב|l", 31],
-      ["במבה|kg", 25],
-      ["קפה|kg", null],
+      ["חלב תנובה|l", 31],
+      ["במבה אסם|kg", 25],
+      ["קפה נמס|kg", null],
     ]);
   });
 
   it("builds a card only from the Products on a Promotion", async () => {
-    const milk = (await cards()).find((c) => c.ref === "חלב|l")!;
+    const milk = (await cards()).find((c) => c.ref === "חלב תנובה|l")!;
     expect(milk.codes).toEqual([M3]); // not the 1% milk, which has no Promotion
   });
 
   it("headlines the lowest Promotion price with its Shelf price, and says when it is Restricted and to what", async () => {
-    expect((await cards()).find((c) => c.ref === "חלב|l")).toMatchObject({
+    expect((await cards()).find((c) => c.ref === "חלב תנובה|l")).toMatchObject({
       type: "dairy-eggs", promoPrice: 4.5, shelfPrice: 6.5, saving: 31, kind: "price", minQty: 1, amount: 4.5, audience: "card", text: "₪4.50 במקום ₪6.50", chainCount: 2,
     });
   });
 
   it("prices a pack group per kilo or liter, a set Promotion averaged over its set", async () => {
-    expect((await cards()).find((c) => c.ref === "במבה|kg")).toMatchObject({
+    expect((await cards()).find((c) => c.ref === "במבה אסם|kg")).toMatchObject({
       type: "snacks-sweets", promoPrice: 37.5, shelfPrice: 50, saving: 25, kind: "bundle", minQty: 3, amount: 9, audience: "all", text: "3 ב-₪9", chainCount: 1,
     });
   });
 
   it("gives a Promotion with no price its Chain's own description", async () => {
-    expect((await cards()).find((c) => c.ref === "קפה|kg")).toMatchObject({
+    expect((await cards()).find((c) => c.ref === "קפה נמס|kg")).toMatchObject({
       promoPrice: null, shelfPrice: null, saving: null, kind: "info", audience: "all", text: "1+1 על קפה נמס", chainCount: 1,
     });
   });
 
   it("filters by Product type", async () => {
-    expect((await cards("&type=snacks-sweets")).map((c) => c.ref)).toEqual(["במבה|kg"]);
+    expect((await cards("&type=snacks-sweets")).map((c) => c.ref)).toEqual(["במבה אסם|kg"]);
   });
 
   it("filters by Chain: only that Chain's Promotions and Shelf prices count", async () => {
     expect(await cards(`&chain=${OSHER}`)).toEqual([
-      expect.objectContaining({ ref: "חלב|l", promoPrice: 4.9, shelfPrice: 6.9, saving: 29, audience: "all", chainCount: 1 }),
-      expect.objectContaining({ ref: "במבה|kg" }),
-      expect.objectContaining({ ref: "קפה|kg" }),
+      expect.objectContaining({ ref: "חלב תנובה|l", promoPrice: 4.9, shelfPrice: 6.9, saving: 29, audience: "all", chainCount: 1 }),
+      expect.objectContaining({ ref: "במבה אסם|kg" }),
+      expect.objectContaining({ ref: "קפה נמס|kg" }),
     ]);
   });
 
   it("combines both filters, and is empty when they match nothing", async () => {
-    expect((await cards(`&chain=${RAMI}&type=dairy-eggs`)).map((c) => c.ref)).toEqual(["חלב|l"]);
+    expect((await cards(`&chain=${RAMI}&type=dairy-eggs`)).map((c) => c.ref)).toEqual(["חלב תנובה|l"]);
     expect(await cards(`&chain=${RAMI}&type=pantry`)).toEqual([]);
   });
 
@@ -239,13 +239,19 @@ const page = async (type: string, ref: string) => {
 
 describe("GET /api/browse/promotions/types/:type/groups/:ref", () => {
   it("shows the card and only the group's Products on a Promotion running now nearby", async () => {
-    const milk = await page("dairy-eggs", "חלב|l");
-    expect(milk.card).toMatchObject({ ref: "חלב|l", promoPrice: 4.5, chainCount: 2 });
+    const milk = await page("dairy-eggs", "חלב תנובה|l");
+    expect(milk.card).toMatchObject({ ref: "חלב תנובה|l", promoPrice: 4.5, chainCount: 2 });
     expect(milk.products.map((p) => p.code)).toEqual([M3]); // not the 1% milk, which has no Promotion
   });
 
+  it("opens a ref no card names here from its own Products, as a card narrowed under a Chain filter can be", async () => {
+    const milk = await page("dairy-eggs", "חלב|l");
+    expect(milk.card).toMatchObject({ ref: "חלב תנובה|l", name: "חלב תנובה", promoPrice: 4.5 }); // named by what it holds
+    expect(milk.products.map((p) => p.code)).toEqual([M3]);
+  });
+
   it("breaks a Product down by Chain, lowest Promotion price first, every running one with its own audience, leaving out ended and far-away ones", async () => {
-    const [milk] = (await page("dairy-eggs", "חלב|l")).products;
+    const [milk] = (await page("dairy-eggs", "חלב תנובה|l")).products;
     expect(milk!.chains).toEqual([
       { chainId: RAMI, promoPrice: 4.5, shelfPrice: 6.5, saving: 31, kind: "price", minQty: 1, amount: 4.5, audience: "card", text: "₪4.50 במקום ₪6.50" },
       // a club price doesn't hide the Chain's Promotion for everyone
@@ -255,32 +261,32 @@ describe("GET /api/browse/promotions/types/:type/groups/:ref", () => {
   });
 
   it("prices a set Promotion per unit, next to the pack's Shelf price", async () => {
-    const [bamba] = (await page("snacks-sweets", "במבה|kg")).products;
+    const [bamba] = (await page("snacks-sweets", "במבה אסם|kg")).products;
     expect(bamba!.chains).toEqual([
       { chainId: OSHER, promoPrice: 3, shelfPrice: 4, saving: 25, kind: "bundle", minQty: 3, amount: 9, audience: "all", text: "3 ב-₪9" },
     ]);
   });
 
   it("gives a Promotion with no price its Chain's own description", async () => {
-    const [coffee] = (await page("pantry", "קפה|kg")).products;
+    const [coffee] = (await page("pantry", "קפה נמס|kg")).products;
     expect(coffee!.chains).toEqual([
       { chainId: OSHER, promoPrice: null, shelfPrice: null, saving: null, kind: "info", minQty: 0, amount: 0, audience: "all", text: "1+1 על קפה נמס" },
     ]);
   });
 
   it("returns 404 for a group with no Promotion running now, of another type, or without a location", async () => {
-    for (const ref of ["שוקולד|kg", "וופל|kg", "עוגיות|kg"]) expect((await get(`${pagePath("snacks-sweets", ref)}?${near}`)).status).toBe(404);
-    expect((await get(`${pagePath("pantry", "חלב|l")}?${near}`)).status).toBe(404);
-    expect((await get(pagePath("dairy-eggs", "חלב|l"))).status).toBe(404);
+    for (const ref of ["שוקולד מריר|kg", "וופל לימון|kg", "עוגיות שוקולד|kg"]) expect((await get(`${pagePath("snacks-sweets", ref)}?${near}`)).status).toBe(404);
+    expect((await get(`${pagePath("pantry", "חלב תנובה|l")}?${near}`)).status).toBe(404);
+    expect((await get(pagePath("dairy-eggs", "חלב תנובה|l"))).status).toBe(404);
   });
 
   it("returns 400 for a bad type, ref or location", async () => {
-    expect((await get(`${pagePath("sweets", "חלב|l")}?${near}`)).status).toBe(400);
+    expect((await get(`${pagePath("sweets", "חלב תנובה|l")}?${near}`)).status).toBe(400);
     expect((await get(`${pagePath("dairy-eggs", "חלב")}?${near}`)).status).toBe(400);
-    expect((await get(`${pagePath("dairy-eggs", "חלב|l")}?lat=32`)).status).toBe(400);
+    expect((await get(`${pagePath("dairy-eggs", "חלב תנובה|l")}?lat=32`)).status).toBe(400);
   });
 
   it("returns 401 when signed out", async () => {
-    expect((await get(`${pagePath("dairy-eggs", "חלב|l")}?${near}`, false)).status).toBe(401);
+    expect((await get(`${pagePath("dairy-eggs", "חלב תנובה|l")}?${near}`, false)).status).toBe(401);
   });
 });
