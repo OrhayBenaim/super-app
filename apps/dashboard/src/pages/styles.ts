@@ -127,6 +127,45 @@ tr.error.warning td { color: var(--warning); }
 .counts { display: flex; gap: var(--space-7); }
 .counts strong { font-size: 17px; margin-inline-end: var(--space-2); }
 
+/* Product groups: the list beside the open group (A8), the new group form (A9) */
+.groups { display: grid; grid-template-columns: 360px 1fr; gap: var(--space-6); align-items: start; }
+.group-filter { display: grid; grid-template-columns: 1fr 150px; gap: var(--space-3); margin-bottom: var(--space-3); }
+.group-filter input { height: 36px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-control); background: var(--fillControl); font: inherit; color: var(--label); }
+.group-filter select { height: 36px; padding: 0 var(--space-9) 0 var(--space-4); border: 1px solid var(--separator); border-radius: var(--radius-control); background: var(--surface); font: inherit; color: var(--label); }
+.group-filter .select::after { top: 12px; }
+.group-list { list-style: none; margin: 0; padding: 0; }
+.group-list li + li { border-top: 1px solid var(--separator); }
+.group-list a { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-5); color: var(--label); }
+.group-list a:hover { text-decoration: none; background: var(--groupedBg); }
+.group-list a[aria-current="true"] { background: var(--tintSoft); }
+.group-list a[aria-current="true"] strong { color: var(--tint); }
+.group-list strong { font-weight: 500; }
+.group-list a > span, .candidates li > span:first-child { display: flex; flex-direction: column; }
+.group-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-3) var(--space-4); }
+.group-head h2 { font-size: 20px; font-weight: 700; margin: 0; }
+.group-head .rename { margin-inline-start: auto; }
+.group-head .rename form { display: flex; align-items: flex-end; gap: var(--space-3); margin-top: var(--space-3); }
+summary { list-style: none; }
+summary::-webkit-details-marker { display: none; }
+.narrower { display: flex; align-items: center; gap: var(--space-4); margin-top: var(--space-4); }
+.narrower .chip { height: 26px; }
+.open-group .group-body > p { margin: var(--space-4) 0 0; }
+.message.failed { color: var(--danger); }
+.group-actions { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-5); margin-top: var(--space-5); }
+.add-products { flex: 1; max-width: 560px; }
+.add-products .group { margin-top: var(--space-3); }
+.add-products input, .new-group-products input[type="search"] { width: 100%; height: 38px; padding: 0 var(--space-4); border: 1px solid var(--separator); border-radius: var(--radius-control); font: inherit; color: var(--label); background: var(--surface); }
+.candidates { list-style: none; margin: var(--space-3) 0 0; padding: 0; }
+.candidates li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); }
+.candidates li + li { border-top: 1px solid var(--separator); }
+.new-group h2 { font-size: 20px; font-weight: 700; margin: 0 0 var(--space-5); }
+.new-group h3 { font-size: 17px; font-weight: 600; margin: 0 0 var(--space-3); }
+.new-group-fields { display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; gap: var(--space-4); }
+.new-group-products { display: grid; grid-template-columns: 1fr 300px; gap: var(--space-5); margin-top: var(--space-6); }
+.new-group .candidates { border: 1px solid var(--separator); border-radius: var(--radius-group); }
+.open-group td { vertical-align: middle; }
+.new-group .group-actions { justify-content: flex-start; align-items: center; }
+
 /* Other pages' bits, until their own tickets restyle them */
 dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-5); margin: var(--space-5) 0 0; }
 dt { color: var(--labelSecondary); }
