@@ -32,8 +32,15 @@ const row = (s: Store) => html`<tr>
 
 /** Stores as the Stores page lists them: name (linking to the store), Chain, address and city. */
 export const storesTable = (stores: Store[]) => table(["Store", "Chain", "Address", "City"], stores.map(row));
-/** The find field's stores, above its Products: nothing when no store name holds the words. */
-export const storesFound = (list: { stores: Store[]; total: number }) => (list.stores.length ? section("Stores", storesTable(list.stores), plural(list.total, "store")) : "");
+/**
+ * The find field's stores, above its Products: nothing when no store name holds the words. The api's first page (100)
+ * scrolls in a box, and more matches than that say so: typing more narrows them.
+ */
+export const storesFound = (list: { stores: Store[]; total: number }) => {
+  if (!list.stores.length) return "";
+  const count = list.total > list.stores.length ? `Showing ${num(list.stores.length)} of ${plural(list.total, "store")} · type more to narrow it down` : plural(list.total, "store");
+  return section("Stores", html`<div class="find-stores">${storesTable(list.stores)}</div>`, count);
+};
 
 /** "1–100 of 399", the note on cities, and previous/next links that keep the filter. */
 function tableFoot(list: List, filter: Filter) {
