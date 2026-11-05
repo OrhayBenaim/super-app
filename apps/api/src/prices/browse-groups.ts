@@ -156,13 +156,14 @@ export function groupsOf(products: Product[]) {
 /** What a grouped Product's price is divided by: its kilos or liters (groupsFrom's price per kilo or liter), 1 in a unit group. */
 const perUnitOf = (measure: string, p: { name: string; unitQty: string | null; isWeighted: number }) => (measure === "unit" ? 1 : measureOf(p)!.size);
 
-type Numbered = Omit<Product, "minPrice"> & { id: number }; // id: its browse_products id
+type Numbered = Omit<Product, "minPrice"> & { id: number; storeCount: number }; // id: its browse_products id
 const BROWSE_PRODUCTS =
-  "SELECT b.id, p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted, coalesce(p.product_type, 'other') AS type FROM browse_products b JOIN products p ON p.code = b.code";
+  "SELECT b.id, p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted, coalesce(p.product_type, 'other') AS type, p.store_count AS storeCount FROM browse_products b JOIN products p ON p.code = b.code";
 
 /**
  * Stores browse's group cards over every Product some store prices, with what browse_catalog keeps per Product and per
- * group, and each Product's code and name words (for narrowing a card to the Products it holds at a request), in one transaction.
+ * group, each Product's code and name words (for narrowing a card to the Products it holds at a request) and its
+ * products.store_count, in one transaction.
  * An untyped Product counts as Other.
  */
 function storeGroups(db: Db) {
@@ -205,10 +206,13 @@ function storeGroups(db: Db) {
   const insert = sqlite.prepare("INSERT INTO browse_groups (id, type, ref, name, measure, size, sold_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
   const setWords = sqlite.prepare("UPDATE browse_products SET words = ? WHERE id = ?");
   const words = priced.map((p) => [nameWords(p.name).map((w) => w.norm).join(" "), p.id] as const);
+  const setStores = sqlite.prepare("UPDATE products SET store_count = ? WHERE code = ?");
+  const recounted = rows.filter((p) => p.storeCount !== stores[p.id]);
   sqlite.transaction(() => {
     sqlite.prepare("DELETE FROM browse_groups").run();
     groups.forEach((g, i) => insert.run(i, g.type, g.ref, g.name, g.measure, g.size, g.soldBy));
     for (const w of words) setWords.run(...w);
+    for (const p of recounted) setStores.run(stores[p.id], p.code);
     writeCatalog(sqlite, c, names);
   })();
 }
