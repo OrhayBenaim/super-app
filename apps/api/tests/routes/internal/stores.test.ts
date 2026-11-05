@@ -137,3 +137,55 @@ describe("GET /stores/:id (private)", () => {
     expect((await createInternalApp(setup()).request(`/stores/${RAMI}-1`)).status).toBe(401);
   });
 });
+
+describe("PUT /stores/:id (private)", () => {
+  const edit = { name: "Talpiot Mall", address: "Ha-Uman 9", city: "Jerusalem", lat: 31.7505, lng: 35.2121 };
+  const put = (deps: Deps, id: string, body: unknown, auth = `Bearer ${TOKEN}`) =>
+    createInternalApp(deps).request(`/stores/${id}`, {
+      method: "PUT",
+      headers: { Authorization: auth, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  const seeded = () => {
+    const deps = setup();
+    deps.db.insert(stores).values(store(RAMI, "1", "Talpiot", 31.75)).run();
+    return deps;
+  };
+
+  it("sets the store's name, address, city and location, trimmed, and keeps what the Chain publishes", async () => {
+    const deps = seeded();
+    const res = await put(deps, `${RAMI}-1`, { ...edit, name: "  Talpiot Mall " });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ store: { id: `${RAMI}-1`, ...edit } });
+    expect(await (await get(deps, `/stores/${RAMI}-1`)).json()).toMatchObject({ store: { ...edit, publishedAddress: "Herzl 1", publishedCity: "Haifa" } });
+  });
+
+  it("clears the location", async () => {
+    const deps = seeded();
+    expect((await put(deps, `${RAMI}-1`, { ...edit, lat: null, lng: null })).status).toBe(200);
+    expect(await (await get(deps, `/stores/${RAMI}-1`)).json()).toMatchObject({ store: { lat: null, lng: null } });
+  });
+
+  it("400 with a clear message for an empty name, a location outside Israel, half a location or not a number, and keeps the store", async () => {
+    const deps = seeded();
+    const refused = async (body: unknown) => {
+      const res = await put(deps, `${RAMI}-1`, body);
+      expect(res.status).toBe(400);
+      return ((await res.json()) as { error: string }).error;
+    };
+    expect(await refused({ ...edit, name: "  " })).toBe("The name is required.");
+    expect(await refused({ ...edit, lat: 40.7, lng: -74 })).toBe("The location is outside Israel.");
+    expect(await refused({ ...edit, lat: 31.75, lng: null })).toBe("Give both latitude and longitude, or neither.");
+    expect(await refused({ ...edit, lat: "north" })).toBe("Latitude and longitude must be numbers.");
+    expect(await refused({ name: "Talpiot" })).toMatch(/address/i);
+    expect(await (await get(deps, `/stores/${RAMI}-1`)).json()).toMatchObject({ store: { name: "Talpiot", lat: 31.75 } });
+  });
+
+  it("404 for an unknown store", async () => {
+    expect((await put(seeded(), "nope", edit)).status).toBe(404);
+  });
+
+  it("401 without the token", async () => {
+    expect((await put(seeded(), `${RAMI}-1`, edit, "")).status).toBe(401);
+  });
+});

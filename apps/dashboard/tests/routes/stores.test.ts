@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { prices, products, stores } from "api/src/db/appSchema.ts";
-import { setup } from "../seam.ts";
+import { setup, TOKEN } from "../seam.ts";
 
 const RAMI = "7290058140886";
 const SHUFERSAL = "7290027600007";
@@ -115,5 +115,69 @@ describe("Store page", () => {
   it("answers an unknown store with 404", async () => {
     const { app } = setup();
     expect((await app.request("/stores/nope")).status).toBe(404);
+  });
+});
+
+describe("Editing a store", () => {
+  const ID = `${RAMI}-1`;
+  const form = { name: "Talpiot Mall", address: "Ha-Uman 9", city: "Jerusalem", lat: "31.7505", lng: "35.2121" };
+  const seeded = () => {
+    const s = setup();
+    s.api.db.insert(stores).values(store(RAMI, "1", "Talpiot", 31.75)).run();
+    return s;
+  };
+  // A same-origin form post, as the browser sends it.
+  const submit = (app: ReturnType<typeof setup>["app"], fields: Record<string, string>, id = ID) =>
+    app.request(`/stores/${id}`, {
+      method: "POST",
+      headers: { "Sec-Fetch-Site": "same-origin", "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(fields).toString(),
+    });
+  const saved = async (privateApp: ReturnType<typeof setup>["privateApp"]) =>
+    ((await (await privateApp.request(`/stores/${ID}`, { headers: { Authorization: `Bearer ${TOKEN}` } })).json()) as { store: Record<string, unknown> }).store;
+
+  it("shows the store's details in a form on its page", async () => {
+    const { app } = seeded();
+    const html = await (await app.request(`/stores/${ID}`)).text();
+    expect(html).toContain(`action="/stores/${ID}"`);
+    expect(html).toContain('name="name" value="Talpiot"');
+    expect(html).toContain('name="lat" value="31.75"');
+    expect(html).toContain('name="lng" value="35.2"');
+  });
+
+  it("saves the edit, which the api then returns, and goes back to the store's page", async () => {
+    const { app, privateApp } = seeded();
+    const res = await submit(app, form);
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(`/stores/${ID}`);
+    expect(await saved(privateApp)).toMatchObject({ name: "Talpiot Mall", address: "Ha-Uman 9", city: "Jerusalem", lat: 31.7505, lng: 35.2121 });
+    expect(await (await app.request(`/stores/${ID}`)).text()).toContain("Talpiot Mall");
+  });
+
+  it("clears the location when both fields are left empty", async () => {
+    const { app, privateApp } = seeded();
+    expect((await submit(app, { ...form, lat: "", lng: " " })).status).toBe(303);
+    expect(await saved(privateApp)).toMatchObject({ lat: null, lng: null });
+  });
+
+  it("refuses a bad edit with the reason, keeps what was typed, and leaves the store as it was", async () => {
+    const { app, privateApp } = seeded();
+    for (const [fields, reason] of [
+      [{ ...form, name: "" }, "The name is required."],
+      [{ ...form, lat: "40.7", lng: "-74" }, "The location is outside Israel."],
+      [{ ...form, lat: "north" }, "Latitude and longitude must be numbers."],
+    ] as const) {
+      const res = await submit(app, fields);
+      expect(res.status).toBe(400);
+      const html = await res.text();
+      expect(html).toContain(reason);
+      expect(html).toContain('name="address" value="Ha-Uman 9"');
+    }
+    expect(await saved(privateApp)).toMatchObject({ name: "Talpiot", lat: 31.75 });
+  });
+
+  it("answers an unknown store with 404", async () => {
+    const { app } = seeded();
+    expect((await submit(app, form, "nope")).status).toBe(404);
   });
 });

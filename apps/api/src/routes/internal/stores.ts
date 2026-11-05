@@ -1,5 +1,6 @@
 import { and, asc, count, eq, isNull, max, ne, or, type SQL } from "drizzle-orm";
 import { Hono } from "hono";
+import { validator } from "hono/validator";
 import { z } from "zod";
 import { chains, prices, stores } from "#/db/appSchema.ts";
 import type { AppEnv } from "#/middleware.ts";
@@ -11,6 +12,18 @@ const listQuery = z.object({
   publishedDiffers: z.stringbool().optional(),
   page: z.coerce.number().int().min(1).default(1),
 });
+
+// A box around Israel; a looser fence than a border, enough to catch a swapped or mistyped coordinate.
+const ISRAEL = { lat: [29.4, 33.4], lng: [34.2, 35.95] } as const;
+const coordinate = z.number({ error: "Latitude and longitude must be numbers." }).nullable();
+const text = (field: string, max: number) => z.string({ error: `The ${field} must be text.` }).trim().max(max, `The ${field} is too long.`);
+const editBody = z
+  .object({ name: text("name", 200).min(1, "The name is required."), address: text("address", 200), city: text("city", 100), lat: coordinate, lng: coordinate })
+  .refine((b) => (b.lat === null) === (b.lng === null), "Give both latitude and longitude, or neither.")
+  .refine(
+    (b) => b.lat === null || b.lng === null || (b.lat >= ISRAEL.lat[0] && b.lat <= ISRAEL.lat[1] && b.lng >= ISRAEL.lng[0] && b.lng <= ISRAEL.lng[1]),
+    "The location is outside Israel.",
+  );
 
 const columns = {
   id: stores.id,
@@ -64,4 +77,19 @@ export const storesRoutes = new Hono<AppEnv>()
     if (!store) return c.json({ error: "not found" }, 404);
     const stats = db.select({ priceCount: count(), updatedAt: max(prices.updatedAt) }).from(prices).where(eq(prices.storeId, store.id)).get();
     return c.json({ store: { ...store, priceCount: stats?.priceCount ?? 0, pricesUpdatedAt: stats?.updatedAt ?? null } }, 200);
-  });
+  })
+  // The operator's correction. A Price sync never changes these again (ADR 0006); a cleared location is geocoded on the next one.
+  .put(
+    "/:id",
+    validator("json", (value, c) => {
+      const body = editBody.safeParse(value);
+      return body.success ? body.data : c.json({ error: body.error.issues[0]?.message ?? "invalid body" }, 400);
+    }),
+    (c) => {
+      const id = c.req.param("id");
+      const edit = c.req.valid("json");
+      const { changes } = c.var.deps.db.update(stores).set(edit).where(eq(stores.id, id)).run();
+      if (changes === 0) return c.json({ error: "not found" }, 404);
+      return c.json({ store: { id, ...edit } }, 200);
+    },
+  );
