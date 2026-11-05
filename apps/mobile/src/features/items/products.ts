@@ -77,6 +77,15 @@ export function useProductImage(code: string | null): string | null | undefined 
   return useQuery(imageQuery(code)).data;
 }
 
+// shortcut: tries only the first 5 codes, one after another; look further if cards of big groups still show none.
+const CARD_IMAGE_CODES = 5;
+
+/** A browse card's image: its commonest Product's, else the first of its other Products' that has one. */
+export function useCardImage(card: { code: string; codes: string[] }): string | null | undefined {
+  const codes = [card.code, ...card.codes.filter((c) => c !== card.code)].slice(0, CARD_IMAGE_CODES);
+  return useQuery(groupImageQuery(useQueryClient(), codes)).data;
+}
+
 /**
  * Product search for "Match a product" (the API's default 20 results), debounced 250ms; idle under 2 characters.
  * Results arrive without waiting for images; `imageUrl` fills in as each Product's (or group's) lookup settles.

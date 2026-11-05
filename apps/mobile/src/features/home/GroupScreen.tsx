@@ -5,7 +5,7 @@ import { ScrollView, View } from "react-native";
 import { fmt } from "@/features/compare/format";
 import { formatQuantity, fromPrice, groupTitle } from "@/features/items/labels";
 import { ProductImage } from "@/features/items/ProductImage";
-import { useProductImage } from "@/features/items/products";
+import { useCardImage } from "@/features/items/products";
 import { useCurrentListId, useList, type Item } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
@@ -68,7 +68,7 @@ export function GroupTop({ page, type, listId, items, screen = "home" }: { page:
   const { colors, space, radius } = useTheme();
   const target = groupTarget(page.card, type);
   const { view, step, act } = useCard(target, listId, items, screen);
-  const image = useProductImage(page.card.code);
+  const image = useCardImage(page.card);
   const held = view.action === "add" ? null : view.item!;
   const heldName = held && (page.products.find((p) => p.code === held.productCode)?.name ?? held.name);
   return (

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { View } from "react-native";
 import { fromPrice } from "@/features/items/labels";
 import { ProductImage } from "@/features/items/ProductImage";
-import { useProductImage } from "@/features/items/products";
+import { useCardImage } from "@/features/items/products";
 import type { Item } from "@/features/lists/api";
 import { Taps, type TapName } from "@/lib/analytics";
 import { t } from "@/lib/strings";
@@ -33,7 +33,7 @@ export function CardBody({ open, label, hint, analyticsName, children }: { open:
 }
 
 /**
- * A Home group card (DESIGN.md "Card grid"): the commonest Product's image (none when it has none), the name and "from ₪X"
+ * A Home group card (DESIGN.md "Card grid"): the commonest Product's image (else another Product's), the name and "from ₪X"
  * on top, the stepper and the action pinned to the bottom so a row lines up. The image, name and price are one button
  * that opens the group's product page, apart from the stepper and the action.
  */
@@ -41,7 +41,7 @@ export function GroupCard({ card, type, listId, items }: { card: Card; type: Pro
   const { colors, space, radius } = useTheme();
   const target = groupTarget(card, type);
   const { view, step, act } = useCard(target, listId, items, "home");
-  const image = useProductImage(card.code);
+  const image = useCardImage(card);
   const price = card.minPrice === null ? null : fromPrice(card.measure, card.minPrice, t);
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: radius.group, padding: space[4] }}>
