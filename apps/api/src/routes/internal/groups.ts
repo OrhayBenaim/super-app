@@ -3,7 +3,7 @@ import { z } from "zod";
 import { SEARCH } from "@grocer/shared/search";
 import type { AppEnv } from "#/middleware.ts";
 import { groupMembers, measureOf, soldByOf } from "#/prices/groups.ts";
-import { searchProducts } from "#/routes/prices.ts";
+import { searchProducts } from "#/prices/search.ts";
 import { bad } from "#/routes/internal/valid.ts";
 
 const wordsQuery = z.object({ q: z.string().trim().min(SEARCH.minLength).max(100) });

@@ -5,7 +5,7 @@ import { SEARCH } from "@grocer/shared/search";
 import type { AppEnv } from "#/middleware.ts";
 import { measureOf, soldByOf } from "#/prices/groups.ts";
 import { promotionText, runningPromotions } from "#/prices/promotions.ts";
-import { searchProducts } from "#/routes/prices.ts";
+import { searchProducts } from "#/prices/search.ts";
 import { bad, jsonBody } from "#/routes/internal/valid.ts";
 
 // type: a Product type, or "none" for Products with none yet. Without q, every priced Product of that type.
