@@ -1,8 +1,11 @@
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
+import { validator } from "hono/validator";
 import { z } from "zod";
 import { ID } from "@grocer/shared/ids";
 import { PRODUCT_TYPE_FILTERS, PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
+import { imageType, MAX_IMAGE_BYTES, removeProductImage, saveProductImage } from "#/db/product-images.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { regroupProduct } from "#/prices/browse-groups.ts";
 import { findProducts, productDetail, productTypeCounts } from "#/prices/products.ts";
@@ -18,6 +21,10 @@ const searchQuery = z
   });
 const codeParam = z.object({ code: z.string().trim().min(1).max(ID.maxLength) });
 const typeBody = z.object({ productType: z.enum(PRODUCT_TYPES) });
+const imageForm = z.object({ image: z.instanceof(File, { message: "Choose an image." }) });
+const tooLarge = { error: "The image must be at most 5 MB." };
+const isProduct = (c: { var: AppEnv["Variables"] }, code: string) =>
+  !!c.var.deps.db.$client.prepare("SELECT 1 FROM products WHERE code = ?").get(code);
 
 /**
  * The Internal dashboard's Products, on the private app: the public search and Compare's price rules, and setting a
@@ -47,4 +54,32 @@ export const productsRoutes = new Hono<AppEnv>()
     if (changes === 0) return c.json({ error: "not found" }, 404);
     regroupProduct(c.var.deps.db, code); // Home shows it now, not after the next Price sync
     return c.json({ code, productType }, 200);
+  })
+  // The team's Product image (docs/adr/0008), multipart field "image": it wins over the barcode lookup everywhere.
+  .put(
+    "/:code/image",
+    bodyLimit({ maxSize: MAX_IMAGE_BYTES + 64 * 1024, onError: (c) => c.json(tooLarge, 413) }), // room for the form around it
+    validator("form", (value, c) => {
+      const form = imageForm.safeParse(value);
+      return form.success ? form.data : bad(c, form.error);
+    }),
+    async (c) => {
+      const param = codeParam.safeParse(c.req.param());
+      if (!param.success) return bad(c, param.error);
+      const { code } = param.data;
+      const { image } = c.req.valid("form");
+      if (image.size > MAX_IMAGE_BYTES) return c.json(tooLarge, 413);
+      const bytes = new Uint8Array(await image.arrayBuffer());
+      if (!imageType(bytes)) return c.json({ error: "The image must be a PNG, JPEG or WebP." }, 400);
+      if (!isProduct(c, code)) return c.json({ error: "not found" }, 404);
+      await saveProductImage(c.var.deps.imagesDir, code, bytes);
+      return c.json({ code }, 200);
+    },
+  )
+  // Back to the image found by barcode.
+  .delete("/:code/image", async (c) => {
+    const param = codeParam.safeParse(c.req.param());
+    if (!param.success) return bad(c, param.error);
+    const removed = await removeProductImage(c.var.deps.imagesDir, param.data.code);
+    return removed ? c.json({ code: param.data.code }, 200) : c.json({ error: "not found" }, 404);
   });

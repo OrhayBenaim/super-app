@@ -9,6 +9,7 @@ import { deletionRoutes } from "#/routes/deletion.ts";
 import { listsRoutes } from "#/routes/lists.ts";
 import { pricesRoutes } from "#/routes/prices.ts";
 import { privacyRoutes } from "#/routes/privacy.ts";
+import { productImagesRoutes } from "#/routes/product-images.ts";
 
 const MINUTE = 60_000;
 
@@ -44,6 +45,7 @@ export function createApp(deps: Deps) {
     })
     .route("/api/lists", listsRoutes)
     .route("/api/browse", browseRoutes)
+    .route("/api/products", productImagesRoutes)
     .route("/api", pricesRoutes)
     // Public page for the store listings (Google Play requires a privacy policy URL).
     .route("/privacy", privacyRoutes)

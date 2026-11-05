@@ -35,6 +35,7 @@ On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN IP, not lo
 | --- | --- | --- |
 | api | `PORT` | default 3000 |
 | api | `DATABASE_URL` | SQLite file path, default `./data/grocer.db` (`:memory:` in tests) |
+| api | `IMAGES_DIR` | folder for the Product images uploaded on the Internal dashboard (one file per Product code, docs/adr/0008); default an `images` folder next to the database (production: `/data/images`, on the `grocer-data` volume) |
 | api | `BETTER_AUTH_URL` | public URL of the API (OAuth callbacks) |
 | api | `BETTER_AUTH_SECRET` | 32+ random chars: `openssl rand -base64 32` |
 | api | `TRUSTED_ORIGINS` | extra comma-separated origins (auth + CORS); set `http://localhost:8081` in dev for Expo web, never in production |
@@ -110,7 +111,8 @@ Each setting lives in one place: mobile app settings in EAS, server settings in 
 give the `api` service its domain as `https://api.example.com:3000` and set the API env vars listed above in the resource's
 Environment Variables. Required: `BETTER_AUTH_URL` (that domain), `BETTER_AUTH_SECRET`, `RESEND_API_KEY` (the worker needs it too,
 since config validation requires it). `SENTRY_ENVIRONMENT` defaults to `production`, `TRUST_PROXY` is always on, and `PORT` and
-`DATABASE_URL` (`/data/grocer.db`) have image defaults. `api` and `worker` share the `grocer-data` volume (one SQLite file).
+`DATABASE_URL` (`/data/grocer.db`) have image defaults. `api` and `worker` share the `grocer-data` volume (one SQLite file); the
+api also keeps uploaded Product images there (`IMAGES_DIR=/data/images`).
 
 The chains' portals block non-Israeli IPs, so the worker's HTTP goes through the `tailscale` container, which uses a machine in Israel
 as its Tailscale exit node. Price syncs fail while that machine is off or offline; prices stay at the last good sync. Set:

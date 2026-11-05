@@ -1,10 +1,10 @@
 import { useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
-import { hasBarcode, lookupProductImage } from "@grocer/shared/product-image";
+import { hasImageSource, lookupProductImage, uploadedVersion, type UploadedImages } from "@grocer/shared/product-image";
 import type { SoldBy } from "@grocer/shared/quantity";
 import { SEARCH } from "@grocer/shared/search";
-import { api } from "@/lib/api";
+import { api, BASE_URL } from "@/lib/api";
 
 export type Measure = "kg" | "l" | "unit";
 /** One product. `size` is in kilos or liters, or a pack count; null when it can't be read. */
@@ -36,26 +36,41 @@ export const splitResults = (results: SearchResult[] = []) => ({
   products: results.filter((r): r is Product => r.kind === "product"),
 });
 
+/** The Product images the team uploaded (docs/adr/0008); none when the list can't be read, so images still come by barcode. */
+export async function fetchUploadedImages(): Promise<UploadedImages> {
+  const versions = await api<{ images: Record<string, string> }>("api/products/images").then((r) => r.images, () => ({}));
+  return { base: `${BASE_URL}/api`, versions };
+}
+
+/** Refetched, like the search, when a screen with images mounts and the list is a minute old. */
+const uploadedQuery = { queryKey: ["products", "uploadedImages"], queryFn: fetchUploadedImages, staleTime: 60_000 };
+const useUploadedImages = () => useQuery(uploadedQuery).data;
+
+/** A query key part for codes' uploaded versions: false until the list is read; a new upload or a removal is a new key. */
+const versionsKey = (codes: (string | null)[], uploaded: UploadedImages | undefined) =>
+  uploaded ? codes.map((code) => (code && uploadedVersion(code, uploaded)) ?? null) : false;
+
 /**
- * Each code is looked up once per app session; a found image starts downloading into expo-image's cache right away.
- * No code or no barcode starts as null (none), so it never shows a skeleton.
+ * Each code is looked up once per app session (and again when its uploaded image changes); a found image starts
+ * downloading into expo-image's cache right away. Waits for the uploaded list, which comes first. Once it is read, no
+ * code, or no barcode and no uploaded image, starts as null (none), so it never shows a skeleton.
  */
-const imageQuery = (code: string | null) => ({
-  queryKey: ["products", "image", code],
+const imageQuery = (code: string | null, uploaded: UploadedImages | undefined) => ({
+  queryKey: ["products", "image", code, versionsKey([code], uploaded)],
   queryFn: async () => {
-    const url = await lookupProductImage(code!);
+    const url = await lookupProductImage(code!, uploaded);
     if (url) Image.prefetch(url).catch(() => {});
     return url;
   },
-  enabled: hasBarcode(code),
-  initialData: hasBarcode(code) ? undefined : null,
+  enabled: !!uploaded && hasImageSource(code, uploaded),
+  initialData: !uploaded || hasImageSource(code, uploaded) ? undefined : null,
   staleTime: Infinity,
   gcTime: Infinity,
 });
 
-/** The first image `lookup` finds for these codes, in order, skipping codes with no barcode; null when none has one. */
-export async function firstImage(codes: string[], lookup: (code: string) => Promise<string | null>) {
-  for (const code of codes.filter(hasBarcode)) {
+/** The first image `lookup` finds for these codes, in order, skipping codes with no image source; null when none has one. */
+export async function firstImage(codes: string[], lookup: (code: string) => Promise<string | null>, uploaded?: UploadedImages) {
+  for (const code of codes.filter((c) => hasImageSource(c, uploaded))) {
     const url = await lookup(code);
     if (url) return url;
   }
@@ -63,18 +78,21 @@ export async function firstImage(codes: string[], lookup: (code: string) => Prom
 }
 
 /** A group's image: its first top product with one, each code looked up through (and cached as) its own imageQuery. */
-const groupImageQuery = (client: QueryClient, codes: string[]) => ({
-  queryKey: ["products", "groupImage", codes],
-  queryFn: () => firstImage(codes, (code) => client.fetchQuery(imageQuery(code))),
-  enabled: codes.some(hasBarcode),
-  initialData: codes.some(hasBarcode) ? undefined : null,
-  staleTime: Infinity,
-  gcTime: Infinity,
-});
+const groupImageQuery = (client: QueryClient, codes: string[], uploaded: UploadedImages | undefined) => {
+  const any = codes.some((c) => hasImageSource(c, uploaded));
+  return {
+    queryKey: ["products", "groupImage", codes, versionsKey(codes, uploaded)],
+    queryFn: () => firstImage(codes, (code) => client.fetchQuery(imageQuery(code, uploaded)), uploaded),
+    enabled: !!uploaded && any,
+    initialData: !uploaded || any ? undefined : null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  };
+};
 
-/** The Product image of a product code: undefined while looking up, null with no code, no barcode or no image. */
+/** The Product image of a product code: undefined while looking up, null with no code, no image source or no image. */
 export function useProductImage(code: string | null): string | null | undefined {
-  return useQuery(imageQuery(code)).data;
+  return useQuery(imageQuery(code, useUploadedImages())).data;
 }
 
 // shortcut: tries only the first 5 codes, one after another; look further if cards of big groups still show none.
@@ -83,7 +101,7 @@ const CARD_IMAGE_CODES = 5;
 /** A browse card's image: its commonest Product's, else the first of its other Products' that has one. */
 export function useCardImage(card: { code: string; codes: string[] }): string | null | undefined {
   const codes = [card.code, ...card.codes.filter((c) => c !== card.code)].slice(0, CARD_IMAGE_CODES);
-  return useQuery(groupImageQuery(useQueryClient(), codes)).data;
+  return useQuery(groupImageQuery(useQueryClient(), codes, useUploadedImages())).data;
 }
 
 /**
@@ -105,9 +123,10 @@ export function useProductSearch(q: string, storeId?: string) {
     staleTime: 60_000,
   });
   const client = useQueryClient();
+  const uploaded = useUploadedImages();
   const { groups, products } = splitResults(search.data);
-  const images = useQueries({ queries: products.map((p) => imageQuery(p.code)) });
-  const groupImages = useQueries({ queries: groups.map((g) => groupImageQuery(client, g.topCodes)) });
+  const images = useQueries({ queries: products.map((p) => imageQuery(p.code, uploaded)) });
+  const groupImages = useQueries({ queries: groups.map((g) => groupImageQuery(client, g.topCodes, uploaded)) });
   const imageOf = new Map(products.map((p, i) => [p.code, images[i].data]));
   const groupImageOf = new Map(groups.map((g, i) => [g.ref, groupImages[i].data]));
   return {

@@ -32,6 +32,7 @@ services:
       SYNC_TOKEN: ${SYNC_TOKEN}
       INTERNAL_HOST: 0.0.0.0
       INTERNAL_PORT: "3001"
+      IMAGES_DIR: /data/images # uploaded Product images, on the same volume as the database (docs/adr/0008)
     volumes:
       - grocer-data:/data
     restart: unless-stopped

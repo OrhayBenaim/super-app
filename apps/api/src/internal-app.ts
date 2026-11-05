@@ -10,6 +10,7 @@ import type { AppEnv } from "#/middleware.ts";
 import { chainsRoutes } from "#/routes/internal/chains.ts";
 import { groupsRoutes } from "#/routes/internal/groups.ts";
 import { productsRoutes } from "#/routes/internal/products.ts";
+import { productImagesRoutes } from "#/routes/product-images.ts";
 import { promotionsRoutes } from "#/routes/internal/promotions.ts";
 import { storesRoutes } from "#/routes/internal/stores.ts";
 import { syncsRoutes } from "#/routes/internal/syncs.ts";
@@ -35,6 +36,7 @@ export function createInternalApp(deps: Deps) {
     .route("/chains", chainsRoutes)
     .route("/stores", storesRoutes)
     .route("/syncs", syncsRoutes)
+    .route("/products", productImagesRoutes) // before productsRoutes, whose GET /:code would take /images
     .route("/products", productsRoutes)
     .route("/promotions", promotionsRoutes)
     .route("/groups", groupsRoutes)

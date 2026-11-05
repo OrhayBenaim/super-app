@@ -1,9 +1,12 @@
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import { ID } from "@grocer/shared/ids";
+import type { UploadedImages } from "@grocer/shared/product-image";
 import { PRODUCT_TYPE_FILTERS, PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
-import { found, unexpected } from "#/api-client.ts";
+import { found, unexpected, type ApiClient } from "#/api-client.ts";
+import { imageOf } from "#/pages/product-image.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { layout, notFound, notice, type Html } from "#/pages/layout.ts";
 import { PAGE_SIZE, productCards, productPage, productsPage, thumbnail, typeForm, type TypeFilter } from "#/pages/products.ts";
@@ -17,6 +20,16 @@ const searchQuery = z.object({
 const typeBody = z.object({ productType: z.enum(PRODUCT_TYPES) });
 // As the private app's: a code it would refuse names no Product.
 const codeParam = z.object({ code: z.string().trim().min(1).max(ID.maxLength) });
+
+/** The uploaded Product images (docs/adr/0008), served to the browser by this dashboard's /api/products/:code/image. */
+async function uploadedImages(api: ApiClient): Promise<UploadedImages> {
+  const res = await api.products.images.$get();
+  if (res.status !== 200) throw unexpected(res, "GET /products/images");
+  return { base: "/api", versions: (await res.json()).images };
+}
+const MAX_UPLOAD = 5 * 1024 * 1024; // the private app's limit; this one only stops a far larger body before it is read
+const tooLarge = "The image must be at most 5 MB.";
+const refresh = { "HX-Refresh": "true" }; // the page shows the new image
 
 /** Products by Product type, the private app's search and Product detail. Any answer other than 200 (or 404) is a bug: onError shows it. */
 export const productsRoutes = new Hono<AppEnv>()
@@ -41,12 +54,44 @@ export const productsRoutes = new Hono<AppEnv>()
     const { code } = param.data;
     const detail = await found(await c.var.deps.api.products[":code"].$get({ param: { code } }), "GET /products/:code");
     if (!detail) return missing();
-    return c.html(layout(detail.product.name, productPage(detail, await c.var.deps.productImage(code), c.var.deps.now()), "products"));
+    const uploaded = await uploadedImages(c.var.deps.api);
+    const image = imageOf(code, await c.var.deps.productImage(code, uploaded), uploaded);
+    return c.html(layout(detail.product.name, productPage(detail, image, c.var.deps.now()), "products"));
   })
   // A list's image cell (htmx, on reveal): the one Product image lookup.
   .get("/products/:code/image", async (c) => {
     const param = codeParam.safeParse(c.req.param());
-    return c.html(thumbnail(param.success ? await c.var.deps.productImage(param.data.code) : null));
+    if (!param.success) return c.html(thumbnail(null));
+    return c.html(thumbnail(await c.var.deps.productImage(param.data.code, await uploadedImages(c.var.deps.api))));
+  })
+  // A7b's Use the new image (htmx, multipart "image"): the private app checks and stores it. A refusal is a 200 notice.
+  .post("/products/:code/image", bodyLimit({ maxSize: MAX_UPLOAD + 64 * 1024, onError: (c) => c.html(notice(tooLarge)) }), async (c) => {
+    const param = codeParam.safeParse(c.req.param());
+    if (!param.success) return c.html(notice("No Product with this code."));
+    const { image } = await c.req.parseBody();
+    if (!(image instanceof File)) return c.html(notice("Choose an image."));
+    const res = await c.var.deps.api.products[":code"].image.$put({ param: { code: param.data.code }, form: { image } });
+    if (res.status === 404) return c.html(notice("No Product with this code."));
+    if (res.status === 400 || res.status === 413) return c.html(notice((await res.json()).error));
+    if (res.status !== 200) throw unexpected(res, "PUT /products/:code/image");
+    return c.html("", 200, refresh);
+  })
+  // A7b's Remove my image: back to the one found by barcode. Already gone (404) shows the page as it is now too.
+  .delete("/products/:code/image", async (c) => {
+    const param = codeParam.safeParse(c.req.param());
+    if (!param.success) return c.html(notice("No Product with this code."));
+    const res = await c.var.deps.api.products[":code"].image.$delete({ param: { code: param.data.code } });
+    if (res.status !== 200 && res.status !== 404) throw unexpected(res, "DELETE /products/:code/image");
+    return c.html("", 200, refresh);
+  })
+  // An uploaded image's bytes, from the private app: the browser reaches the dashboard, not the api.
+  .get("/api/products/:code/image", async (c) => {
+    const param = codeParam.safeParse(c.req.param());
+    if (!param.success) return c.notFound();
+    const res = await c.var.deps.api.products[":code"].image.$get({ param: { code: param.data.code } });
+    if (res.status === 404) return c.notFound();
+    if (res.status !== 200) throw unexpected(res, "GET /products/:code/image");
+    return c.body(await res.arrayBuffer(), 200, { "Content-Type": res.headers.get("Content-Type")!, "Cache-Control": res.headers.get("Cache-Control")!, "X-Content-Type-Options": "nosniff" });
   })
   // The Product type form (htmx): the private app sets it, and a Price sync never changes it. htmx swaps only a 2xx, so
   // a refusal is a 200 too (as the Manual sync button's).
