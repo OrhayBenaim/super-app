@@ -156,9 +156,31 @@ tr.error.warning td { color: var(--warning); }
 
 /* Product (A7): the image tile beside the facts */
 .product { display: grid; grid-template-columns: 180px 1fr; gap: var(--space-6); align-items: start; }
-.image-tile { display: flex; align-items: center; justify-content: center; width: 100%; height: 180px; padding: var(--space-3); border: 0; border-radius: var(--radius-group); background: var(--surface); cursor: pointer; font: inherit; color: var(--labelSecondary); }
-.image-tile img { width: 100%; height: 100%; object-fit: contain; }
-.image-tile .slot { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: var(--radius-control); font-size: 13px; }
+.image-tile { display: flex; flex-direction: column; gap: var(--space-3); width: 100%; padding: var(--space-3); border: 0; border-radius: var(--radius-group); background: var(--surface); cursor: pointer; font: inherit; color: var(--labelSecondary); }
+.image-frame { display: flex; align-items: center; justify-content: center; height: 160px; }
+.image-tile img, .preview img { width: 100%; height: 100%; object-fit: contain; }
+.image-tile .slot, .preview .slot { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: var(--radius-control); font-size: 13px; color: var(--labelSecondary); }
+.image-caption { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); padding: 0 var(--space-2); }
+.image-caption .change, .drop .link { color: var(--tint); font-weight: 600; }
+
+/* Product image (A7b): the one dialog, the only thing with a shadow */
+.dialog { width: 640px; max-width: calc(100vw - 2 * var(--space-6)); padding: var(--space-6); border: 0; border-radius: var(--radius-sheet); background: var(--surface); color: var(--label); box-shadow: 0 12px 40px ${tinted("label", 20)}; }
+.dialog::backdrop { background: ${tinted("label", 35)}; }
+.dialog form { display: flex; flex-direction: column; gap: var(--space-5); }
+.dialog-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.dialog-header h2 { font-size: 20px; line-height: 25px; font-weight: 600; margin: 0; }
+.dialog-header p { margin: var(--space-1) 0 0; }
+.close { width: 36px; height: 36px; border: 0; border-radius: var(--radius-full); background: var(--fillControl); font-size: 20px; line-height: 1; color: var(--label); cursor: pointer; }
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); }
+.compare > div { display: flex; flex-direction: column; gap: var(--space-3); }
+.compare p { margin: 0; }
+.preview { display: flex; align-items: center; justify-content: center; height: 240px; padding: var(--space-5); border-radius: var(--radius-group); background: var(--groupedBg); }
+.drop { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: var(--space-3); padding: var(--space-6); border: 1px dashed var(--controlOutline); border-radius: var(--radius-group); cursor: pointer; }
+.drop.over, .drop:focus-within { border-color: var(--tint); background: var(--tintSoft); }
+#image-error:empty { display: none; }
+.dialog-actions { display: flex; justify-content: space-between; align-items: center; }
+.dialog-actions > span { display: flex; gap: var(--space-3); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .facts { margin: 0; display: block; }
 .facts > div { display: grid; grid-template-columns: 156px 1fr; align-items: baseline; gap: var(--space-5); padding: var(--space-4) var(--space-5); }
 .facts > div + div { border-top: 1px solid var(--separator); }

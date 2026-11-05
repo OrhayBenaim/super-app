@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { createAuth, type Auth } from "#/auth.ts";
 import { openDb, type Db } from "#/db/index.ts";
 import { nominatimGeocoder } from "#/providers/nominatim/nominatim.ts";
@@ -23,6 +26,8 @@ export type Deps = {
   /** Null unless LLM_BASE_URL, LLM_API_KEY and LLM_MODEL are all set: the Price sync then gives no Product types. */
   classifier: Classifier | null;
   errorHandler: ErrorHandler;
+  /** Where uploaded Product images are kept (src/db/product-images.ts). */
+  imagesDir: string;
   geocoder: Geocoder;
   mailer: MailerService;
   otp: OtpService;
@@ -49,6 +54,7 @@ export function buildDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
         ? openaiClassifier({ baseUrl: config.LLM_BASE_URL, apiKey: config.LLM_API_KEY, model: config.LLM_MODEL })
         : null,
     errorHandler,
+    imagesDir: config.IMAGES_DIR ?? imagesNextTo(config.DATABASE_URL),
     geocoder: nominatimGeocoder(config.NOMINATIM_URL),
     mailer,
     otp,
@@ -56,3 +62,6 @@ export function buildDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
     ...overrides,
   };
 }
+
+// An in-memory database (tests) gets a fresh folder too, as each buildDeps gets a fresh database; made on the first upload.
+const imagesNextTo = (database: string) => (database === ":memory:" ? join(tmpdir(), `grocer-images-${randomUUID()}`) : join(dirname(database), "images"));

@@ -5,6 +5,7 @@ import { PRODUCT_TYPE_FILTERS, PRODUCT_TYPES, type ProductTypeFilter } from "@gr
 import type { ApiClient } from "#/api-client.ts";
 import { day, num, plural, shekels, shortDate, size, SOLD_BY, TYPE_NAMES } from "#/pages/format.ts";
 import { notice, type Html } from "#/pages/layout.ts";
+import { imageDialog, imageTile, type ProductImage } from "#/pages/product-image.ts";
 import { badge, button, pageHeader, section, table } from "#/pages/ui.ts";
 
 type Found = InferResponseType<ApiClient["products"]["$get"], 200>;
@@ -173,10 +174,10 @@ const promotionsTable = (rows: ReturnType<typeof promotionRows>) =>
 const codeText = (code: string) => (code.includes(":") ? `Chain code ${code.slice(code.indexOf(":") + 1)}` : `barcode ${code}`);
 
 /**
- * One Product (A7): its image tile (a button; the image ticket adds its upload dialog), the facts (its type form, the Product group
+ * One Product (A7): its image tile (a button that opens the A7b upload dialog), the facts (its type form, the Product group
  * it is in, where it is sold), its price at every store cheapest first with the Promotion running there, and its Promotions.
  */
-export const productPage = ({ product: p, group, prices, promotions }: Detail, image: string | null, now: Date) => {
+export const productPage = ({ product: p, group, prices, promotions }: Detail, image: ProductImage, now: Date) => {
   const type = (p.productType ?? "none") as ProductTypeFilter;
   const rows = promotionRows(promotions);
   return html`${pageHeader({
@@ -186,9 +187,7 @@ export const productPage = ({ product: p, group, prices, promotions }: Detail, i
     })}
     <div class="product">
       <div class="group image-group">
-        <button type="button" class="image-tile" id="product-image" aria-label="Change the Product image">
-          ${image ? html`<img src="${image}" alt="${p.name}" width="160" height="160" />` : html`<span class="slot">No Product image</span>`}
-        </button>
+        ${imageTile(image, p.name)}
       </div>
       <dl class="group facts">
         <div><dt>Product type</dt><dd>${typeForm(p.code, p.productType)}</dd></div>
@@ -197,5 +196,6 @@ export const productPage = ({ product: p, group, prices, promotions }: Detail, i
       </dl>
     </div>
     ${section("Prices, cheapest first", pricesTable(prices, now), plural(prices.length, "store"))}
-    ${section("Promotions on this Product", promotionsTable(rows), rows.length)}`;
+    ${section("Promotions on this Product", promotionsTable(rows), rows.length)}
+    ${imageDialog(p.code, p.name, image)}`;
 };

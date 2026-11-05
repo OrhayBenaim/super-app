@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const CACHE_SIZE = 2_000;
 
 // The module caches answers, so each test imports a fresh copy.
-let lookupProductImage: (code: string) => Promise<string | null>;
+let lookupProductImage: typeof import("@grocer/shared/product-image").lookupProductImage;
+let hasImageSource: typeof import("@grocer/shared/product-image").hasImageSource;
 
 const rami = (code: string) => `https://img.rami-levy.co.il/product/${code}/small.jpg`;
 const offImage = "https://images.openfoodfacts.org/images/products/729/000/001/1/front_he.3.400.jpg";
@@ -14,7 +15,7 @@ const status = (n: number) => new Response(null, { status: n });
 beforeEach(async () => {
   vi.stubGlobal("fetch", fetchMock);
   vi.resetModules();
-  ({ lookupProductImage } = await import("@grocer/shared/product-image"));
+  ({ lookupProductImage, hasImageSource } = await import("@grocer/shared/product-image"));
 });
 afterEach(() => {
   fetchMock.mockReset();
@@ -115,5 +116,42 @@ describe("lookupProductImage", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     await lookupProductImage("101");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("an uploaded Product image (docs/adr/0008)", () => {
+  const uploaded = { base: "https://api.grocer.test/api", versions: { "7290000011": "m1", "7:12345": "m2" } };
+
+  it("answers the api's URL for an uploaded code, with its version, and never asks the barcode sources", async () => {
+    expect(await lookupProductImage("7290000011", uploaded)).toBe("https://api.grocer.test/api/products/7290000011/image?v=m1");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("answers the api's URL for a Chain-only code that has an uploaded image", async () => {
+    expect(await lookupProductImage("7:12345", uploaded)).toBe("https://api.grocer.test/api/products/7%3A12345/image?v=m2");
+  });
+
+  it("looks up a code with no uploaded image by barcode as before", async () => {
+    fetchMock.mockResolvedValueOnce(status(200));
+    expect(await lookupProductImage("7290000099", uploaded)).toBe(rami("7290000099"));
+  });
+
+  it("goes back to the barcode answer once the upload is removed", async () => {
+    fetchMock.mockResolvedValueOnce(status(200));
+    expect(await lookupProductImage("7290000011", uploaded)).toContain("api.grocer.test");
+    expect(await lookupProductImage("7290000011", { ...uploaded, versions: {} })).toBe(rami("7290000011"));
+  });
+
+  it("is not fooled by a code named like an Object property", async () => {
+    expect(await lookupProductImage("toString", uploaded)).toBeNull();
+  });
+
+  it("says which codes have a source: a barcode, or an uploaded image", () => {
+    expect([hasImageSource("7290000099"), hasImageSource("7:12345"), hasImageSource("7:12345", uploaded), hasImageSource(null, uploaded)]).toEqual([
+      true,
+      false,
+      true,
+      false,
+    ]);
   });
 });
