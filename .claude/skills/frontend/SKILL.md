@@ -1,6 +1,6 @@
 ---
 name: frontend
-description: Runs every frontend and design skill in order for any UI work in Grocer. Use when the user says "use frontend skills" or "design skills", and before building or changing screens, components, sheets, motion, theme tokens, or anything in apps/mobile/app, apps/mobile/src/ui, apps/mobile/src/features or docs/design.
+description: Use when the user says "use frontend skills" or "design skills", and before building or changing screens, components, sheets, motion, theme tokens, or anything in apps/mobile/app, apps/mobile/src/ui, apps/mobile/src/features or docs/design.
 ---
 
 # Frontend
