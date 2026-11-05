@@ -1,25 +1,19 @@
 import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
 import type { ApiClient } from "#/api-client.ts";
+import { shekels } from "#/pages/format.ts";
 import { when } from "#/pages/syncs.ts";
 
 type List = InferResponseType<ApiClient["promotions"]["$get"], 200>;
 type Promotion = List["promotions"][number];
 type Detail = InferResponseType<ApiClient["promotions"][":id"]["$get"], 200>;
 
-// Badge classes from the layout: running stands out, the others are muted in different ways.
-const STATES = {
-  running: ["Running", "running"],
-  notToday: ["Not today", "ignored"],
-  future: ["Future", "requested"],
-  ended: ["Ended", "skipped"],
-} as const;
+const STATES = { running: "Running", notToday: "Not today", future: "Future", ended: "Ended" } as const;
 const KINDS = { price: "Price", bundle: "Bundle", percent: "Percent off", nth: "Nth unit off", off: "Amount off", info: "Information only" } as const;
 const AUDIENCES = { all: "Everyone", club: "Club", card: "Card", coupon: "Coupon" } as const;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const shekels = (n: number) => `₪${n.toFixed(2)}`;
-const badge = (s: Promotion["state"]) => html`<span class="badge badge-${STATES[s][1]}">${STATES[s][0]}</span>`;
+export const badge = (s: Promotion["state"]) => html`<span class="badge badge-promo-${s}">${STATES[s]}</span>`;
 const amount = (p: Promotion) => (p.kind === "info" ? "—" : p.kind === "percent" || p.kind === "nth" ? `${p.amount}%` : shekels(p.amount));
 const days = (d: string | null) => (d === null ? "Every day" : d.split(",").map((n) => DAYS[Number(n) - 1] ?? n).join(", "));
 const limits = (p: Promotion) => [p.limitQty === null ? "" : `Up to ${p.limitQty}`, p.minPurchase ? `Spend ${shekels(p.minPurchase)}` : ""].filter(Boolean).join(" · ") || "—";

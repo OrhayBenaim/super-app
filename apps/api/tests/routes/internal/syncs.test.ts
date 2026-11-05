@@ -61,24 +61,6 @@ describe("GET /syncs (private)", () => {
     });
   });
 
-  it("narrows to fewer days with ?days", async () => {
-    const deps = setup();
-    deps.db
-      .insert(syncRuns)
-      .values([
-        { trigger: "manual", status: "finished", requestedAt: ago(8) },
-        { trigger: "manual", status: "finished", requestedAt: ago(6) },
-      ])
-      .run();
-    const { syncs } = (await (await get(deps, "/syncs?days=7")).json()) as { syncs: { id: number }[] };
-    expect(syncs.map((s) => s.id)).toEqual([2]);
-  });
-
-  it("400 for days outside 1 to 90 or not a number", async () => {
-    const deps = setup();
-    for (const days of ["0", "91", "abc", "1.5"]) expect((await get(deps, `/syncs?days=${days}`)).status).toBe(400);
-  });
-
   it("401 without the token or with a wrong one", async () => {
     const deps = setup();
     expect((await createInternalApp(deps).request("/syncs")).status).toBe(401);

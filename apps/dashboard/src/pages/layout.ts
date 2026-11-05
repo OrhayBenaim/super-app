@@ -1,7 +1,9 @@
 import { html } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
 
-type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
+export type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
+
+export const notice = (text: string) => html`<p class="notice">${text}</p>`;
 
 /** Every dashboard page: the shell, its styles and htmx (served by app.ts, so the page loads no third-party script). */
 export const layout = (title: string, body: Html) => html`<!doctype html>
@@ -27,13 +29,21 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
         tbody tr:last-child td { border-bottom: 0; }
         .muted { color: #6b6b64; }
         .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 13px; font-weight: 600; border: 1px solid; }
+        /* Price sync states */
         .badge-finished { background: #e3f4e8; color: #1d5e36; border-color: #a9d8b8; }
         .badge-running { background: #e6efff; color: #1d4ed8; border-color: #a9c1f5; }
-        .badge-requested { background: #fff; color: #1d4ed8; border-style: dashed; }
-        .badge-interrupted { background: #fde8e8; color: #9b1c1c; border-color: #f3b0b0; }
+        .badge-requested { background: #fff; color: #1d4ed8; border-color: #a9c1f5; border-style: dashed; }
+        .badge-interrupted { background: #fdf0dc; color: #8a4b08; border-color: #f0c88a; }
         .badge-skipped { background: #f1f0ec; color: #57534e; border-color: #d6d3cd; }
-        .badge-ok { background: #e3f4e8; color: #1d5e36; border-color: #a9d8b8; }
-        .badge-failed { background: #fde8e8; color: #9b1c1c; border-color: #f3b0b0; }
+        .badge-ignored { background: #fff; color: #6b6b64; border-color: #d6d3cd; border-style: dotted; }
+        /* A Chain's outcome and, apart, its Promotion outcome */
+        .badge-outcome-ok { background: #fff; color: #1d5e36; border-color: #1d5e36; }
+        .badge-outcome-failed { background: #9b1c1c; color: #fff; border-color: #9b1c1c; }
+        /* Promotion states */
+        .badge-promo-running { background: #1f6f43; color: #fff; border-color: #1f6f43; }
+        .badge-promo-notToday { background: #fff8db; color: #6b5300; border-color: #e3cf7a; }
+        .badge-promo-future { background: #fff; color: #5b3fa8; border-color: #c4b5ec; border-style: dashed; }
+        .badge-promo-ended { background: #f1f0ec; color: #6b6b64; border-color: #d6d3cd; text-decoration: line-through; }
         nav { display: flex; gap: 16px; margin-bottom: 16px; }
         a { color: #1f6f43; }
         tr.errors td { white-space: normal; padding-top: 0; color: #9b1c1c; font-size: 14px; }
@@ -54,7 +64,6 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
         #map { height: 420px; margin-top: 16px; border-radius: 10px; }
         .details { margin-top: 16px; padding: 16px; background: #fff; border-radius: 10px; }
         .details dt { font-weight: 600; }
-        .badge-ignored { background: #fff; color: #6b6b64; border-color: #d6d3cd; border-style: dotted; }
       </style>
     </head>
     <body>
@@ -64,3 +73,6 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
       </main>
     </body>
   </html>`;
+
+/** The page for a store, Product or Promotion that does not exist (or an id that names none). */
+export const notFound = (text: string) => layout("Not found", html`<p class="notice busy">${text}</p>`);

@@ -1,5 +1,6 @@
 import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
+import { SYNC_HISTORY } from "@grocer/shared/sync-history";
 import type { ApiClient } from "#/api-client.ts";
 
 type Sync = InferResponseType<ApiClient["syncs"]["$get"], 200>["syncs"][number];
@@ -38,7 +39,7 @@ const row = (s: Sync) => html`<tr>
 export const syncsSection = (syncs: Sync[], notice?: Notice) => html`<section id="syncs">
   ${notice ? html`<p role="status" class="notice ${notice}">${NOTICES[notice]}</p>` : ""}
   ${syncs.length === 0
-    ? html`<p class="notice">No Price syncs in the last 90 days.</p>`
+    ? html`<p class="notice">No Price syncs in the last ${SYNC_HISTORY.days} days.</p>`
     : html`<div class="scroll">
         <table>
           <thead>

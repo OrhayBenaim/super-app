@@ -98,9 +98,10 @@ describe("GET /promotions?store= (private)", () => {
     expect(body.promotions.find((p) => p.promotionId === "FUTURE")?.state).toBe("running");
   });
 
-  it("400 without a store, 404 for an unknown one", async () => {
+  it("400 without a store or for one longer than 64 characters, 404 for an unknown one", async () => {
     const deps = setup();
     expect((await get(deps, "/promotions")).status).toBe(400);
+    expect((await get(deps, `/promotions?store=${"1".repeat(65)}`)).status).toBe(400);
     expect((await get(deps, "/promotions?store=nope")).status).toBe(404);
   });
 

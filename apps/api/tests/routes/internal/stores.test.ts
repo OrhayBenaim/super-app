@@ -79,6 +79,7 @@ describe("GET /stores (private)", () => {
     expect((await get(deps, "/stores?page=0")).status).toBe(400);
     expect((await get(deps, "/stores?publishedDiffers=maybe")).status).toBe(400);
     expect((await get(deps, "/stores?chain=")).status).toBe(400);
+    expect((await get(deps, `/stores?chain=${"1".repeat(65)}`)).status).toBe(400);
   });
 
   it("401 without the token or with a wrong one", async () => {
@@ -129,8 +130,9 @@ describe("GET /stores/:id (private)", () => {
     expect(await (await get(deps, `/stores/${RAMI}-1`)).json()).toMatchObject({ store: { priceCount: 0, pricesUpdatedAt: null } });
   });
 
-  it("404 for an unknown store", async () => {
+  it("404 for an unknown store, 400 for an id longer than 64 characters", async () => {
     expect((await get(setup(), "/stores/nope")).status).toBe(404);
+    expect((await get(setup(), `/stores/${"1".repeat(65)}`)).status).toBe(400);
   });
 
   it("401 without the token", async () => {
@@ -181,8 +183,9 @@ describe("PUT /stores/:id (private)", () => {
     expect(await (await get(deps, `/stores/${RAMI}-1`)).json()).toMatchObject({ store: { name: "Talpiot", lat: 31.75 } });
   });
 
-  it("404 for an unknown store", async () => {
+  it("404 for an unknown store, 400 for an id longer than 64 characters", async () => {
     expect((await put(seeded(), "nope", edit)).status).toBe(404);
+    expect((await put(seeded(), "1".repeat(65), edit)).status).toBe(400);
   });
 
   it("401 without the token", async () => {

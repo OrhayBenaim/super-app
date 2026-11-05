@@ -30,6 +30,20 @@ export function runningAt(now: Date) {
   return (p: { startsAt: number; endsAt: number; days: string | null }) => p.startsAt <= t && p.endsAt > t && (p.days === null || `,${p.days},`.includes(day));
 }
 
+/** A Promotion's state on the Internal dashboard, in the order it lists them. */
+export const PROMOTION_STATES = ["running", "notToday", "future", "ended"] as const;
+export type PromotionState = (typeof PROMOTION_STATES)[number];
+
+/** running, ended and future as Compare decides (runningAt); notToday: within its dates, but not on today's weekday. */
+export function promotionStateAt(now: Date) {
+  const running = runningAt(now);
+  const t = now.getTime();
+  return ({ startsAt, endsAt, days }: { startsAt: Date; endsAt: Date; days: string | null }): PromotionState => {
+    const p = { startsAt: startsAt.getTime(), endsAt: endsAt.getTime(), days };
+    return running(p) ? "running" : p.endsAt <= t ? "ended" : p.startsAt > t ? "future" : "notToday";
+  };
+}
+
 /** The Promotions on `codes` at `storeIds` running at `now` (start, end, Israeli weekday), by `${storeId} ${code}`. */
 export function runningPromotions(db: Db, storeIds: string[], codes: string[], now: Date) {
   const rows = db.$client

@@ -1,11 +1,12 @@
 import { asc, desc, eq, gte } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
+import { SYNC_HISTORY } from "@grocer/shared/sync-history";
 import { chains, syncChainResults, syncRuns } from "#/db/appSchema.ts";
 import type { AppEnv } from "#/middleware.ts";
+import { bad } from "#/routes/internal/valid.ts";
 
 const DAY = 86_400_000;
-const listQuery = z.object({ days: z.coerce.number().int().min(1).max(90).default(90) });
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 
 const listed = {
@@ -21,15 +22,13 @@ const listed = {
 
 /** The Internal dashboard's Price syncs, on the private app. */
 export const syncsRoutes = new Hono<AppEnv>()
-  // The Price syncs requested in the last `days` days (default and most 90), newest first.
+  // The Price syncs requested in the last SYNC_HISTORY.days (all the Price sync keeps), newest first.
   .get("/", (c) => {
-    const query = listQuery.safeParse(c.req.query());
-    if (!query.success) return c.json({ error: query.error.issues[0]?.message ?? "invalid query" }, 400);
     const { db, clock } = c.var.deps;
     const syncs = db
       .select(listed)
       .from(syncRuns)
-      .where(gte(syncRuns.requestedAt, new Date(clock.now().getTime() - query.data.days * DAY)))
+      .where(gte(syncRuns.requestedAt, new Date(clock.now().getTime() - SYNC_HISTORY.days * DAY)))
       .orderBy(desc(syncRuns.requestedAt), desc(syncRuns.id))
       .all();
     return c.json({ syncs }, 200);
@@ -37,7 +36,7 @@ export const syncsRoutes = new Hono<AppEnv>()
   // One run: its per-Chain results (each Chain's own outcome and, apart, its Promotion outcome) and its Product type step.
   .get("/:id", (c) => {
     const param = idParam.safeParse(c.req.param());
-    if (!param.success) return c.json({ error: param.error.issues[0]?.message ?? "invalid id" }, 400);
+    if (!param.success) return bad(c, param.error);
     const { db } = c.var.deps;
     const run = db
       .select({ ...listed, productsTyped: syncRuns.productsTyped, productsOther: syncRuns.productsOther, typeRequestsFailed: syncRuns.typeRequestsFailed })

@@ -3,6 +3,7 @@ import { createApp } from "#/app.ts";
 import { prices, products, promotionItems, promotions, stores } from "#/db/appSchema.ts";
 import { buildDeps, type Deps } from "#/deps.ts";
 import { createInternalApp } from "#/internal-app.ts";
+import { refreshBrowse } from "#/prices/browse-groups.ts";
 import { loadConfig } from "#/services/config.ts";
 import { fakeClock } from "#/utils/clock.ts";
 
@@ -165,6 +166,30 @@ describe("GET /products/:code (private)", () => {
         // The ended Promotion is not running
         expect.objectContaining({ storeId: `${OSHER}-1`, price: 6.9, updatedAt: new Date(NOW.getTime() - DAY).toISOString(), promotions: [] }),
       ],
+      promotions: [expect.objectContaining({ promotionId: "P1" }), expect.objectContaining({ promotionId: "P2" })],
+    });
+  });
+
+  it("lists every Promotion on it at the stores that price it, each marked running, not today, future or ended, running first", async () => {
+    const deps = setup();
+    seed(deps);
+    const later = { kind: "price" as const, minQty: 1, amount: 5, audience: "all" as const, description: "5 ש״ח" };
+    const extra = deps.db
+      .insert(promotions)
+      .values([
+        { ...later, storeId: `${OSHER}-2`, promotionId: "P3", startsAt: new Date(NOW.getTime() + DAY), endsAt: new Date(NOW.getTime() + 2 * DAY) },
+        // Fridays and Saturdays only; NOW is a Thursday
+        { ...later, storeId: `${OSHER}-2`, promotionId: "P4", startsAt: new Date(NOW.getTime() - DAY), endsAt: new Date(NOW.getTime() + 7 * DAY), days: "6,7" },
+      ])
+      .returning({ id: promotions.id })
+      .all();
+    deps.db.insert(promotionItems).values(extra.map(({ id }) => ({ promotionId: id, code: MILK }))).run();
+    const body = (await (await get(deps, `/products/${MILK}`)).json()) as { promotions: Record<string, unknown>[] };
+    expect(body.promotions.map((p) => [p.promotionId, p.state])).toEqual([["P1", "running"], ["P4", "notToday"], ["P3", "future"], ["P2", "ended"]]);
+    expect(body.promotions[0]).toEqual({
+      id: expect.any(Number), promotionId: "P1", storeId: `${RAMI}-1`, storeName: "רמי לוי תלפיות", chainName: "Rami Levy", description: "2 ב-10",
+      kind: "bundle", audience: "club", startsAt: new Date(NOW.getTime() - DAY).toISOString(), endsAt: new Date(NOW.getTime() + DAY).toISOString(),
+      days: null, state: "running", text: "2 ב-₪10",
     });
   });
 
@@ -212,6 +237,28 @@ describe("PUT /products/:code/type (private)", () => {
     // And changes one the classifier gave
     await put(deps, MILK, { productType: "other" });
     expect(((await (await get(deps, "/products?type=other")).json()) as Found).products.map((p) => p.code)).toEqual([MILK]);
+  });
+
+  it("reaches Home without a Price sync: browse's Product types show the new type", async () => {
+    const deps = setup();
+    seed(deps);
+    await refreshBrowse(deps.db); // as the last Price sync left it
+    const app = createApp(deps);
+    const signUp = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "home@example.com", password: "password1234", name: "H" }),
+    });
+    const cookie = signUp.headers.getSetCookie().map((h) => h.split(";")[0]).join("; ");
+    const types = async () => (await (await app.request("/api/browse/types", { headers: { cookie } })).json()) as { type: string; cardCount: number }[];
+    expect(await types()).toEqual([{ type: "dairy-eggs", cardCount: 1 }, { type: "other", cardCount: 2 }]);
+
+    expect((await put(deps, LOCAL, { productType: "produce" })).status).toBe(200);
+    expect(await types()).toEqual([{ type: "dairy-eggs", cardCount: 1 }, { type: "produce", cardCount: 1 }, { type: "other", cardCount: 1 }]);
+
+    // And the cards of its type hold it
+    const cards = (await (await app.request("/api/browse/types/produce", { headers: { cookie } })).json()) as { codes: string[] }[];
+    expect(cards.flatMap((c) => c.codes)).toEqual([LOCAL]);
   });
 
   it("400 for a type outside the fixed list, none, or a body that is not one", async () => {

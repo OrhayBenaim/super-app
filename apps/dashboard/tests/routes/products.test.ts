@@ -65,6 +65,13 @@ describe("Products page", () => {
     expect(html).not.toContain("בננות");
   });
 
+  it("loads each result's image when its row is revealed", async () => {
+    const { app, looked } = seeded();
+    const html = await (await app.request(`/products?q=${encodeURIComponent("חלב")}`)).text();
+    expect(looked).toEqual([]);
+    expect(html).toContain(`hx-get="/products/${MILK}/image" hx-trigger="revealed"`);
+  });
+
   it("finds the Product by barcode", async () => {
     const { app } = seeded();
     const html = await (await app.request(`/products?q=${MILK}`)).text();
@@ -130,17 +137,22 @@ describe("Changing a Product's type", () => {
     expect(await typeOf(privateApp, LOCAL)).toBe("produce");
   });
 
+  // htmx swaps only a 2xx, so a refusal is a 200 fragment, as the Manual sync button's.
   it("refuses a type outside the fixed list and keeps the old one", async () => {
     const { app, privateApp } = seeded();
     const res = await change(app, MILK, "soup");
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
     expect(await res.text()).toContain("Choose one of the Product types");
     expect(await typeOf(privateApp, MILK)).toBe("dairy-eggs");
   });
 
-  it("answers 404 for an unknown Product", async () => {
+  it("says when there is no such Product", async () => {
     const { app } = seeded();
-    expect((await change(app, "123", "produce")).status).toBe(404);
+    for (const code of ["123", "1".repeat(65)]) {
+      const res = await change(app, code, "produce");
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain("No Product with this code");
+    }
   });
 });
 
@@ -154,6 +166,25 @@ describe("Product page", () => {
     for (const text of ["חלב 3% 1 ליטר", "תנובה", "1 l", "By the unit", "dairy-eggs", "רמי לוי תלפיות", "Rami Levy", "אושר עד גבעת שאול", "2 ב-₪10", "club"])
       expect(html).toContain(text);
     expect(html.indexOf("₪5.90")).toBeLessThan(html.indexOf("₪6.90"));
+  });
+
+  it("lists the Product's Promotions at the stores that price it, each marked by state, linking to the Promotion", async () => {
+    const { app, api } = seeded();
+    const [ended] = api.db
+      .insert(promotions)
+      .values({
+        storeId: `${OSHER}-1`, promotionId: "P0", description: "חלב ב-5 שנגמר", kind: "price", minQty: 1, amount: 5, audience: "all",
+        startsAt: new Date(NOW.getTime() - 9 * DAY), endsAt: new Date(NOW.getTime() - 2 * DAY),
+      })
+      .returning({ id: promotions.id })
+      .all();
+    api.db.insert(promotionItems).values({ promotionId: ended!.id, code: MILK }).run();
+    const html = await (await app.request(`/products/${MILK}`)).text();
+    const section = html.slice(html.indexOf("<h2>Promotions</h2>"));
+    expect(section).toContain(`href="/promotions/${ended!.id}"`);
+    expect(section).toContain('class="badge badge-promo-ended"');
+    expect(section.indexOf("badge-promo-running")).toBeLessThan(section.indexOf("badge-promo-ended"));
+    expect(section).toContain("אושר עד גבעת שאול");
   });
 
   it("shows a Chain-only Product with no image and no Product type yet, sold by weight", async () => {
@@ -170,8 +201,25 @@ describe("Product page", () => {
 
   it("answers 404 for an unknown Product", async () => {
     const { app } = seeded();
-    const res = await app.request("/products/123");
-    expect(res.status).toBe(404);
-    expect(await res.text()).toContain("No Product with code 123");
+    for (const code of ["123", "1".repeat(65)]) {
+      const res = await app.request(`/products/${code}`);
+      expect(res.status).toBe(404);
+      expect(await res.text()).toContain("No Product with this code");
+    }
+  });
+});
+
+describe("Product image fragment", () => {
+  it("is the Product's image, or a dash when it has none or the code names none", async () => {
+    const { app, looked } = seeded();
+    const res = await app.request(`/products/${MILK}/image`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain(`<img src="${IMAGE}"`);
+    for (const code of [encodeURIComponent(LOCAL), "1".repeat(65)]) {
+      const none = await app.request(`/products/${code}/image`);
+      expect(none.status).toBe(200);
+      expect(await none.text()).not.toContain("<img");
+    }
+    expect(looked).toEqual([MILK, LOCAL]);
   });
 });

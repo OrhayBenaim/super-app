@@ -3,7 +3,7 @@
 // up which of them have Products nearby (browse.ts). A Product new since the last grouping shows once it is grouped.
 import { PRODUCT_TYPES, type ProductType } from "@grocer/shared/product-types";
 import type { Db } from "#/db/index.ts";
-import { i32, packMissingStores, prunePromotions, writeCatalog } from "#/prices/browse-data.ts";
+import { catalog, i32, pack, packMissingStores, prunePromotions, writeCatalog } from "#/prices/browse-data.ts";
 import { groupsFrom, measureOf, nameWords, parseRef, soldByOf, withoutSizes } from "#/prices/groups.ts";
 
 type Product = { code: string; name: string; unitQty: string | null; isWeighted: number; type: ProductType; minPrice: number };
@@ -83,6 +83,10 @@ export function groupsOf(products: Product[]) {
   return [...grouped, ...own, ...products.filter((p) => !held.has(p.code)).map(loneCard)];
 }
 
+type Numbered = Omit<Product, "minPrice"> & { id: number }; // id: its browse_products id
+const BROWSE_PRODUCTS =
+  "SELECT b.id, p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted, coalesce(p.product_type, 'other') AS type FROM browse_products b JOIN products p ON p.code = b.code";
+
 /**
  * Stores browse's group cards over every Product some store prices, with what browse_catalog keeps per Product and per
  * group, and each Product's code and name words (for narrowing a card to the Products it holds at a request), in one transaction.
@@ -94,9 +98,7 @@ function storeGroups(db: Db) {
   const lists = (sqlite.prepare("SELECT products FROM store_browse").pluck().all() as Buffer[]).map(i32);
   const stores = new Int32Array(n);
   for (const list of lists) for (const k of list) stores[k]!++;
-  const rows = sqlite
-    .prepare("SELECT b.id, p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted, coalesce(p.product_type, 'other') AS type FROM browse_products b JOIN products p ON p.code = b.code ORDER BY p.code")
-    .all() as (Omit<Product, "minPrice"> & { id: number })[];
+  const rows = sqlite.prepare(`${BROWSE_PRODUCTS} ORDER BY p.code`).all() as Numbered[];
   const priced = rows.filter((p) => stores[p.id]).map((p) => ({ ...p, minPrice: 0 }));
   const groups = groupsOf(priced);
   const byCode = new Map(priced.map((p) => [p.code, p]));
@@ -146,4 +148,35 @@ export async function refreshBrowse(db: Db) {
   await packMissingStores(db);
   storeGroups(db);
   prunePromotions(db.$client);
+}
+
+/**
+ * Moves one grouped Product onto a card of its Product type, just set by the operator, so Home shows it without a
+ * Price sync: refreshBrowse groups every Product again, seconds on real data with every request waiting. Its card is the
+ * group of that type its own name makes, or a new one; the card it left keeps its store count until the next refresh.
+ */
+export function regroupProduct(db: Db, code: string) {
+  const sqlite = db.$client;
+  const p = sqlite.prepare(`${BROWSE_PRODUCTS} WHERE p.code = ?`).get(code) as Numbered | undefined;
+  const c = catalog(db);
+  if (!p || (c.groups[p.id] ?? -1) < 0) return; // not grouped yet: the next refresh groups it with its type
+  const card = groupsOf([{ ...p, minPrice: 0 }])[0]!;
+  const same = card.ref === null ? undefined : (sqlite.prepare("SELECT id FROM browse_groups WHERE type = ? AND ref = ?").pluck().get(card.type, card.ref) as number | undefined);
+  const g = same ?? c.groupTypes.length;
+  const groupTypes = new Uint8Array(c.groupTypes.length + (same === undefined ? 1 : 0));
+  const groupStores = new Int32Array(groupTypes.length);
+  groupTypes.set(c.groupTypes);
+  groupStores.set(c.groupStores);
+  groupTypes[g] = PRODUCT_TYPES.indexOf(card.type);
+  if (same === undefined) groupStores[g] = c.stores[p.id]!;
+  c.groups[p.id] = g;
+  c.perUnit[p.id] = card.measure === "unit" ? 1 : measureOf(p)!.size; // as storeGroups
+  sqlite.transaction(() => {
+    if (same === undefined) {
+      sqlite
+        .prepare("INSERT INTO browse_groups (id, type, ref, name, measure, size, sold_by) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .run(g, card.type, card.ref, card.name, card.measure, card.size, card.soldBy);
+    }
+    sqlite.prepare("UPDATE browse_catalog SET groups = ?, per_unit = ?, group_types = ?, group_stores = ? WHERE id = 1").run(pack(c.groups), pack(c.perUnit), pack(groupTypes), pack(groupStores));
+  })();
 }

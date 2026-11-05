@@ -7,7 +7,7 @@ type Chain = InferResponseType<ApiClient["chains"]["$get"], 200>["chains"][numbe
 
 const row = (c: Chain) => html`<tr>
   <td><a href="/stores?chain=${c.id}">${c.name}</a> <span lang="he" dir="rtl" class="muted">${c.nameHe}</span></td>
-  <td>${c.lastStatus ? html`<span class="badge badge-${c.lastStatus}">${c.lastStatus}</span>` : html`<span class="muted">No Price sync yet</span>`}</td>
+  <td>${c.lastStatus ? html`<span class="badge badge-outcome-${c.lastStatus}">${c.lastStatus}</span>` : html`<span class="muted">No Price sync yet</span>`}</td>
   <td>${when(c.lastGoodSyncAt)}</td>
   <td>${c.stores}</td>
   <td>${c.storesWithoutLocation}</td>

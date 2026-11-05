@@ -1,13 +1,14 @@
 import { and, asc, count, eq, isNull, max, ne, or, type SQL } from "drizzle-orm";
 import { Hono } from "hono";
-import { validator } from "hono/validator";
 import { z } from "zod";
 import { chains, prices, stores } from "#/db/appSchema.ts";
 import type { AppEnv } from "#/middleware.ts";
+import { bad, jsonBody } from "#/routes/internal/valid.ts";
 
 const PAGE_SIZE = 100;
+const idParam = z.object({ id: z.string().min(1).max(64) });
 const listQuery = z.object({
-  chain: z.string().min(1).optional(),
+  chain: z.string().min(1).max(64).optional(),
   noLocation: z.stringbool().optional(),
   publishedDiffers: z.stringbool().optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -44,7 +45,7 @@ export const storesRoutes = new Hono<AppEnv>()
   // One page of the filtered stores by name, their total, and every one of them with a location for the map.
   .get("/", (c) => {
     const query = listQuery.safeParse(c.req.query());
-    if (!query.success) return c.json({ error: query.error.issues[0]?.message ?? "invalid query" }, 400);
+    if (!query.success) return bad(c, query.error);
     const { chain, noLocation, publishedDiffers, page } = query.data;
     const { db } = c.var.deps;
     const filters: SQL[] = [];
@@ -72,8 +73,10 @@ export const storesRoutes = new Hono<AppEnv>()
   })
   // One store with its price count and when its prices were last updated.
   .get("/:id", (c) => {
+    const param = idParam.safeParse(c.req.param());
+    if (!param.success) return bad(c, param.error);
     const { db } = c.var.deps;
-    const store = db.select(columns).from(stores).innerJoin(chains, eq(chains.id, stores.chainId)).where(eq(stores.id, c.req.param("id"))).get();
+    const store = db.select(columns).from(stores).innerJoin(chains, eq(chains.id, stores.chainId)).where(eq(stores.id, param.data.id)).get();
     if (!store) return c.json({ error: "not found" }, 404);
     const stats = db.select({ priceCount: count(), updatedAt: max(prices.updatedAt) }).from(prices).where(eq(prices.storeId, store.id)).get();
     return c.json({ store: { ...store, priceCount: stats?.priceCount ?? 0, pricesUpdatedAt: stats?.updatedAt ?? null } }, 200);
@@ -81,12 +84,11 @@ export const storesRoutes = new Hono<AppEnv>()
   // The operator's correction. A Price sync never changes these again (ADR 0006); a cleared location is geocoded on the next one.
   .put(
     "/:id",
-    validator("json", (value, c) => {
-      const body = editBody.safeParse(value);
-      return body.success ? body.data : c.json({ error: body.error.issues[0]?.message ?? "invalid body" }, 400);
-    }),
+    jsonBody(editBody),
     (c) => {
-      const id = c.req.param("id");
+      const param = idParam.safeParse(c.req.param());
+      if (!param.success) return bad(c, param.error);
+      const { id } = param.data;
       const edit = c.req.valid("json");
       const { changes } = c.var.deps.db.update(stores).set(edit).where(eq(stores.id, id)).run();
       if (changes === 0) return c.json({ error: "not found" }, 404);

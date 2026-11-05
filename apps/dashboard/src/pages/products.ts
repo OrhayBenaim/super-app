@@ -3,6 +3,9 @@ import { html } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import type { ApiClient } from "#/api-client.ts";
+import { shekels, size, SOLD_BY } from "#/pages/format.ts";
+import { notice } from "#/pages/layout.ts";
+import { badge } from "#/pages/promotions.ts";
 import { when } from "#/pages/syncs.ts";
 
 type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
@@ -11,14 +14,17 @@ type Detail = InferResponseType<ApiClient["products"][":code"]["$get"], 200>;
 /** The Products page's type filter: a Product type, "none" for none yet, or undefined for any. */
 export type TypeFilter = (typeof PRODUCT_TYPES)[number] | "none" | undefined;
 
-const shekels = (n: number) => `₪${n.toFixed(2)}`;
-const size = (p: { measure: string | null; size: number | null }) => (p.measure ? `${p.size} ${p.measure === "unit" ? "pcs" : p.measure}` : "—");
-const SOLD_BY = { weight: "By weight", unit: "By the unit" } as const;
 const typeText = (t: string | null) => t ?? html`<span class="muted">None yet</span>`;
 const href = (code: string) => `/products/${encodeURIComponent(code)}`;
 const pageHref = (q: string, type: TypeFilter, page: number) => `/products?${new URLSearchParams({ q, type: type ?? "", page: String(page) })}`;
 const option = (value: string, label: string, chosen: string | null | undefined) =>
   html`<option value="${value}"${value === chosen ? html` selected` : ""}>${label}</option>`;
+
+/** A Product image cell that loads its image when it scrolls into view: one lookup per row seen, none up front. */
+export const imageCell = (code: string) =>
+  html`<td hx-get="${href(code)}/image" hx-trigger="revealed" hx-swap="innerHTML"><span class="muted">—</span></td>`;
+/** What the image cell swaps in. The row names the Product, so the image adds no text. */
+export const thumbnail = (image: string | null) => (image ? html`<img src="${image}" alt="" width="48" height="48" />` : html`<span class="muted">—</span>`);
 
 export const searchForm = (q: string, type: TypeFilter) => html`<form method="get" action="/products" class="search">
   <label for="q">Name or barcode</label>
@@ -50,8 +56,6 @@ export const typeForm = (code: string, productType: string | null, saved = false
   ${saved ? html`<span role="status">Saved.</span>` : ""}
 </form>`;
 
-export const notice = (text: string) => html`<p class="notice">${text}</p>`;
-
 /** One page of Products the search or the type filter found, with links to the pages around it. */
 export const productsFound = (q: string, type: TypeFilter, page: number, { products, hasMore }: Found) =>
   products.length === 0
@@ -60,6 +64,7 @@ export const productsFound = (q: string, type: TypeFilter, page: number, { produ
           <table>
             <thead>
               <tr>
+                <th scope="col">Image</th>
                 <th scope="col">Product</th>
                 <th scope="col">Code</th>
                 <th scope="col">Manufacturer</th>
@@ -73,6 +78,7 @@ export const productsFound = (q: string, type: TypeFilter, page: number, { produ
             <tbody>
               ${products.map(
                 (p) => html`<tr>
+                  ${imageCell(p.code)}
                   <td lang="he"><a href="${href(p.code)}">${p.name}</a></td>
                   <td class="muted">${p.code}</td>
                   <td lang="he">${p.manufacturer ?? "—"}</td>
@@ -92,8 +98,39 @@ export const productsFound = (q: string, type: TypeFilter, page: number, { produ
           ${hasMore ? html`<a href="${pageHref(q, type, page + 1)}">Next</a>` : ""}
         </nav>`;
 
-/** One Product: its Product image, details, its price at every store (cheapest first) and the Promotions running there. */
-export const productPage = ({ product: p, prices }: Detail, image: string | null) => html`<header>
+/** Every Promotion on the Product at the stores that price it, running first, each linking to its page. */
+const promotionsTable = (promotions: Detail["promotions"]) =>
+  promotions.length === 0
+    ? notice("No store that prices it has a Promotion on it.")
+    : html`<div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">State</th>
+              <th scope="col">Promotion</th>
+              <th scope="col">Chain</th>
+              <th scope="col">Store</th>
+              <th scope="col">Starts</th>
+              <th scope="col">Ends</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${promotions.map(
+              (promo) => html`<tr>
+                <td>${badge(promo.state)}</td>
+                <td lang="he"><a href="/promotions/${promo.id}">${promo.text}</a> <span class="muted">${promo.description}</span></td>
+                <td>${promo.chainName}</td>
+                <td lang="he">${promo.storeName}</td>
+                <td>${when(promo.startsAt)}</td>
+                <td>${when(promo.endsAt)}</td>
+              </tr>`,
+            )}
+          </tbody>
+        </table>
+      </div>`;
+
+/** One Product: its Product image, details, its price at every store (cheapest first) with the Promotions running there, and all its Promotions. */
+export const productPage = ({ product: p, prices, promotions }: Detail, image: string | null) => html`<header>
     <h1 lang="he">${p.name}</h1>
     <a href="/products">Search Products</a>
   </header>
@@ -147,4 +184,6 @@ export const productPage = ({ product: p, prices }: Detail, image: string | null
             )}
           </tbody>
         </table>
-      </div>`}`;
+      </div>`}
+  <h2>Promotions</h2>
+  ${promotionsTable(promotions)}`;

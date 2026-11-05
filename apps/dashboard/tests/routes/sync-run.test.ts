@@ -42,11 +42,11 @@ describe("Price sync run page", () => {
     const html = await res.text();
     expect(html).toContain("Shufersal");
     expect(html).toContain("רמי לוי");
-    expect(html).toContain('<span class="badge badge-failed">Chain failure</span>');
+    expect(html).toContain('<span class="badge badge-outcome-failed">Chain failure</span>');
     expect(html).toContain("portal answered 503");
-    expect(html).toContain('<span class="badge badge-failed">Promotion failure</span>');
+    expect(html).toContain('<span class="badge badge-outcome-failed">Promotion failure</span>');
     expect(html).toContain("promo file did not parse");
-    expect(html).toContain('<span class="badge badge-ok">ok</span>'); // Rami Levy's own outcome, apart from its Promotions
+    expect(html).toContain('<span class="badge badge-outcome-ok">ok</span>'); // Rami Levy's own outcome, apart from its Promotions
     expect(html).toContain("9,000");
     expect(html).toContain("4m 12s");
     expect(html).toContain("40 Products typed, 3 as Other, 1 failed request");

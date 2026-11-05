@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { prices, products, stores } from "api/src/db/appSchema.ts";
+import type { Deps } from "#/deps.ts";
 import { setup } from "../seam.ts";
 
 const RAMI = "7290058140886";
@@ -9,8 +10,8 @@ const COARSE = "7290000000035";
 const IMAGE = "https://img.example/bulgur.jpg";
 
 /** Fine and coarse bulgur at two stores; only the fine one has a Product image. */
-function seeded() {
-  const ctx = setup({ productImage: async (code) => (code === FINE ? IMAGE : null) });
+function seeded(productImage: Deps["productImage"] = async (code) => (code === FINE ? IMAGE : null)) {
+  const ctx = setup({ productImage });
   const { db } = ctx.api;
   const store = (chainId: string, name: string) => ({ id: `${chainId}-1`, chainId, storeId: "1", subChainId: "1", name, address: "רחוב 1", city: "ירושלים" });
   db.insert(stores).values([store(RAMI, "רמי לוי תלפיות"), store(OSHER, "אושר עד גבעת שאול")]).run();
@@ -52,10 +53,18 @@ describe("Product groups page", () => {
       expect(html).toContain(text);
     expect(html).toContain(`href="/groups?${new URLSearchParams({ q: "בורגול דק" })}"`);
     expect(html).toContain(`href="/groups?${new URLSearchParams({ q: "בורגול עבה" })}"`);
-    expect(html).toContain(`<img src="${IMAGE}"`);
     expect(html).toContain(`href="/products/${COARSE}"`);
     // Cheapest per kilo first: the coarse 1 kg at 6.80 before the fine 500 g at 3.50 (7.00 a kilo)
     expect(html.indexOf("בורגול עבה סוגת")).toBeLessThan(html.indexOf("בורגול דק סוגת"));
+  });
+
+  it("loads each member's image when its row is revealed, with no lookup up front", async () => {
+    const looked: string[] = [];
+    const { app } = seeded(async (code) => (looked.push(code), null));
+    const html = await (await app.request(`/groups?q=${encodeURIComponent("בורגול")}`)).text();
+    expect(looked).toEqual([]);
+    expect(html).toContain(`hx-get="/products/${FINE}/image" hx-trigger="revealed"`);
+    expect(html).toContain(`hx-get="/products/${COARSE}/image" hx-trigger="revealed"`);
   });
 
   it("says when the words name no group, and when they are too short or too long", async () => {

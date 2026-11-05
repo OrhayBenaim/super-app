@@ -62,9 +62,13 @@ describe("Stores page", () => {
     expect(html).toContain("Bat Yam");
   });
 
-  it("answers a bad filter with 400", async () => {
+  it("answers a bad filter with 400 and a notice", async () => {
     const { app } = setup();
-    expect((await app.request("/stores?noLocation=maybe")).status).toBe(400);
+    for (const q of ["noLocation=maybe", `chain=${"1".repeat(65)}`, "page=x", "page=0"]) {
+      const res = await app.request(`/stores?${q}`);
+      expect(res.status, q).toBe(400);
+      expect(await res.text(), q).toContain('class="notice');
+    }
   });
 
   it("serves Leaflet", async () => {
@@ -112,9 +116,13 @@ describe("Store page", () => {
     expect(html).toMatch(/<th scope="row">City<\/th>\s*<td>Haifa<\/td>\s*<td>Haifa<\/td>/);
   });
 
-  it("answers an unknown store with 404", async () => {
+  it("answers an unknown store, or an id that names none, with 404", async () => {
     const { app } = setup();
-    expect((await app.request("/stores/nope")).status).toBe(404);
+    for (const id of ["nope", "1".repeat(65)]) {
+      const res = await app.request(`/stores/${id}`);
+      expect(res.status, id).toBe(404);
+      expect(await res.text()).toContain("No store with this id");
+    }
   });
 });
 
@@ -176,8 +184,9 @@ describe("Editing a store", () => {
     expect(await saved(privateApp)).toMatchObject({ name: "Talpiot", lat: 31.75 });
   });
 
-  it("answers an unknown store with 404", async () => {
+  it("answers an unknown store, or an id that names none, with 404", async () => {
     const { app } = seeded();
     expect((await submit(app, form, "nope")).status).toBe(404);
+    expect((await submit(app, form, "1".repeat(65))).status).toBe(404);
   });
 });

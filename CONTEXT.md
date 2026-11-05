@@ -76,6 +76,10 @@ _Avoid_: Cancelled sync
 A Chain that could not be brought up to date during a Price sync: its Stores file could not be downloaded or loaded, none of its price files could be loaded (failed, or all name stores missing from its Stores file), or its prices could not be saved. It is logged and recorded. Stores whose prices were saved before the failure keep them; the rest keep their previous prices until a later Price sync succeeds for that Chain. A single price file that cannot be downloaded or loaded is not a Chain failure but a Store failure: that store keeps its previous prices and the rest of the Chain still updates.
 _Avoid_: Sync failure (the Price sync itself still finishes)
 
+**Promotion failure**:
+A Chain whose Promotion files could not be downloaded or loaded during a Price sync while its prices still updated. Its stores keep their previous Promotions. It is logged and recorded, and shown apart from the Chain's own outcome: a Chain with a Promotion failure is not a Chain failure.
+_Avoid_: Promo error, partial failure
+
 **Store failure**:
 A store whose price file or Promotion file could not be downloaded or loaded during a Price sync while the rest of its Chain still updated. The store keeps its previous prices or Promotions. Store failures are kept for 7 days, then forgotten.
 _Avoid_: File failure, store error

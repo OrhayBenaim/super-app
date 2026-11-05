@@ -63,6 +63,7 @@ describe("A store's Promotions page", () => {
   it("answers an unknown store with 404", async () => {
     const { app } = seeded();
     expect((await app.request("/stores/nope/promotions")).status).toBe(404);
+    expect((await app.request(`/stores/${"1".repeat(65)}/promotions`)).status).toBe(404);
   });
 });
 
@@ -84,5 +85,6 @@ describe("Promotion page", () => {
     const { app } = seeded();
     expect((await app.request("/promotions/99999")).status).toBe(404);
     expect((await app.request("/promotions/abc")).status).toBe(404);
+    expect((await app.request("/promotions/-1")).status).toBe(404);
   });
 });
