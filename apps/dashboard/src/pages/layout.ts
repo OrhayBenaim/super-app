@@ -54,7 +54,7 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
     </head>
     <body>
       <main>
-        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a><a href="/products">Products</a></nav>
+        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a><a href="/products">Products</a><a href="/groups">Product groups</a></nav>
         ${body}
       </main>
     </body>
