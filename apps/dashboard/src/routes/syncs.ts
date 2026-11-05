@@ -8,7 +8,7 @@ import { syncsPage, syncsSection } from "#/pages/syncs.ts";
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 
-/** The last 90 days of Price syncs from the private app. Any other answer is a bug or a bad SYNC_TOKEN: onError shows it. */
+/** The kept Price syncs (SYNC_HISTORY) from the private app. Any other answer is a bug or a bad SYNC_TOKEN: onError shows it. */
 async function recentSyncs(c: Context<AppEnv>) {
   const res = await c.var.deps.api.syncs.$get();
   if (res.status !== 200) throw unexpected(res, "GET /syncs");

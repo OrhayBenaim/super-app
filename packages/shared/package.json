@@ -9,7 +9,8 @@
     "./product-types": "./src/product-types.ts",
     "./quantity": "./src/quantity.ts",
     "./search": "./src/search.ts",
-    "./sentry": "./src/sentry.ts"
+    "./sentry": "./src/sentry.ts",
+    "./sync-history": "./src/sync-history.ts"
   },
   "scripts": {
     "test": "vitest run",

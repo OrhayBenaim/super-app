@@ -1,5 +1,6 @@
 import { eq, inArray, lt } from "drizzle-orm";
 import { z } from "zod";
+import { SYNC_HISTORY } from "@grocer/shared/sync-history";
 import { syncChainResults, syncRuns } from "#/db/appSchema.ts";
 import type { Deps } from "#/deps.ts";
 import { syncChain, type ChainCounts } from "#/ingest/chain-sync.ts";
@@ -7,7 +8,7 @@ import { chainSeeds } from "#/ingest/chains.ts";
 import { typeProducts } from "#/ingest/product-types.ts";
 import { refreshBrowse } from "#/prices/browse-groups.ts";
 
-const HISTORY_MS = 90 * 24 * 60 * 60 * 1000;
+const HISTORY_MS = SYNC_HISTORY.days * 24 * 60 * 60 * 1000;
 
 export const priceSyncData = z.object({ maxStores: z.coerce.number().int().min(1).optional() });
 export type PriceSyncData = z.input<typeof priceSyncData>;
@@ -18,7 +19,7 @@ export type PriceSyncData = z.input<typeof priceSyncData>;
  * once it fires the sync stops and is recorded as interrupted. After the Chains, gives untyped Products a Product type
  * (skipped when interrupted). Brings browse's copy up to date before the Chains (a deploy may have changed its rules) and
  * after the Product types; a failure there is logged and reported, and leaves browse as it was. Marks the run `running`
- * before its first await, and deletes Price syncs (with their Chain results) from more than 90 days before it.
+ * before its first await, and deletes Price syncs (with their Chain results) from more than SYNC_HISTORY.days before it.
  */
 export async function runPriceSync(deps: Deps, runId: number, { signal, maxStores = Infinity }: { signal?: AbortSignal; maxStores?: number }) {
   const { db, clock } = deps;
