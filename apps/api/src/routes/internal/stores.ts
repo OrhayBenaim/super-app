@@ -3,8 +3,9 @@ import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { z } from "zod";
 import { ID } from "@grocer/shared/ids";
-import { chains, prices, promotions, stores } from "#/db/appSchema.ts";
+import { chains, prices, stores } from "#/db/appSchema.ts";
 import type { AppEnv } from "#/middleware.ts";
+import { runningPromotionCount } from "#/prices/promotion-list.ts";
 import { bad } from "#/routes/internal/valid.ts";
 
 const PAGE_SIZE = 100;
@@ -88,15 +89,15 @@ export const storesRoutes = new Hono<AppEnv>()
     const counts = db.select({ all: count(), noLocation: countWhere(NO_LOCATION), publishedDiffers: countWhere(DIFFERS) }).from(stores).where(ofChain).get()!;
     return c.json({ stores: rows, total, page, pageSize: PAGE_SIZE, locations, counts }, 200);
   })
-  // One store with its price count, when its prices were last updated, and how many Promotions it has.
+  // One store with its price count, when its prices were last updated, and how many running Promotions it has.
   .get("/:id", (c) => {
     const param = idParam.safeParse(c.req.param());
     if (!param.success) return bad(c, param.error);
-    const { db } = c.var.deps;
+    const { db, clock } = c.var.deps;
     const store = db.select(columns).from(stores).innerJoin(chains, eq(chains.id, stores.chainId)).where(eq(stores.id, param.data.id)).get();
     if (!store) return c.json({ error: "not found" }, 404);
     const stats = db.select({ priceCount: count(), updatedAt: max(prices.updatedAt) }).from(prices).where(eq(prices.storeId, store.id)).get();
-    const promotionCount = db.select({ n: count() }).from(promotions).where(eq(promotions.storeId, store.id)).get()?.n ?? 0;
+    const promotionCount = runningPromotionCount(db, store.id, clock.now());
     return c.json({ store: { ...store, priceCount: stats?.priceCount ?? 0, pricesUpdatedAt: stats?.updatedAt ?? null, promotionCount } }, 200);
   })
   // The operator's correction. A Price sync never changes these again (ADR 0006); a cleared location is geocoded on the next one.

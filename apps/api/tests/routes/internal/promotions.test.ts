@@ -78,7 +78,7 @@ function seed(deps: Deps) {
   return id;
 }
 
-type Row = { id: number; chainId: string; chainName: string; promotionId: string; kind: string; stores: number; products: number };
+type Row = { id: number; chainId: string; chainName: string; promotionId: string; kind: string; state: string; deal: string; stores: number; products: number };
 type List = {
   promotions: Row[];
   total: number;
@@ -101,8 +101,14 @@ describe("GET /promotions (private)", () => {
     const deps = setup();
     const id = seed(deps);
     const body = await list(deps);
-    // FRISAT is within its dates (not today's weekday): the list counts it as running
+    // FRISAT is within its dates but not on today's weekday: listed under running, its state not today (as its page says)
     expect(keys(body)).toEqual(["Rami Levy MILK2", "Rami Levy INFO", "Rami Levy FRISAT", "Shufersal MILK2"]);
+    expect(body.promotions.map((p) => [p.promotionId, p.state, p.deal])).toEqual([
+      ["MILK2", "running", "2 ב-₪10"],
+      ["INFO", "running", "מבצע INFO"],
+      ["FRISAT", "notToday", "₪5"],
+      ["MILK2", "running", "2 ב-₪10"],
+    ]);
     expect(body.promotions[0]).toEqual({
       id: id(TALPIOT, "MILK2"),
       chainId: RAMI,
@@ -118,6 +124,8 @@ describe("GET /promotions (private)", () => {
       days: null,
       limitQty: 4,
       minPurchase: null,
+      state: "running",
+      deal: "2 ב-₪10",
       stores: 3,
       products: 3,
     });
@@ -170,7 +178,7 @@ describe("GET /promotions (private)", () => {
 });
 
 type Detail = {
-  promotion: { promotionId: string; chainName: string; state: string; combines: boolean };
+  promotion: { promotionId: string; chainName: string; state: string; deal: string; combines: boolean };
   stores: { id: string; name: string; city: string }[];
   products: { code: string; name: string | null; price: number | null; promotion: { price: number; saving: number } | null }[];
 };
@@ -182,7 +190,7 @@ describe("GET /promotions/:id (private)", () => {
     const res = await get(deps, `/promotions/${id(AFULA, "MILK2")}`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as Detail;
-    expect(body.promotion).toMatchObject({ promotionId: "MILK2", chainName: "Rami Levy", state: "running", minQty: 2, amount: 10, limitQty: 4, combines: true });
+    expect(body.promotion).toMatchObject({ promotionId: "MILK2", chainName: "Rami Levy", state: "running", deal: "2 ב-₪10", minQty: 2, amount: 10, limitQty: 4, combines: true });
     expect(body.stores).toEqual([
       { id: HAIFA, name: "רמי לוי חיפה", city: "חיפה" },
       { id: AFULA, name: "רמי לוי עפולה", city: "עפולה" },

@@ -3,6 +3,7 @@ import { prices, products, promotions, stores } from "#/db/appSchema.ts";
 import { buildDeps, type Deps } from "#/deps.ts";
 import { createInternalApp } from "#/internal-app.ts";
 import { loadConfig } from "#/services/config.ts";
+import { fakeClock } from "#/utils/clock.ts";
 
 const TOKEN = "test-sync-token";
 const RAMI = "7290058140886";
@@ -141,12 +142,25 @@ describe("GET /stores/:id (private)", () => {
     });
   });
 
-  it("counts the Promotions the store's newest promotion files publish", async () => {
-    const deps = setup();
+  it("counts the store's running Promotions, as the Promotions page it links to lists them (not today's included)", async () => {
+    const now = new Date("2026-11-05T10:00:00Z"); // a Thursday in Israel (day 5)
+    const deps = buildDeps(loadConfig({ ...process.env, SYNC_TOKEN: TOKEN }), { clock: fakeClock(now) });
     deps.db.insert(stores).values([store(RAMI, "1", "Talpiot", null), store(RAMI, "2", "Afula", null)]).run();
-    const promo = (storeId: string, promotionId: string) =>
-      ({ storeId, promotionId, description: "2 for 10", kind: "bundle" as const, minQty: 2, amount: 10, audience: "all" as const, startsAt: new Date(0), endsAt: new Date(1) });
-    deps.db.insert(promotions).values([promo(`${RAMI}-1`, "A"), promo(`${RAMI}-1`, "B"), promo(`${RAMI}-2`, "C")]).run();
+    const DAY = 86_400_000;
+    const promo = (storeId: string, promotionId: string, from: number, to: number, days: string | null = null) => ({
+      storeId, promotionId, description: "2 for 10", kind: "bundle" as const, minQty: 2, amount: 10, audience: "all" as const,
+      startsAt: new Date(now.getTime() + from * DAY), endsAt: new Date(now.getTime() + to * DAY), days,
+    });
+    deps.db
+      .insert(promotions)
+      .values([
+        promo(`${RAMI}-1`, "A", -1, 1),
+        promo(`${RAMI}-1`, "WEEKEND", -1, 3, "6,7"), // within its dates, not today: listed under running
+        promo(`${RAMI}-1`, "LATER", 1, 3),
+        promo(`${RAMI}-1`, "ENDED", -3, -1),
+        promo(`${RAMI}-2`, "C", -1, 1),
+      ])
+      .run();
     expect(await (await get(deps, `/stores/${RAMI}-1`)).json()).toMatchObject({ store: { promotionCount: 2 } });
   });
 
