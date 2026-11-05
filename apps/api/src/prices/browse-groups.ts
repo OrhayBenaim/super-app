@@ -2,9 +2,13 @@
 // Product priced at any store and stored by refreshBrowse at the start and end of each Price sync. A request only looks
 // up which of them have Products nearby (browse.ts). A Product new since the last grouping shows once it is grouped.
 import { PRODUCT_TYPES, type ProductType } from "@grocer/shared/product-types";
+import type { SoldBy } from "@grocer/shared/quantity";
 import type { Db } from "#/db/index.ts";
-import { catalog, i32, pack, packMissingStores, prunePromotions, writeCatalog } from "#/prices/browse-data.ts";
-import { groupsFrom, measureOf, nameWords, parseRef, soldByOf, withoutSizes } from "#/prices/groups.ts";
+import { f64, i32, pack, packMissingStores, prunePromotions, writeCatalog } from "#/prices/browse-data.ts";
+import {
+  claims, commonest, editedSize, groupEdits, groupSoldBy, groupsFrom, madeId, measureOf, nameWords, parseRef, soldByOf, teamEdits, withoutSizes,
+  type Measure, type TeamEdits,
+} from "#/prices/groups.ts";
 
 type Product = { code: string; name: string; unitQty: string | null; isWeighted: number; type: ProductType; minPrice: number };
 
@@ -69,6 +73,62 @@ function loneCard(p: Product) {
   return { ref: null, name: p.name, measure, soldBy: soldByOf(p), size, codes: [p.code], type: p.type };
 }
 
+type BrowseCard = { ref: string | null; name: string; measure: Measure; soldBy: SoldBy; size: number; codes: string[]; type: ProductType };
+
+/**
+ * The team's edits over these cards of `products` (docs/adr/0007): a Product the team added to a group moves to the card
+ * `claims` gives it, and one removed from its card's group to the card its own words make, or alone when that is the
+ * group it left. A renamed group's card takes its name.
+ */
+function withEdits(t: TeamEdits, cards: BrowseCard[], products: Product[]): BrowseCard[] {
+  const { edits, made } = t;
+  if (!edits.size) return cards;
+  const byCode = new Map(products.map((p) => [p.code, p]));
+  const claimed = claims(t, byCode); // code -> the ref whose card it moves to
+  const touched = new Set<BrowseCard>();
+  const removed: Product[] = [];
+  const out = cards.map((card) => {
+    const edit = card.ref === null ? undefined : edits.get(card.ref);
+    const codes = card.codes.filter((code) => {
+      if (claimed.has(code)) return claimed.get(code) === card.ref;
+      if (edit?.removed.has(code)) removed.push(byCode.get(code)!);
+      return !edit?.removed.has(code);
+    });
+    const next = { ...card, codes, name: edit?.name ?? card.name };
+    if (codes.length !== card.codes.length) touched.add(next);
+    return next;
+  });
+  const cardFor = (type: ProductType, ref: string | null) => (ref === null ? undefined : out.find((c) => c.ref === ref && (madeId(ref) !== null || c.type === type)));
+  for (const [code, ref] of claimed) {
+    let card = cardFor(byCode.get(code)!.type, ref); // a word group's card of the Product's own type, as an edit places it
+    if (!card) {
+      const { measure, size } = editedSize(t, ref)!;
+      card = { ref, name: edits.get(ref)!.name ?? parseRef(ref)!.words.join(" "), measure, size, soldBy: "unit", codes: [], type: made.get(ref)?.type ?? byCode.get(code)!.type };
+      out.push(card);
+    }
+    if (!card.codes.includes(code)) card.codes.push(code);
+    touched.add(card);
+  }
+  for (const card of groupsOf(removed)) {
+    for (const code of card.codes) {
+      const left = card.ref !== null && edits.get(card.ref)?.removed.has(code); // the group it was removed from: alone
+      const into = left ? undefined : cardFor(card.type, card.ref);
+      const next = into ?? (left ? loneCard(byCode.get(code)!) : { ...card, codes: [] });
+      if (!into) out.push(next);
+      if (!left) {
+        if (!next.codes.includes(code)) next.codes.push(code);
+        touched.add(next);
+      }
+    }
+  }
+  for (const card of touched) {
+    const members = card.codes.map((c) => byCode.get(c)!);
+    card.soldBy = card.ref === null ? card.soldBy : groupSoldBy(card.measure, members);
+    if (card.measure !== "unit" && members.length) card.size = commonest(members.map((p) => measureOf(p)!.size))!;
+  }
+  return out.filter((c) => c.codes.length);
+}
+
 /**
  * The group cards of these Products, each Product on exactly one: per Product type, the groups search would make from
  * each Product's first normalized word (every measure, lone Products included). A Product none holds (a qualifier such
@@ -86,13 +146,14 @@ export function groupsOf(products: Product[]) {
 /** What a grouped Product's price is divided by: its kilos or liters (groupsFrom's price per kilo or liter), 1 in a unit group. */
 const perUnitOf = (measure: string, p: { name: string; unitQty: string | null; isWeighted: number }) => (measure === "unit" ? 1 : measureOf(p)!.size);
 
-type Numbered = Omit<Product, "minPrice"> & { id: number }; // id: its browse_products id
+type Numbered = Omit<Product, "minPrice"> & { id: number; storeCount: number }; // id: its browse_products id
 const BROWSE_PRODUCTS =
-  "SELECT b.id, p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted, coalesce(p.product_type, 'other') AS type FROM browse_products b JOIN products p ON p.code = b.code";
+  "SELECT b.id, p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted, coalesce(p.product_type, 'other') AS type, p.store_count AS storeCount FROM browse_products b JOIN products p ON p.code = b.code";
 
 /**
  * Stores browse's group cards over every Product some store prices, with what browse_catalog keeps per Product and per
- * group, and each Product's code and name words (for narrowing a card to the Products it holds at a request), in one transaction.
+ * group, each Product's code and name words (for narrowing a card to the Products it holds at a request) and its
+ * products.store_count, in one transaction.
  * An untyped Product counts as Other.
  */
 function storeGroups(db: Db) {
@@ -103,7 +164,7 @@ function storeGroups(db: Db) {
   for (const list of lists) for (const k of list) stores[k]!++;
   const rows = sqlite.prepare(`${BROWSE_PRODUCTS} ORDER BY p.code`).all() as Numbered[];
   const priced = rows.filter((p) => stores[p.id]).map((p) => ({ ...p, minPrice: 0 }));
-  const groups = groupsOf(priced);
+  const groups = withEdits(teamEdits(db), groupsOf(priced), priced);
   const byCode = new Map(priced.map((p) => [p.code, p]));
   const c = {
     groups: new Int32Array(n).fill(-1), perUnit: new Float64Array(n).fill(1), weighted: new Uint8Array(n), stores,
@@ -135,10 +196,13 @@ function storeGroups(db: Db) {
   const insert = sqlite.prepare("INSERT INTO browse_groups (id, type, ref, name, measure, size, sold_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
   const setWords = sqlite.prepare("UPDATE browse_products SET words = ? WHERE id = ?");
   const words = priced.map((p) => [nameWords(p.name).map((w) => w.norm).join(" "), p.id] as const);
+  const setStores = sqlite.prepare("UPDATE products SET store_count = ? WHERE code = ?");
+  const recounted = rows.filter((p) => p.storeCount !== stores[p.id]);
   sqlite.transaction(() => {
     sqlite.prepare("DELETE FROM browse_groups").run();
     groups.forEach((g, i) => insert.run(i, g.type, g.ref, g.name, g.measure, g.size, g.soldBy));
     for (const w of words) setWords.run(...w);
+    for (const p of recounted) setStores.run(stores[p.id], p.code);
     writeCatalog(sqlite, c, names);
   })();
 }
@@ -154,32 +218,56 @@ export async function refreshBrowse(db: Db) {
 }
 
 /**
- * Moves one grouped Product onto a card of its Product type, just set by the operator, so Home shows it without a
- * Price sync: refreshBrowse groups every Product again, seconds on real data with every request waiting. Its card is the
- * group of that type its own name makes, or a new one; the card it left keeps its store count until the next refresh.
+ * Moves these grouped Products (those a group edit touched, or one whose Product type the operator just set) each onto
+ * the card its own name makes after the team's edits (withEdits), of its Product type, or a new one, so Home shows them
+ * without a Price sync: refreshBrowse groups every Product again, seconds on real data with every request waiting.
+ * One pass: the catalog and the edits are read once and written once, in one transaction. A card a Product left keeps
+ * its store count until the next refresh.
  */
-export function regroupProduct(db: Db, code: string) {
+export function regroupProducts(db: Db, codes: string[]) {
   const sqlite = db.$client;
-  const p = sqlite.prepare(`${BROWSE_PRODUCTS} WHERE p.code = ?`).get(code) as Numbered | undefined;
-  const c = catalog(db);
-  if (!p || (c.groups[p.id] ?? -1) < 0) return; // not grouped yet: the next refresh groups it with its type
-  const card = groupsOf([{ ...p, minPrice: 0 }])[0]!;
-  const same = card.ref === null ? undefined : (sqlite.prepare("SELECT id FROM browse_groups WHERE type = ? AND ref = ?").pluck().get(card.type, card.ref) as number | undefined);
-  const g = same ?? c.groupTypes.length;
-  const groupTypes = new Uint8Array(c.groupTypes.length + (same === undefined ? 1 : 0));
-  const groupStores = new Int32Array(groupTypes.length);
-  groupTypes.set(c.groupTypes);
-  groupStores.set(c.groupStores);
-  groupTypes[g] = PRODUCT_TYPES.indexOf(card.type);
-  if (same === undefined) groupStores[g] = c.stores[p.id]!;
-  c.groups[p.id] = g;
-  c.perUnit[p.id] = perUnitOf(card.measure, p);
+  const row = sqlite.prepare("SELECT groups, per_unit, stores, group_types, group_stores FROM browse_catalog JOIN browse_group_data USING (id) WHERE id = 1").raw().get() as Buffer[] | undefined;
+  if (!row) return; // not grouped yet: the next refresh groups them
+  const [groups, perUnit, stores] = [i32(row[0]!).slice(), f64(row[1]!).slice(), i32(row[2]!)];
+  const groupTypes = [...row[3]!];
+  const groupStores = [...i32(row[4]!)];
+  const t = teamEdits(db);
+  const product = sqlite.prepare(`${BROWSE_PRODUCTS} WHERE p.code = ?`);
+  const moves = codes.flatMap((code) => {
+    const p = product.get(code) as Numbered | undefined;
+    if (!p || (groups[p.id] ?? -1) < 0) return []; // not grouped yet: the next refresh groups it with its type
+    const one = { ...p, minPrice: 0 };
+    return [{ p, card: withEdits(t, groupsOf([one]), [one]).find((c) => c.codes.includes(code))! }];
+  });
+  if (!moves.length) return;
+  // Each card's id by Product type and ref, the first if several: one scan of browse_groups (it has no index on ref).
+  const key = (type: string, ref: string) => `${type}|${ref}`;
+  const ids = new Map<string, number>();
+  const refs = JSON.stringify(moves.flatMap((m) => m.card.ref ?? []));
+  const known = sqlite.prepare("SELECT id, type, ref FROM browse_groups WHERE ref IN (SELECT value FROM json_each(?)) ORDER BY id").all(refs) as { id: number; type: string; ref: string }[];
+  for (const { id, type, ref } of known) if (!ids.has(key(type, ref))) ids.set(key(type, ref), id);
+  const insert = sqlite.prepare("INSERT INTO browse_groups (id, type, ref, name, measure, size, sold_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  const remeasure = sqlite.prepare("UPDATE browse_groups SET measure = ?, size = ? WHERE id = ?");
   sqlite.transaction(() => {
-    if (same === undefined) {
-      sqlite
-        .prepare("INSERT INTO browse_groups (id, type, ref, name, measure, size, sold_by) VALUES (?, ?, ?, ?, ?, ?, ?)")
-        .run(g, card.type, card.ref, card.name, card.measure, card.size, card.soldBy);
+    for (const { p, card } of moves) {
+      const same = card.ref === null ? undefined : ids.get(key(card.type, card.ref));
+      const g = same ?? groupTypes.length;
+      groupTypes[g] = PRODUCT_TYPES.indexOf(card.type);
+      if (same === undefined) {
+        groupStores[g] = stores[p.id]!;
+        insert.run(g, card.type, card.ref, card.name, card.measure, card.size, card.soldBy);
+        if (card.ref !== null) ids.set(key(card.type, card.ref), g);
+      } else if (madeId(card.ref!) !== null) remeasure.run(card.measure, card.size, g); // a Made group whose measure the team changed
+      groups[p.id] = g;
+      perUnit[p.id] = perUnitOf(card.measure, p);
     }
-    sqlite.prepare("UPDATE browse_catalog SET groups = ?, per_unit = ?, group_types = ?, group_stores = ? WHERE id = 1").run(pack(c.groups), pack(c.perUnit), pack(groupTypes), pack(groupStores));
+    sqlite.prepare("UPDATE browse_catalog SET groups = ?, per_unit = ? WHERE id = 1").run(pack(groups), pack(perUnit));
+    sqlite.prepare("UPDATE browse_group_data SET group_types = ?, group_stores = ? WHERE id = 1").run(pack(Uint8Array.from(groupTypes)), pack(Int32Array.from(groupStores)));
   })();
+}
+
+/** Gives the cards of a renamed group (a Made group or a word group) the group's name. */
+export function restyleCards(db: Db, ref: string) {
+  const name = groupEdits(db, [ref]).get(ref)?.name;
+  if (name) db.$client.prepare("UPDATE browse_groups SET name = ? WHERE ref = ?").run(name, ref);
 }

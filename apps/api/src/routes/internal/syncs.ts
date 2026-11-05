@@ -1,72 +1,15 @@
-import { asc, desc, eq, gte } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
-import { SYNC_HISTORY } from "@grocer/shared/sync-history";
-import { chains, syncChainResults, syncRuns } from "#/db/appSchema.ts";
+import { syncHistory, syncRun } from "#/db/syncs.ts";
 import type { AppEnv } from "#/middleware.ts";
-import { bad } from "#/routes/internal/valid.ts";
+import { paramOf } from "#/routes/internal/valid.ts";
 
-const DAY = 86_400_000;
 const idParam = z.object({ id: z.coerce.number().int().positive() });
-
-const listed = {
-  id: syncRuns.id,
-  trigger: syncRuns.trigger,
-  status: syncRuns.status,
-  skipReason: syncRuns.skipReason,
-  scheduledAt: syncRuns.scheduledAt,
-  requestedAt: syncRuns.requestedAt,
-  startedAt: syncRuns.startedAt,
-  finishedAt: syncRuns.finishedAt,
-};
 
 /** The Internal dashboard's Price syncs, on the private app. */
 export const syncsRoutes = new Hono<AppEnv>()
-  // The Price syncs requested in the last SYNC_HISTORY.days (all the Price sync keeps), newest first.
-  .get("/", (c) => {
-    const { db, clock } = c.var.deps;
-    const syncs = db
-      .select(listed)
-      .from(syncRuns)
-      .where(gte(syncRuns.requestedAt, new Date(clock.now().getTime() - SYNC_HISTORY.days * DAY)))
-      .orderBy(desc(syncRuns.requestedAt), desc(syncRuns.id))
-      .all();
-    return c.json({ syncs }, 200);
-  })
-  // One run: its per-Chain results (each Chain's own outcome and, apart, its Promotion outcome) and its Product type step.
-  .get("/:id", (c) => {
-    const param = idParam.safeParse(c.req.param());
-    if (!param.success) return bad(c, param.error);
-    const { db } = c.var.deps;
-    const run = db
-      .select({ ...listed, productsTyped: syncRuns.productsTyped, productsOther: syncRuns.productsOther, typeRequestsFailed: syncRuns.typeRequestsFailed })
-      .from(syncRuns)
-      .where(eq(syncRuns.id, param.data.id))
-      .get();
-    if (!run) return c.json({ error: "not found" }, 404);
-    const { productsTyped, productsOther, typeRequestsFailed, ...sync } = run;
-    const results = db
-      .select({
-        chainId: syncChainResults.chainId,
-        name: chains.name,
-        nameHe: chains.nameHe,
-        status: syncChainResults.status,
-        error: syncChainResults.error,
-        filesDownloaded: syncChainResults.filesDownloaded,
-        storesLoaded: syncChainResults.storesLoaded,
-        pricesLoaded: syncChainResults.pricesLoaded,
-        storesGeocoded: syncChainResults.storesGeocoded,
-        promotionsLoaded: syncChainResults.promotionsLoaded,
-        durationMs: syncChainResults.durationMs,
-        promotionStatus: syncChainResults.promotionStatus,
-        promotionError: syncChainResults.promotionError,
-      })
-      .from(syncChainResults)
-      .innerJoin(chains, eq(chains.id, syncChainResults.chainId))
-      .where(eq(syncChainResults.syncRunId, sync.id))
-      .orderBy(asc(chains.name))
-      .all();
-    // The step writes all three counts or none (null: it did not run).
-    const productTypes = productsTyped == null ? null : { typed: productsTyped, other: productsOther ?? 0, failedRequests: typeRequestsFailed ?? 0 };
-    return c.json({ sync: { ...sync, productTypes }, chains: results }, 200);
+  .get("/", (c) => c.json({ ...syncHistory(c.var.deps.db, c.var.deps.clock.now()), syncTimes: c.var.deps.config.SYNC_TIMES }, 200))
+  .get("/:id", paramOf(idParam), (c) => {
+    const run = syncRun(c.var.deps.db, c.req.valid("param").id);
+    return run ? c.json(run, 200) : c.json({ error: "not found" }, 404);
   });

@@ -1,93 +1,71 @@
 import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
 import type { ApiClient } from "#/api-client.ts";
-import { when } from "#/pages/format.ts";
-import { duration, elapsed, SKIP_REASONS, TRIGGERS } from "#/pages/syncs.ts";
+import { day, num, time, took } from "#/pages/format.ts";
+import { chainOutcome } from "@grocer/shared/sync-history";
+import { byOutcome, dueOf, runLength, SKIP_REASONS, statusBadge, TRIGGERS } from "#/pages/syncs.ts";
+import { errorRow, outcomeBadge, pageHeader, section, table, type Column } from "#/pages/ui.ts";
 
 type Run = InferResponseType<ApiClient["syncs"][":id"]["$get"], 200>;
 type ChainResult = Run["chains"][number];
 
-const count = new Intl.NumberFormat("en-US");
-const plural = (n: number, word: string) => `${count.format(n)} ${word}${n === 1 ? "" : "s"}`;
+const COLUMNS: Column[] = [
+  "Chain",
+  "Outcome",
+  { label: "Files", num: true },
+  { label: "Stores", num: true },
+  { label: "Prices", num: true },
+  { label: "Geocoded", num: true },
+  { label: "Promotions", num: true },
+  { label: "Took", num: true },
+];
 
-function productTypeStep({ productTypes: p }: Run["sync"]) {
-  if (!p) return "The Product type step did not run.";
-  return `${plural(p.typed, "Product")} typed, ${count.format(p.other)} as Other, ${plural(p.failedRequests, "failed request")}.`;
+
+/** Scheduled · 06:00 – 06:41 · 41 min · 12 of 15 Chains updated (a Chain whose Promotions failed still updated its prices). */
+function summary({ sync, chains }: Run, now: Date) {
+  const parts: string[] = [TRIGGERS[sync.trigger]];
+  if (sync.skipReason) parts.push(SKIP_REASONS[sync.skipReason]);
+  if (sync.startedAt) parts.push(`${time(sync.startedAt)} – ${sync.finishedAt ? time(sync.finishedAt) : "now"}`, runLength(sync, now));
+  if (chains.length) parts.push(`${chains.filter((r) => r.status === "ok").length} of ${chains.length} Chains updated`);
+  return parts.join(" · ");
 }
 
+const productTypes = ({ productTypes: p }: Run["sync"]) =>
+  p
+    ? html`<div class="counts">
+        <span><strong>${num(p.typed)}</strong> Products given a type</span>
+        <span><strong>${num(p.other)}</strong> typed as Other</span>
+        <span><strong>${num(p.failedRequests)}</strong> failed requests</span>
+      </div>`
+    : html`<span class="muted">The Product type step did not run.</span>`;
+
 // A Chain failure and a Promotion failure are separate states: a Chain can load its prices and still fail its Promotions.
-const chainOutcome = (r: ChainResult) =>
-  r.status === "ok" ? html`<span class="badge badge-outcome-ok">ok</span>` : html`<span class="badge badge-outcome-failed">Chain failure</span>`;
-const promotionOutcome = (r: ChainResult) =>
-  r.promotionStatus === "failed"
-    ? html`<span class="badge badge-outcome-failed">Promotion failure</span>`
-    : r.promotionStatus === "ok"
-      ? html`<span class="badge badge-outcome-ok">ok</span>`
-      : html`<span class="muted">—</span>`;
+function chainRow(r: ChainResult) {
+  const errors = [
+    r.error ? errorRow(COLUMNS.length, r.error) : "",
+    r.promotionError ? errorRow(COLUMNS.length, `Promotions not loaded: ${r.promotionError}`, "warning") : "",
+  ];
+  return html`<tr${r.error || r.promotionError ? html` class="has-error"` : ""}>
+      <td>${r.name}</td>
+      <td>${outcomeBadge(r.status === "ok" ? "ok" : "failed")} ${r.promotionStatus === "failed" ? outcomeBadge("promotionFailed") : ""}</td>
+      <td class="num">${num(r.filesDownloaded)}</td>
+      <td class="num">${num(r.storesLoaded)}</td>
+      <td class="num">${num(r.pricesLoaded)}</td>
+      <td class="num">${num(r.storesGeocoded)}</td>
+      <td class="num">${num(r.promotionsLoaded)}</td>
+      <td class="num">${took(r.durationMs)}</td>
+    </tr>
+    ${errors}`;
+}
 
-const errors = (r: ChainResult) =>
-  r.error || r.promotionError
-    ? html`<tr class="errors">
-        <td colspan="9">
-          ${r.error ? html`<div>Chain failure: ${r.error}</div>` : ""}
-          ${r.promotionError ? html`<div>Promotion failure: ${r.promotionError}</div>` : ""}
-        </td>
-      </tr>`
-    : "";
-
-const chainRows = (r: ChainResult) => html`<tr>
-    <td>${r.name} <span class="muted" lang="he" dir="rtl">${r.nameHe}</span></td>
-    <td>${chainOutcome(r)}</td>
-    <td>${count.format(r.filesDownloaded)}</td>
-    <td>${count.format(r.storesLoaded)}</td>
-    <td>${count.format(r.pricesLoaded)}</td>
-    <td>${count.format(r.storesGeocoded)}</td>
-    <td>${count.format(r.promotionsLoaded)}</td>
-    <td>${promotionOutcome(r)}</td>
-    <td>${elapsed(r.durationMs)}</td>
-  </tr>
-  ${errors(r)}`;
-
-/** One Price sync: its own outcome and times, the Product type step, and each Chain's result. */
-export const syncRunPage = ({ sync, chains }: Run) => html`<header>
-    <h1>Price sync #${sync.id}</h1>
-    <a href="/">All Price syncs</a>
-  </header>
-  <dl>
-    <dt>Trigger</dt>
-    <dd>${TRIGGERS[sync.trigger]}</dd>
-    <dt>Status</dt>
-    <dd><span class="badge badge-${sync.status}">${sync.status}</span>${sync.skipReason ? html` <span class="muted">${SKIP_REASONS[sync.skipReason]}</span>` : ""}</dd>
-    <dt>Due</dt>
-    <dd>${when(sync.scheduledAt ?? sync.requestedAt)}</dd>
-    <dt>Started</dt>
-    <dd>${when(sync.startedAt)}</dd>
-    <dt>Ended</dt>
-    <dd>${when(sync.finishedAt)}</dd>
-    <dt>Duration</dt>
-    <dd>${duration(sync.startedAt, sync.finishedAt)}</dd>
-    <dt>Product types</dt>
-    <dd>${productTypeStep(sync)}</dd>
-  </dl>
-  ${chains.length === 0
-    ? html`<p class="notice">No Chain results for this Price sync.</p>`
-    : html`<div class="scroll">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Chain</th>
-              <th scope="col">Outcome</th>
-              <th scope="col">Files downloaded</th>
-              <th scope="col">Stores loaded</th>
-              <th scope="col">Prices loaded</th>
-              <th scope="col">Stores geocoded</th>
-              <th scope="col">Promotions loaded</th>
-              <th scope="col">Promotions</th>
-              <th scope="col">Duration</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${chains.map(chainRows)}
-          </tbody>
-        </table>
-      </div>`}`;
+/** One Price sync (A2): its outcome and times, the Product type step, and each Chain's result, failures first. */
+export const syncRunPage = (run: Run, now: Date) => html`${pageHeader({
+    breadcrumb: { href: "/", text: "Price syncs" },
+    title: day(dueOf(run.sync), now),
+    summary: summary(run, now),
+    action: statusBadge(run.sync.status),
+  })}
+  ${section("Product types", html`<div class="group-body">${productTypes(run.sync)}</div>`)}
+  ${run.chains.length
+    ? section("Chains, failures first", table(COLUMNS, run.chains.toSorted(byOutcome(chainOutcome)).map(chainRow)), run.chains.length)
+    : html`<p class="notice">No Chain results for this Price sync.</p>`}`;

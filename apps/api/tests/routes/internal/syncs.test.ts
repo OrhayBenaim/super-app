@@ -10,6 +10,21 @@ const NOW = new Date("2026-11-05T10:00:00Z");
 const DAY = 86_400_000;
 const ago = (days: number) => new Date(NOW.getTime() - days * DAY);
 const setup = () => buildDeps(loadConfig({ ...process.env, SYNC_TOKEN: TOKEN }), { clock: fakeClock(NOW) });
+const SHUFERSAL = "7290027600007";
+const RAMI_LEVY = "7290058140886";
+const VICTORY = "7290696200003";
+const HAZI_HINAM = "7290700100008";
+const result = (syncRunId: number, chainId: string, over: Partial<typeof syncChainResults.$inferInsert> = {}) => ({
+  syncRunId,
+  chainId,
+  status: "ok" as const,
+  filesDownloaded: 1,
+  storesLoaded: 1,
+  pricesLoaded: 1,
+  storesGeocoded: 0,
+  durationMs: 1000,
+  ...over,
+});
 const get = (deps: Deps, path: string, auth = `Bearer ${TOKEN}`) =>
   createInternalApp(deps).request(path, { headers: { Authorization: auth } });
 
@@ -36,7 +51,7 @@ describe("GET /syncs (private)", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       syncs: [
-        { id: 4, trigger: "manual", status: "requested", skipReason: null, scheduledAt: null, requestedAt: "2026-11-05T10:00:00.000Z", startedAt: null, finishedAt: null },
+        { id: 4, trigger: "manual", status: "requested", skipReason: null, scheduledAt: null, requestedAt: "2026-11-05T10:00:00.000Z", startedAt: null, finishedAt: null, chains: { ok: 0, failed: 0, promotionFailed: 0 } },
         {
           id: 2,
           trigger: "scheduled",
@@ -46,6 +61,7 @@ describe("GET /syncs (private)", () => {
           requestedAt: "2026-11-03T10:00:00.000Z",
           startedAt: null,
           finishedAt: null,
+          chains: { ok: 0, failed: 0, promotionFailed: 0 },
         },
         {
           id: 3,
@@ -56,9 +72,58 @@ describe("GET /syncs (private)", () => {
           requestedAt: "2026-11-02T10:00:00.000Z",
           startedAt: "2026-11-02T10:00:00.000Z",
           finishedAt: "2026-11-02T10:01:00.000Z",
+          chains: { ok: 0, failed: 0, promotionFailed: 0 },
         },
       ],
+      attention: [],
+      syncTimes: ["05:00", "12:00", "23:30"],
     });
+  });
+
+it("counts each run's Chains by outcome: ok, Chain failure, Promotion failure", async () => {
+    const deps = setup();
+    deps.db.insert(syncRuns).values({ trigger: "scheduled", status: "finished", requestedAt: ago(1), startedAt: ago(1), finishedAt: ago(1) }).run();
+    deps.db
+      .insert(syncChainResults)
+      .values([
+        result(1, SHUFERSAL, { status: "failed", error: "portal 503" }),
+        result(1, RAMI_LEVY, { promotionStatus: "failed", promotionError: "bad promo file" }),
+        result(1, VICTORY, { promotionStatus: "ok" }),
+        result(1, HAZI_HINAM),
+      ])
+      .run();
+    const { syncs } = (await (await get(deps, "/syncs")).json()) as { syncs: { chains: unknown }[] };
+    expect(syncs[0].chains).toEqual({ ok: 2, failed: 1, promotionFailed: 1 });
+  });
+
+  it("calls out each Chain whose latest run failed it: the failure, its error, since when and in how many runs", async () => {
+    const deps = setup();
+    // Runs 1-4, oldest first; Shufersal fails from run 2 on, Rami Levy's Promotions fail in run 4 only, Victory recovers.
+    deps.db
+      .insert(syncRuns)
+      .values([4, 3, 2, 1].map((d) => ({ trigger: "scheduled" as const, status: "finished" as const, scheduledAt: ago(d), requestedAt: ago(d), startedAt: ago(d), finishedAt: ago(d) })))
+      .run();
+    // Run 5 skipped: it reached no Chain, so it neither breaks nor extends a streak.
+    deps.db.insert(syncRuns).values({ trigger: "scheduled", status: "skipped", skipReason: "manual_sync", scheduledAt: ago(0.5), requestedAt: ago(0.5) }).run();
+    deps.db
+      .insert(syncChainResults)
+      .values([
+        result(1, SHUFERSAL),
+        result(2, SHUFERSAL, { status: "failed", error: "portal 503" }),
+        result(3, SHUFERSAL, { status: "failed", error: "portal 503" }),
+        result(4, SHUFERSAL, { status: "failed", error: "No Stores file among 0 listed files" }),
+        result(3, RAMI_LEVY, { status: "failed", error: "old" }),
+        result(4, RAMI_LEVY, { promotionStatus: "failed", promotionError: "PromoFull files timed out after 30 s" }),
+        result(3, VICTORY, { status: "failed", error: "old" }),
+        result(4, VICTORY, { promotionStatus: "ok" }),
+      ])
+      .run();
+
+    const { attention } = (await (await get(deps, "/syncs")).json()) as { attention: unknown };
+    expect(attention).toEqual([
+      { chainId: SHUFERSAL, name: "Shufersal", nameHe: "שופרסל", failure: "failed", error: "No Stores file among 0 listed files", syncId: 4, since: "2026-11-02T10:00:00.000Z", runs: 3 },
+      { chainId: RAMI_LEVY, name: "Rami Levy", nameHe: "רמי לוי", failure: "promotionFailed", error: "PromoFull files timed out after 30 s", syncId: 4, since: "2026-11-04T10:00:00.000Z", runs: 1 },
+    ]);
   });
 
   it("401 without the token or with a wrong one", async () => {
@@ -69,8 +134,6 @@ describe("GET /syncs (private)", () => {
 });
 
 describe("GET /syncs/:id (private)", () => {
-  const SHUFERSAL = "7290027600007";
-  const RAMI_LEVY = "7290058140886";
 
   it("returns one run with its per-Chain results, Promotion outcome and Product type step", async () => {
     const deps = setup();

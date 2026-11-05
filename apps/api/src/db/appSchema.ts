@@ -1,6 +1,7 @@
 // App (non-auth) tables go here; re-exported from schema.ts.
 import { sql } from "drizzle-orm";
 import { blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { GROUP_MEASURES } from "@grocer/shared/groups";
 import { user } from "#/db/schema.ts"; // circular with schema.ts, safe because references() is lazy
 
 const createdAt = () =>
@@ -103,7 +104,13 @@ export const products = sqliteTable("products", {
   isWeighted: integer("is_weighted", { mode: "boolean" }).notNull().default(false),
   // Null until a Price sync classifies it (an untyped Product counts as Other); clearing it sends it again.
   productType: text("product_type").references(() => productTypes.id),
-});
+  // How many stores price it, as the last Price sync counted them (browse-groups.ts), for the Internal dashboard's list.
+  storeCount: integer("store_count").notNull().default(0),
+}, (t) => [
+  // Most widely priced first, by code: the Products list pages these instead of counting prices per Product.
+  index("products_store_count_idx").on(sql`store_count DESC`, t.code),
+  index("products_type_store_count_idx").on(t.productType, sql`store_count DESC`, t.code),
+]);
 
 export const prices = sqliteTable(
   "prices",
@@ -194,8 +201,14 @@ export const promotions = sqliteTable(
     // AllowMultipleDiscounts (false = the Chain says a spend deal doesn't stack on other Promotions).
     // shortcut: AllowMultipleDiscounts is ignored, use it when a Chain's till is shown to refuse stacking
     combines: integer("combines", { mode: "boolean" }).notNull().default(true),
+    // The store's Chain, read from its id (ingest writes `${chainId}-${storeId}`), so the dashboard groups a Chain's
+    // Promotions from one index instead of joining stores for every row.
+    chainId: text("chain_id").generatedAlwaysAs(sql`substr(store_id, 1, instr(store_id, '-') - 1)`, { mode: "virtual" }),
   },
-  (t) => [uniqueIndex("promotions_store_promotion_idx").on(t.storeId, t.promotionId)],
+  (t) => [
+    uniqueIndex("promotions_store_promotion_idx").on(t.storeId, t.promotionId),
+    index("promotions_chain_promotion_idx").on(t.chainId, t.promotionId, t.kind, t.startsAt, t.endsAt),
+  ],
 );
 
 export const promotionItems = sqliteTable(
@@ -259,18 +272,64 @@ export const browseGroups = sqliteTable("browse_groups", {
   soldBy: text("sold_by").notNull(),
 });
 
-// One row, written with browse_groups. Per browse_products id: its group (-1: none yet), what its price is divided by
-// for its group's price per kilo, liter or pack, whether it is weighed, how many stores price it, and its code and lead
-// words (before its first number or size, normalized and as written); per group: its Product type (index into
-// PRODUCT_TYPES) and how many stores price any of its Products.
+// Browse's catalog: one row in each of browse_catalog, browse_group_data and browse_names, written with browse_groups.
+// Split by how a group edit (regroupProducts) writes them: in place in browse_catalog (same size, so SQLite writes
+// only the pages that change), browse_group_data whole (it grows by a card), browse_names never. In one row, an edit
+// rewrote 13 MB.
+// Per browse_products id: its group (-1: none yet), what its price is divided by for its group's price per kilo, liter
+// or pack, whether it is weighed and how many stores price it.
 export const browseCatalog = sqliteTable("browse_catalog", {
   id: integer("id").primaryKey(),
   groups: blob("groups", { mode: "buffer" }).notNull(), // Int32
   perUnit: blob("per_unit", { mode: "buffer" }).notNull(), // Float64
   weighted: blob("weighted", { mode: "buffer" }).notNull(), // Uint8
   stores: blob("stores", { mode: "buffer" }).notNull(), // Int32
+});
+
+// Per browse_groups id: its Product type (index into PRODUCT_TYPES) and how many stores price any of its Products.
+export const browseGroupData = sqliteTable("browse_group_data", {
+  id: integer("id").primaryKey(),
   groupTypes: blob("group_types", { mode: "buffer" }).notNull(), // Uint8
   groupStores: blob("group_stores", { mode: "buffer" }).notNull(), // Int32
+});
+
+// Per browse_products id: its code and lead words (before its first number or size, normalized and as written).
+export const browseNames = sqliteTable("browse_names", {
+  id: integer("id").primaryKey(),
   names: blob("names", { mode: "buffer" }).notNull(), // UTF-8 "code\tlead\tlead as written", one after another
   nameEnds: blob("name_ends", { mode: "buffer" }).notNull(), // Int32: where each Product's ends in names
 });
+
+// Product groups the Grocer team edited or made on the Internal dashboard (docs/adr/0007). No Price sync writes these.
+// A Made group, its group ref `made:<id>`: a name, a Product type, a measure and the pack count (1 for kg and l). Ids are
+// never reused (AUTOINCREMENT), so a List item matched to a deleted one stays unmatched.
+export const madeGroups = sqliteTable("made_groups", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  productType: text("product_type")
+    .notNull()
+    .references(() => productTypes.id),
+  measure: text("measure", { enum: GROUP_MEASURES }).notNull(),
+  size: integer("size").notNull(),
+  createdAt: createdAt(),
+});
+
+// A word group's display name, by its group ref.
+export const groupNames = sqliteTable("group_names", {
+  ref: text("ref").primaryKey(),
+  name: text("name").notNull(),
+});
+
+// A Product added to (added) or removed from (not added) a group, by its group ref: a word group's edits, or a Made
+// group's members (all added). Deleting a Made group deletes its rows.
+export const groupProducts = sqliteTable(
+  "group_products",
+  {
+    ref: text("ref").notNull(),
+    code: text("code")
+      .notNull()
+      .references(() => products.code),
+    added: integer("added", { mode: "boolean" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.ref, t.code] })],
+);

@@ -1,0 +1,2 @@
+ALTER TABLE `promotions` ADD `chain_id` text GENERATED ALWAYS AS (substr(store_id, 1, instr(store_id, '-') - 1)) VIRTUAL;--> statement-breakpoint
+CREATE INDEX `promotions_chain_promotion_idx` ON `promotions` (`chain_id`,`promotion_id`,`kind`,`starts_at`,`ends_at`);

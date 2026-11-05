@@ -127,9 +127,10 @@ const weight = (kg: number) => (kg < 1 ? `${Math.round(kg * 1000)} גרם` : `${
 
 /**
  * Hebrew-first text built from the reward ("3 ב-₪10", "2+1", "₪4.90 במקום ₪6.90"; weighed: "2 ק״ג ב-₪80",
- * "250 גרם ב-₪22", "₪29.90 לק״ג"); the app builds its own from the fields.
+ * "250 גרם ב-₪22", "₪29.90 לק״ג"); the app builds its own from the fields. Without a Shelf `price` (a Promotion over
+ * several Products), a price deal is its price alone ("₪4.90").
  */
-function textOf(p: PromotionTerms, price: number) {
+function textOf(p: PromotionTerms, price?: number) {
   switch (p.kind) {
     case "bundle":
       return `${p.weighted ? weight(p.minQty) : p.minQty} ב-${shekels(p.amount)}`;
@@ -140,22 +141,15 @@ function textOf(p: PromotionTerms, price: number) {
     case "off":
       return `${shekels(p.amount)} הנחה${p.minQty > 1 ? ` בקניית ${p.minQty}` : ""}`;
     case "price":
-      return p.weighted ? `${shekels(p.amount)} לק״ג` : `${shekels(p.amount)} במקום ${shekels(price)}`;
+      return p.weighted ? `${shekels(p.amount)} לק״ג` : price === undefined ? shekels(p.amount) : `${shekels(p.amount)} במקום ${shekels(price)}`;
     case "info": // never applied: priceLines takes info-only options out first
       return p.description;
   }
 }
-const applied = (p: PromotionTerms, price: number) => ({
-  id: p.id,
-  kind: p.kind,
-  minQty: p.minQty,
-  amount: p.amount,
-  audience: p.audience,
-  text: textOf(p, price) + (p.minPurchase ? ` מעל ${shekels(p.minPurchase)}` : ""),
-});
+/** A Promotion's text as Compare shows it ("3 ב-₪10", "₪4.90 במקום ₪6.90"; info: the Chain's description); see textOf without `shelf`. */
+export const promotionText = (p: PromotionTerms, shelf?: number) => textOf(p, shelf) + (p.minPurchase ? ` מעל ${shekels(p.minPurchase)}` : "");
+const applied = (p: PromotionTerms, price: number) => ({ id: p.id, kind: p.kind, minQty: p.minQty, amount: p.amount, audience: p.audience, text: promotionText(p, price) });
 export type AppliedPromotion = ReturnType<typeof applied>;
-/** A Promotion's text as Compare shows it ("3 ב-₪10", "₪4.90 במקום ₪6.90"; info: the Chain's description). */
-export const promotionText = (p: PromotionTerms, shelf: number) => applied(p, shelf).text;
 
 /**
  * What one unit (a kilo when weighed) costs on a running Promotion against its Shelf price `shelf`, and the saving in

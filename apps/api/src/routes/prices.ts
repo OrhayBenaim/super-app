@@ -4,7 +4,7 @@ import { ID } from "@grocer/shared/ids";
 import { QUANTITY } from "@grocer/shared/quantity";
 import { SEARCH } from "@grocer/shared/search";
 import type { Db } from "#/db/index.ts";
-import { commonest, groupMembers, groupRefSchema, parseRef } from "#/prices/groups.ts";
+import { commonest, groupMembers, groupRefSchema } from "#/prices/groups.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
 import { nearbyStores } from "#/prices/nearby.ts";
 import { priceLines, round2, runningPromotions, type AppliedPromotion } from "#/prices/promotions.ts";
@@ -62,8 +62,8 @@ export function compareStores(db: Db, query: z.infer<typeof compareBody>, now: D
   const { sort, limit } = query;
   const codes = sumByKey(query.items.map((i) => ({ key: i.code, quantity: i.quantity })));
   const groups = [...sumByKey(query.groups.map((g) => ({ key: g.ref, quantity: g.quantity })))].map(([ref, quantity]) => {
-    const { members, soldBy } = groupMembers(db, ref);
-    const byQuantity = parseRef(ref)!.size.measure !== "unit"; // priced per kilo or liter
+    const { members, soldBy, size } = groupMembers(db, ref);
+    const byQuantity = !!size && size.measure !== "unit"; // priced per kilo or liter
     const perStep = byQuantity && soldBy === "unit" ? (commonest(members.map((m) => m.size)) ?? 1) : 1; // kilos or liters in one of `quantity`
     return { ref, byQuantity, members, quantity, perStep, soldBy };
   });

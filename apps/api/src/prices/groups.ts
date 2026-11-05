@@ -1,10 +1,13 @@
 // Product groups (CONTEXT.md, docs/adr/0001): products that are one thing to a shopper, worked out from their names at
 // query time and never stored. A group is named by its "group ref": normalized words + measure (+ the pack count when
-// counted by the unit), e.g. "בורגול|kg", "ביצ|unit|12".
+// counted by the unit), e.g. "בורגול|kg", "ביצ|unit|12". The team's edits and Made groups (`made:<id>`) are stored and
+// applied after the word rules (docs/adr/0007) by the one group-members rule here: which Products a ref holds
+// (editedMembers, groupMembers) and which card an edited Product moves to (claims). Every reader goes through them.
 import { z } from "zod";
+import type { ProductType } from "@grocer/shared/product-types";
 import type { SoldBy } from "@grocer/shared/quantity";
 import type { Db } from "#/db/index.ts";
-import { productsMatching } from "#/db/products.ts";
+import { productsByCode, productsMatching } from "#/db/products.ts";
 
 /** Words that never tell two products apart: origin, grade, "by weight", "loose" (loose is the default). */
 const NOISE = new Set(["במשקל", "משקל", "שקיל", "תפזורת", "בתפזורת", "ישראל", "ישראלי", "ישראלית", "מובחר", "מובחרת", "מובחרים", "טרי", "טריה", "טריים", "לקג"]);
@@ -120,7 +123,7 @@ export const soldByOf = (p: Pick<Sized, "unitQty" | "isWeighted">): SoldBy =>
   p.isWeighted && rawWords(p.unitQty ?? "").some((w) => w in WEIGHT) ? "weight" : "unit";
 
 /** A group is sold by weight when it is measured by the kilo and most of its products are sold by weight (produce). */
-const groupSoldBy = (measure: Measure, products: Sized[]): SoldBy =>
+export const groupSoldBy = (measure: Measure, products: Sized[]): SoldBy =>
   measure === "kg" && commonest(products.map(soldByOf)) === "weight" ? "weight" : "unit";
 
 const startsWith = (words: Word[], group: string[]) => group.every((w, i) => words[i]?.norm === w);
@@ -147,8 +150,79 @@ export function parseRef(ref: string): { words: string[]; size: Size } | null {
   return { words: words.split(" "), size: { measure: measure as Measure, size } };
 }
 
-/** A group ref, as items and Compare receive it. */
-export const groupRefSchema = z.string().trim().min(1).max(200).refine((r) => parseRef(r) !== null, "invalid group ref");
+/** A Made group's id from its ref `made:<id>`, or null when the ref is not one. */
+export function madeId(ref: string) {
+  const m = /^made:([1-9]\d{0,9})$/.exec(ref);
+  return m ? Number(m[1]) : null;
+}
+export const madeRef = (id: number) => `made:${id}`;
+
+/** A group ref, words or Made, as items and Compare receive it. */
+export const groupRefSchema = z.string().trim().min(1).max(200).refine((r) => parseRef(r) !== null || madeId(r) !== null, "invalid group ref");
+
+export type MadeGroup = Size & { id: number; ref: string; name: string; type: ProductType };
+/** The Made groups, or those with these ids. */
+export function madeGroups(db: Db, ids?: number[]): MadeGroup[] {
+  const rows = db.$client
+    .prepare(`SELECT id, name, product_type AS type, measure, size FROM made_groups ${ids ? "WHERE id IN (SELECT value FROM json_each(?))" : ""} ORDER BY id`)
+    .all(...(ids ? [JSON.stringify(ids)] : [])) as Omit<MadeGroup, "ref">[];
+  return rows.map((g) => ({ ...g, ref: madeRef(g.id) }));
+}
+
+/** A group's edits: its name (a Made group's own), the Products the team added (a Made group's members) and removed. */
+export type GroupEdit = { name: string | null; added: string[]; removed: Set<string> };
+/** The edits to these groups (to every edited or Made group when not given), by ref. A group with none has no entry. */
+export function groupEdits(db: Db, refs?: string[]) {
+  const sqlite = db.$client;
+  const where = refs ? "WHERE ref IN (SELECT value FROM json_each(@refs))" : "";
+  const arg = refs ? [{ refs: JSON.stringify(refs) }] : [];
+  const edits = new Map<string, GroupEdit>();
+  const edit = (ref: string) => edits.get(ref) ?? edits.set(ref, { name: null, added: [], removed: new Set() }).get(ref)!;
+  const named = sqlite.prepare(`SELECT ref, name FROM group_names ${where}`).all(...arg) as { ref: string; name: string }[];
+  const made = madeGroups(db, refs?.flatMap((r) => madeId(r) ?? []));
+  for (const { ref, name } of [...named, ...made]) edit(ref).name = name;
+  const rows = sqlite.prepare(`SELECT ref, code, added FROM group_products ${where} ORDER BY rowid`).all(...arg) as { ref: string; code: string; added: number }[];
+  for (const { ref, code, added } of rows) {
+    if (added) edit(ref).added.push(code);
+    else edit(ref).removed.add(code);
+  }
+  return edits;
+}
+
+/**
+ * The group-members rule (docs/adr/0007) over Products already found: `word` (the word rules' members) less those the
+ * team removed, then those it added (`lookup` finds them, in the order they were added), only those measured `size`'s way.
+ */
+export function editedMembers<P extends Sized & { code: string }>(word: P[], edit: GroupEdit | undefined, size: Size, lookup: (codes: string[]) => P[]): P[] {
+  const codes = new Set(word.map((p) => p.code));
+  const missing = edit ? edit.added.filter((c) => !codes.has(c)) : [];
+  const found = new Map((missing.length ? lookup(missing) : []).map((p) => [p.code, p]));
+  const members = [...word.filter((p) => !edit?.removed.has(p.code)), ...missing.flatMap((c) => found.get(c) ?? [])];
+  return members.filter((p) => sameMeasure(measureOf(p), size));
+}
+
+/** Every group's edits and the Made groups, read once to lay them over browse's cards. */
+export type TeamEdits = { edits: Map<string, GroupEdit>; made: Map<string, MadeGroup> };
+export const teamEdits = (db: Db): TeamEdits => ({ edits: groupEdits(db), made: new Map(madeGroups(db).map((g) => [g.ref, g])) });
+
+/** A ref's measure: a Made group's own, or the words form's. */
+export const editedSize = ({ made }: TeamEdits, ref: string): Size | undefined => made.get(ref) ?? parseRef(ref)?.size;
+
+/**
+ * The card each of these Products moves to, by code (docs/adr/0007): the Made group it is in, else the first word group
+ * it was added to, when it is measured that group's way. A Product the team added to no group has none.
+ */
+export function claims(t: TeamEdits, products: Map<string, Sized>) {
+  const claimed = new Map<string, string>();
+  for (const ref of [...t.edits.keys()].sort((a, b) => +(madeId(b) !== null) - +(madeId(a) !== null))) {
+    const size = editedSize(t, ref);
+    for (const code of t.edits.get(ref)!.added) {
+      const p = products.get(code);
+      if (size && p && !claimed.has(code) && sameMeasure(measureOf(p), size)) claimed.set(code, ref);
+    }
+  }
+  return claimed;
+}
 
 /** The group named by a product's own normalized name, sizes dropped: where a former Produce-group item moves to. */
 export function ownGroupRef(p: Sized) {
@@ -222,13 +296,19 @@ export function groupsFrom(group: string[], candidates: Candidate[], { minProduc
 /** The groups search shows for the `group` words: the commonest measure, 2+ products each. */
 export const searchGroups = (group: string[], candidates: Candidate[]) => groupsFrom(group, candidates, { minProducts: 2, everyMeasure: false });
 
-/** Every product in the group the ref names, with its size (kilos, liters or pack count), and how the group is sold. */
+/**
+ * Every product in the group the ref names (word rules, then the team's edits), with its size (kilos, liters or pack
+ * count), how the group is sold and its measure (`size` null, and no members, for a Made group that is gone). A Product
+ * measured another way than the group never counts.
+ */
 export function groupMembers(db: Db, ref: string) {
-  const { words, size } = parseRef(ref)!;
-  const match = ftsMatch(words);
-  const members = (match ? productsMatching(db, match) : []).flatMap((p) => {
-    const own = measureOf(p);
-    return own && sameMeasure(own, size) && startsGroup(nameWords(p.name), words) ? [{ ...p, size: own.size }] : [];
-  });
-  return { members, soldBy: groupSoldBy(size.measure, members) };
+  const word = parseRef(ref);
+  const made = word ? undefined : madeGroups(db, [madeId(ref) ?? 0])[0];
+  const size: Size | null = word?.size ?? (made ? { measure: made.measure, size: made.size } : null);
+  if (!size) return { members: [], soldBy: "unit" as SoldBy, size };
+  const match = word && ftsMatch(word.words);
+  const found = match ? productsMatching(db, match).filter((p) => startsGroup(nameWords(p.name), word.words)) : [];
+  const edited = editedMembers(found, groupEdits(db, [ref]).get(ref), size, (codes) => productsByCode(db, codes));
+  const members = edited.map((p) => ({ ...p, size: measureOf(p)!.size }));
+  return { members, soldBy: groupSoldBy(size.measure, members), size };
 }
