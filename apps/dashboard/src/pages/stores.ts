@@ -8,10 +8,12 @@ type Store = List["stores"][number];
 type StoreDetail = InferResponseType<ApiClient["stores"][":id"]["$get"], 200>["store"];
 type Chain = InferResponseType<ApiClient["chains"]["$get"], 200>["chains"][number];
 export type Filter = { chain?: string; noLocation?: string; publishedDiffers?: string };
+/** The edit form's fields as typed, so a refused edit shows them again. */
+export type Edit = { name: string; address: string; city: string; lat: string; lng: string };
 
 const location = (s: { lat: number | null; lng: number | null }) =>
   s.lat === null || s.lng === null ? html`<span class="muted">No location</span>` : `${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`;
-const storeHref = (id: string) => `/stores/${encodeURIComponent(id)}`;
+export const storeHref = (id: string) => `/stores/${encodeURIComponent(id)}`;
 
 // With the "published address differs" filter on, each row also shows what the Chain publishes now (ADR 0006).
 const row = (published: boolean) => (s: Store) => html`<tr>
@@ -126,8 +128,24 @@ const addresses = (s: StoreDetail) => html`<div class="scroll">
   </table>
 </div>`;
 
+const field = (label: string, name: keyof Edit, value: string, extra = html``) =>
+  html`<label>${label} <input name="${name}" value="${value}" ${extra} /></label>`;
+
+/** The operator's correction of the store, kept by every later Price sync (ADR 0006). A refused one shows why. */
+const editForm = (id: string, v: Edit, error?: string) => html`<h2>Edit</h2>
+  <form class="filters" method="post" action="${storeHref(id)}">
+    ${error ? html`<p class="notice busy" role="alert">${error}</p>` : ""}
+    ${field("Name", "name", v.name, html`required maxlength="200"`)} ${field("Address", "address", v.address, html`maxlength="200"`)}
+    ${field("City", "city", v.city, html`maxlength="100"`)} ${field("Latitude", "lat", v.lat, html`inputmode="decimal"`)}
+    ${field("Longitude", "lng", v.lng, html`inputmode="decimal"`)}
+    <button type="submit">Save</button>
+    <p class="muted">Leave latitude and longitude empty to clear the location: the next Price sync geocodes the store.</p>
+  </form>`;
+
+const editOf = (s: StoreDetail): Edit => ({ name: s.name, address: s.address, city: s.city, lat: s.lat === null ? "" : String(s.lat), lng: s.lng === null ? "" : String(s.lng) });
+
 /** One store: its details, how many prices it has and when they were last updated (a store that stopped publishing). */
-export const storePage = (s: StoreDetail) => html`<header><h1>${s.name}</h1><a href="${storeHref(s.id)}/promotions">Promotions</a></header>
+export const storePage = (s: StoreDetail, refused?: { edit: Edit; error: string }) => html`<header><h1>${s.name}</h1><a href="${storeHref(s.id)}/promotions">Promotions</a></header>
   <dl class="details">
     <dt>Chain</dt>
     <dd><a href="/stores?chain=${s.chainId}">${s.chainName}</a></dd>
@@ -146,4 +164,5 @@ export const storePage = (s: StoreDetail) => html`<header><h1>${s.name}</h1><a h
     <dt>Prices last updated</dt>
     <dd>${when(s.pricesUpdatedAt)}</dd>
   </dl>
-  ${differs(s) ? addresses(s) : ""}`;
+  ${differs(s) ? addresses(s) : ""}
+  ${editForm(s.id, refused?.edit ?? editOf(s), refused?.error)}`;
