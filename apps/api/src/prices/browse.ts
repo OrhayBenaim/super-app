@@ -7,7 +7,9 @@ import type { Audience, PromotionKind } from "#/db/appSchema.ts";
 import type { Db } from "#/db/index.ts";
 import { catalog, nameOf, promotionStrings, runningPromotionsOf, storeData, type Catalog, type StoreData, type StorePromotion } from "#/prices/browse-data.ts";
 import { BROWSE } from "#/prices/browse-groups.ts";
-import { commonest, groupRef, groupsFrom, measureOf, parseRef, soldByOf, type Measure } from "#/prices/groups.ts";
+import {
+  commonest, editedCodes, groupEdits, groupRef, groupSoldBy, groupsFrom, madeGroups, madeId, measureOf, parseRef, sameMeasure, soldByOf, type Measure,
+} from "#/prices/groups.ts";
 import { promotionPrice, promotionText, round2, savingOf, unitPrice } from "#/prices/promotions.ts";
 
 /**
@@ -119,7 +121,8 @@ function narrowHere(nr: Near, cards: Built[]) {
   const { cat } = nr;
   const groupSize = new Int32Array(cat.groupTypes.length);
   for (let k = 0; k < cat.groups.length; k++) if (cat.groups[k]! >= 0 && cat.stores[k]) groupSize[cat.groups[k]!]!++;
-  const partial = cards.filter((c) => c.ref !== null && c.members.length < groupSize[c.group]!);
+  const edited = groupEdits(nr.db); // an edited or Made group keeps its ref, so its edits stay with it
+  const partial = cards.filter((c) => c.ref !== null && !edited.has(c.ref) && c.members.length < groupSize[c.group]!);
   for (const card of partial) {
     const leads = card.lead.map(({ lead }) => lead.split(" "));
     const [first, ...rest] = leads as [string[]];
@@ -152,13 +155,14 @@ function cardsOf(nr: Near, keep: (k: number) => boolean): Built[] {
   return cards.sort(byStoresThenName);
 }
 
-/** The Products priced nearby of Product type `type` whose names start with `ref`'s words. */
+/** The Products priced nearby on a card of Product type `type` whose names start with `ref`'s words, or the team added to it. */
 function refIds({ db, cat, count }: Near, type: ProductType, ref: string) {
   const t = typeIndex(type);
-  const prefix = parseRef(ref)!.words.join(" ");
-  return (db.$client.prepare("SELECT id FROM browse_products WHERE words = ? OR substr(words, 1, ?) = ?").pluck().all(prefix, prefix.length + 1, `${prefix} `) as number[]).filter(
-    (k) => k < count.length && count[k] && cat.groups[k]! >= 0 && cat.groupTypes[cat.groups[k]!] === t,
-  );
+  const words = parseRef(ref)?.words.join(" ");
+  const prefixed = words === undefined ? [] : (db.$client.prepare("SELECT id FROM browse_products WHERE words = ? OR substr(words, 1, ?) = ?").pluck().all(words, words.length + 1, `${words} `) as number[]);
+  const added = groupEdits(db, [ref]).get(ref)?.added ?? [];
+  const addedIds = db.$client.prepare("SELECT id FROM browse_products WHERE code IN (SELECT value FROM json_each(?))").pluck().all(JSON.stringify(added)) as number[];
+  return [...new Set([...prefixed, ...addedIds])].filter((k) => k < count.length && count[k] && cat.groups[k]! >= 0 && cat.groupTypes[cat.groups[k]!] === t);
 }
 
 /**
@@ -166,13 +170,22 @@ function refIds({ db, cat, count }: Near, type: ProductType, ref: string) {
  * under a filter opens too), or undefined.
  */
 function refCard(nr: Near, ref: string, ids: number[]): Built | undefined {
-  const { cat } = nr;
+  const { cat, db } = nr;
   const rows = candidates(nr, ids);
-  const g = groupsFrom(parseRef(ref)!.words, rows, BROWSE).find((g) => g.ref === ref);
-  if (!g) return undefined;
-  const idOf = new Map(rows.map((p) => [p.code, p.id]));
-  const members = g.codes.map((code) => idOf.get(code)!);
-  return build(nr, [{ group: cat.groups[members[0]!]!, meta: { ref: g.ref, name: g.name, measure: g.measure, size: g.size, soldBy: g.soldBy }, members }])[0];
+  const word = parseRef(ref);
+  const made = word ? undefined : madeGroups(db, [madeId(ref) ?? 0])[0];
+  const size = word?.size ?? made;
+  const g = word && groupsFrom(word.words, rows, BROWSE).find((g) => g.ref === ref);
+  const edit = groupEdits(db, [ref]).get(ref);
+  if (!size || (!g && !edit)) return undefined;
+  const codes = new Set(editedCodes(g?.codes ?? [], edit)); // the group-members rule over these Products
+  const mine = rows.filter((p) => codes.has(p.code) && sameMeasure(measureOf(p), size));
+  if (!mine.length) return undefined;
+  const meta = {
+    ref, name: edit?.name ?? g?.name ?? word!.words.join(" "), measure: size.measure, soldBy: groupSoldBy(size.measure, mine),
+    size: size.measure === "unit" ? size.size : commonest(mine.map((p) => measureOf(p)!.size))!,
+  };
+  return build(nr, [{ group: cat.groups[mine[0]!.id]!, meta, members: mine.map((p) => p.id) }])[0];
 }
 
 const withoutIds = ({ group, members, lead, ...card }: Built): Card => card;

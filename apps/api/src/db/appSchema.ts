@@ -274,3 +274,37 @@ export const browseCatalog = sqliteTable("browse_catalog", {
   names: blob("names", { mode: "buffer" }).notNull(), // UTF-8 "code\tlead\tlead as written", one after another
   nameEnds: blob("name_ends", { mode: "buffer" }).notNull(), // Int32: where each Product's ends in names
 });
+
+// Product groups the Grocer team edited or made on the Internal dashboard (docs/adr/0007). No Price sync writes these.
+// A Made group, its group ref `made:<id>`: a name, a Product type, a measure and the pack count (1 for kg and l). Ids are
+// never reused (AUTOINCREMENT), so a List item matched to a deleted one stays unmatched.
+export const madeGroups = sqliteTable("made_groups", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  productType: text("product_type")
+    .notNull()
+    .references(() => productTypes.id),
+  measure: text("measure", { enum: ["kg", "l", "unit"] }).notNull(),
+  size: integer("size").notNull(),
+  createdAt: createdAt(),
+});
+
+// A word group's display name, by its group ref.
+export const groupNames = sqliteTable("group_names", {
+  ref: text("ref").primaryKey(),
+  name: text("name").notNull(),
+});
+
+// A Product added to (added) or removed from (not added) a group, by its group ref: a word group's edits, or a Made
+// group's members (all added). Deleting a Made group deletes its rows.
+export const groupProducts = sqliteTable(
+  "group_products",
+  {
+    ref: text("ref").notNull(),
+    code: text("code")
+      .notNull()
+      .references(() => products.code),
+    added: integer("added", { mode: "boolean" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.ref, t.code] })],
+);
