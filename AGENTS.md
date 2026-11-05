@@ -142,7 +142,6 @@ Mobile (`apps/mobile`)
   `/api/auth/sign-up/email` and reuse the returned cookie to test protected routes. Jobs: call the handler with fakes.
 - Mobile tests cover plain TS logic (`src/lib`, `src/features/*`) and mock `@/lib/auth-client` and `fetch`.
   vitest runs in Node, so don't import React Native in tests.
-- Sonnet agents write the tests for features built by other agents.
 
 ## Git
 
