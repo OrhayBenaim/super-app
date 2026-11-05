@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { validator } from "hono/validator";
 import { z } from "zod";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
@@ -7,6 +6,7 @@ import type { AppEnv } from "#/middleware.ts";
 import { measureOf, soldByOf } from "#/prices/groups.ts";
 import { promotionText, runningPromotions } from "#/prices/promotions.ts";
 import { searchProducts } from "#/routes/prices.ts";
+import { bad, jsonBody } from "#/routes/internal/valid.ts";
 
 // type: a Product type, or "none" for Products with none yet. Without q, every priced Product of that type.
 const searchQuery = z
@@ -39,7 +39,7 @@ export const productsRoutes = new Hono<AppEnv>()
   // The app's search, its Products only (not its Product groups), a page at a time, with each Product's type.
   .get("/", (c) => {
     const query = searchQuery.safeParse(c.req.query());
-    if (!query.success) return c.json({ error: query.error.issues[0]?.message ?? "invalid query" }, 400);
+    if (!query.success) return bad(c, query.error);
     const { q, type, page, pageSize } = query.data;
     const { db } = c.var.deps;
     const wanted = type === "none" ? null : type;
@@ -62,7 +62,7 @@ export const productsRoutes = new Hono<AppEnv>()
   // One Product, its Shelf price at every store that prices it (cheapest first) and the Promotions running there now.
   .get("/:code", (c) => {
     const param = codeParam.safeParse(c.req.param());
-    if (!param.success) return c.json({ error: param.error.issues[0]?.message ?? "invalid code" }, 400);
+    if (!param.success) return bad(c, param.error);
     const { code } = param.data;
     const { db, clock } = c.var.deps;
     const sqlite = db.$client;
@@ -96,14 +96,10 @@ export const productsRoutes = new Hono<AppEnv>()
   })
   .put(
     "/:code/type",
-    // A body that is not JSON reads as {}, refused here; malformed JSON is the validator's own 400.
-    validator("json", (value, c) => {
-      const body = typeBody.safeParse(value);
-      return body.success ? body.data : c.json({ error: body.error.issues[0]?.message ?? "invalid body" }, 400);
-    }),
+    jsonBody(typeBody),
     (c) => {
       const param = codeParam.safeParse(c.req.param());
-      if (!param.success) return c.json({ error: param.error.issues[0]?.message ?? "invalid code" }, 400);
+      if (!param.success) return bad(c, param.error);
       const { code } = param.data;
       const { productType } = c.req.valid("json");
       const { changes } = c.var.deps.db.$client.prepare("UPDATE products SET product_type = ? WHERE code = ?").run(productType, code);

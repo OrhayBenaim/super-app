@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { chains, syncChainResults, syncRuns } from "#/db/appSchema.ts";
 import type { AppEnv } from "#/middleware.ts";
+import { bad } from "#/routes/internal/valid.ts";
 
 const DAY = 86_400_000;
 const listQuery = z.object({ days: z.coerce.number().int().min(1).max(90).default(90) });
@@ -24,7 +25,7 @@ export const syncsRoutes = new Hono<AppEnv>()
   // The Price syncs requested in the last `days` days (default and most 90), newest first.
   .get("/", (c) => {
     const query = listQuery.safeParse(c.req.query());
-    if (!query.success) return c.json({ error: query.error.issues[0]?.message ?? "invalid query" }, 400);
+    if (!query.success) return bad(c, query.error);
     const { db, clock } = c.var.deps;
     const syncs = db
       .select(listed)
@@ -37,7 +38,7 @@ export const syncsRoutes = new Hono<AppEnv>()
   // One run: its per-Chain results (each Chain's own outcome and, apart, its Promotion outcome) and its Product type step.
   .get("/:id", (c) => {
     const param = idParam.safeParse(c.req.param());
-    if (!param.success) return c.json({ error: param.error.issues[0]?.message ?? "invalid id" }, 400);
+    if (!param.success) return bad(c, param.error);
     const { db } = c.var.deps;
     const run = db
       .select({ ...listed, productsTyped: syncRuns.productsTyped, productsOther: syncRuns.productsOther, typeRequestsFailed: syncRuns.typeRequestsFailed })

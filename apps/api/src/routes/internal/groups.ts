@@ -4,6 +4,7 @@ import { SEARCH } from "@grocer/shared/search";
 import type { AppEnv } from "#/middleware.ts";
 import { groupMembers, measureOf, soldByOf } from "#/prices/groups.ts";
 import { searchProducts } from "#/routes/prices.ts";
+import { bad } from "#/routes/internal/valid.ts";
 
 const wordsQuery = z.object({ q: z.string().trim().min(SEARCH.minLength).max(100) });
 
@@ -13,7 +14,7 @@ export const groupsRoutes = new Hono<AppEnv>()
   // from) that some store prices, cheapest per kilo or liter (per pack for a unit group) first.
   .get("/", (c) => {
     const query = wordsQuery.safeParse(c.req.query());
-    if (!query.success) return c.json({ error: query.error.issues[0]?.message ?? "invalid query" }, 400);
+    if (!query.success) return bad(c, query.error);
     const { db } = c.var.deps;
     const priced = db.$client.prepare("SELECT min(price) AS minPrice, count(*) AS storeCount FROM prices WHERE code = ?");
     const groups = searchProducts(db, query.data.q, 0).flatMap((found) => {

@@ -5,8 +5,9 @@ import { chains, promotionItems, promotions, stores } from "#/db/appSchema.ts";
 import type { Db } from "#/db/index.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { runningAt } from "#/prices/promotions.ts";
+import { bad } from "#/routes/internal/valid.ts";
 
-const listQuery = z.object({ store: z.string().min(1) });
+const listQuery = z.object({ store: z.string().min(1).max(64) });
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 
 const STATES = ["running", "notToday", "future", "ended"] as const;
@@ -38,7 +39,7 @@ export const promotionsRoutes = new Hono<AppEnv>()
   // A store's Promotions as its newest promotion files publish them: running first, then not today, future and ended.
   .get("/", (c) => {
     const query = listQuery.safeParse(c.req.query());
-    if (!query.success) return c.json({ error: query.error.issues[0]?.message ?? "invalid query" }, 400);
+    if (!query.success) return bad(c, query.error);
     const { db, clock } = c.var.deps;
     const store = storeOf(db, query.data.store);
     if (!store) return c.json({ error: "not found" }, 404);
@@ -50,7 +51,7 @@ export const promotionsRoutes = new Hono<AppEnv>()
   // One Promotion, its store, and the Products it covers with their Shelf price there (null where the store has no price for it).
   .get("/:id", (c) => {
     const param = idParam.safeParse(c.req.param());
-    if (!param.success) return c.json({ error: param.error.issues[0]?.message ?? "invalid id" }, 400);
+    if (!param.success) return bad(c, param.error);
     const { db, clock } = c.var.deps;
     const promotion = withItems(db).where(eq(promotions.id, param.data.id)).get();
     if (!promotion) return c.json({ error: "not found" }, 404);
