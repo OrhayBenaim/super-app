@@ -98,7 +98,7 @@ export function PromotionsScreen() {
           </>
         }
         empty={empty}
-        render={(card) => <PromoCard card={card} listId={listId} items={items} />}
+        render={(card) => <PromoCard card={card} listId={listId} items={items} oneChain={chain !== null} />}
       />
     </Screen>
   );

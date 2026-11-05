@@ -5,7 +5,7 @@ import { groupTarget } from "@/features/home/card";
 import { CardBody } from "@/features/home/GroupCard";
 import { useCard } from "@/features/home/useCard";
 import { ProductImage } from "@/features/items/ProductImage";
-import { useProductImage } from "@/features/items/products";
+import { useCardImage } from "@/features/items/products";
 import type { Item } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
@@ -15,17 +15,17 @@ import { promoLines, type PromoCard as Card } from "./promo";
 
 /**
  * A Promotions card (Figma PromoCard): Home's group card with the lowest Promotion price in Saving green next to the
- * struck Shelf price (or the reward's text when there is no price), the Restricted label and "at N Chains". Add matches
- * the whole group, as on Home. The image, name and prices are one button that opens the card's product page, apart
- * from the stepper and the action.
+ * struck Shelf price (or the reward's text when there is no price), the Restricted label and "at N Chains" (not while
+ * filtered to one Chain). Add matches the whole group, as on Home. The image, name and prices are one button that opens
+ * the card's product page, apart from the stepper and the action.
  */
-export function PromoCard({ card, listId, items }: { card: Card; listId: string | null; items: Item[] }) {
+export function PromoCard({ card, listId, items, oneChain }: { card: Card; listId: string | null; items: Item[]; oneChain: boolean }) {
   const { colors, space, radius } = useTheme();
   const target = groupTarget(card, card.type);
   const { view, step, act } = useCard(target, listId, items, "promotions");
-  const image = useProductImage(card.code);
+  const image = useCardImage(card);
   const lines = promoLines(card, t);
-  const label = [target.name, lines.price, lines.shelfLabel, lines.deal, lines.restricted, lines.chains].filter(Boolean).join(", ");
+  const label = [target.name, lines.price, lines.shelfLabel, lines.deal, lines.restricted, !oneChain && lines.chains].filter(Boolean).join(", ");
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: radius.group, padding: space[4] }}>
       <CardBody
@@ -63,9 +63,11 @@ export function PromoCard({ card, listId, items }: { card: Card; listId: string 
               {lines.restricted}
             </Text>
           )}
-          <Text variant="footnote" color="labelSecondary" numberOfLines={1}>
-            {lines.chains}
-          </Text>
+          {!oneChain && (
+            <Text variant="footnote" color="labelSecondary" numberOfLines={1}>
+              {lines.chains}
+            </Text>
+          )}
         </View>
       </CardBody>
       <View style={{ flex: 1, minHeight: space[4] }} />
