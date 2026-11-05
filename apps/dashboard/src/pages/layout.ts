@@ -32,7 +32,9 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
         .badge-requested { background: #fff; color: #1d4ed8; border-style: dashed; }
         .badge-interrupted { background: #fde8e8; color: #9b1c1c; border-color: #f3b0b0; }
         .badge-skipped { background: #f1f0ec; color: #57534e; border-color: #d6d3cd; }
-        nav.site { display: flex; gap: 16px; margin-bottom: 20px; }
+        .badge-ok { background: #e3f4e8; color: #1d5e36; border-color: #a9d8b8; }
+        .badge-failed { background: #fde8e8; color: #9b1c1c; border-color: #f3b0b0; }
+        nav { display: flex; gap: 16px; margin-bottom: 16px; }
         a { color: #1f6f43; }
         h2 { font-size: 18px; margin: 24px 0 0; }
         .search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; }
@@ -49,7 +51,7 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
     </head>
     <body>
       <main>
-        <nav class="site" aria-label="Dashboard"><a href="/">Price syncs</a><a href="/products">Products</a></nav>
+        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a><a href="/products">Products</a></nav>
         ${body}
       </main>
     </body>

@@ -5,6 +5,7 @@ import { csrf } from "hono/csrf";
 import { HTTPException } from "hono/http-exception";
 import type { Deps } from "#/deps.ts";
 import type { AppEnv } from "#/middleware.ts";
+import { chainsRoutes } from "#/routes/chains.ts";
 import { productsRoutes } from "#/routes/products.ts";
 import { syncsRoutes } from "#/routes/syncs.ts";
 
@@ -23,6 +24,7 @@ export function createApp(deps: Deps) {
       c.body(htmx, 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=86400" }),
     )
     .route("/", syncsRoutes)
+    .route("/", chainsRoutes)
     .route("/", productsRoutes)
     .onError((error, c) => {
       if (error instanceof HTTPException) return error.getResponse();
