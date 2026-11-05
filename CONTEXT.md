@@ -53,7 +53,7 @@ _Avoid_: Unavailable item, out of stock (Grocer only knows what a store prices, 
 ### Prices
 
 **Price sync**:
-One run that brings every Chain's prices up to date: download each Chain's newest Stores and PriceFull files for all its stores, load them, geocode every store that has no location yet (new, moved, or not found before), and give a Product type to every Product that has none yet (what one Price sync doesn't reach is left for the next). A Chain that fails does not stop the others, and a classification that fails leaves Products as they were. Only one Price sync runs at a time.
+One run that brings every Chain's prices up to date: download each Chain's newest Stores and PriceFull files for all its stores, load them, geocode every store that has no location yet (new, or not found before), and give a Product type to every Product that has none yet (what one Price sync doesn't reach is left for the next). A Chain that fails does not stop the others, and a classification that fails leaves Products as they were. Only one Price sync runs at a time. It adds stores and Products it has not seen but never changes an existing one's name, address or location: those are set once and then only the Grocer team changes them, on the Internal dashboard. When a Chain publishes a different address for a store, the Internal dashboard shows it, and nothing changes until the team does.
 _Avoid_: Fetch, scrape, import (each names only one part of it)
 
 **Scheduled sync**:
@@ -73,8 +73,12 @@ A Scheduled sync that does not run, because a Price sync was running at its time
 _Avoid_: Cancelled sync
 
 **Chain failure**:
-A Chain that could not be brought up to date during a Price sync: its Stores file could not be downloaded or loaded, none of its price files could be loaded (failed, or all name stores missing from its Stores file), or its prices could not be saved. It is logged and recorded. Stores whose prices were saved before the failure keep them; the rest keep their previous prices until a later Price sync succeeds for that Chain. A single price file that cannot be downloaded or loaded is not a Chain failure: that store keeps its previous prices and the rest of the Chain still updates.
+A Chain that could not be brought up to date during a Price sync: its Stores file could not be downloaded or loaded, none of its price files could be loaded (failed, or all name stores missing from its Stores file), or its prices could not be saved. It is logged and recorded. Stores whose prices were saved before the failure keep them; the rest keep their previous prices until a later Price sync succeeds for that Chain. A single price file that cannot be downloaded or loaded is not a Chain failure but a Store failure: that store keeps its previous prices and the rest of the Chain still updates.
 _Avoid_: Sync failure (the Price sync itself still finishes)
+
+**Store failure**:
+A store whose price file or Promotion file could not be downloaded or loaded during a Price sync while the rest of its Chain still updated. The store keeps its previous prices or Promotions. Store failures are kept for 7 days, then forgotten.
+_Avoid_: File failure, store error
 
 **Product image**:
 A picture of a Product, found by its barcode in outside sources (a Chain's online shop first, Open Food Facts second). Users cannot set or change it. A Product without a barcode, or one no source knows, has no Product image, and nothing is shown in its place. It is shown when picking a Product for an item and when editing an item.
@@ -113,6 +117,12 @@ _Avoid_: PIN, token
 **Deletion code**:
 The OTP emailed to a signed-in User before an Account deletion or a Data deletion done on the web. A correct code leads to a last confirmation, and confirming commits that deletion. It works only for the deletion it was requested for; cancelling kills it.
 _Avoid_: PIN, Reset code (that one is only for Password reset)
+
+### Operations
+
+**Internal dashboard**:
+The Grocer team's own pages for watching and correcting the price data: Chains and their stores, Products, Product groups, Promotions and Price syncs. Only people on the team's private network can open it, with no sign-in. It is where Manual syncs are started and where the team corrects a store's details and location or a Product's type. It shows; it never alerts.
+_Avoid_: Admin panel, back office, console
 
 ### Support
 
