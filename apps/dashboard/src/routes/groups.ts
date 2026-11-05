@@ -12,7 +12,7 @@ import {
 } from "#/pages/groups.ts";
 import { layout, notFound, notice } from "#/pages/layout.ts";
 
-type C = Context<AppEnv>;
+type Ctx = Context<AppEnv>;
 // Anything outside these reads as none: no type, the first page, no search.
 const words = z.string().trim().max(SEARCH.maxLength).catch("");
 const listQuery = z.object({
@@ -35,7 +35,7 @@ const pickedItem = z.object({
 });
 
 /** A form body's fields, each as every value it was sent (an htmx post repeats `item`). */
-async function formOf(c: C) {
+async function formOf(c: Ctx) {
   const body = await c.req.parseBody({ all: true }).catch(() => ({}));
   const all = (k: string) => [(body as Record<string, unknown>)[k]].flat().filter((v): v is string => typeof v === "string");
   return { all, one: (k: string) => all(k)[0] ?? "" };
@@ -51,17 +51,19 @@ function pickedOf(json: string): Picked[] {
   }
 }
 
-async function groupList(c: C, type: ProductType, q: string, page: number) {
+async function groupList(c: Ctx, type: ProductType, q: string, page: number) {
   const res = await c.var.deps.api.groups.types[":type"].$get({ param: { type }, query: { ...(q && { q }), page: String(page), pageSize: String(PAGE_SIZE) } });
   if (res.status !== 200) throw unexpected(res, "GET /groups/types/:type");
   return res.json();
 }
 
-// hc puts a param into the path as it is, so a ref (Hebrew words, "|") is encoded here.
-const groupDetail = async (c: C, ref: string) => found(await c.var.deps.api.groups[":ref"].$get({ param: { ref: encodeURIComponent(ref) } }), "GET /groups/:ref");
+// hc puts a param into the path as it is, so a ref (Hebrew words, "|") is encoded here, and so is a code.
+const inPath = (ref: string) => ({ ref: encodeURIComponent(ref) });
+const groupDetail = async (c: Ctx, ref: string) => found(await c.var.deps.api.groups[":ref"].$get({ param: inPath(ref) }), "GET /groups/:ref");
+const gone = () => notice("No such group. It may have been deleted: reload the page.");
 
 /** The Products the dashboard's Product search finds for `q`, none for too few characters. */
-async function search(c: C, q: string): Promise<Found[]> {
+async function search(c: Ctx, q: string): Promise<Found[]> {
   if (q.length < SEARCH.minLength) return [];
   const res = await c.var.deps.api.products.$get({ query: { q } });
   if (res.status !== 200) throw unexpected(res, "GET /products");
@@ -69,13 +71,13 @@ async function search(c: C, q: string): Promise<Found[]> {
 }
 
 /** The open group again after an edit, or the notice that it is gone. htmx swaps only a 2xx, so a refusal is a 200 too. */
-async function panel(c: C, ref: string, p: Parameters<typeof openGroup>[1] = {}) {
+async function panel(c: Ctx, ref: string, p: Parameters<typeof openGroup>[1] = {}) {
   const detail = await groupDetail(c, ref);
-  return c.html(detail ? openGroup(detail, p) : html`<div id="group">${notice("No such group. It may have been deleted: reload the page.")}</div>`);
+  return c.html(detail ? openGroup(detail, p) : html`<div id="group">${gone()}</div>`);
 }
 
-/** An edit's answer: the open group, with the api's refusal (400, 404) above its Products. Anything else is a bug. */
-async function edited(c: C, ref: string, res: { status: number; json(): Promise<unknown> }, call: string, p: Parameters<typeof openGroup>[1] = {}) {
+/** The page after an edit: the open group, with the api's refusal (400, 404) above its Products. Anything else is a bug. */
+async function afterEdit(c: Ctx, ref: string, res: { status: number; json(): Promise<unknown> }, call: string, p: Parameters<typeof openGroup>[1] = {}) {
   if (res.status === 200) return panel(c, ref, p);
   if (res.status !== 400 && res.status !== 404) throw unexpected(res, call);
   const body = (await res.json()) as { error?: string };
@@ -83,7 +85,7 @@ async function edited(c: C, ref: string, res: { status: number; json(): Promise<
 }
 
 /** The new group form's fields, its Products with `add` added and `remove` removed, and its search. */
-async function draftOf(c: C): Promise<Draft> {
+async function draftOf(c: Ctx): Promise<Draft> {
   const { all, one } = await formOf(c);
   const items = new Map<string, Picked>();
   for (const p of [...all("item"), ...all("add")].flatMap(pickedOf)) items.set(p.code, p);
@@ -100,7 +102,7 @@ async function draftOf(c: C): Promise<Draft> {
   };
 }
 
-async function newGroupPage(c: C, draft: Draft, errors: DraftErrors = {}, status: 200 | 400 = 200) {
+async function newGroupPage(c: Ctx, draft: Draft, errors: DraftErrors = {}, status: 200 | 400 = 200) {
   const list = await groupList(c, draft.productType, "", 1);
   const page = groupsPage({ type: draft.productType, q: "", page: 1, list, draft: true, body: newGroupForm(draft, errors) });
   return c.html(layout("New group", page, "groups"), status);
@@ -151,15 +153,15 @@ export const groupsRoutes = new Hono<AppEnv>()
     const ref = c.req.param("ref");
     const name = nameField.safeParse((await formOf(c)).one("name"));
     if (!name.success) return panel(c, ref, { renameError: name.error.issues[0]!.message });
-    const res = await c.var.deps.api.groups[":ref"].name.$put({ param: { ref: encodeURIComponent(ref) }, json: { name: name.data } });
-    return edited(c, ref, res, "PUT /groups/:ref/name");
+    const res = await c.var.deps.api.groups[":ref"].name.$put({ param: inPath(ref), json: { name: name.data } });
+    return afterEdit(c, ref, res, "PUT /groups/:ref/name");
   })
   .post("/groups/:ref/remove", async (c) => {
     const ref = c.req.param("ref");
     const product = code.safeParse((await formOf(c)).one("code"));
     if (!product.success) return panel(c, ref, { error: "Not changed: no Product given." });
-    const res = await c.var.deps.api.groups[":ref"].products[":code"].$delete({ param: { ref: encodeURIComponent(ref), code: encodeURIComponent(product.data) } });
-    return edited(c, ref, res, "DELETE /groups/:ref/products/:code");
+    const res = await c.var.deps.api.groups[":ref"].products[":code"].$delete({ param: { ...inPath(ref), code: encodeURIComponent(product.data) } });
+    return afterEdit(c, ref, res, "DELETE /groups/:ref/products/:code");
   })
   // Add keeps Add Products open on its search, so the next Product is one click away.
   .post("/groups/:ref/add", async (c) => {
@@ -169,12 +171,12 @@ export const groupsRoutes = new Hono<AppEnv>()
     const q = words.parse(one("q"));
     const find = { q, found: await search(c, q) };
     if (!product.success) return panel(c, ref, { error: "Not changed: no Product given.", find });
-    const res = await c.var.deps.api.groups[":ref"].products.$post({ param: { ref: encodeURIComponent(ref) }, json: { code: product.data } });
-    return edited(c, ref, res, "POST /groups/:ref/products", { find });
+    const res = await c.var.deps.api.groups[":ref"].products.$post({ param: inPath(ref), json: { code: product.data } });
+    return afterEdit(c, ref, res, "POST /groups/:ref/products", { find });
   })
   .get("/groups/:ref/find", async (c) => {
     const detail = await groupDetail(c, c.req.param("ref"));
-    if (!detail) return c.html(notice("No such group. It may have been deleted: reload the page."));
+    if (!detail) return c.html(gone());
     const q = words.parse(c.req.query("q"));
     return c.html(groupFound(detail.group.ref, await search(c, q), new Set(detail.members.map((m) => m.code)), q));
   })
@@ -182,8 +184,8 @@ export const groupsRoutes = new Hono<AppEnv>()
   .post("/groups/:ref/delete", async (c) => {
     const ref = c.req.param("ref");
     const detail = await groupDetail(c, ref);
-    if (!detail) return c.html(notice("No such group. It may have been deleted: reload the page."));
-    const res = await c.var.deps.api.groups[":ref"].$delete({ param: { ref: encodeURIComponent(ref) } });
+    if (!detail) return c.html(gone());
+    const res = await c.var.deps.api.groups[":ref"].$delete({ param: inPath(ref) });
     if (res.status === 400) return c.html(notice("Only a Made group is deleted."));
     if (res.status !== 200 && res.status !== 404) throw unexpected(res, "DELETE /groups/:ref");
     return c.body(null, 200, { "HX-Redirect": groupHref({ type: detail.group.type }) });

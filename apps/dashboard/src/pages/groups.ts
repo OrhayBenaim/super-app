@@ -36,7 +36,7 @@ function groupList(type: ProductType, q: string, page: number, list: List, open:
     (g) => html`<li>
       <a href="${groupHref({ type, q, page, ref: g.ref })}"${g.ref === open.ref ? html` aria-current="true"` : ""}>
         <span><strong lang="he">${g.name}</strong><span class="footnote muted">${plural(g.productCount, "Product")} · ${BY[g.measure]}</span></span>
-        ${g.made ? badge("finished", "Made here") : g.edited ? badge("finished", "Edited") : ""}
+        ${g.made ? badge("finished", "Made group") : g.edited ? badge("finished", "Edited") : ""}
       </a>
     </li>`,
   );

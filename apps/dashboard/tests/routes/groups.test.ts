@@ -152,7 +152,7 @@ describe("a new Made group (A9)", () => {
     expect(removed).toContain("In this group · 0");
   });
 
-  it("creates it and opens it, tagged Made here, and deletes it", async () => {
+  it("creates it and opens it, tagged Made group, and deletes it", async () => {
     const { app } = await seeded();
     const items: [string, string][] = [SOY, SOY_LIGHT].map((code) => ["item", JSON.stringify({ code })]);
     const res = await app.request("/groups/new", form([["name", "חלב סויה"], ["productType", "dairy-eggs"], ["measure", "l"], ...items]));
@@ -161,7 +161,7 @@ describe("a new Made group (A9)", () => {
     const ref = new URLSearchParams(opened.split("?")[1]).get("ref")!;
     expect(ref).toMatch(/^made:\d+$/);
     const html = await (await app.request(opened)).text();
-    for (const text of ["Made here", '<h2 lang="he">חלב סויה</h2>', "2 Products", "Delete group"]) expect(html, text).toContain(text);
+    for (const text of ['<span class="badge badge-finished">Made group</span>', '<h2 lang="he">חלב סויה</h2>', "2 Products", "Delete group"]) expect(html, text).toContain(text);
     const deleted = await app.request(`/groups/${enc(ref)}/delete`, post());
     expect(deleted.headers.get("HX-Redirect")).toBe("/groups?type=dairy-eggs");
     expect((await app.request(opened)).status).toBe(404);

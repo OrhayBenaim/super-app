@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { validator } from "hono/validator";
 import { z } from "zod";
 import { ID } from "@grocer/shared/ids";
 import { MAX_IMAGE_BYTES, MAX_IMAGE_MB } from "@grocer/shared/product-image";
@@ -11,7 +10,7 @@ import { isProduct } from "#/db/products.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { regroupProduct } from "#/prices/browse-groups.ts";
 import { findProducts, productDetail, productTypeCounts } from "#/prices/products.ts";
-import { bad, jsonBody } from "#/routes/internal/valid.ts";
+import { bad, formOf, jsonBody } from "#/routes/internal/valid.ts";
 
 // type: a Product type, or "none" for Products with none yet. Without q, every priced Product (of that type).
 const searchQuery = z
@@ -59,10 +58,7 @@ export const productsRoutes = new Hono<AppEnv>()
   .put(
     "/:code/image",
     bodyLimit({ maxSize: MAX_IMAGE_BYTES + 64 * 1024, onError: (c) => c.json(tooLarge, 413) }), // room for the form around it
-    validator("form", (value, c) => {
-      const form = imageForm.safeParse(value);
-      return form.success ? form.data : bad(c, form.error);
-    }),
+    formOf(imageForm),
     async (c) => {
       const param = codeParam.safeParse(c.req.param());
       if (!param.success) return bad(c, param.error);
