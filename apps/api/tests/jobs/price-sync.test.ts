@@ -9,6 +9,7 @@ import { fakeGeocoder } from "#/providers/nominatim/fake.ts";
 import { fakePricePortal } from "#/providers/price-portals/fake.ts";
 import { loadConfig } from "#/services/config.ts";
 import type { PricePortal } from "#/services/price-portal.ts";
+import { fakeClock } from "#/utils/clock.ts";
 
 const fx = (f: string) => new Uint8Array(readFileSync(fileURLToPath(new URL(`../__fixtures__/${f}`, import.meta.url))));
 const OSHER = "7290103152017";
@@ -134,5 +135,20 @@ describe("priceSyncJob", () => {
     expect(done).toEqual(chainSeeds.slice(0, upTo + 1).map((c) => c.ids[0]));
     expect(one(deps, "SELECT status FROM sync_chain_results WHERE sync_run_id = ? AND chain_id = ?", id, OSHER)).toEqual({ status: "ok" });
     expect(one(deps, "SELECT count(*) AS n FROM prices").n).toBeGreaterThan(0);
+  });
+
+  it("deletes Price syncs that started more than 90 days before it, with their Chain results; newer ones stay", async () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const clock = fakeClock(new Date("2026-11-05T10:00:00+02:00"));
+    const deps = setup({ clock });
+    const old = await priceSyncJob(deps)({});
+    clock.advance(DAY);
+    const kept = await priceSyncJob(deps)({});
+    clock.advance(90 * DAY - 1);
+    const latest = await priceSyncJob(deps)({}); // 90 days after `kept` minus 1 ms, 91 days after `old`
+
+    expect(rows(deps, "SELECT id FROM sync_runs ORDER BY id").map((r) => r.id)).toEqual([kept, latest]);
+    expect(one(deps, "SELECT count(*) AS n FROM sync_chain_results WHERE sync_run_id = ?", old).n).toBe(0);
+    expect(one(deps, "SELECT count(*) AS n FROM sync_chain_results WHERE sync_run_id = ?", kept).n).toBe(chainSeeds.length);
   });
 });
