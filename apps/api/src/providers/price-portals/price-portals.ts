@@ -108,6 +108,30 @@ async function carrefourList(base: string, jar: Jar): Promise<PriceFile[]> {
   return carrefourFiles(await res.text(), base);
 }
 
+/** Download links of a Hazi Hinam listing page: plain (unsigned) blob URLs ending in the file name. */
+export const haziFiles = (html: string): PriceFile[] =>
+  [...html.matchAll(/href="(https:\/\/[^"]+\/([A-Za-z]+\d[\w.-]*))"/g)].map((m) => ({ name: m[2]!, url: m[1]! }));
+
+/** The YYYY-MM-DD of `ms` in Israel, the date Hazi Hinam's `d` filter takes. */
+export const israelDate = (ms: number) => new Date(ms).toLocaleDateString("sv-SE", { timeZone: "Asia/Jerusalem" });
+
+// Hazi Hinam's /Prices is a table filtered by type (t: 1 prices, 2 promotions, 3 stores) and day (d, empty = today), 50
+// rows a page (p). Its pager links only nearby pages, so read pages until one is empty. Yesterday too: early in the day a
+// store may not have published yet, and the picker keeps each store's newest file anyway.
+async function haziList(base: string, jar: Jar): Promise<PriceFile[]> {
+  const files: PriceFile[] = [];
+  for (const d of ["", israelDate(Date.now() - 86_400_000)])
+    for (const t of [3, 1, 2])
+      for (let p = 1; p <= 100; p++) {
+        const res = await http(`${base}?t=${t}&d=${d}&p=${p}`, jar);
+        if (!res.ok) throw new Error(`hazi-hinam t=${t} d=${d} p=${p}: HTTP ${res.status}`);
+        const page = haziFiles(await res.text());
+        if (!page.length) break;
+        files.push(...page);
+      }
+  return files;
+}
+
 export function pricePortals(): PricePortal {
   return {
     async open(chain: ChainSeed) {
@@ -118,11 +142,8 @@ export function pricePortals(): PricePortal {
       else if (src.url.startsWith("https://prices.shufersal.co.il/")) files = await shufersalList(jar);
       else if (src.url.startsWith("https://laibcatalog.co.il/")) files = await laibList(chain.ids[0]!, jar);
       else if (src.url.startsWith("https://prices.carrefour.co.il/")) files = await carrefourList(src.url, jar);
-      else {
-        // shortcut: Hazi Hinam's listing is not implemented (its page answers 200 from Israel); add it with the next chain.
-        const res = await http(src.url, jar, {}, 20_000);
-        throw new Error(`no downloader for ${chain.key} yet (portal answered HTTP ${res.status})`);
-      }
+      else if (src.url.startsWith("https://shop.hazi-hinam.co.il/")) files = await haziList(src.url, jar);
+      else throw new Error(`no downloader for ${chain.key} (${src.url})`);
       return {
         files,
         async download(file) {
