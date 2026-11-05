@@ -111,6 +111,20 @@ describe("Products page", () => {
     expect(await (await app.request(`/products?type=dairy-eggs&q=${encodeURIComponent("תלפיות")}`)).text()).not.toContain("רמי לוי תלפיות");
   });
 
+  it("shows at most 100 found stores in a scrolling box, says how many more match, and narrows as more is typed", async () => {
+    const { api, app } = seeded();
+    const branch = (n: number) => ({ id: `${RAMI}-${n + 2}`, chainId: RAMI, storeId: String(n + 2), subChainId: "1", name: `רמי לוי סניף ${n}`, address: "", city: "" });
+    api.db.insert(stores).values(Array.from({ length: 111 }, (_, n) => branch(n))).run();
+    const find = async (q: string) => (await app.request(`/products?q=${encodeURIComponent(q)}`)).text();
+    const many = await find("רמי לוי");
+    expect(many).toContain('<div class="find-stores">');
+    expect(many).toContain("Showing 100 of 112 stores · type more to narrow it down");
+    expect(many.match(/<a href="\/stores\//g)).toHaveLength(100);
+    const fewer = await find("רמי לוי סניף 1");
+    expect(fewer).not.toContain("Showing");
+    expect(fewer).toContain("22 stores"); // 1, 10–19 and 100–110
+  });
+
   it("lists the Products with no Product type yet", async () => {
     const { app } = seeded();
     const html = await (await app.request("/products?type=none")).text();

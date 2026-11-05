@@ -83,6 +83,9 @@ th, td { padding: var(--space-4) var(--space-5); text-align: start; vertical-ali
 th { font: var(--font-footnote) var(--family); font-weight: 500; color: var(--labelSecondary); }
 tbody tr:last-child td { border-bottom: 0; }
 th.num, td.num { text-align: end; }
+/* The find field's stores: up to 100 in a box that scrolls under its header */
+.find-stores { max-height: 400px; overflow-y: auto; }
+.find-stores th { position: sticky; top: 0; background: var(--surface); }
 tr.has-error td { border-bottom: 0; padding-bottom: var(--space-2); }
 tr.error td { padding-top: 0; white-space: normal; font-size: var(--size-footnote); color: var(--danger); }
 tr.error.warning td { color: var(--warning); }
