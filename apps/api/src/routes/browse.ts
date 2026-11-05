@@ -6,6 +6,7 @@ import { requireUser, type AppEnv } from "#/middleware.ts";
 import { cardsOf, groupPage, pricedProducts, promotionCards, promotionPage, typeCounts } from "#/prices/browse.ts";
 import { groupRefSchema } from "#/prices/groups.ts";
 import { nearbyStoreIds } from "#/prices/nearby.ts";
+import { priceIndex } from "#/prices/price-index.ts";
 
 /** Where the User is, as Compare takes it, or nothing (location off). Both lat and lng, or neither. */
 const nearQuery = z
@@ -35,32 +36,37 @@ function storesFor(c: Context<AppEnv>) {
 export const browseRoutes = new Hono<AppEnv>()
   .use(requireUser)
   // Home: the Product types sold nearby, each with its count of group cards.
-  .get("/types", (c) => c.json(typeCounts(pricedProducts(c.var.deps.db, storesFor(c)))))
+  .get("/types", (c) => {
+    const index = priceIndex(c.var.deps.db);
+    return c.json(typeCounts(index, pricedProducts(index, storesFor(c))));
+  })
   // One Product type's group cards.
   .get("/types/:type", (c) => {
     const type = parse(typeParam, c.req.param("type"));
     const stores = storesFor(c);
-    return c.json(cardsOf(c.var.deps.db, pricedProducts(c.var.deps.db, stores, type), stores));
+    const index = priceIndex(c.var.deps.db);
+    return c.json(cardsOf(index, pricedProducts(index, stores, type), stores));
   })
   // A group card's product page: the card and its Products sold nearby, each with its cheapest nearby price.
   .get("/types/:type/groups/:ref", (c) => {
     const type = parse(typeParam, c.req.param("type"));
     const ref = parse(groupRefSchema, c.req.param("ref"));
     const stores = storesFor(c);
-    const page = groupPage(c.var.deps.db, pricedProducts(c.var.deps.db, stores, type), stores, ref);
+    const index = priceIndex(c.var.deps.db);
+    const page = groupPage(index, pricedProducts(index, stores, type), stores, ref);
     return page ? c.json(page) : c.json({ error: "not found" }, 404);
   })
   // Promotions: group cards of the Products on a Promotion running nearby; nothing without a location.
   .get("/promotions", (c) => {
     const stores = storesFor(c);
     const filters = parse(promotionsQuery, c.req.query());
-    return c.json(stores ? promotionCards(c.var.deps.db, stores, c.var.deps.clock.now(), filters) : []);
+    return c.json(stores ? promotionCards(priceIndex(c.var.deps.db), stores, c.var.deps.clock.now(), filters) : []);
   })
   // A Promotions card's product page: its Products on a Promotion running nearby, each broken down by Chain.
   .get("/promotions/types/:type/groups/:ref", (c) => {
     const type = parse(typeParam, c.req.param("type"));
     const ref = parse(groupRefSchema, c.req.param("ref"));
     const stores = storesFor(c);
-    const page = stores && promotionPage(c.var.deps.db, stores, c.var.deps.clock.now(), type, ref);
+    const page = stores && promotionPage(priceIndex(c.var.deps.db), stores, c.var.deps.clock.now(), type, ref);
     return page ? c.json(page) : c.json({ error: "not found" }, 404);
   });
