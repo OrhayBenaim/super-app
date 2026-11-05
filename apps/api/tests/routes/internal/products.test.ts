@@ -1,8 +1,10 @@
+import { and, eq, ne } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createApp } from "#/app.ts";
 import { prices, products, promotionItems, promotions, stores } from "#/db/appSchema.ts";
 import { buildDeps, type Deps } from "#/deps.ts";
 import { createInternalApp } from "#/internal-app.ts";
+import { packStorePrices } from "#/prices/browse-data.ts";
 import { refreshBrowse } from "#/prices/browse-groups.ts";
 import { loadConfig } from "#/services/config.ts";
 import { fakeClock } from "#/utils/clock.ts";
@@ -114,6 +116,7 @@ describe("GET /products (private search)", () => {
   it("lists every priced Product of a Product type without a query, most widely priced first, a page at a time", async () => {
     const deps = setup();
     seed(deps);
+    await refreshBrowse(deps.db); // the Price sync counts each Product's stores
     const res = await get(deps, "/products?type=none");
     expect(res.status).toBe(200);
     // The unpriced Product is left out, as in the search
@@ -137,8 +140,26 @@ describe("GET /products (private search)", () => {
   it("lists every priced Product without a query or a type, most widely priced first", async () => {
     const deps = setup();
     seed(deps);
+    await refreshBrowse(deps.db);
     const body = (await (await get(deps, "/products")).json()) as Found;
     expect(body.products.map((p) => p.code)).toEqual([MILK, "7290000066325", LOCAL]);
+  });
+
+  it("ranks by the store counts of the last Price sync, which the next one counts again", async () => {
+    const deps = setup();
+    seed(deps);
+    await refreshBrowse(deps.db);
+    deps.db.delete(prices).where(and(eq(prices.code, MILK), ne(prices.storeId, `${RAMI}-1`))).run();
+    deps.db.insert(prices).values([{ storeId: `${RAMI}-1`, code: LOCAL, price: 9.5 }, { storeId: `${OSHER}-2`, code: LOCAL, price: 9.7 }]).run();
+    for (const store of [`${RAMI}-1`, `${OSHER}-1`, `${OSHER}-2`]) packStorePrices(deps.db.$client, store); // as ingest does
+    await refreshBrowse(deps.db);
+    const body = (await (await get(deps, "/products")).json()) as { products: { code: string; storeCount: number; minPrice: number }[] };
+    expect(body.products.map(({ code, storeCount, minPrice }) => ({ code, storeCount, minPrice }))).toEqual([
+      { code: LOCAL, storeCount: 3, minPrice: 9.5 },
+      { code: MILK, storeCount: 1, minPrice: 5.9 },
+      { code: "7290000066325", storeCount: 1, minPrice: 8 },
+    ]);
+    expect(((await (await get(deps, "/products/types")).json()) as { types: Record<string, number> }).types).toMatchObject({ "dairy-eggs": 1, none: 2 });
   });
 
   it("400 for a too short query, a bad page, or a type outside the fixed list", async () => {
@@ -157,6 +178,7 @@ describe("GET /products/types (private)", () => {
   it("counts the priced Products of every Product type and those with none yet, unpriced ones left out", async () => {
     const deps = setup();
     seed(deps);
+    await refreshBrowse(deps.db);
     const res = await get(deps, "/products/types");
     expect(res.status).toBe(200);
     const body = (await res.json()) as { total: number; types: Record<string, number> };
@@ -266,6 +288,7 @@ describe("PUT /products/:code/type (private)", () => {
   it("sets the Product's type, which the Product and the type filter then show", async () => {
     const deps = setup();
     seed(deps);
+    await refreshBrowse(deps.db);
     const res = await put(deps, LOCAL, { productType: "produce" });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ code: LOCAL, productType: "produce" });
@@ -275,6 +298,7 @@ describe("PUT /products/:code/type (private)", () => {
     // And changes one the classifier gave
     await put(deps, MILK, { productType: "other" });
     expect(((await (await get(deps, "/products?type=other")).json()) as Found).products.map((p) => p.code)).toEqual([MILK]);
+    expect(((await (await get(deps, "/products/types")).json()) as { types: Record<string, number> }).types).toMatchObject({ "dairy-eggs": 0, produce: 1, other: 1, none: 1 });
   });
 
   it("reaches Home without a Price sync: browse's Product types show the new type", async () => {

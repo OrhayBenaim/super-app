@@ -127,6 +127,13 @@
       "when": 1793914093099,
       "tag": "0017_pretty_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1793918903092,
+      "tag": "0018_jittery_thanos",
+      "breakpoints": true
     }
   ]
 }
