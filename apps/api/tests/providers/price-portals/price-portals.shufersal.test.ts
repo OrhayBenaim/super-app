@@ -64,4 +64,18 @@ describe("pricePortals on Shufersal", () => {
     expect(await portal.download(b!)).toEqual(new Uint8Array([1, 2, 3]));
     expect(listed).toEqual(["4", "4"]);
   });
+
+  it("downloads the store's newer file when the expired one is no longer listed (hourly updates)", async () => {
+    const A2 = A.replace("030000", "040000");
+    let sig = "old";
+    let names = [A];
+    const listed = stubShufersal(() => names, () => sig);
+    const portal = await pricePortals().open(chainByKey("shufersal")!);
+    const a = portal.files.find((f) => f.name === A)!;
+    listed.length = 0;
+    sig = "new";
+    names = [A2, B];
+    expect(await portal.download(a)).toEqual(new Uint8Array([1, 2, 3]));
+    expect(listed).toEqual(["4"]);
+  });
 });
