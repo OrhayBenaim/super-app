@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { stylesheet, stylesheetHref } from "#/pages/styles.ts";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -13,7 +15,13 @@ describe("the shell", () => {
       expect(html).toMatch(new RegExp(`<a href="${href}"[^>]*>${text}</a>`));
     expect(html).toContain('<a href="/" aria-current="page">Price syncs</a>');
     expect(html).toMatch(/<form[^>]*action="\/products"[^>]*>[\s\S]*name="q"[\s\S]*placeholder="Find a store, Product or barcode"/);
-    expect(html).toContain('<link rel="stylesheet" href="/assets/dashboard.css" />');
+    expect(html).toContain(`<link rel="stylesheet" href="${stylesheetHref}" />`);
+  });
+
+  it("links the stylesheet by a version of its content, so a deploy's new styles show at once despite the day's caching", async () => {
+    const version = new URL(stylesheetHref, "http://x").searchParams.get("v");
+    expect(version).toBe(createHash("sha256").update(stylesheet).digest("hex").slice(0, 12));
+    expect(await (await setup().app.request(stylesheetHref)).text()).toBe(stylesheet);
   });
 });
 

@@ -1,5 +1,6 @@
 // The dashboard's one stylesheet (served at /assets/dashboard.css). Every colour, space and radius comes from
 // docs/design/tokens.json as a custom property; nothing else in the dashboard writes a colour (docs/design/dashboard.md).
+import { createHash } from "node:crypto";
 import tokens from "../../../../docs/design/tokens.json" with { type: "json" };
 
 const vars = [
@@ -297,3 +298,6 @@ h2 { font-size: var(--size-title3); margin: var(--space-7) 0 0; }
 .search button { font: inherit; font-weight: 600; height: 36px; padding: 0 var(--space-5); border: 0; border-radius: var(--radius-control); background: var(--tint); color: var(--tintOn); cursor: pointer; }
 .pages { display: flex; gap: var(--space-5); margin-top: var(--space-4); }
 `;
+
+/** The stylesheet's URL, versioned by its content: it is cached for a day, so new styles need a new URL. */
+export const stylesheetHref = `/assets/dashboard.css?v=${createHash("sha256").update(stylesheet).digest("hex").slice(0, 12)}`;
