@@ -64,3 +64,5 @@ requested = secondary, dashed outline; ignored = secondary, dotted outline.
 English, sentence case, CONTEXT.md terms (Price sync, Chain failure, Promotion failure, Product type, Product group,
 Made group). Lead with the outcome, then the raw error ("Prices not updated" / "No Stores file among 0 listed files").
 Buttons name their action ("Start a Manual sync", "Save changes", "Use the new image", "Create group").
+Product and store names and Promotion texts are shown as stored (Hebrew, as the Chain or the api wrote them) and never
+translated.
