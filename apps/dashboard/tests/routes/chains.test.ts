@@ -32,13 +32,13 @@ describe("Chains page", () => {
     const html = await res.text();
     const rami = html.slice(html.indexOf("Rami Levy"), html.indexOf("</tr>", html.indexOf("Rami Levy")));
     expect(rami).toContain("רמי לוי");
-    expect(rami).toContain('class="badge badge-failed"');
+    expect(rami).toContain('class="badge badge-outcome-failed"');
     expect(rami).toContain("4 Nov 2026, 07:00"); // the good run's start, in Israel time
     expect(rami).toContain("<td>5</td>");
     expect(rami).toContain("<td>3</td>");
     expect(html).toContain(`href="/stores?chain=${RAMI}"`);
     const shufersal = html.slice(html.indexOf("Shufersal"), html.indexOf("</tr>", html.indexOf("Shufersal")));
-    expect(shufersal).toContain('class="badge badge-ok"');
+    expect(shufersal).toContain('class="badge badge-outcome-ok"');
     const yohananof = html.slice(html.indexOf("Yohananof"), html.indexOf("</tr>", html.indexOf("Yohananof")));
     expect(yohananof).toContain("No Price sync yet");
   });

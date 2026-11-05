@@ -43,6 +43,24 @@ describe("Price sync history page", () => {
     expect(html.indexOf("badge badge-requested")).toBeLessThan(html.indexOf("badge badge-finished"));
   });
 
+  it("gives each Price sync state, Chain outcome and Promotion state its own badge style", async () => {
+    const { app } = seeded();
+    const html = await (await app.request("/")).text();
+    const style = (cls: string) => html.match(new RegExp(`\\.badge-${cls} \\{([^}]*)\\}`))?.[1];
+    const families = [
+      ["requested", "running", "finished", "interrupted", "skipped", "ignored"],
+      ["outcome-ok", "outcome-failed"],
+      ["promo-running", "promo-notToday", "promo-future", "promo-ended"],
+    ];
+    for (const family of families) {
+      const styles = family.map(style);
+      for (const [i, s] of styles.entries()) expect(s, family[i]).toBeTruthy();
+      expect(new Set(styles).size).toBe(family.length);
+    }
+    // An interrupted sync is not a failure
+    expect(style("interrupted")).not.toBe(style("outcome-failed"));
+  });
+
   it("says so when there are no Price syncs yet", async () => {
     const { app } = seeded();
     expect(await (await app.request("/")).text()).toContain("No Price syncs in the last 90 days");

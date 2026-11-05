@@ -16,12 +16,12 @@ function productTypeStep({ productTypes: p }: Run["sync"]) {
 
 // A Chain failure and a Promotion failure are separate states: a Chain can load its prices and still fail its Promotions.
 const chainOutcome = (r: ChainResult) =>
-  r.status === "ok" ? html`<span class="badge badge-ok">ok</span>` : html`<span class="badge badge-failed">Chain failure</span>`;
+  r.status === "ok" ? html`<span class="badge badge-outcome-ok">ok</span>` : html`<span class="badge badge-outcome-failed">Chain failure</span>`;
 const promotionOutcome = (r: ChainResult) =>
   r.promotionStatus === "failed"
-    ? html`<span class="badge badge-failed">Promotion failure</span>`
+    ? html`<span class="badge badge-outcome-failed">Promotion failure</span>`
     : r.promotionStatus === "ok"
-      ? html`<span class="badge badge-ok">ok</span>`
+      ? html`<span class="badge badge-outcome-ok">ok</span>`
       : html`<span class="muted">—</span>`;
 
 const errors = (r: ChainResult) =>
