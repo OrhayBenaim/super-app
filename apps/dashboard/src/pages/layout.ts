@@ -49,12 +49,17 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
         .product dl { grid-template-columns: auto 1fr; margin: 0; }
         .product dt { font-weight: 600; }
         dd { margin: 0; }
+        .filters { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-top: 16px; }
+        select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid #c9c9c3; background: #fff; }
+        #map { height: 420px; margin-top: 16px; border-radius: 10px; }
+        .details { margin-top: 16px; padding: 16px; background: #fff; border-radius: 10px; }
+        .details dt { font-weight: 600; }
         .badge-ignored { background: #fff; color: #6b6b64; border-color: #d6d3cd; border-style: dotted; }
       </style>
     </head>
     <body>
       <main>
-        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a><a href="/products">Products</a></nav>
+        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a><a href="/stores">Stores</a><a href="/products">Products</a></nav>
         ${body}
       </main>
     </body>
