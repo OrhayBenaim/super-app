@@ -1,7 +1,8 @@
 // Product groups (CONTEXT.md, docs/adr/0001): products that are one thing to a shopper, worked out from their names at
 // query time and never stored. A group is named by its "group ref": normalized words + measure (+ the pack count when
 // counted by the unit), e.g. "בורגול|kg", "ביצ|unit|12". The team's edits and Made groups (`made:<id>`) are stored and
-// applied after the word rules (docs/adr/0007): every reader goes through groupMembers or editedCodes.
+// applied after the word rules (docs/adr/0007) by the one group-members rule here: which Products a ref holds
+// (editedMembers, groupMembers) and which card an edited Product moves to (claims). Every reader goes through them.
 import { z } from "zod";
 import type { ProductType } from "@grocer/shared/product-types";
 import type { SoldBy } from "@grocer/shared/quantity";
@@ -188,11 +189,39 @@ export function groupEdits(db: Db, refs?: string[]) {
   return edits;
 }
 
-/** The group-members rule (docs/adr/0007): the word rules' members less those the team removed, then those it added. */
-export function editedCodes(wordCodes: string[], edit: GroupEdit | undefined) {
-  if (!edit) return wordCodes;
-  const word = new Set(wordCodes);
-  return [...wordCodes.filter((c) => !edit.removed.has(c)), ...edit.added.filter((c) => !word.has(c))];
+/**
+ * The group-members rule (docs/adr/0007) over Products already found: `word` (the word rules' members) less those the
+ * team removed, then those it added (`lookup` finds them, in the order they were added), only those measured `size`'s way.
+ */
+export function editedMembers<P extends Sized & { code: string }>(word: P[], edit: GroupEdit | undefined, size: Size, lookup: (codes: string[]) => P[]): P[] {
+  const codes = new Set(word.map((p) => p.code));
+  const missing = edit ? edit.added.filter((c) => !codes.has(c)) : [];
+  const found = new Map((missing.length ? lookup(missing) : []).map((p) => [p.code, p]));
+  const members = [...word.filter((p) => !edit?.removed.has(p.code)), ...missing.flatMap((c) => found.get(c) ?? [])];
+  return members.filter((p) => sameMeasure(measureOf(p), size));
+}
+
+/** Every group's edits and the Made groups, read once to lay them over browse's cards. */
+export type TeamEdits = { edits: Map<string, GroupEdit>; made: Map<string, MadeGroup> };
+export const teamEdits = (db: Db): TeamEdits => ({ edits: groupEdits(db), made: new Map(madeGroups(db).map((g) => [g.ref, g])) });
+
+/** A ref's measure: a Made group's own, or the words form's. */
+export const editedSize = ({ made }: TeamEdits, ref: string): Size | undefined => made.get(ref) ?? parseRef(ref)?.size;
+
+/**
+ * The card each of these Products moves to, by code (docs/adr/0007): the Made group it is in, else the first word group
+ * it was added to, when it is measured that group's way. A Product the team added to no group has none.
+ */
+export function claims(t: TeamEdits, products: Map<string, Sized>) {
+  const claimed = new Map<string, string>();
+  for (const ref of [...t.edits.keys()].sort((a, b) => +(madeId(b) !== null) - +(madeId(a) !== null))) {
+    const size = editedSize(t, ref);
+    for (const code of t.edits.get(ref)!.added) {
+      const p = products.get(code);
+      if (size && p && !claimed.has(code) && sameMeasure(measureOf(p), size)) claimed.set(code, ref);
+    }
+  }
+  return claimed;
 }
 
 /** The group named by a product's own normalized name, sizes dropped: where a former Produce-group item moves to. */
@@ -279,13 +308,7 @@ export function groupMembers(db: Db, ref: string) {
   if (!size) return { members: [], soldBy: "unit" as SoldBy, size };
   const match = word && ftsMatch(word.words);
   const found = match ? productsMatching(db, match).filter((p) => startsGroup(nameWords(p.name), word.words)) : [];
-  const codes = editedCodes(found.map((p) => p.code), groupEdits(db, [ref]).get(ref));
-  const byCode = new Map(found.map((p) => [p.code, p]));
-  for (const p of productsByCode(db, codes.filter((c) => !byCode.has(c)))) byCode.set(p.code, p);
-  const members = codes.flatMap((code) => {
-    const p = byCode.get(code);
-    const own = p && measureOf(p);
-    return p && own && sameMeasure(own, size) ? [{ ...p, size: own.size }] : [];
-  });
+  const edited = editedMembers(found, groupEdits(db, [ref]).get(ref), size, (codes) => productsByCode(db, codes));
+  const members = edited.map((p) => ({ ...p, size: measureOf(p)!.size }));
   return { members, soldBy: groupSoldBy(size.measure, members), size };
 }

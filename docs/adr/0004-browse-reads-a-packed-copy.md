@@ -14,7 +14,7 @@ with the best index, and grouping the names about 1 s. So browse reads a copy of
   store and adds them up in a loop.
 - **A Chain's Promotion terms once** (`chain_promotions`), shared by the Chain's stores that publish the same PromotionID
   and terms.
-- **Every Product's group card** (`browse_groups`, `browse_catalog`), worked out by docs/adr/0001's rules over every
+- **Every Product's group card** (`browse_groups`, and `browse_catalog`, `browse_group_data`, `browse_names`), worked out by docs/adr/0001's rules over every
   Product priced at any store, and stored at the start and end of each Price sync (and after the ingest job). A request
   only narrows a card to the lead words of the Products it holds there (a Promotions card of Tnuva's milk is
   "חלב תנובה"), as browse did before.

@@ -8,7 +8,7 @@ import { SEARCH } from "@grocer/shared/search";
 import { imageType, removeProductImage, saveProductImage } from "#/db/product-images.ts";
 import { isProduct } from "#/db/products.ts";
 import type { AppEnv } from "#/middleware.ts";
-import { regroupProduct } from "#/prices/browse-groups.ts";
+import { regroupProducts } from "#/prices/browse-groups.ts";
 import { findProducts, productDetail, productTypeCounts } from "#/prices/products.ts";
 import { bad, formOf, jsonBody, paramOf } from "#/routes/internal/valid.ts";
 
@@ -47,7 +47,7 @@ export const productsRoutes = new Hono<AppEnv>()
     const { productType } = c.req.valid("json");
     const { changes } = c.var.deps.db.$client.prepare("UPDATE products SET product_type = ? WHERE code = ?").run(productType, code);
     if (changes === 0) return c.json({ error: "not found" }, 404);
-    regroupProduct(c.var.deps.db, code); // Home shows it now, not after the next Price sync
+    regroupProducts(c.var.deps.db, [code]); // Home shows it now, not after the next Price sync
     return c.json({ code, productType }, 200);
   })
   // The team's Product image (docs/adr/0008), multipart field "image": it wins over the barcode lookup everywhere.
