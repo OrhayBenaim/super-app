@@ -18,3 +18,7 @@ export const PRODUCT_TYPES = [
 ] as const;
 
 export type ProductType = (typeof PRODUCT_TYPES)[number];
+
+/** A filter on Product type: one of them, or "none" for Products with none yet. */
+export const PRODUCT_TYPE_FILTERS = [...PRODUCT_TYPES, "none"] as const;
+export type ProductTypeFilter = (typeof PRODUCT_TYPE_FILTERS)[number];

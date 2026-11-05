@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { ID } from "@grocer/shared/ids";
 import { found } from "#/api-client.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { layout, notFound } from "#/pages/layout.ts";
 import { promotionPage, storePromotionsPage } from "#/pages/promotions.ts";
 
 // As the private app's: an id it would refuse names nothing.
-const storeParam = z.object({ id: z.string().min(1).max(64) });
+const storeParam = z.object({ id: z.string().min(1).max(ID.maxLength) });
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 
 /** A store's Promotions and one Promotion's Products, from the private app (it decides the states). */

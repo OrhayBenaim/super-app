@@ -1,26 +1,27 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
+import { ID } from "@grocer/shared/ids";
 import { QUANTITY } from "@grocer/shared/quantity";
 import { SEARCH } from "@grocer/shared/search";
 import type { Db } from "#/db/index.ts";
 import { commonest, groupMembers, groupRefSchema, parseRef } from "#/prices/groups.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
 import { nearbyStores } from "#/prices/nearby.ts";
-import { priceLines, runningPromotions, type AppliedPromotion } from "#/prices/promotions.ts";
+import { priceLines, round2, runningPromotions, type AppliedPromotion } from "#/prices/promotions.ts";
 import { searchProducts } from "#/prices/search.ts";
 
 const quantity = z.number().positive().max(QUANTITY.max);
 const searchQuery = z.object({
-  q: z.string().trim().min(SEARCH.minLength).max(100),
+  q: z.string().trim().min(SEARCH.minLength).max(SEARCH.maxLength),
   limit: z.coerce.number().int().min(1).max(50).default(20),
-  storeId: z.string().trim().min(1).max(64).optional(),
+  storeId: z.string().trim().min(1).max(ID.maxLength).optional(),
 });
 const compareBody = z
   .object({
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180),
     radiusKm: z.number().min(1).max(50).default(10),
-    items: z.array(z.object({ code: z.string().trim().min(1).max(64), quantity })).default([]),
+    items: z.array(z.object({ code: z.string().trim().min(1).max(ID.maxLength), quantity })).default([]),
     groups: z.array(z.object({ ref: groupRefSchema, quantity: quantity.default(QUANTITY.start) })).default([]),
     sort: z.enum(["price", "distance", "coverage"]).default("price"),
     limit: z.number().int().min(1).max(100).default(20),
@@ -29,7 +30,6 @@ const compareBody = z
   .refine((b) => b.items.length + b.groups.length <= 200, "at most 200 items and groups"); // a group is one entry, however many products it holds
 
 const bad = (c: Context<AppEnv>, error: z.ZodError) => c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 type PriceRow = {
   storeId: string; chainId: string; chainName: string; orderUrl: string | null; onlineStoreId: string | null; storeName: string;

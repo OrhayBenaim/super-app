@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { PRODUCT_TYPES } from "@grocer/shared/product-types";
+import { ID } from "@grocer/shared/ids";
+import { PRODUCT_TYPE_FILTERS, PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
 import type { AppEnv } from "#/middleware.ts";
 import { regroupProduct } from "#/prices/browse-groups.ts";
@@ -10,13 +11,13 @@ import { bad, jsonBody } from "#/routes/internal/valid.ts";
 // type: a Product type, or "none" for Products with none yet. Without q, every priced Product of that type.
 const searchQuery = z
   .object({
-    q: z.string().trim().min(SEARCH.minLength).max(100).optional(),
-    type: z.enum([...PRODUCT_TYPES, "none"]).optional(),
+    q: z.string().trim().min(SEARCH.minLength).max(SEARCH.maxLength).optional(),
+    type: z.enum(PRODUCT_TYPE_FILTERS).optional(),
     page: z.coerce.number().int().min(1).max(100).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
   })
   .refine((query) => query.q !== undefined || query.type !== undefined, "q or type required");
-const codeParam = z.object({ code: z.string().trim().min(1).max(64) });
+const codeParam = z.object({ code: z.string().trim().min(1).max(ID.maxLength) });
 const typeBody = z.object({ productType: z.enum(PRODUCT_TYPES) });
 
 /**

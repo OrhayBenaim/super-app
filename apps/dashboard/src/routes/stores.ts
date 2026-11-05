@@ -1,15 +1,16 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
+import { ID } from "@grocer/shared/ids";
 import { found, unexpected } from "#/api-client.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { layout, notFound, notice } from "#/pages/layout.ts";
 import { storeHref, storePage, storesPage } from "#/pages/stores.ts";
 
 // As the private app's: an id it would refuse names no store.
-const idParam = z.object({ id: z.string().min(1).max(64) });
+const idParam = z.object({ id: z.string().min(1).max(ID.maxLength) });
 // The filter form's values; the private app checks the rest (a page past the last, say) and says why.
 const flag = z.enum(["true", "false"]).optional();
-const filterQuery = z.object({ chain: z.string().max(64).optional(), noLocation: flag, publishedDiffers: flag, page: z.string().regex(/^\d{1,6}$/).optional() });
+const filterQuery = z.object({ chain: z.string().max(ID.maxLength).optional(), noLocation: flag, publishedDiffers: flag, page: z.string().regex(/^\d{1,6}$/).optional() });
 // The private app validates the edit (and says why it refuses one); here only the form's text becomes numbers or none.
 const editForm = z.object({ name: z.string().catch(""), address: z.string().catch(""), city: z.string().catch(""), lat: z.string().catch(""), lng: z.string().catch("") });
 const coordinate = z

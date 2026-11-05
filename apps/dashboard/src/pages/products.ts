@@ -1,18 +1,16 @@
 import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
-import type { HtmlEscapedString } from "hono/utils/html";
-import { PRODUCT_TYPES } from "@grocer/shared/product-types";
+import { SEARCH } from "@grocer/shared/search";
+import { PRODUCT_TYPES, type ProductTypeFilter } from "@grocer/shared/product-types";
 import type { ApiClient } from "#/api-client.ts";
-import { shekels, size, SOLD_BY } from "#/pages/format.ts";
-import { notice } from "#/pages/layout.ts";
+import { shekels, size, SOLD_BY, when } from "#/pages/format.ts";
+import { notice, type Html } from "#/pages/layout.ts";
 import { badge } from "#/pages/promotions.ts";
-import { when } from "#/pages/syncs.ts";
 
-type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
 type Found = InferResponseType<ApiClient["products"]["$get"], 200>;
 type Detail = InferResponseType<ApiClient["products"][":code"]["$get"], 200>;
 /** The Products page's type filter: a Product type, "none" for none yet, or undefined for any. */
-export type TypeFilter = (typeof PRODUCT_TYPES)[number] | "none" | undefined;
+export type TypeFilter = ProductTypeFilter | undefined;
 
 const typeText = (t: string | null) => t ?? html`<span class="muted">None yet</span>`;
 const href = (code: string) => `/products/${encodeURIComponent(code)}`;
@@ -28,7 +26,7 @@ export const thumbnail = (image: string | null) => (image ? html`<img src="${ima
 
 export const searchForm = (q: string, type: TypeFilter) => html`<form method="get" action="/products" class="search">
   <label for="q">Name or barcode</label>
-  <input id="q" name="q" type="search" value="${q}" maxlength="100" autofocus />
+  <input id="q" name="q" type="search" value="${q}" maxlength="${SEARCH.maxLength}" autofocus />
   <label for="type">Product type</label>
   <select id="type" name="type">
     ${option("", "Any", type ?? "")} ${PRODUCT_TYPES.map((t) => option(t, t, type))} ${option("none", "None yet", type)}

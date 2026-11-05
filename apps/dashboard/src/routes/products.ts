@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { PRODUCT_TYPES } from "@grocer/shared/product-types";
+import { ID } from "@grocer/shared/ids";
+import { PRODUCT_TYPE_FILTERS, PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
 import { found, unexpected } from "#/api-client.ts";
 import type { AppEnv } from "#/middleware.ts";
@@ -9,19 +10,19 @@ import { productPage, productsFound, productsPage, thumbnail, typeForm } from "#
 
 // type: "" (Any) or anything outside the list is no filter.
 const searchQuery = z.object({
-  q: z.string().trim().max(100).default(""),
-  type: z.enum([...PRODUCT_TYPES, "none"]).optional().catch(undefined),
+  q: z.string().trim().max(SEARCH.maxLength).default(""),
+  type: z.enum(PRODUCT_TYPE_FILTERS).optional().catch(undefined),
   page: z.coerce.number().int().min(1).max(100).catch(1),
 });
 const typeBody = z.object({ productType: z.enum(PRODUCT_TYPES) });
 // As the private app's: a code it would refuse names no Product.
-const codeParam = z.object({ code: z.string().trim().min(1).max(64) });
+const codeParam = z.object({ code: z.string().trim().min(1).max(ID.maxLength) });
 
 /** Products from the private app's search and Product detail. Any answer other than 200 (or 404) is a bug: onError shows it. */
 export const productsRoutes = new Hono<AppEnv>()
   .get("/products", async (c) => {
     const query = searchQuery.safeParse(c.req.query());
-    if (!query.success) return c.html(layout("Products", productsPage("", undefined, notice("Searches are at most 100 characters."))), 400);
+    if (!query.success) return c.html(layout("Products", productsPage("", undefined, notice(`Searches are at most ${SEARCH.maxLength} characters.`))), 400);
     const { q, type, page } = query.data;
     if (!q && !type) return c.html(layout("Products", productsPage(q, type)));
     if (q && q.length < SEARCH.minLength) return c.html(layout("Products", productsPage(q, type, notice(`Type at least ${SEARCH.minLength} characters.`))));

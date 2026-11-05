@@ -1,8 +1,7 @@
 import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
 import type { ApiClient } from "#/api-client.ts";
-import { shekels } from "#/pages/format.ts";
-import { when } from "#/pages/syncs.ts";
+import { shekels, when } from "#/pages/format.ts";
 
 type List = InferResponseType<ApiClient["promotions"]["$get"], 200>;
 type Promotion = List["promotions"][number];

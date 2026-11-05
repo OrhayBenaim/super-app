@@ -1,37 +1,31 @@
 // The Internal dashboard's reads of Products (routes/internal/): the app's search with each Product's type, every priced
 // Product of a type, one Product with its prices and Promotions, and the Product groups with their priced members.
-import type { ProductType } from "@grocer/shared/product-types";
+import type { ProductTypeFilter } from "@grocer/shared/product-types";
 import type { Db } from "#/db/index.ts";
 import { groupMembers, measureOf, soldByOf } from "#/prices/groups.ts";
 import { PROMOTION_STATES, promotionStateAt, promotionText, runningPromotions, type PromotionTerms } from "#/prices/promotions.ts";
-import { searchProducts } from "#/prices/search.ts";
-
-/** A Product type, or "none" for Products with none yet. */
-export type TypeFilter = ProductType | "none";
+import { SEARCH_CANDIDATES, searchProducts, withMeasure } from "#/prices/search.ts";
 
 type Product = { code: string; name: string; manufacturer: string | null; unitQty: string | null; isWeighted: number; productType: string | null };
 
-/** The Product as the search returns one: its measure and size (null when its name gives none) and how it is sold. */
-const asFound = <P extends Product>({ isWeighted, ...p }: P) => ({ ...p, ...(measureOf({ ...p, isWeighted }) ?? { measure: null, size: null }), soldBy: soldByOf({ ...p, isWeighted }) });
 
 // Mirrors the search's columns; the price lookups are per Product, like the search's.
 const BY_TYPE = `SELECT code, name, manufacturer, unit_qty AS unitQty, is_weighted AS isWeighted, product_type AS productType,
      (SELECT count(*) FROM prices pr WHERE pr.code = p.code) AS storeCount, (SELECT min(price) FROM prices pr WHERE pr.code = p.code) AS minPrice
    FROM products p WHERE product_type IS @type AND storeCount > 0 ORDER BY storeCount DESC, code LIMIT @limit OFFSET @offset`;
-// shortcut: a typed search filters the search's first 3000 Products (its own candidate cap); raise both together.
-const TYPED_SEARCH_LIMIT = 3000;
+// shortcut: a typed search filters the search's first SEARCH_CANDIDATES Products; raise that cap when a type misses some.
 
 /**
  * One page of the Products the app's search finds for `q` (its Products, not its Product groups), each with its type,
  * only those of `type` when given. Without `q`, every priced Product of `type`, most widely priced first.
  */
-export function findProducts(db: Db, { q, type, page, pageSize }: { q?: string; type?: TypeFilter; page: number; pageSize: number }) {
+export function findProducts(db: Db, { q, type, page, pageSize }: { q?: string; type?: ProductTypeFilter; page: number; pageSize: number }) {
   const wanted = type === "none" ? null : type;
   if (q === undefined) {
     const rows = db.$client.prepare(BY_TYPE).all({ type: wanted ?? null, limit: pageSize + 1, offset: (page - 1) * pageSize }) as (Product & { storeCount: number; minPrice: number })[];
-    return { products: rows.slice(0, pageSize).map(asFound), hasMore: rows.length > pageSize };
+    return { products: rows.slice(0, pageSize).map(withMeasure), hasMore: rows.length > pageSize };
   }
-  const searched = searchProducts(db, q, type ? TYPED_SEARCH_LIMIT : page * pageSize + 1).filter((r) => r.kind === "product");
+  const searched = searchProducts(db, q, type ? SEARCH_CANDIDATES : page * pageSize + 1).filter((r) => r.kind === "product");
   const types = new Map(
     (db.$client.prepare("SELECT code, product_type AS t FROM products WHERE code IN (SELECT value FROM json_each(?))").all(JSON.stringify(searched.map((p) => p.code))) as { code: string; t: string | null }[]).map((r) => [r.code, r.t]),
   );
@@ -83,7 +77,7 @@ export function productDetail(db: Db, code: string, now: Date) {
     })
     .sort((a, b) => PROMOTION_STATES.indexOf(a.state) - PROMOTION_STATES.indexOf(b.state));
   return {
-    product: asFound(p),
+    product: withMeasure(p),
     prices: rows.map((r) => ({
       ...r,
       updatedAt: new Date(r.updatedAt).toISOString(),

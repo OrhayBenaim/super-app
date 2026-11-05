@@ -1,7 +1,8 @@
 import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
 import type { ApiClient } from "#/api-client.ts";
-import { duration, elapsed, SKIP_REASONS, TRIGGERS, when } from "#/pages/syncs.ts";
+import { when } from "#/pages/format.ts";
+import { duration, elapsed, SKIP_REASONS, TRIGGERS } from "#/pages/syncs.ts";
 
 type Run = InferResponseType<ApiClient["syncs"][":id"]["$get"], 200>;
 type ChainResult = Run["chains"][number];

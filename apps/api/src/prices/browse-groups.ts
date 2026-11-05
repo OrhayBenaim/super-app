@@ -83,6 +83,9 @@ export function groupsOf(products: Product[]) {
   return [...grouped, ...own, ...products.filter((p) => !held.has(p.code)).map(loneCard)];
 }
 
+/** What a grouped Product's price is divided by: its kilos or liters (groupsFrom's price per kilo or liter), 1 in a unit group. */
+const perUnitOf = (measure: string, p: { name: string; unitQty: string | null; isWeighted: number }) => (measure === "unit" ? 1 : measureOf(p)!.size);
+
 type Numbered = Omit<Product, "minPrice"> & { id: number }; // id: its browse_products id
 const BROWSE_PRODUCTS =
   "SELECT b.id, p.code, p.name, p.unit_qty AS unitQty, p.is_weighted AS isWeighted, coalesce(p.product_type, 'other') AS type FROM browse_products b JOIN products p ON p.code = b.code";
@@ -116,7 +119,7 @@ function storeGroups(db: Db) {
       const words = nameWords(p.name);
       const lead = words.slice(0, leadWords(p.name).length); // leadWords is a start of nameWords
       names[p.id] = [p.code, lead.map((w) => w.norm).join(" "), lead.map((w) => w.raw).join(" ")].join("\t");
-      if (g.measure !== "unit") c.perUnit[p.id] = measureOf(p)!.size; // groupsFrom's price per kilo or liter
+      c.perUnit[p.id] = perUnitOf(g.measure, p);
     }
   });
   const lastList = new Int32Array(groups.length).fill(-1);
@@ -170,7 +173,7 @@ export function regroupProduct(db: Db, code: string) {
   groupTypes[g] = PRODUCT_TYPES.indexOf(card.type);
   if (same === undefined) groupStores[g] = c.stores[p.id]!;
   c.groups[p.id] = g;
-  c.perUnit[p.id] = card.measure === "unit" ? 1 : measureOf(p)!.size; // as storeGroups
+  c.perUnit[p.id] = perUnitOf(card.measure, p);
   sqlite.transaction(() => {
     if (same === undefined) {
       sqlite

@@ -5,6 +5,8 @@ import { ftsMatch, measureOf, nameWords, searchGroups, soldByOf, withoutSizes } 
 import { round2 } from "#/prices/promotions.ts";
 
 const TOP_CODES = 5;
+/** How many Products one search ranks at most (see the shortcut below). */
+export const SEARCH_CANDIDATES = 3000;
 
 // minPrice is the lowest price anywhere, or with @store that store's price (null when it does not price the product).
 type Found = { code: string; name: string; manufacturer: string | null; unitQty: string | null; isWeighted: number; storeCount: number; minPrice: number | null };
@@ -22,19 +24,20 @@ const FTS_SEARCH = `SELECT ${productCols},
      CASE WHEN p.name LIKE @first THEN 0 WHEN p.name LIKE @first || ' %' THEN 1
        WHEN ' ' || p.name || ' ' LIKE '% ' || @first || ' %' THEN 2 ELSE 3 END AS tier
    FROM products_fts f JOIN products p ON p.code = f.code
-   WHERE products_fts MATCH @match AND storeCount > 0 ORDER BY minPrice IS NULL, tier, storeCount DESC, f.rank, p.code LIMIT 3000`;
+   WHERE products_fts MATCH @match AND storeCount > 0 ORDER BY minPrice IS NULL, tier, storeCount DESC, f.rank, p.code LIMIT ${SEARCH_CANDIDATES}`;
 const CODE_SEARCH = `SELECT ${productCols}, count(pr.store_id) AS storeCount,
      min(CASE WHEN @store IS NULL OR pr.store_id = @store THEN pr.price END) AS minPrice FROM products p JOIN prices pr ON pr.code = p.code
    WHERE p.code = @q OR (p.code LIKE @prefix AND instr(p.code, ':') = 0) GROUP BY p.code HAVING minPrice IS NOT NULL
    ORDER BY p.code = @q DESC, storeCount DESC LIMIT @limit`;
 const withPrice = <T extends Found>(rows: T[]) => rows.filter((r): r is T & { minPrice: number } => r.minPrice !== null);
 
-const productResult = ({ isWeighted, ...p }: Found & { minPrice: number }) => ({
-  kind: "product" as const,
+/** A Product as the search returns one: its measure and size (null when its name gives none) and how it is sold. */
+export const withMeasure = <P extends { name: string; unitQty: string | null; isWeighted: number }>({ isWeighted, ...p }: P) => ({
   ...p,
   ...(measureOf({ ...p, isWeighted }) ?? { measure: null, size: null }),
   soldBy: soldByOf({ ...p, isWeighted }),
 });
+const productResult = (p: Found & { minPrice: number }) => ({ kind: "product" as const, ...withMeasure(p) });
 
 /**
  * Product search: the Product groups the query's words name come first (most stores first), then specific products.

@@ -1,13 +1,14 @@
 import { asc, count, desc, eq, getTableColumns } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
+import { ID } from "@grocer/shared/ids";
 import { chains, promotionItems, promotions, stores } from "#/db/appSchema.ts";
 import type { Db } from "#/db/index.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { PROMOTION_STATES, promotionStateAt } from "#/prices/promotions.ts";
 import { bad } from "#/routes/internal/valid.ts";
 
-const listQuery = z.object({ store: z.string().min(1).max(64) });
+const listQuery = z.object({ store: z.string().min(1).max(ID.maxLength) });
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 
 const { combines: _, ...columns } = getTableColumns(promotions);

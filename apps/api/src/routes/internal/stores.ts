@@ -1,14 +1,15 @@
 import { and, asc, count, eq, isNull, max, ne, or, type SQL } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
+import { ID } from "@grocer/shared/ids";
 import { chains, prices, stores } from "#/db/appSchema.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { bad, jsonBody } from "#/routes/internal/valid.ts";
 
 const PAGE_SIZE = 100;
-const idParam = z.object({ id: z.string().min(1).max(64) });
+const idParam = z.object({ id: z.string().min(1).max(ID.maxLength) });
 const listQuery = z.object({
-  chain: z.string().min(1).max(64).optional(),
+  chain: z.string().min(1).max(ID.maxLength).optional(),
   noLocation: z.stringbool().optional(),
   publishedDiffers: z.stringbool().optional(),
   page: z.coerce.number().int().min(1).default(1),

@@ -63,7 +63,8 @@ apps/mobile/              Expo SDK 58 + expo-router app
   src/theme/              useTheme(), springs, text() (imports docs/design/tokens.json directly; import from "@/theme")
   tests/                  all mobile tests, mirroring src/ (vitest.config.ts maps "@/" to src/)
 packages/shared/          @grocer/shared: rules the apps share, as plain TS with no build (otp.ts: OTP,
-                          codeStatus; quantity.ts; product-types.ts: PRODUCT_TYPES in display order; sync-history.ts:
+                          codeStatus; quantity.ts; product-types.ts: PRODUCT_TYPES in display order; search.ts: SEARCH
+                          query lengths; ids.ts: ID, the longest code or id a request may name; sync-history.ts:
                           SYNC_HISTORY, how long Price syncs are kept). Import by subpath:
                           "@grocer/shared/otp", "@grocer/shared/product-types". Tests in packages/shared/tests/
 docs/                     research and design notes (docs/research/, docs/design/)

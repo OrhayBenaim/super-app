@@ -5,7 +5,7 @@ import type { AppEnv } from "#/middleware.ts";
 import { groupsWithMembers } from "#/prices/products.ts";
 import { bad } from "#/routes/internal/valid.ts";
 
-const wordsQuery = z.object({ q: z.string().trim().min(SEARCH.minLength).max(100) });
+const wordsQuery = z.object({ q: z.string().trim().min(SEARCH.minLength).max(SEARCH.maxLength) });
 
 /** The Internal dashboard's Product groups, on the private app: the app's search groups and Compare's members, read-only. */
 export const groupsRoutes = new Hono<AppEnv>()

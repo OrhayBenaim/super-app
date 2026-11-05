@@ -1,7 +1,7 @@
 import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
 import type { ApiClient } from "#/api-client.ts";
-import { when } from "#/pages/syncs.ts";
+import { when } from "#/pages/format.ts";
 
 type List = InferResponseType<ApiClient["stores"]["$get"], 200>;
 type Store = List["stores"][number];

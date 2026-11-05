@@ -1,11 +1,11 @@
 import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
-import type { HtmlEscapedString } from "hono/utils/html";
+import { SEARCH } from "@grocer/shared/search";
 import type { ApiClient } from "#/api-client.ts";
 import { shekels, size, SOLD_BY } from "#/pages/format.ts";
+import type { Html } from "#/pages/layout.ts";
 import { imageCell } from "#/pages/products.ts";
 
-type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
 export type Group = InferResponseType<ApiClient["groups"]["$get"], 200>["groups"][number];
 
 const MEASURE = { kg: "By the kilo", l: "By the liter", unit: "By the pack" } as const;
@@ -18,7 +18,7 @@ export const groupsPage = (q: string, found: Html | "" = "") => html`<header>
   </header>
   <form method="get" action="/groups" class="search">
     <label for="q">Group words</label>
-    <input id="q" name="q" type="search" value="${q}" maxlength="100" autofocus />
+    <input id="q" name="q" type="search" value="${q}" maxlength="${SEARCH.maxLength}" autofocus />
     <button type="submit">Search</button>
   </form>
   ${found}`;

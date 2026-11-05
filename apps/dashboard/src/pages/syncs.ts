@@ -2,6 +2,7 @@ import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
 import { SYNC_HISTORY } from "@grocer/shared/sync-history";
 import type { ApiClient } from "#/api-client.ts";
+import { when } from "#/pages/format.ts";
 
 type Sync = InferResponseType<ApiClient["syncs"]["$get"], 200>["syncs"][number];
 export type Notice = "started" | "busy";
@@ -10,9 +11,6 @@ export const TRIGGERS = { scheduled: "Scheduled", manual: "Manual" } as const;
 export const SKIP_REASONS = { manual_sync: "A Manual sync finished", sync_running: "A Price sync was running" } as const;
 const NOTICES = { started: "Manual sync requested. The worker starts it within a minute.", busy: "A Price sync is already running or about to start." };
 
-// Price syncs run on Israel time (SYNC_TIMES), so the dashboard shows it whatever the browser's zone.
-const dateTime = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", dateStyle: "medium", timeStyle: "short" });
-export const when = (iso: string | null) => (iso ? dateTime.format(new Date(iso)) : "—");
 
 /** "4m 12s" under an hour, "2h 0m" from one. */
 export function elapsed(ms: number) {
