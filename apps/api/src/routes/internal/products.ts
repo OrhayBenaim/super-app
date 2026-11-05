@@ -1,36 +1,63 @@
 import { Hono } from "hono";
+import { validator } from "hono/validator";
 import { z } from "zod";
+import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
 import type { AppEnv } from "#/middleware.ts";
 import { measureOf, soldByOf } from "#/prices/groups.ts";
 import { promotionText, runningPromotions } from "#/prices/promotions.ts";
 import { searchProducts } from "#/routes/prices.ts";
 
-const searchQuery = z.object({
-  q: z.string().trim().min(SEARCH.minLength).max(100),
-  page: z.coerce.number().int().min(1).max(100).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
-});
+// type: a Product type, or "none" for Products with none yet. Without q, every priced Product of that type.
+const searchQuery = z
+  .object({
+    q: z.string().trim().min(SEARCH.minLength).max(100).optional(),
+    type: z.enum([...PRODUCT_TYPES, "none"]).optional(),
+    page: z.coerce.number().int().min(1).max(100).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .refine((query) => query.q !== undefined || query.type !== undefined, "q or type required");
 const codeParam = z.object({ code: z.string().trim().min(1).max(64) });
+const typeBody = z.object({ productType: z.enum(PRODUCT_TYPES) });
 
 type Product = { code: string; name: string; manufacturer: string | null; unitQty: string | null; isWeighted: number; productType: string | null };
+type Listed = Omit<Product, "productType"> & { productType: string | null; storeCount: number; minPrice: number };
+// Mirrors the search's columns; the price lookups are per Product, like the search's.
+const BY_TYPE = `SELECT code, name, manufacturer, unit_qty AS unitQty, is_weighted AS isWeighted, product_type AS productType,
+     (SELECT count(*) FROM prices pr WHERE pr.code = p.code) AS storeCount, (SELECT min(price) FROM prices pr WHERE pr.code = p.code) AS minPrice
+   FROM products p WHERE product_type IS @type AND storeCount > 0 ORDER BY storeCount DESC, code LIMIT @limit OFFSET @offset`;
+// shortcut: a typed search filters the search's first 3000 Products (its own candidate cap); raise both together.
+const TYPED_SEARCH_LIMIT = 3000;
+
 type PriceRow = { storeId: string; storeName: string; city: string; chainId: string; chainName: string; chainNameHe: string; price: number; updatedAt: number };
 
-/** The Internal dashboard's Products, on the private app: the public search and Compare's price rules, read-only. */
+/**
+ * The Internal dashboard's Products, on the private app: the public search and Compare's price rules, and setting a
+ * Product's type (the Product type step only types untyped Products, so a Price sync never changes it).
+ */
 export const productsRoutes = new Hono<AppEnv>()
   // The app's search, its Products only (not its Product groups), a page at a time, with each Product's type.
   .get("/", (c) => {
     const query = searchQuery.safeParse(c.req.query());
     if (!query.success) return c.json({ error: query.error.issues[0]?.message ?? "invalid query" }, 400);
-    const { q, page, pageSize } = query.data;
+    const { q, type, page, pageSize } = query.data;
     const { db } = c.var.deps;
-    const found = searchProducts(db, q, page * pageSize + 1).filter((r) => r.kind === "product");
-    const shown = found.slice((page - 1) * pageSize, page * pageSize);
+    const wanted = type === "none" ? null : type;
+    if (q === undefined) {
+      const rows = db.$client.prepare(BY_TYPE).all({ type: wanted, limit: pageSize + 1, offset: (page - 1) * pageSize }) as Listed[];
+      const products = rows.slice(0, pageSize).map(({ isWeighted, ...p }) => ({
+        ...p,
+        ...(measureOf({ ...p, isWeighted }) ?? { measure: null, size: null }),
+        soldBy: soldByOf({ ...p, isWeighted }),
+      }));
+      return c.json({ products, hasMore: rows.length > pageSize }, 200);
+    }
+    const searched = searchProducts(db, q, type ? TYPED_SEARCH_LIMIT : page * pageSize + 1).filter((r) => r.kind === "product");
     const types = new Map(
-      (db.$client.prepare("SELECT code, product_type AS t FROM products WHERE code IN (SELECT value FROM json_each(?))").all(JSON.stringify(shown.map((p) => p.code))) as { code: string; t: string | null }[]).map((r) => [r.code, r.t]),
+      (db.$client.prepare("SELECT code, product_type AS t FROM products WHERE code IN (SELECT value FROM json_each(?))").all(JSON.stringify(searched.map((p) => p.code))) as { code: string; t: string | null }[]).map((r) => [r.code, r.t]),
     );
-    const products = shown.map(({ kind: _, ...p }) => ({ ...p, productType: types.get(p.code) ?? null }));
-    return c.json({ products, hasMore: found.length > page * pageSize }, 200);
+    const found = searched.map(({ kind: _, ...p }) => ({ ...p, productType: types.get(p.code) ?? null })).filter((p) => !type || p.productType === wanted);
+    return c.json({ products: found.slice((page - 1) * pageSize, page * pageSize), hasMore: found.length > page * pageSize }, 200);
   })
   // One Product, its Shelf price at every store that prices it (cheapest first) and the Promotions running there now.
   .get("/:code", (c) => {
@@ -66,4 +93,21 @@ export const productsRoutes = new Hono<AppEnv>()
       },
       200,
     );
-  });
+  })
+  .put(
+    "/:code/type",
+    // A body that is not JSON reads as {}, refused here; malformed JSON is the validator's own 400.
+    validator("json", (value, c) => {
+      const body = typeBody.safeParse(value);
+      return body.success ? body.data : c.json({ error: body.error.issues[0]?.message ?? "invalid body" }, 400);
+    }),
+    (c) => {
+      const param = codeParam.safeParse(c.req.param());
+      if (!param.success) return c.json({ error: param.error.issues[0]?.message ?? "invalid code" }, 400);
+      const { code } = param.data;
+      const { productType } = c.req.valid("json");
+      const { changes } = c.var.deps.db.$client.prepare("UPDATE products SET product_type = ? WHERE code = ?").run(productType, code);
+      if (changes === 0) return c.json({ error: "not found" }, 404);
+      return c.json({ code, productType }, 200);
+    },
+  );

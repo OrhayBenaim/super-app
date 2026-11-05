@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { prices, products, promotionItems, promotions, stores } from "api/src/db/appSchema.ts";
 import { fakeClock } from "api/src/utils/clock.ts";
-import { setup } from "../seam.ts";
+import { post, setup } from "../seam.ts";
 
 const NOW = new Date("2026-11-05T10:00:00Z");
 const DAY = 86_400_000;
@@ -77,6 +77,70 @@ describe("Products page", () => {
     const short = await app.request("/products?q=a");
     expect(short.status).toBe(200);
     expect(await short.text()).toContain("at least 2 characters");
+  });
+});
+
+describe("Products by Product type", () => {
+  it("lists the Products with no Product type yet, without a search, with that filter chosen", async () => {
+    const { app } = seeded();
+    const res = await app.request("/products?type=none");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("בננות");
+    expect(html).not.toContain("חלב 3% 1 ליטר");
+    expect(html).toContain('<option value="none" selected>');
+  });
+
+  it("narrows a search to one Product type", async () => {
+    const { app } = seeded();
+    const milk = encodeURIComponent("חלב");
+    expect(await (await app.request(`/products?q=${milk}&type=dairy-eggs`)).text()).toContain("חלב 3% 1 ליטר");
+    expect(await (await app.request(`/products?q=${milk}&type=frozen`)).text()).toContain("No Products match");
+  });
+});
+
+describe("Changing a Product's type", () => {
+  const change = (app: ReturnType<typeof seeded>["app"], code: string, productType: string) => {
+    const init = post();
+    return app.request(`/products/${encodeURIComponent(code)}/type`, {
+      ...init,
+      headers: { ...init.headers, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ productType }).toString(),
+    });
+  };
+  const typeOf = async (privateApp: ReturnType<typeof seeded>["privateApp"], code: string) =>
+    ((await (await privateApp.request(`/products/${encodeURIComponent(code)}`, { headers: { Authorization: "Bearer test-sync-token" } })).json()) as { product: { productType: string | null } })
+      .product.productType;
+
+  it("offers every Product type on the Product's page, its own chosen", async () => {
+    const { app } = seeded();
+    const html = await (await app.request(`/products/${MILK}`)).text();
+    expect(html).toContain(`hx-post="/products/${MILK}/type"`);
+    expect(html).toContain('<option value="dairy-eggs" selected>');
+    expect(html).toContain('<option value="other">');
+  });
+
+  it("saves the chosen type, which the api then returns", async () => {
+    const { app, privateApp } = seeded();
+    const res = await change(app, LOCAL, "produce");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('<option value="produce" selected>');
+    expect(html).toContain("Saved");
+    expect(await typeOf(privateApp, LOCAL)).toBe("produce");
+  });
+
+  it("refuses a type outside the fixed list and keeps the old one", async () => {
+    const { app, privateApp } = seeded();
+    const res = await change(app, MILK, "soup");
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("Choose one of the Product types");
+    expect(await typeOf(privateApp, MILK)).toBe("dairy-eggs");
+  });
+
+  it("answers 404 for an unknown Product", async () => {
+    const { app } = seeded();
+    expect((await change(app, "123", "produce")).status).toBe(404);
   });
 });
 

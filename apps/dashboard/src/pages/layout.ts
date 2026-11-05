@@ -41,7 +41,7 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
         dt { color: #5c5c58; }
         h2 { font-size: 18px; margin: 24px 0 0; }
         .search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; }
-        .search input { font: inherit; padding: 7px 10px; border: 1px solid #c9c9c3; border-radius: 8px; min-width: 240px; }
+        .search input, .search select { font: inherit; padding: 7px 10px; border: 1px solid #c9c9c3; border-radius: 8px; min-width: 240px; }
         .pages { display: flex; gap: 16px; margin-top: 12px; }
         .product { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 16px; padding: 16px; background: #fff; border-radius: 10px; }
         .product img { object-fit: contain; }
@@ -59,7 +59,7 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
     </head>
     <body>
       <main>
-        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a><a href="/stores">Stores</a><a href="/products">Products</a></nav>
+        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a><a href="/stores">Stores</a><a href="/products">Products</a><a href="/groups">Product groups</a></nav>
         ${body}
       </main>
     </body>
