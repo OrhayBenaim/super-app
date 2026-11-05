@@ -1,9 +1,12 @@
-// The private trigger: a separate Hono app on INTERNAL_HOST:INTERNAL_PORT, never on the public port.
-// It only records Manual sync requests; the worker's check runs them.
+// The private app: a separate Hono app on INTERNAL_HOST:INTERNAL_PORT, never on the public port. It records Manual sync
+// requests (the worker's check runs them) and serves the Internal dashboard (apps/dashboard, docs/adr/0005).
+// Its routers live in src/routes/internal/ and read deps from c.var.deps, like the public ones.
 import { createHash, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import type { Deps } from "#/deps.ts";
 import { requestManualSync } from "#/jobs/price-sync.ts";
+import type { AppEnv } from "#/middleware.ts";
+import { syncsRoutes } from "#/routes/internal/syncs.ts";
 
 export function createInternalApp(deps: Deps) {
   const token = deps.config.SYNC_TOKEN;
@@ -12,16 +15,18 @@ export function createInternalApp(deps: Deps) {
   const sha = (s: string) => createHash("sha256").update(s).digest();
   const expected = sha(`Bearer ${token}`);
 
-  return new Hono()
+  return new Hono<AppEnv>()
     .use(async (c, next) => {
       // 401 for a missing, malformed or wrong header alike (hono's bearerAuth answers 400 to a malformed one).
       if (!timingSafeEqual(sha(c.req.header("Authorization") ?? ""), expected)) return c.json({ error: "unauthorized" }, 401);
+      c.set("deps", deps);
       await next();
     })
     .post("/sync", (c) => {
       const id = requestManualSync(deps);
       return id === null ? c.json({ error: "busy" }, 409) : c.json({ id }, 202);
     })
+    .route("/syncs", syncsRoutes)
     .onError((error, c) => {
       console.error(error);
       deps.errorHandler.report(error);
