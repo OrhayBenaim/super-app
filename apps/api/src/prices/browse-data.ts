@@ -9,7 +9,7 @@ import { runningAt } from "#/prices/promotions.ts";
 
 type Sqlite = Db["$client"];
 
-const pack = (a: Int32Array | Float64Array | Uint8Array) => Buffer.from(a.buffer, a.byteOffset, a.byteLength);
+export const pack = (a: Int32Array | Float64Array | Uint8Array) => Buffer.from(a.buffer, a.byteOffset, a.byteLength);
 const none = () => Buffer.alloc(0);
 // A typed array needs an aligned offset; a small Buffer may sit at any offset of a shared pool.
 export const i32 = (b: Buffer) => (b.byteOffset % 4 ? new Int32Array(Uint8Array.from(b).buffer) : new Int32Array(b.buffer, b.byteOffset, b.length / 4));

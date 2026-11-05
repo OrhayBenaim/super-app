@@ -3,6 +3,7 @@ import { z } from "zod";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
 import type { AppEnv } from "#/middleware.ts";
+import { regroupProduct } from "#/prices/browse-groups.ts";
 import { findProducts, productDetail } from "#/prices/products.ts";
 import { bad, jsonBody } from "#/routes/internal/valid.ts";
 
@@ -43,5 +44,6 @@ export const productsRoutes = new Hono<AppEnv>()
     const { productType } = c.req.valid("json");
     const { changes } = c.var.deps.db.$client.prepare("UPDATE products SET product_type = ? WHERE code = ?").run(productType, code);
     if (changes === 0) return c.json({ error: "not found" }, 404);
+    regroupProduct(c.var.deps.db, code); // Home shows it now, not after the next Price sync
     return c.json({ code, productType }, 200);
   });

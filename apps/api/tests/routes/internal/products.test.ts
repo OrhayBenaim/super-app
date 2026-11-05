@@ -3,6 +3,7 @@ import { createApp } from "#/app.ts";
 import { prices, products, promotionItems, promotions, stores } from "#/db/appSchema.ts";
 import { buildDeps, type Deps } from "#/deps.ts";
 import { createInternalApp } from "#/internal-app.ts";
+import { refreshBrowse } from "#/prices/browse-groups.ts";
 import { loadConfig } from "#/services/config.ts";
 import { fakeClock } from "#/utils/clock.ts";
 
@@ -236,6 +237,28 @@ describe("PUT /products/:code/type (private)", () => {
     // And changes one the classifier gave
     await put(deps, MILK, { productType: "other" });
     expect(((await (await get(deps, "/products?type=other")).json()) as Found).products.map((p) => p.code)).toEqual([MILK]);
+  });
+
+  it("reaches Home without a Price sync: browse's Product types show the new type", async () => {
+    const deps = setup();
+    seed(deps);
+    await refreshBrowse(deps.db); // as the last Price sync left it
+    const app = createApp(deps);
+    const signUp = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "home@example.com", password: "password1234", name: "H" }),
+    });
+    const cookie = signUp.headers.getSetCookie().map((h) => h.split(";")[0]).join("; ");
+    const types = async () => (await (await app.request("/api/browse/types", { headers: { cookie } })).json()) as { type: string; cardCount: number }[];
+    expect(await types()).toEqual([{ type: "dairy-eggs", cardCount: 1 }, { type: "other", cardCount: 2 }]);
+
+    expect((await put(deps, LOCAL, { productType: "produce" })).status).toBe(200);
+    expect(await types()).toEqual([{ type: "dairy-eggs", cardCount: 1 }, { type: "produce", cardCount: 1 }, { type: "other", cardCount: 1 }]);
+
+    // And the cards of its type hold it
+    const cards = (await (await app.request("/api/browse/types/produce", { headers: { cookie } })).json()) as { codes: string[] }[];
+    expect(cards.flatMap((c) => c.codes)).toEqual([LOCAL]);
   });
 
   it("400 for a type outside the fixed list, none, or a body that is not one", async () => {
