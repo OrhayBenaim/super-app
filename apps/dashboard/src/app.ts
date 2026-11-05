@@ -6,6 +6,7 @@ import { HTTPException } from "hono/http-exception";
 import type { Deps } from "#/deps.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { chainsRoutes } from "#/routes/chains.ts";
+import { productsRoutes } from "#/routes/products.ts";
 import { storesRoutes } from "#/routes/stores.ts";
 import { syncsRoutes } from "#/routes/syncs.ts";
 
@@ -29,6 +30,7 @@ export function createApp(deps: Deps) {
     .route("/", syncsRoutes)
     .route("/", chainsRoutes)
     .route("/", storesRoutes)
+    .route("/", productsRoutes)
     .onError((error, c) => {
       if (error instanceof HTTPException) return error.getResponse();
       console.error(error);

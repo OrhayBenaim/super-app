@@ -25,7 +25,7 @@ const row = (s: Store) => html`<tr>
 function pager(list: List, filter: Filter) {
   const pages = Math.max(1, Math.ceil(list.total / list.pageSize));
   const href = (page: number) => `/stores?${new URLSearchParams({ ...Object.fromEntries(Object.entries(filter).filter(([, v]) => v)), page: String(page) })}`;
-  return html`<nav class="pager" aria-label="Pages">
+  return html`<nav class="pages" aria-label="Pages">
     ${list.page > 1 ? html`<a href="${href(list.page - 1)}">Previous</a>` : ""}
     <span class="muted">Page ${list.page} of ${pages} · ${list.total} stores</span>
     ${list.page < pages ? html`<a href="${href(list.page + 1)}">Next</a>` : ""}

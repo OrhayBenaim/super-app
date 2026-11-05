@@ -7,6 +7,7 @@ import type { Deps } from "#/deps.ts";
 import { requestManualSync } from "#/jobs/price-sync.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { chainsRoutes } from "#/routes/internal/chains.ts";
+import { productsRoutes } from "#/routes/internal/products.ts";
 import { storesRoutes } from "#/routes/internal/stores.ts";
 import { syncsRoutes } from "#/routes/internal/syncs.ts";
 
@@ -31,6 +32,7 @@ export function createInternalApp(deps: Deps) {
     .route("/chains", chainsRoutes)
     .route("/stores", storesRoutes)
     .route("/syncs", syncsRoutes)
+    .route("/products", productsRoutes)
     .onError((error, c) => {
       console.error(error);
       deps.errorHandler.report(error);
