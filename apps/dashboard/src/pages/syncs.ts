@@ -1,9 +1,9 @@
 import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
-import { SYNC_HISTORY } from "@grocer/shared/sync-history";
+import { CHAIN_OUTCOMES, SYNC_HISTORY, type ChainOutcome } from "@grocer/shared/sync-history";
 import type { ApiClient } from "#/api-client.ts";
 import { day, minutes, plural, shortDate, time } from "#/pages/format.ts";
-import { badge, button, pageHeader, section, table } from "#/pages/ui.ts";
+import { badge, button, pageHeader, section, table, type BadgeKind } from "#/pages/ui.ts";
 
 export type Syncs = InferResponseType<ApiClient["syncs"]["$get"], 200>;
 type Sync = Syncs["syncs"][number];
@@ -26,6 +26,11 @@ const DAY = 86_400_000;
 
 /** A run's status badge: its own state, so a run that finished with failures is Finished, never green. */
 export const statusBadge = (s: Status) => badge(s, STATUSES[s]);
+/** A Chain's outcome in a Price sync (chainOutcome), badged the same on every page. */
+const OUTCOME_BADGES = { failed: ["failed", "Failed"], promotionFailed: ["warning", "Promotion failure"], ok: ["ok", "Ok"] } as const satisfies Record<ChainOutcome, [BadgeKind, string]>;
+export const outcomeBadge = (o: ChainOutcome, text: string = OUTCOME_BADGES[o][1]) => badge(OUTCOME_BADGES[o][0], text);
+/** Failures first, then Promotion failures, then the rest. */
+export const byOutcome = <T>(outcome: (t: T) => ChainOutcome) => (a: T, b: T) => CHAIN_OUTCOMES.indexOf(outcome(a)) - CHAIN_OUTCOMES.indexOf(outcome(b));
 /** When it was due: scheduled, or requested for a Manual sync. */
 export const dueOf = (s: Pick<Sync, "scheduledAt" | "requestedAt">) => s.scheduledAt ?? s.requestedAt;
 
@@ -88,7 +93,7 @@ function strip(syncs: Sync[], attention: Attention[], now: Date) {
   });
   if (!ticks.length) return "";
   // A Chain failing in every run since a date is called out: the longest such one (attention lists the longest first).
-  const stuck = attention.find((a) => a.failure === "chain" && a.runs > 1);
+  const stuck = attention.find((a) => a.failure === "failed" && a.runs > 1);
   return html`<section class="group group-body" aria-label="Last ${SYNC_HISTORY.days} days">
     <div class="strip-head">
       <h2>Last ${SYNC_HISTORY.days} days</h2>
@@ -105,12 +110,12 @@ function strip(syncs: Sync[], attention: Attention[], now: Date) {
   </section>`;
 }
 
-const OUTCOMES = { chain: "Prices not updated", promotion: "Prices updated, Promotions not loaded" } as const;
+const OUTCOMES = { failed: "Prices not updated", promotionFailed: "Prices updated, Promotions not loaded" } as const;
 
 // Outcome first, then the raw error; the row opens the latest run that failed the Chain.
 const attentionRow = (a: Attention, now: Date) => html`<li>
   <a href="/syncs/${a.syncId}">
-    <span>${a.failure === "chain" ? badge("failed", "Chain failure") : badge("warning", "Promotion failure")}</span>
+    <span>${outcomeBadge(a.failure, a.failure === "failed" ? "Chain failure" : undefined)}</span>
     <span>
       <strong>${a.name}</strong> <span class="muted" lang="he" dir="rtl">${a.nameHe}</span> · ${OUTCOMES[a.failure]}
       <br /><span class="footnote muted">${a.error ?? ""}</span>

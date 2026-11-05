@@ -2,8 +2,9 @@ import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
 import type { ApiClient } from "#/api-client.ts";
 import { day, num, time, took } from "#/pages/format.ts";
-import { dueOf, runLength, SKIP_REASONS, statusBadge, TRIGGERS } from "#/pages/syncs.ts";
-import { badge, errorRow, pageHeader, section, table, type Column } from "#/pages/ui.ts";
+import { chainOutcome } from "@grocer/shared/sync-history";
+import { byOutcome, dueOf, outcomeBadge, runLength, SKIP_REASONS, statusBadge, TRIGGERS } from "#/pages/syncs.ts";
+import { errorRow, pageHeader, section, table, type Column } from "#/pages/ui.ts";
 
 type Run = InferResponseType<ApiClient["syncs"][":id"]["$get"], 200>;
 type ChainResult = Run["chains"][number];
@@ -19,8 +20,6 @@ const COLUMNS: Column[] = [
   { label: "Took", num: true },
 ];
 
-// Chain failures, then Promotion failures, then the rest (the api lists them by name).
-const rank = (r: ChainResult) => (r.status === "failed" ? 0 : r.promotionStatus === "failed" ? 1 : 2);
 
 /** Scheduled · 06:00 – 06:41 · 41 min · 12 of 15 Chains updated (a Chain whose Promotions failed still updated its prices). */
 function summary({ sync, chains }: Run, now: Date) {
@@ -48,7 +47,7 @@ function chainRow(r: ChainResult) {
   ];
   return html`<tr${r.error || r.promotionError ? html` class="has-error"` : ""}>
       <td>${r.name}</td>
-      <td>${r.status === "ok" ? badge("ok", "Ok") : badge("failed", "Failed")} ${r.promotionStatus === "failed" ? badge("warning", "Promotion failure") : ""}</td>
+      <td>${outcomeBadge(r.status === "ok" ? "ok" : "failed")} ${r.promotionStatus === "failed" ? outcomeBadge("promotionFailed") : ""}</td>
       <td class="num">${num(r.filesDownloaded)}</td>
       <td class="num">${num(r.storesLoaded)}</td>
       <td class="num">${num(r.pricesLoaded)}</td>
@@ -68,5 +67,5 @@ export const syncRunPage = (run: Run, now: Date) => html`${pageHeader({
   })}
   ${section("Product types", html`<div class="group-body">${productTypes(run.sync)}</div>`)}
   ${run.chains.length
-    ? section("Chains, failures first", table(COLUMNS, run.chains.toSorted((a, b) => rank(a) - rank(b)).map(chainRow)), run.chains.length)
+    ? section("Chains, failures first", table(COLUMNS, run.chains.toSorted(byOutcome(chainOutcome)).map(chainRow)), run.chains.length)
     : html`<p class="notice">No Chain results for this Price sync.</p>`}`;

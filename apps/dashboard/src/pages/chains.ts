@@ -1,21 +1,18 @@
 import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
 import type { ApiClient } from "#/api-client.ts";
+import { chainOutcome } from "@grocer/shared/sync-history";
 import { day, num, plural } from "#/pages/format.ts";
-import { badge, errorRow, pageHeader, section, table, type Column } from "#/pages/ui.ts";
+import { byOutcome, outcomeBadge } from "#/pages/syncs.ts";
+import { errorRow, pageHeader, section, table, type Column } from "#/pages/ui.ts";
 
 type Chain = InferResponseType<ApiClient["chains"]["$get"], 200>["chains"][number];
 
 const COLUMNS: Column[] = ["Chain", "Last Price sync", "Last good sync", { label: "Stores", num: true }, { label: "No location", num: true }, ""];
 
-// Chain failures, then Promotion failures, then the rest (the api lists them by name).
-const rank = (c: Chain) => (c.lastStatus === "failed" ? 0 : c.lastPromotionStatus === "failed" ? 1 : 2);
-
-function outcome(c: Chain) {
-  if (c.lastStatus === null) return html`<span class="muted">No Price sync yet</span>`;
-  if (c.lastStatus === "failed") return badge("failed", "Failed");
-  return c.lastPromotionStatus === "failed" ? badge("warning", "Promotion failure") : badge("ok", "Ok");
-}
+/** Its last Price sync's outcome; one with no Price sync yet ranks with the ok ones (the api lists them by name). */
+const outcomeOf = (c: Chain) => (c.lastStatus === null ? "ok" : chainOutcome({ status: c.lastStatus, promotionStatus: c.lastPromotionStatus }));
+const outcome = (c: Chain) => (c.lastStatus === null ? html`<span class="muted">No Price sync yet</span>` : outcomeBadge(outcomeOf(c)));
 
 function row(now: Date) {
   return (c: Chain) => {
@@ -37,5 +34,5 @@ export function chainsPage(chains: Chain[], now: Date) {
   const failing = chains.filter((c) => c.lastStatus === "failed").length;
   const unplaced = chains.reduce((n, c) => n + c.storesWithoutLocation, 0);
   return html`${pageHeader({ title: "Chains", summary: `${plural(chains.length, "Chain")} · ${num(failing)} failing · ${plural(unplaced, "store")} without a location` })}
-    ${section("Failing first", table(COLUMNS, chains.toSorted((a, b) => rank(a) - rank(b)).map(row(now))), chains.length)}`;
+    ${section("Failing first", table(COLUMNS, chains.toSorted(byOutcome(outcomeOf)).map(row(now))), chains.length)}`;
 }
