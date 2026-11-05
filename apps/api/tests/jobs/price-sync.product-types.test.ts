@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp } from "#/app.ts";
 import { buildDeps, type Deps } from "#/deps.ts";
 import { MAX_NAMES } from "#/ingest/product-types.ts";
+import { createInternalApp } from "#/internal-app.ts";
 import { priceSyncJob } from "#/jobs/price-sync.ts";
 import { fakeClassifier } from "#/providers/openai/fake.ts";
 import { fakeGeocoder } from "#/providers/nominatim/fake.ts";
@@ -106,6 +107,35 @@ describe("priceSyncJob: Product types", () => {
     deps.db.$client.prepare("UPDATE products SET product_type = NULL WHERE code = ?").run(sku(SOAP));
     await priceSyncJob(deps)({});
     expect(classifier.calls.map((c) => c.map((p) => p.name))).toEqual([["חלב תנובה 3%", "סבון ידיים"], ["סבון ידיים"]]);
+  });
+
+  it("never changes a Product type set on the Internal dashboard, and Home shows the Product under it", async () => {
+    const classifier = fakeClassifier({ "חלב תנובה 3%": "dairy-eggs" });
+    const deps = setup({ "001": [MILK, SOAP] }, { classifier });
+    deps.config.SYNC_TOKEN = "test-sync-token";
+    await priceSyncJob(deps)({});
+    expect(types(deps)[sku(SOAP)]).toBe("other");
+
+    const set = await createInternalApp(deps).request(`/products/${encodeURIComponent(sku(SOAP))}/type`, {
+      method: "PUT",
+      headers: { Authorization: "Bearer test-sync-token", "content-type": "application/json" },
+      body: JSON.stringify({ productType: "cleaning-home" }),
+    });
+    expect(set.status).toBe(200);
+    await priceSyncJob(deps)({});
+    await priceSyncJob(deps)({});
+
+    expect(types(deps)).toEqual({ [sku(MILK)]: "dairy-eggs", [sku(SOAP)]: "cleaning-home" });
+    expect(classifier.calls).toHaveLength(1);
+    const app = createApp(deps);
+    const signUp = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "set@sync.test", password: "password1234", name: "Tal" }),
+    });
+    const cookie = signUp.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    const res = await app.request("/api/browse/types", { headers: { cookie } });
+    expect(await res.json()).toEqual([{ type: "dairy-eggs", cardCount: 1 }, { type: "cleaning-home", cardCount: 1 }]);
   });
 
   it("skips Products with no current price", async () => {

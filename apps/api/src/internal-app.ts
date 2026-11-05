@@ -3,6 +3,7 @@
 // Its routers live in src/routes/internal/ and read deps from c.var.deps, like the public ones.
 import { createHash, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import type { Deps } from "#/deps.ts";
 import { requestManualSync } from "#/jobs/price-sync.ts";
 import type { AppEnv } from "#/middleware.ts";
@@ -32,6 +33,7 @@ export function createInternalApp(deps: Deps) {
     .route("/syncs", syncsRoutes)
     .route("/products", productsRoutes)
     .onError((error, c) => {
+      if (error instanceof HTTPException) return error.getResponse(); // a validator's 400
       console.error(error);
       deps.errorHandler.report(error);
       return c.json({ error: "internal" }, 500);

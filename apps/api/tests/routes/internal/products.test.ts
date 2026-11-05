@@ -100,9 +100,42 @@ describe("GET /products (private search)", () => {
     expect(second).toMatchObject({ products: [{ code: "7290000066325" }], hasMore: false });
   });
 
-  it("400 for a missing or too short query, or a bad page", async () => {
+  it("filters the search by Product type, or by none yet", async () => {
     const deps = setup();
-    for (const q of ["", "?q=a", "?q=milk&page=0", "?q=milk&page=x", "?q=milk&pageSize=101"]) expect((await get(deps, `/products${q}`)).status).toBe(400);
+    seed(deps);
+    const codes = async (query: string) => ((await (await get(deps, `/products?${query}`)).json()) as Found).products.map((p) => p.code);
+    const milk = encodeURIComponent("חלב");
+    expect(await codes(`q=${milk}&type=dairy-eggs`)).toEqual([MILK]);
+    expect(await codes(`q=${milk}&type=none`)).toEqual(["7290000066325"]);
+    expect(await codes(`q=${milk}&type=frozen`)).toEqual([]);
+  });
+
+  it("lists every priced Product of a Product type without a query, most widely priced first, a page at a time", async () => {
+    const deps = setup();
+    seed(deps);
+    const res = await get(deps, "/products?type=none");
+    expect(res.status).toBe(200);
+    // The unpriced Product is left out, as in the search
+    expect(await res.json()).toEqual({
+      products: [
+        {
+          code: "7290000066325", name: "שוקולד חלב", manufacturer: "עלית", unitQty: "יחידה", storeCount: 1, minPrice: 8, measure: null, size: null,
+          soldBy: "unit", productType: null,
+        },
+        expect.objectContaining({ code: LOCAL, soldBy: "weight", productType: null }),
+      ],
+      hasMore: false,
+    });
+    const first = (await (await get(deps, "/products?type=none&pageSize=1")).json()) as Found;
+    const second = (await (await get(deps, "/products?type=none&pageSize=1&page=2")).json()) as Found;
+    expect(first).toMatchObject({ products: [{ code: "7290000066325" }], hasMore: true });
+    expect(second).toMatchObject({ products: [{ code: LOCAL }], hasMore: false });
+    expect(((await (await get(deps, "/products?type=dairy-eggs")).json()) as Found).products.map((p) => p.code)).toEqual([MILK]);
+  });
+
+  it("400 for a missing or too short query, a bad page, or a type outside the fixed list", async () => {
+    const deps = setup();
+    for (const q of ["", "?q=a", "?q=milk&page=0", "?q=milk&page=x", "?q=milk&pageSize=101", "?q=milk&type=soup", "?type=untyped"]) expect((await get(deps, `/products${q}`)).status).toBe(400);
   });
 
   it("401 without the token or with a wrong one", async () => {
@@ -156,5 +189,52 @@ describe("GET /products/:code (private)", () => {
     const deps = setup();
     seed(deps);
     expect((await createInternalApp(deps).request(`/products/${MILK}`)).status).toBe(401);
+  });
+});
+
+describe("PUT /products/:code/type (private)", () => {
+  const put = (deps: Deps, code: string, body: unknown, auth = `Bearer ${TOKEN}`) =>
+    createInternalApp(deps).request(`/products/${encodeURIComponent(code)}/type`, {
+      method: "PUT",
+      headers: { Authorization: auth, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("sets the Product's type, which the Product and the type filter then show", async () => {
+    const deps = setup();
+    seed(deps);
+    const res = await put(deps, LOCAL, { productType: "produce" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ code: LOCAL, productType: "produce" });
+    expect(((await (await get(deps, `/products/${encodeURIComponent(LOCAL)}`)).json()) as { product: object }).product).toMatchObject({ productType: "produce" });
+    expect(((await (await get(deps, "/products?type=produce")).json()) as Found).products.map((p) => p.code)).toEqual([LOCAL]);
+
+    // And changes one the classifier gave
+    await put(deps, MILK, { productType: "other" });
+    expect(((await (await get(deps, "/products?type=other")).json()) as Found).products.map((p) => p.code)).toEqual([MILK]);
+  });
+
+  it("400 for a type outside the fixed list, none, or a body that is not one", async () => {
+    const deps = setup();
+    seed(deps);
+    for (const body of [{ productType: "soup" }, { productType: null }, { productType: "none" }, {}, "produce"]) expect((await put(deps, MILK, body)).status).toBe(400);
+    const raw = (headers: Record<string, string>) =>
+      createInternalApp(deps).request(`/products/${MILK}/type`, { method: "PUT", headers: { Authorization: `Bearer ${TOKEN}`, ...headers }, body: "{x" });
+    expect((await raw({})).status).toBe(400);
+    expect((await raw({ "content-type": "application/json" })).status).toBe(400);
+    expect(((await (await get(deps, `/products/${MILK}`)).json()) as { product: object }).product).toMatchObject({ productType: "dairy-eggs" });
+  });
+
+  it("404 for an unknown code", async () => {
+    const deps = setup();
+    expect((await put(deps, "123", { productType: "produce" })).status).toBe(404);
+  });
+
+  it("401 without the token or with a wrong one", async () => {
+    const deps = setup();
+    seed(deps);
+    expect((await put(deps, MILK, { productType: "produce" }, "")).status).toBe(401);
+    expect((await put(deps, MILK, { productType: "produce" }, "Bearer wrong")).status).toBe(401);
+    expect(((await (await get(deps, `/products/${MILK}`)).json()) as { product: object }).product).toMatchObject({ productType: "dairy-eggs" });
   });
 });
