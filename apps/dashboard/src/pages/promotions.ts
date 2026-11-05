@@ -11,13 +11,13 @@ type Chain = InferResponseType<ApiClient["chains"]["$get"], 200>["chains"][numbe
 type Terms = Pick<List["promotions"][number], "kind" | "minQty" | "amount" | "audience" | "startsAt" | "endsAt" | "days" | "limitQty" | "minPurchase">;
 export type Filter = { chain?: string; store?: string; kind?: string; state?: string; page?: string };
 
-// A Promotion's state: on its page as Compare decides it (not today: within its dates, not on today's weekday); the
-// list's chips go by dates alone.
+// A Promotion's state, badged as on the Product page: on its page as Compare decides it (not today: within its dates,
+// not on today's weekday); the list's chips go by dates alone.
 const STATES = {
   running: ["ok", "Running"],
-  notToday: ["skipped", "Not today"],
-  future: ["requested", "Starts later"],
-  ended: ["finished", "Ended"],
+  notToday: ["finished", "Not today"],
+  future: ["finished", "Starts later"],
+  ended: ["skipped", "Ended"],
 } as const satisfies Record<Detail["promotion"]["state"], [BadgeKind, string]>;
 const CHIPS = ["running", "future", "ended"] as const;
 const KINDS = { price: "Price", bundle: "Bundle", percent: "Percent off", nth: "Nth unit off", off: "Amount off", info: "Information only" } as const;
@@ -25,7 +25,7 @@ const AUDIENCES = { all: "Everyone", club: "Club", card: "Card", coupon: "Coupon
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SHOWN_STORES = 8;
 
-export const badge = (s: Detail["promotion"]["state"]) => stateBadge(STATES[s][0], STATES[s][1]);
+const badge = (s: Detail["promotion"]["state"]) => stateBadge(STATES[s][0], STATES[s][1]);
 
 /** What it gives, as the Chain published it: "2 for ₪16.90", "₪1.00", "10% off", "2+1", "₪5.00 off 2"; info gives no price. */
 function deal(p: Pick<Terms, "kind" | "minQty" | "amount">) {
@@ -69,7 +69,7 @@ const listHref = (filter: Filter, change: Filter) => {
 
 /** The filters: changing one reloads the list (htmx); a new Chain clears the store, which may not be one of its. */
 const filters = (list: List, chains: Chain[], filter: Filter) => html`<form
-  class="filter-bar"
+  class="toolbar"
   method="get"
   action="/promotions"
   hx-get="/promotions"

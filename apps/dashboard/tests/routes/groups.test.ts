@@ -49,7 +49,7 @@ describe("Product groups page", () => {
     const res = await app.request(`/groups?q=${encodeURIComponent("בורגול")}`);
     expect(res.status).toBe(200);
     const html = await res.text();
-    for (const text of ["בורגול|kg", "By the kilo", "0.5 kg", "₪6.80", "4 Products", "2 stores", "בורגול דק סוגת", "בורגול עבה מיה", "₪3.50", "₪7.20"])
+    for (const text of ["בורגול|kg", "By the kilo", "500 g", "₪6.80", "4 Products", "2 stores", "בורגול דק סוגת", "בורגול עבה מיה", "₪3.50", "₪7.20"])
       expect(html).toContain(text);
     expect(html).toContain(`href="/groups?${new URLSearchParams({ q: "בורגול דק" })}"`);
     expect(html).toContain(`href="/groups?${new URLSearchParams({ q: "בורגול עבה" })}"`);
