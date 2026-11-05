@@ -31,7 +31,7 @@ export function PromoGroupScreen() {
   // One poll for the page keeps every row's "on the List" in step with the other Members.
   const items = useList(listId, { poll: useIsFocused() }).data?.items ?? [];
   const data = page.data;
-  const chainName = (id: string) => chains.find((c) => c.id === id)?.nameHe ?? "";
+  const chainName = (id: string) => chains.find((c) => c.id === id)?.name ?? "";
 
   return (
     <Screen edges={[]} scroll style={{ gap: space[4], paddingBottom: space[9] }}>

@@ -9,9 +9,6 @@ import { useTheme } from "@/theme";
 import { Tap, Text } from "@/ui";
 import type { Chain } from "./api";
 
-// Chain names in Hebrew, like t(): the app is always Hebrew today.
-const nameOf = (c: Chain) => c.nameHe;
-
 /**
  * The Chain filter in the nav bar ("כל הרשתות ⌄", or the picked Chain): a menu under it lists "All chains" and every
  * Chain, the picked one checked. Tapping outside closes it.
@@ -21,8 +18,8 @@ export function ChainMenu({ chains, value, onChange }: { chains: Chain[]; value:
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const current = chains.find((c) => c.id === value);
-  const label = current ? nameOf(current) : t("promotions.allChains");
-  const options: [string | null, string][] = [[null, t("promotions.allChains")], ...chains.map((c): [string, string] => [c.id, nameOf(c)])];
+  const label = current ? current.name : t("promotions.allChains");
+  const options: [string | null, string][] = [[null, t("promotions.allChains")], ...chains.map((c): [string, string] => [c.id, c.name])];
   const pick = (id: string | null) => {
     setOpen(false);
     if (id === value) return;
