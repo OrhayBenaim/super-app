@@ -92,17 +92,27 @@ const RELIST_EVERY_MS = 10 * 60_000;
 /**
  * Shufersal's links expire 30 min after listing, long before a full sync reaches its later files. On a 403 this lists
  * the file's category again (at most once per 10 min, so a file that is no longer listed fails fast) and returns its new
- * link; `fresh` keeps every new link of that category for the next downloads.
+ * link; `fresh` keeps every new link of that category for the next downloads. The listing shows only each store's newest
+ * file of a type, so an update (Price, Promo: published hourly) is often gone by then; its store's newer update, which
+ * holds every change since the day's full file, stands in for it.
  */
 function shufersalRelinker(jar: Jar, fresh: Map<string, string>) {
   const listedAt = new Map<number, number>();
+  const newest = new Map<string, { ts: string; url: string }>(); // "type key" -> newest relisted file
   return async (name: string) => {
-    const cat = SHUFERSAL_CATS.get(parseFileName(name)?.type ?? "");
+    const p = parseFileName(name);
+    const cat = SHUFERSAL_CATS.get(p?.type ?? "");
     if (cat && Date.now() - (listedAt.get(cat) ?? 0) > RELIST_EVERY_MS) {
       listedAt.set(cat, Date.now());
-      for (const f of await shufersalCategory(cat, jar)) fresh.set(f.name, f.url);
+      for (const f of await shufersalCategory(cat, jar)) {
+        fresh.set(f.name, f.url);
+        const q = parseFileName(f.name);
+        const k = q && `${q.type} ${q.key}`;
+        if (k && (newest.get(k)?.ts ?? "") < q.ts) newest.set(k, { ts: q.ts, url: f.url });
+      }
     }
-    return fresh.get(name);
+    const newer = p && newest.get(`${p.type} ${p.key}`);
+    return fresh.get(name) ?? (newer && newer.ts > p.ts ? newer.url : undefined);
   };
 }
 
