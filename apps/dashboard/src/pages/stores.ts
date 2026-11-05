@@ -30,6 +30,9 @@ const row = (s: Store) => html`<tr>
   ${/^\d+$/.test(s.city) ? html`<td class="warn">${s.city}</td>` : html`<td><span dir="auto">${s.city || empty}</span></td>`}
 </tr>`;
 
+/** Stores as the Stores page lists them: name (linking to the store), Chain, address and city. */
+export const storesTable = (stores: Store[]) => table(["Store", "Chain", "Address", "City"], stores.map(row));
+
 /** "1–100 of 399", the note on cities, and previous/next links that keep the filter. */
 function tableFoot(list: List, filter: Filter) {
   const pages = Math.max(1, Math.ceil(list.total / list.pageSize));
@@ -106,7 +109,7 @@ export function storesPage(list: List, chains: Chain[], filter: Filter) {
       <div>
         ${list.stores.length === 0
           ? html`<p class="notice">No stores match.</p>`
-          : html`<div class="group">${table(["Store", "Chain", "Address", "City"], list.stores.map(row))}</div>
+          : html`<div class="group">${storesTable(list.stores)}</div>
               ${tableFoot(list, filter)}`}
       </div>
       ${mapPanel(list)}

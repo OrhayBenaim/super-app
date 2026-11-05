@@ -17,7 +17,7 @@ export type Nav = keyof typeof NAV;
 
 /**
  * Every dashboard page: the top bar (`nav` marks the current item), the tokens stylesheet and htmx, all served by app.ts,
- * so the page loads no third-party script. The find field searches Products, which takes a name or a barcode.
+ * so the page loads no third-party script. The find field opens Products: the stores whose name holds it, then the Products by name or barcode.
  */
 export const layout = (title: string, body: Html, nav?: Nav) => html`<!doctype html>
   <html lang="en">

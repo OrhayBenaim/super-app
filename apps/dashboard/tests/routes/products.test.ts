@@ -101,6 +101,16 @@ describe("Products page", () => {
     expect(html).not.toContain("חלב 3% 1 ליטר");
   });
 
+  it("finds stores by name from the top bar's find field, above the Products", async () => {
+    const { app } = seeded();
+    const html = await (await app.request(`/products?q=${encodeURIComponent("תלפיות")}`)).text();
+    expect(html).toContain(`<a href="/stores/${RAMI}-1" dir="auto">רמי לוי תלפיות</a>`);
+    expect(html).not.toContain("אושר עד גבעת שאול");
+    expect(html.indexOf("רמי לוי תלפיות")).toBeLessThan(html.indexOf("No Products match"));
+    // within a Product type, the filter narrows the type's Products only
+    expect(await (await app.request(`/products?type=dairy-eggs&q=${encodeURIComponent("תלפיות")}`)).text()).not.toContain("רמי לוי תלפיות");
+  });
+
   it("lists the Products with no Product type yet", async () => {
     const { app } = seeded();
     const html = await (await app.request("/products?type=none")).text();
