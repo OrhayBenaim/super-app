@@ -5,18 +5,17 @@ import { PRODUCT_TYPE_FILTERS, PRODUCT_TYPES } from "@grocer/shared/product-type
 import { SEARCH } from "@grocer/shared/search";
 import type { AppEnv } from "#/middleware.ts";
 import { regroupProduct } from "#/prices/browse-groups.ts";
-import { findProducts, productDetail } from "#/prices/products.ts";
+import { findProducts, productDetail, productTypeCounts } from "#/prices/products.ts";
 import { bad, jsonBody } from "#/routes/internal/valid.ts";
 
-// type: a Product type, or "none" for Products with none yet. Without q, every priced Product of that type.
+// type: a Product type, or "none" for Products with none yet. Without q, every priced Product (of that type).
 const searchQuery = z
   .object({
     q: z.string().trim().min(SEARCH.minLength).max(SEARCH.maxLength).optional(),
     type: z.enum(PRODUCT_TYPE_FILTERS).optional(),
     page: z.coerce.number().int().min(1).max(100).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  })
-  .refine((query) => query.q !== undefined || query.type !== undefined, "q or type required");
+  });
 const codeParam = z.object({ code: z.string().trim().min(1).max(ID.maxLength) });
 const typeBody = z.object({ productType: z.enum(PRODUCT_TYPES) });
 
@@ -31,6 +30,7 @@ export const productsRoutes = new Hono<AppEnv>()
     if (!query.success) return bad(c, query.error);
     return c.json(findProducts(c.var.deps.db, query.data), 200);
   })
+  .get("/types", (c) => c.json(productTypeCounts(c.var.deps.db), 200))
   // One Product, its Shelf price at every store that prices it (cheapest first) and the Promotions running there now.
   .get("/:code", (c) => {
     const param = codeParam.safeParse(c.req.param());

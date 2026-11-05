@@ -1,8 +1,22 @@
+import type { ProductTypeFilter } from "@grocer/shared/product-types";
+
 // How the pages write times, prices, sizes and how a Product is sold.
 export const shekels = (n: number) => `₪${n.toFixed(2)}`;
-/** "500 g", "1 l", "12 pcs"; "—" when the name gives no size. */
-export const size = (p: { measure: string | null; size: number | null }) => (p.measure ? `${p.size} ${p.measure === "unit" ? "pcs" : p.measure}` : "—");
+/** "500 g", "330 ml", "1.5 l", "12 pcs"; "—" when the name gives no size. */
+export function size({ measure, size }: { measure: string | null; size: number | null }) {
+  if (!measure || size === null) return "—";
+  if (measure === "unit") return `${size} pcs`;
+  const small = size < 1;
+  // Rounded to a thousandth: sizes read from names carry float noise (0.17300000000000001).
+  return `${Math.round((small ? size * 1000 : size) * 1000) / 1000} ${small ? (measure === "kg" ? "g" : "ml") : measure}`;
+}
 export const SOLD_BY = { weight: "By weight", unit: "By the unit" } as const;
+/** Product types by the names the app shows (apps/mobile strings, English). */
+export const TYPE_NAMES = {
+  "dairy-eggs": "Dairy & eggs", "meat-fish": "Meat & fish", produce: "Fruit & vegetables", bakery: "Bread & bakery", drinks: "Drinks",
+  "snacks-sweets": "Snacks & sweets", pantry: "Pantry & cooking", frozen: "Frozen", canned: "Canned", "cleaning-home": "Cleaning & home",
+  "personal-care": "Personal care", baby: "Baby", pets: "Pets", alcohol: "Alcohol", other: "Other", none: "No type yet",
+} as const satisfies Record<ProductTypeFilter, string>;
 
 // Price syncs run on Israel time (SYNC_TIMES), so the dashboard shows it whatever the browser's zone.
 const dateTime = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", dateStyle: "medium", timeStyle: "short" });

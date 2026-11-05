@@ -22,6 +22,8 @@ a { color: var(--tint); text-decoration: none; }
 a:hover { text-decoration: underline; }
 :focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
 .muted { color: var(--labelSecondary); }
+/* Hebrew data inside English lines keeps its own order, and the numbers next to it keep theirs. */
+[lang="he"] { unicode-bidi: isolate; }
 .footnote { font: var(--font-footnote) var(--family); }
 
 /* Top bar */
@@ -128,6 +130,44 @@ tr.error.warning td { color: var(--warning); }
 .counts { display: flex; gap: var(--space-7); }
 .counts strong { font-size: 17px; margin-inline-end: var(--space-2); }
 
+/* Products (A6): the Product types beside the chosen type's cards */
+.browse { display: grid; grid-template-columns: 240px 1fr; gap: var(--space-7); align-items: start; }
+.types { display: flex; flex-direction: column; padding: var(--space-2); }
+.types a { display: flex; justify-content: space-between; align-items: center; height: 34px; padding: 0 var(--space-4); border-radius: 8px; color: var(--label); }
+.types a:hover { text-decoration: none; background: var(--fillControl); }
+.types a[aria-current="page"] { background: var(--tintSoft); color: var(--tint); font-weight: 500; }
+.types .count { font: var(--font-footnote) var(--family); color: var(--labelSecondary); }
+.types a[aria-current="page"] .count { color: inherit; }
+.types .count.warn { color: var(--warning); font-weight: 600; }
+.browse-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-5); margin-bottom: var(--space-5); }
+.browse-head h2 { font-size: 20px; line-height: 25px; font-weight: 600; margin: 0; }
+.browse-head p { margin: var(--space-1) 0 0; }
+.filter input { width: 240px; height: 36px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-control); background: var(--fillControl); font: inherit; color: var(--label); }
+.cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-5); }
+.card { display: flex; flex-direction: column; height: 100%; background: var(--surface); border-radius: var(--radius-group); overflow: hidden; color: var(--label); }
+.card:hover { text-decoration: none; }
+.card .slot { display: flex; align-items: center; justify-content: center; height: 132px; }
+.card .slot img { width: 100%; height: 100%; object-fit: contain; background: var(--surface); }
+.card .slot .muted { display: none; }
+.card-text { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-4); }
+.card .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot { background: ${tinted("fillControl", 55)}; }
+.browse .pages { justify-content: space-between; align-items: center; }
+
+/* Product (A7): the image tile beside the facts */
+.product { display: grid; grid-template-columns: 180px 1fr; gap: var(--space-6); align-items: start; }
+.image-tile { display: flex; align-items: center; justify-content: center; width: 100%; height: 180px; padding: var(--space-3); border: 0; border-radius: var(--radius-group); background: var(--surface); cursor: pointer; font: inherit; color: var(--labelSecondary); }
+.image-tile img { width: 100%; height: 100%; object-fit: contain; }
+.image-tile .slot { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: var(--radius-control); font-size: 13px; }
+.facts { margin: 0; display: block; }
+.facts > div { display: grid; grid-template-columns: 156px 1fr; align-items: baseline; gap: var(--space-5); padding: var(--space-4) var(--space-5); }
+.facts > div + div { border-top: 1px solid var(--separator); }
+.facts dt { color: var(--labelSecondary); }
+.type-form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); }
+.type-form select { height: 36px; min-width: 220px; padding: 0 var(--space-9) 0 var(--space-4); border: 1px solid var(--separator); border-radius: var(--radius-control); background: var(--surface); font: inherit; color: var(--label); }
+.type-form p { flex-basis: 100%; margin: 0; }
+.deal { color: var(--saving); }
+
 /* Stores (A4): the Chain and filter chips, the table and the map beside it */
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5); margin-bottom: var(--space-6); }
 .toolbar .select { width: 200px; }
@@ -167,10 +207,7 @@ dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) 
 dt { color: var(--labelSecondary); }
 dd { margin: 0; }
 h2 { font-size: 20px; margin: var(--space-7) 0 0; }
-.details, .product { margin-top: var(--space-5); padding: var(--space-5); background: var(--surface); border-radius: var(--radius-group); }
-.product { display: flex; flex-wrap: wrap; gap: var(--space-7); }
-.product img { object-fit: contain; }
-.noimage { width: 160px; margin: 0; }
+.details { margin-top: var(--space-5); padding: var(--space-5); background: var(--surface); border-radius: var(--radius-group); }
 .search { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-5); align-items: center; margin-top: var(--space-5); }
 .search input, .search select { font: inherit; height: 36px; padding: 0 var(--space-4); border: 1px solid var(--separator); border-radius: var(--radius-control); background: var(--surface); }
 .search button { font: inherit; font-weight: 600; height: 36px; padding: 0 var(--space-5); border: 0; border-radius: var(--radius-control); background: var(--tint); color: var(--tintOn); cursor: pointer; }

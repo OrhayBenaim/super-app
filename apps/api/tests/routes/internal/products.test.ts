@@ -134,15 +134,39 @@ describe("GET /products (private search)", () => {
     expect(((await (await get(deps, "/products?type=dairy-eggs")).json()) as Found).products.map((p) => p.code)).toEqual([MILK]);
   });
 
-  it("400 for a missing or too short query, a bad page, or a type outside the fixed list", async () => {
+  it("lists every priced Product without a query or a type, most widely priced first", async () => {
     const deps = setup();
-    for (const q of ["", "?q=a", "?q=milk&page=0", "?q=milk&page=x", "?q=milk&pageSize=101", "?q=milk&type=soup", "?type=untyped"]) expect((await get(deps, `/products${q}`)).status).toBe(400);
+    seed(deps);
+    const body = (await (await get(deps, "/products")).json()) as Found;
+    expect(body.products.map((p) => p.code)).toEqual([MILK, "7290000066325", LOCAL]);
+  });
+
+  it("400 for a too short query, a bad page, or a type outside the fixed list", async () => {
+    const deps = setup();
+    for (const q of ["?q=a", "?q=milk&page=0", "?q=milk&page=x", "?q=milk&pageSize=101", "?q=milk&type=soup", "?type=untyped"]) expect((await get(deps, `/products${q}`)).status).toBe(400);
   });
 
   it("401 without the token or with a wrong one", async () => {
     const deps = setup();
     expect((await createInternalApp(deps).request("/products?q=milk")).status).toBe(401);
     expect((await get(deps, "/products?q=milk", "Bearer wrong")).status).toBe(401);
+  });
+});
+
+describe("GET /products/types (private)", () => {
+  it("counts the priced Products of every Product type and those with none yet, unpriced ones left out", async () => {
+    const deps = setup();
+    seed(deps);
+    const res = await get(deps, "/products/types");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { total: number; types: Record<string, number> };
+    expect(body.total).toBe(3);
+    expect(body.types).toMatchObject({ "dairy-eggs": 1, none: 2, frozen: 0, other: 0 });
+    expect(Object.keys(body.types)).toHaveLength(16);
+  });
+
+  it("401 without the token", async () => {
+    expect((await createInternalApp(setup()).request("/products/types")).status).toBe(401);
   });
 });
 
@@ -156,6 +180,7 @@ describe("GET /products/:code (private)", () => {
       product: {
         code: MILK, name: "חלב 3% 1 ליטר", manufacturer: "תנובה", unitQty: "ליטר", measure: "l", size: 1, soldBy: "unit", productType: "dairy-eggs",
       },
+      group: null, // not grouped before a Price sync
       prices: [
         {
           storeId: `${RAMI}-1`, storeName: "רמי לוי תלפיות", city: "תל אביב", chainId: RAMI, chainName: "Rami Levy", chainNameHe: "רמי לוי", price: 5.9,
@@ -191,6 +216,19 @@ describe("GET /products/:code (private)", () => {
       kind: "bundle", audience: "club", startsAt: new Date(NOW.getTime() - DAY).toISOString(), endsAt: new Date(NOW.getTime() + DAY).toISOString(),
       days: null, state: "running", text: "2 ב-₪10",
     });
+  });
+
+  it("names the Product group it is in, as the last Price sync grouped it, with how many Products the group holds", async () => {
+    const deps = setup();
+    seed(deps);
+    const group = async (code: string) => ((await (await get(deps, `/products/${encodeURIComponent(code)}`)).json()) as { group: unknown }).group;
+    expect(await group(MILK)).toBeNull(); // not grouped before a Price sync
+    deps.db.insert(products).values({ code: "7290000066349", name: "חלב 1% 2 ליטר", unitQty: "ליטר", productType: "dairy-eggs" }).run();
+    deps.db.insert(prices).values({ storeId: `${RAMI}-1`, code: "7290000066349", price: 9 }).run();
+    await refreshBrowse(deps.db);
+    expect(await group(MILK)).toEqual({ ref: "חלב|l", name: "חלב", measure: "l", size: 1, soldBy: "unit", products: 2 });
+    // A Product on a card of its own is in no Product group
+    expect(await group("7290000066325")).toBeNull();
   });
 
   it("reads a Chain-only code", async () => {
