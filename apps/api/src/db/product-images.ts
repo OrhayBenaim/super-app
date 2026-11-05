@@ -4,9 +4,6 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-/** The largest image an upload may be. */
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
 const startsWith = (bytes: Uint8Array, at: number, magic: number[]) => magic.every((b, i) => bytes[at + i] === b);
 const ascii = (s: string) => [...s].map((c) => c.charCodeAt(0));
 

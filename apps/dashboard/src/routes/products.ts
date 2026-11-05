@@ -3,7 +3,7 @@ import { bodyLimit } from "hono/body-limit";
 import { html } from "hono/html";
 import { z } from "zod";
 import { ID } from "@grocer/shared/ids";
-import type { UploadedImages } from "@grocer/shared/product-image";
+import { MAX_IMAGE_BYTES, MAX_IMAGE_MB, type UploadedImages } from "@grocer/shared/product-image";
 import { PRODUCT_TYPE_FILTERS, PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
 import { found, unexpected, type ApiClient } from "#/api-client.ts";
@@ -31,8 +31,8 @@ async function uploadedImages(api: ApiClient): Promise<UploadedImages> {
   if (res.status !== 200) throw unexpected(res, "GET /products/images");
   return { base: "/api", versions: (await res.json()).images };
 }
-const MAX_UPLOAD = 5 * 1024 * 1024; // the private app's limit; this one only stops a far larger body before it is read
-const tooLarge = "The image must be at most 5 MB.";
+// The private app checks the image's size; this limit only stops a far larger body before it is read.
+const tooLarge = `The image must be at most ${MAX_IMAGE_MB} MB.`;
 const refresh = { "HX-Refresh": "true" }; // the page shows the new image
 
 /** Products by Product type, the private app's search and Product detail. Any answer other than 200 (or 404) is a bug: onError shows it. */
@@ -75,7 +75,7 @@ export const productsRoutes = new Hono<AppEnv>()
     return c.html(thumbnail(await c.var.deps.productImage(param.data.code, await uploadedImages(c.var.deps.api))));
   })
   // A7b's Use the new image (htmx, multipart "image"): the private app checks and stores it. A refusal is a 200 notice.
-  .post("/products/:code/image", bodyLimit({ maxSize: MAX_UPLOAD + 64 * 1024, onError: (c) => c.html(notice(tooLarge)) }), async (c) => {
+  .post("/products/:code/image", bodyLimit({ maxSize: MAX_IMAGE_BYTES + 64 * 1024, onError: (c) => c.html(notice(tooLarge)) }), async (c) => {
     const param = codeParam.safeParse(c.req.param());
     if (!param.success) return c.html(notice("No Product with this code."));
     const { image } = await c.req.parseBody();

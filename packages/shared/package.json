@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./groups": "./src/groups.ts",
     "./ids": "./src/ids.ts",
     "./otp": "./src/otp.ts",
     "./product-image": "./src/product-image.ts",

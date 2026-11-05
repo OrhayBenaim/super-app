@@ -1,3 +1,7 @@
+/** The largest Product image the team may upload (docs/adr/0008), in MB as the pages say it, and in bytes. */
+export const MAX_IMAGE_MB = 5;
+export const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
+
 const TIMEOUT_MS = 8_000;
 const USER_AGENT = "Grocer/1.0 (https://github.com/OrhayBenaim/super-app)";
 /** How many codes' answers stay in memory: the most recently asked ones. */

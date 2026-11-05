@@ -1,6 +1,7 @@
 // App (non-auth) tables go here; re-exported from schema.ts.
 import { sql } from "drizzle-orm";
 import { blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { GROUP_MEASURES } from "@grocer/shared/groups";
 import { user } from "#/db/schema.ts"; // circular with schema.ts, safe because references() is lazy
 
 const createdAt = () =>
@@ -290,7 +291,7 @@ export const madeGroups = sqliteTable("made_groups", {
   productType: text("product_type")
     .notNull()
     .references(() => productTypes.id),
-  measure: text("measure", { enum: ["kg", "l", "unit"] }).notNull(),
+  measure: text("measure", { enum: GROUP_MEASURES }).notNull(),
   size: integer("size").notNull(),
   createdAt: createdAt(),
 });

@@ -1,5 +1,6 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
+import { GROUP, GROUP_MEASURES } from "@grocer/shared/groups";
 import { ID } from "@grocer/shared/ids";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
@@ -17,14 +18,14 @@ const listQuery = z.object({
 });
 const refParam = z.object({ ref: groupRefSchema });
 const code = z.string().trim().min(1).max(ID.maxLength);
-const name = z.string().trim().min(1).max(100);
+const name = z.string().trim().min(1).max(GROUP.nameMaxLength);
 // A unit group's pack count is part of its measure; a kilo or liter group's is 1.
 const madeBody = z
   .object({
     name,
     productType: z.enum(PRODUCT_TYPES),
-    measure: z.enum(["kg", "l", "unit"]),
-    size: z.number().int().min(1).max(1000).optional(),
+    measure: z.enum(GROUP_MEASURES),
+    size: z.number().int().min(GROUP.packCount.min).max(GROUP.packCount.max).optional(),
     codes: z.array(code).max(500).default([]),
   })
   .refine((b) => (b.measure === "unit" ? b.size !== undefined : (b.size ?? 1) === 1), "size is the pack count of a unit group only")

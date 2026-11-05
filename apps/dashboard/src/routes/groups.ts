@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { html } from "hono/html";
 import { z } from "zod";
+import { GROUP, GROUP_MEASURES } from "@grocer/shared/groups";
 import { ID } from "@grocer/shared/ids";
 import { PRODUCT_TYPES, type ProductType } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
@@ -12,7 +13,6 @@ import {
 import { layout, notFound, notice } from "#/pages/layout.ts";
 
 type C = Context<AppEnv>;
-const MEASURES = ["kg", "l", "unit"] as const;
 // Anything outside these reads as none: no type, the first page, no search.
 const words = z.string().trim().max(SEARCH.maxLength).catch("");
 const listQuery = z.object({
@@ -21,13 +21,14 @@ const listQuery = z.object({
   page: z.coerce.number().int().min(1).max(1000).catch(1),
   ref: z.string().trim().min(1).max(200).optional().catch(undefined),
 });
-const nameField = z.string().trim().min(1, "Give the group a name.").max(100, "At most 100 characters.");
-const packCount = z.coerce.number().int().min(1).max(1000);
+const nameField = z.string().trim().min(1, "Give the group a name.").max(GROUP.nameMaxLength, `At most ${GROUP.nameMaxLength} characters.`);
+const { min, max } = GROUP.packCount;
+const packCount = z.coerce.number().int().min(min).max(max);
 const code = z.string().trim().min(1).max(ID.maxLength);
 const pickedItem = z.object({
   code,
   name: z.string().max(300).catch(""),
-  measure: z.enum(MEASURES).nullable().catch(null),
+  measure: z.enum(GROUP_MEASURES).nullable().catch(null),
   size: z.number().nullable().catch(null),
   storeCount: z.number().int().min(0).catch(0),
   minPrice: z.number().min(0).catch(0),
@@ -91,7 +92,7 @@ async function draftOf(c: C): Promise<Draft> {
   return {
     name: one("name"),
     productType: z.enum(PRODUCT_TYPES).catch(PRODUCT_TYPES[0]).parse(one("productType")),
-    measure: z.enum(MEASURES).catch("l").parse(one("measure")),
+    measure: z.enum(GROUP_MEASURES).catch("l").parse(one("measure")),
     size: one("size"),
     items: [...items.values()],
     q,
@@ -137,7 +138,7 @@ export const groupsRoutes = new Hono<AppEnv>()
     const size = draft.measure === "unit" ? packCount.safeParse(draft.size) : null;
     const errors: DraftErrors = {
       ...(!name.success && { name: name.error.issues[0]!.message }),
-      ...(size && !size.success && { size: "A pack count from 1 to 1000." }),
+      ...(size && !size.success && { size: `A pack count from ${min} to ${max}.` }),
     };
     if (!name.success || (size && !size.success)) return newGroupPage(c, draft, errors, 400);
     const json = { name: name.data, productType: draft.productType, measure: draft.measure, size: size?.data ?? 1, codes: draft.items.map((p) => p.code) };

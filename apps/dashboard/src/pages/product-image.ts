@@ -1,6 +1,6 @@
 // A Product's image tile (A7) and its upload dialog (A7b, docs/adr/0008). Styles: pages/styles.ts.
 import { html } from "hono/html";
-import { RAMI_LEVY_IMAGES, uploadedVersion, type UploadedImages } from "@grocer/shared/product-image";
+import { MAX_IMAGE_MB, RAMI_LEVY_IMAGES, uploadedVersion, type UploadedImages } from "@grocer/shared/product-image";
 import { button } from "#/pages/ui.ts";
 
 export type ImageSource = "uploaded" | "rami-levy" | "open-food-facts";
@@ -56,7 +56,7 @@ export const imageDialog = (code: string, name: string, image: ProductImage) => 
     </div>
     <label class="drop" id="drop">
       <span class="muted">Drop an image here, or</span> <span class="link">choose a file</span>
-      <span class="footnote muted">PNG, JPG or WebP, up to 5 MB</span>
+      <span class="footnote muted">PNG, JPG or WebP, up to ${MAX_IMAGE_MB} MB</span>
       <input type="file" name="image" accept="image/png,image/jpeg,image/webp" class="visually-hidden" />
     </label>
     <div id="image-error" role="alert"></div>

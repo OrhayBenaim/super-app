@@ -3,9 +3,10 @@ import { bodyLimit } from "hono/body-limit";
 import { validator } from "hono/validator";
 import { z } from "zod";
 import { ID } from "@grocer/shared/ids";
+import { MAX_IMAGE_BYTES, MAX_IMAGE_MB } from "@grocer/shared/product-image";
 import { PRODUCT_TYPE_FILTERS, PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
-import { imageType, MAX_IMAGE_BYTES, removeProductImage, saveProductImage } from "#/db/product-images.ts";
+import { imageType, removeProductImage, saveProductImage } from "#/db/product-images.ts";
 import { isProduct } from "#/db/products.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { regroupProduct } from "#/prices/browse-groups.ts";
@@ -23,7 +24,7 @@ const searchQuery = z
 const codeParam = z.object({ code: z.string().trim().min(1).max(ID.maxLength) });
 const typeBody = z.object({ productType: z.enum(PRODUCT_TYPES) });
 const imageForm = z.object({ image: z.instanceof(File, { message: "Choose an image." }) });
-const tooLarge = { error: "The image must be at most 5 MB." };
+const tooLarge = { error: `The image must be at most ${MAX_IMAGE_MB} MB.` };
 
 /**
  * The Internal dashboard's Products, on the private app: the public search and Compare's price rules, and setting a
