@@ -22,7 +22,7 @@ const option = (value: string, label: string, chosen: string | null | undefined)
 
 /** A Product image cell that loads its image when it scrolls into view: one lookup per row seen, none up front. */
 export const imageCell = (code: string) =>
-  html`<td hx-get="${href(code)}/image" hx-trigger="revealed" hx-swap="innerHTML"><span class="muted">—</span></td>`;
+  html`<td hx-get="${href(code)}/image" hx-trigger="intersect once" hx-swap="innerHTML"><span class="muted">—</span></td>`;
 /** What the image cell swaps in. The row names the Product, so the image adds no text. */
 export const thumbnail = (image: string | null) => (image ? html`<img src="${image}" alt="" width="48" height="48" />` : html`<span class="muted">—</span>`);
 

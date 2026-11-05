@@ -58,13 +58,13 @@ describe("Product groups page", () => {
     expect(html.indexOf("בורגול עבה סוגת")).toBeLessThan(html.indexOf("בורגול דק סוגת"));
   });
 
-  it("loads each member's image when its row is revealed, with no lookup up front", async () => {
+  it("loads each member's image when its row scrolls into view, with no lookup up front", async () => {
     const looked: string[] = [];
     const { app } = seeded(async (code) => (looked.push(code), null));
     const html = await (await app.request(`/groups?q=${encodeURIComponent("בורגול")}`)).text();
     expect(looked).toEqual([]);
-    expect(html).toContain(`hx-get="/products/${FINE}/image" hx-trigger="revealed"`);
-    expect(html).toContain(`hx-get="/products/${COARSE}/image" hx-trigger="revealed"`);
+    expect(html).toContain(`hx-get="/products/${FINE}/image" hx-trigger="intersect once"`);
+    expect(html).toContain(`hx-get="/products/${COARSE}/image" hx-trigger="intersect once"`);
   });
 
   it("says when the words name no group, and when they are too short or too long", async () => {

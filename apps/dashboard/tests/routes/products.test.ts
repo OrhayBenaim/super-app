@@ -65,11 +65,11 @@ describe("Products page", () => {
     expect(html).not.toContain("בננות");
   });
 
-  it("loads each result's image when its row is revealed", async () => {
+  it("loads each result's image when its row scrolls into view", async () => {
     const { app, looked } = seeded();
     const html = await (await app.request(`/products?q=${encodeURIComponent("חלב")}`)).text();
     expect(looked).toEqual([]);
-    expect(html).toContain(`hx-get="/products/${MILK}/image" hx-trigger="revealed"`);
+    expect(html).toContain(`hx-get="/products/${MILK}/image" hx-trigger="intersect once"`);
   });
 
   it("finds the Product by barcode", async () => {
