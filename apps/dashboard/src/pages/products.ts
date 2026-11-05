@@ -3,6 +3,7 @@ import { html } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import type { ApiClient } from "#/api-client.ts";
+import { shekels, size, SOLD_BY } from "#/pages/format.ts";
 import { notice } from "#/pages/layout.ts";
 import { badge } from "#/pages/promotions.ts";
 import { when } from "#/pages/syncs.ts";
@@ -13,9 +14,6 @@ type Detail = InferResponseType<ApiClient["products"][":code"]["$get"], 200>;
 /** The Products page's type filter: a Product type, "none" for none yet, or undefined for any. */
 export type TypeFilter = (typeof PRODUCT_TYPES)[number] | "none" | undefined;
 
-const shekels = (n: number) => `₪${n.toFixed(2)}`;
-const size = (p: { measure: string | null; size: number | null }) => (p.measure ? `${p.size} ${p.measure === "unit" ? "pcs" : p.measure}` : "—");
-const SOLD_BY = { weight: "By weight", unit: "By the unit" } as const;
 const typeText = (t: string | null) => t ?? html`<span class="muted">None yet</span>`;
 const href = (code: string) => `/products/${encodeURIComponent(code)}`;
 const pageHref = (q: string, type: TypeFilter, page: number) => `/products?${new URLSearchParams({ q, type: type ?? "", page: String(page) })}`;
