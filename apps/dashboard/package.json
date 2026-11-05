@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@grocer/shared": "*",
     "@hono/node-server": "^2.1.5",
     "dotenv": "^18.0.9",
     "hono": "^4.13.14",

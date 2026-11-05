@@ -5,6 +5,7 @@ import { csrf } from "hono/csrf";
 import { HTTPException } from "hono/http-exception";
 import type { Deps } from "#/deps.ts";
 import type { AppEnv } from "#/middleware.ts";
+import { productsRoutes } from "#/routes/products.ts";
 import { syncsRoutes } from "#/routes/syncs.ts";
 
 const htmx = readFileSync(createRequire(import.meta.url).resolve("htmx.org/dist/htmx.min.js"), "utf8");
@@ -22,6 +23,7 @@ export function createApp(deps: Deps) {
       c.body(htmx, 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=86400" }),
     )
     .route("/", syncsRoutes)
+    .route("/", productsRoutes)
     .onError((error, c) => {
       if (error instanceof HTTPException) return error.getResponse();
       console.error(error);

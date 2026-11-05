@@ -11,7 +11,7 @@ How the code inside `apps/api` is organised.
 | `src/jobs/<job>.ts` | One handler per job. |
 | `src/app.ts` | `createApp(deps)`: app-wide middleware and error handling, and mounts the routers. No route logic. |
 | `src/internal-app.ts` | `createInternalApp(deps)`: the private app behind the `SYNC_TOKEN` bearer, served by `api.ts` on its own internal port: `POST /sync` (Manual sync request) and the Internal dashboard's routers. |
-| `src/routes/internal/<resource>.ts` | One private router per resource for the Internal dashboard (`apps/dashboard`), mounted by `createInternalApp`, e.g. `syncs.ts`: `GET /syncs?days=` (Price syncs of the last 90 days). Same rules as the public routers; tests in `tests/routes/internal/`. |
+| `src/routes/internal/<resource>.ts` | One private router per resource for the Internal dashboard (`apps/dashboard`), mounted by `createInternalApp`, e.g. `syncs.ts`: `GET /syncs?days=` (Price syncs of the last 90 days); `products.ts`: `GET /products?q=&page=` (the app's search, Products only, with their Product type) and `GET /products/:code` (its prices per store, cheapest first, and running Promotions). Same rules as the public routers; tests in `tests/routes/internal/`. |
 | `src/middleware.ts` | `AppEnv` (the context variables), `requireUser`, and `rateLimit({ max, windowMs })`: per client IP, in memory. `createApp` mounts it for every route, with stricter limits on sign-in (also `/deletion/sign-in/*`), sign-up, `/api/auth/email-otp/*` and `/deletion/code/*`. |
 | `src/routes/<resource>.ts` | One router per resource. |
 | `src/deps.ts` | Composition root: `buildDeps(config, overrides)` builds every dependency once. |

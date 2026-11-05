@@ -14,6 +14,7 @@ FROM node:24-slim
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=deps /app ./
+COPY packages/shared/src packages/shared/src
 COPY apps/dashboard/src apps/dashboard/src
 USER node
 WORKDIR /app/apps/dashboard
