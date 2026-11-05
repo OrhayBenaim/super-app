@@ -5,6 +5,7 @@ import { chainByKey } from "#/ingest/chains.ts";
 import { parseFileName, storeOfFileName } from "#/ingest/files.ts";
 import { decodeXml, isGtin, parsePrices, parseStores } from "#/ingest/parse.ts";
 import { parsePromotions } from "#/ingest/parse-promotions.ts";
+import { packStorePrices, packStorePromotions } from "#/prices/browse-data.ts";
 
 type IngestDeps = Pick<Deps, "db" | "clock">;
 
@@ -91,6 +92,7 @@ export function ingestPrices({ db, clock }: IngestDeps, chainKey: string, xml: s
       upsertProduct.run(code, it.code, it.name, it.manufacturer, it.unitQty, it.isWeighted ? 1 : 0);
       upsertPrice.run(storeId, code, it.price, it.unitPrice, now);
     }
+    packStorePrices(sqlite, storeId);
   })();
   return items.length;
 }
@@ -125,6 +127,7 @@ export function ingestPromotions(deps: IngestDeps, chainKey: string, xml: string
       const { lastInsertRowid } = insertPromotion.run(storeId, p.promotionId, p.description, p.kind, p.minQty, p.amount, p.audience, p.startsAt, p.endsAt, p.days, p.limitQty, p.minPurchase, p.combines ? 1 : 0);
       for (const code of p.codes) insertItem.run(lastInsertRowid, productCode(chainId, code));
     }
+    packStorePromotions(sqlite, storeId);
   })();
   return { layout: parsed.layout, store: storeId.slice(chainId.length + 1), loaded: parsed.promotions.length, unpriced: parsed.unpriced };
 }

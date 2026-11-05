@@ -148,7 +148,7 @@ export const promotionText = (p: PromotionTerms, shelf: number) => applied(p, sh
  * whole percent (never below 0). A set Promotion (3 for ₪10, 2+1, ₪5 off 2) is averaged over its set. Null when no
  * unit price can be worked out: info-only, or a spend deal (it depends on the rest of the List).
  */
-export function promotionPrice(p: Omit<PromotionTerms, "weighted">, shelf: number) {
+export function promotionPrice(p: Omit<PromotionTerms, "weighted" | "id" | "description">, shelf: number) {
   const each = unitPrice(p, shelf);
   return each === null ? null : { price: round2(each), saving: savingOf(each, shelf) };
 }
@@ -157,7 +157,7 @@ export function promotionPrice(p: Omit<PromotionTerms, "weighted">, shelf: numbe
 export const savingOf = (each: number, shelf: number) => Math.max(0, Math.round((1 - each / shelf) * 100));
 
 /** promotionPrice's unit price before rounding, without allocating (browse ranks millions of offers per request). */
-export function unitPrice(p: Omit<PromotionTerms, "weighted">, shelf: number) {
+export function unitPrice(p: Omit<PromotionTerms, "weighted" | "id" | "description">, shelf: number) {
   if (p.kind === "info" || isDeal(p)) return null;
   switch (p.kind) {
     case "price":

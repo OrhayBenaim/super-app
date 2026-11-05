@@ -39,26 +39,8 @@ const stem = (w: string) => {
 
 type Word = { raw: string; norm: string };
 
-// Browse groups tens of thousands of Products per request, so each name is parsed once, keyed by the name (the same
-// string object on every request, so its hash is cached). Callers never mutate the results.
-// shortcut: a full memo is emptied (searched words land in it too); raise MAX_MEMO past the catalog's size.
-const MAX_MEMO = 400_000;
-function remember<V>(memo: Map<string, V>, key: string, value: V) {
-  if (memo.size >= MAX_MEMO) memo.clear();
-  memo.set(key, value);
-  return value;
-}
-
-/** `f`, worked out once per name. */
-export function byName<V extends object>(f: (name: string) => V) {
-  const memo = new Map<string, V>();
-  return (name: string): V => memo.get(name) ?? remember(memo, name, f(name));
-}
-
 /** A name's words without noise, each with its normalized form, and without a leading "גבינת". */
-export const nameWords: (name: string) => readonly Word[] = byName(parseWords);
-
-function parseWords(name: string) {
+export function nameWords(name: string): Word[] {
   const words = rawWords(name)
     .filter((w) => !NOISE.has(w))
     .map((raw) => {
@@ -119,22 +101,14 @@ type Sized = { name: string; unitQty: string | null; isWeighted: boolean | numbe
  * unit quantity, else from the name, else a pack count. Null when no size can be read. The chains' own unit price is
  * not used: it is per kilo at some chains and per 100 g at others.
  */
-export function measureOf(p: Sized): Readonly<Size> | null {
+export function measureOf(p: Sized): Size | null {
   if (p.isWeighted) return { measure: "kg", size: 1 };
-  const hit = sized.get(p.name);
-  return hit && hit.unitQty === p.unitQty ? hit.size : remember(sized, p.name, { unitQty: p.unitQty, size: sizeOf(p.unitQty, p.name) }).size;
-}
-
-/** By name: the unit quantity last measured with it, and their size. */
-const sized = new Map<string, { unitQty: string | null; size: Size | null }>();
-
-function sizeOf(unitQty: string | null, name: string): Size | null {
-  const qty = rawWords(unitQty ?? "");
-  const words = rawWords(name);
-  const size = sizeIn(qty) ?? sizeIn(words);
+  const qty = rawWords(p.unitQty ?? "");
+  const name = rawWords(p.name);
+  const size = sizeIn(qty) ?? sizeIn(name);
   if (size) return size;
   const n = Number(qty[0]);
-  const count = countIn(words) ?? (COUNT.has(qty[1] ?? "") && Number.isInteger(n) && n >= 1 ? n : null);
+  const count = countIn(name) ?? (COUNT.has(qty[1] ?? "") && Number.isInteger(n) && n >= 1 ? n : null);
   return count ? { measure: "unit", size: count } : null;
 }
 
@@ -149,16 +123,16 @@ export const soldByOf = (p: Pick<Sized, "unitQty" | "isWeighted">): SoldBy =>
 const groupSoldBy = (measure: Measure, products: Sized[]): SoldBy =>
   measure === "kg" && commonest(products.map(soldByOf)) === "weight" ? "weight" : "unit";
 
-const startsWith = (words: readonly Word[], group: string[]) => group.every((w, i) => words[i]?.norm === w);
+const startsWith = (words: Word[], group: string[]) => group.every((w, i) => words[i]?.norm === w);
 
 /** True when a name with these words starts with the group's words and has no qualifier the group's words lack. */
-export const startsGroup = (words: readonly Word[], group: string[]) =>
+export const startsGroup = (words: Word[], group: string[]) =>
   startsWith(words, group) && words.every((w) => !QUALIFIER_WORDS.has(w.norm) || group.includes(w.norm));
 
 /** Same measure, and for the unit the same pack count. */
 export const sameMeasure = (a: Size | null, b: Size) => !!a && a.measure === b.measure && (b.measure !== "unit" || a.size === b.size);
 
-const groupRef = (words: string[], { measure, size }: Size) => [words.join(" "), measure, ...(measure === "unit" ? [size] : [])].join("|");
+export const groupRef = (words: string[], { measure, size }: Size) => [words.join(" "), measure, ...(measure === "unit" ? [size] : [])].join("|");
 
 /** A group ref's words and measure, or null when it is not one. A kilo or liter group's size is always 1. */
 export function parseRef(ref: string): { words: string[]; size: Size } | null {
@@ -193,7 +167,7 @@ export function commonest<T>(values: T[]): T | undefined {
 }
 
 /** Up to 6 next words (shown as typed) that 2+ of these names have right after the group's words, commonest first. */
-function refinementsOf(names: (readonly Word[])[], at: number) {
+function refinementsOf(names: Word[][], at: number) {
   const next = names.flatMap((words) => {
     const w = words[at];
     return w && !isNumber(w.norm) && !isUnit(w.norm) && w.norm !== "עם" ? [w] : [];

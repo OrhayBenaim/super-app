@@ -1,6 +1,6 @@
 // App (non-auth) tables go here; re-exported from schema.ts.
 import { sql } from "drizzle-orm";
-import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { user } from "#/db/schema.ts"; // circular with schema.ts, safe because references() is lazy
 
 const createdAt = () =>
@@ -205,3 +205,69 @@ export const promotionItems = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.promotionId, t.code] }), index("promotion_items_code_idx").on(t.code)],
 );
+
+// Browse's copy of the price data (src/prices/browse-data.ts), so a Home or Promotions request reads a few hundred rows,
+// not every nearby price: Products numbered for packed lists, each store's prices and Promotions packed into one row as
+// ingest writes them, a Chain's Promotion terms stored once, and every Product's group card worked out by each Price sync.
+export const browseProducts = sqliteTable("browse_products", {
+  id: integer("id").primaryKey(), // the Product's number in packed lists; never reused
+  code: text("code").notNull().unique(), // keyed like prices.code; no FK, a promoted product may have no price row
+  // Its normalized name words (space-separated), written with browse_groups for a priced Product.
+  words: text("words"),
+});
+
+export const storeBrowse = sqliteTable("store_browse", {
+  storeId: text("store_id")
+    .primaryKey()
+    .references(() => stores.id, { onDelete: "cascade" }),
+  products: blob("products", { mode: "buffer" }).notNull(), // Int32 browse_products ids, ascending
+  prices: blob("prices", { mode: "buffer" }).notNull(), // Float64 Shelf prices, in the same order
+  // The store's Promotions on each Product: Int32 browse_products ids, ascending, and the chain_promotions id of each.
+  offerProducts: blob("offer_products", { mode: "buffer" }).notNull(),
+  offerPromotions: blob("offer_promotions", { mode: "buffer" }).notNull(),
+});
+
+// One Chain's Promotion terms as its stores publish them: stores with the same PromotionID and terms share a row.
+export const chainPromotions = sqliteTable("chain_promotions", {
+  id: integer("id").primaryKey(),
+  key: text("key").notNull().unique(), // hash of the Chain, PromotionID and terms
+  chainId: text("chain_id").notNull(),
+  promotionId: text("promotion_id").notNull(),
+  description: text("description").notNull(),
+  kind: text("kind", { enum: promotionKinds }).notNull(),
+  minQty: real("min_qty").notNull(),
+  amount: real("amount").notNull(),
+  audience: text("audience", { enum: audiences }).notNull(),
+  startsAt: integer("starts_at").notNull(),
+  endsAt: integer("ends_at").notNull(),
+  days: text("days"),
+  limitQty: real("limit_qty"),
+  minPurchase: real("min_purchase"),
+});
+
+// Browse's group cards (docs/adr/0001's rules over every priced Product), rewritten by each Price sync.
+export const browseGroups = sqliteTable("browse_groups", {
+  id: integer("id").primaryKey(),
+  type: text("type").notNull(),
+  ref: text("ref"), // null: a lone Product with no group ref
+  name: text("name").notNull(),
+  measure: text("measure").notNull(),
+  size: real("size").notNull(),
+  soldBy: text("sold_by").notNull(),
+});
+
+// One row, written with browse_groups. Per browse_products id: its group (-1: none yet), what its price is divided by
+// for its group's price per kilo, liter or pack, whether it is weighed, how many stores price it, and its code and lead
+// words (before its first number or size, normalized and as written); per group: its Product type (index into
+// PRODUCT_TYPES) and how many stores price any of its Products.
+export const browseCatalog = sqliteTable("browse_catalog", {
+  id: integer("id").primaryKey(),
+  groups: blob("groups", { mode: "buffer" }).notNull(), // Int32
+  perUnit: blob("per_unit", { mode: "buffer" }).notNull(), // Float64
+  weighted: blob("weighted", { mode: "buffer" }).notNull(), // Uint8
+  stores: blob("stores", { mode: "buffer" }).notNull(), // Int32
+  groupTypes: blob("group_types", { mode: "buffer" }).notNull(), // Uint8
+  groupStores: blob("group_stores", { mode: "buffer" }).notNull(), // Int32
+  names: blob("names", { mode: "buffer" }).notNull(), // UTF-8 "code\tlead\tlead as written", one after another
+  nameEnds: blob("name_ends", { mode: "buffer" }).notNull(), // Int32: where each Product's ends in names
+});

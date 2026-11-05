@@ -99,6 +99,13 @@
       "when": 1793829709984,
       "tag": "0013_wooden_warstar",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1793877766372,
+      "tag": "0014_plain_shiver_man",
+      "breakpoints": true
     }
   ]
 }

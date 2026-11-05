@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Deps } from "#/deps.ts";
 import { ingestPrices, ingestStores, readXml } from "#/ingest/ingest.ts";
+import { refreshBrowse } from "#/prices/browse-groups.ts";
 
 export const ingestPricesData = z
   .object({
@@ -24,6 +25,7 @@ export function ingestPricesJob(deps: Deps) {
       console.log(`${f}: ${n} prices in ${Math.round(performance.now() - t)} ms`);
     }
     // Each skipped file only warns; all of them skipped means a missing or wrong --stores file.
+    await refreshBrowse(deps.db);
     if (prices.length && loaded === 0) throw new Error(`no prices loaded from any of ${prices.length} --prices files (stores not in the Stores file?)`);
   };
 }
