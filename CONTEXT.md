@@ -113,3 +113,13 @@ _Avoid_: PIN, token
 **Deletion code**:
 The OTP emailed to a signed-in User before an Account deletion or a Data deletion done on the web. A correct code leads to a last confirmation, and confirming commits that deletion. It works only for the deletion it was requested for; cancelling kills it.
 _Avoid_: PIN, Reset code (that one is only for Password reset)
+
+### Support
+
+**Contact message**:
+A message a signed-in User sends the Grocer team from the app: one Topic and their own text. It is answered by email, at the User's account email.
+_Avoid_: Feedback, ticket, support request
+
+**Topic**:
+What a Contact message is about, one of: General, Bug, Improvement, Missing supermarket, Missing product. Missing supermarket covers a store Grocer doesn't have as well as a whole Chain it doesn't have. Missing product covers a product Grocer doesn't know as well as one a store sells but Grocer doesn't price there.
+_Avoid_: Category (an Item's category is the household's own), Missing item (that is an item a store's Compare total leaves out)
