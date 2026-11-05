@@ -73,7 +73,7 @@ describe("Product groups page (A8)", () => {
   it("opens the group a ref names, in its own Product type, and filters the list by name", async () => {
     const { app } = await seeded();
     const html = await (await app.request(`/groups?ref=${enc("חלב אבקה|kg")}`)).text();
-    expect(html).toContain("by the kilo · commonest pack 0.4 kg");
+    expect(html).toContain("by the kilo · commonest pack 400 g");
     expect(html).toContain('<option value="dairy-eggs" selected');
     const filtered = await (await app.request(`/groups?type=dairy-eggs&q=${enc("סויה")}`)).text();
     expect(filtered).toContain("משקה סויה");
