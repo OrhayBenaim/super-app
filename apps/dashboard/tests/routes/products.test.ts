@@ -47,7 +47,8 @@ function seeded() {
 
 describe("Products page", () => {
   it("lists the Product types with their counts, All Products first and No type yet last, and every priced Product", async () => {
-    const { app } = seeded();
+    const { app, api } = seeded();
+    await refreshBrowse(api.db); // the Price sync counts each Product's stores, which the list ranks by
     const res = await app.request("/products");
     expect(res.status).toBe(200);
     const html = await res.text();
@@ -64,7 +65,8 @@ describe("Products page", () => {
   });
 
   it("shows the chosen type's Products as cards: name, size, from price and store count, each linking to its page", async () => {
-    const { app } = seeded();
+    const { app, api } = seeded();
+    await refreshBrowse(api.db);
     const html = await (await app.request("/products?type=dairy-eggs")).text();
     expect(html).toContain('<a href="/products?type=dairy-eggs" aria-current="page">');
     expect(html).toContain("<h2>Dairy &amp; eggs</h2>");
@@ -77,7 +79,8 @@ describe("Products page", () => {
   });
 
   it("loads each card's image when it scrolls into view", async () => {
-    const { app, looked } = seeded();
+    const { app, api, looked } = seeded();
+    await refreshBrowse(api.db);
     const html = await (await app.request("/products")).text();
     expect(looked).toEqual([]);
     expect(html).toContain(`hx-get="/products/${MILK}/image" hx-trigger="intersect once"`);
@@ -126,7 +129,8 @@ describe("Products page", () => {
   });
 
   it("lists the Products with no Product type yet", async () => {
-    const { app } = seeded();
+    const { app, api } = seeded();
+    await refreshBrowse(api.db);
     const html = await (await app.request("/products?type=none")).text();
     expect(html).toContain("בננות");
     expect(html).not.toContain("חלב 3% 1 ליטר");

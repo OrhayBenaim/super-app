@@ -10,20 +10,23 @@ import { SEARCH_CANDIDATES, searchProducts, withMeasure } from "#/prices/search.
 type Product = { code: string; name: string; manufacturer: string | null; unitQty: string | null; isWeighted: number; productType: string | null };
 
 
-// Mirrors the search's columns; the price lookups are per Product, like the search's.
-const BY_TYPE = `SELECT code, name, manufacturer, unit_qty AS unitQty, is_weighted AS isWeighted, product_type AS productType,
-     (SELECT count(*) FROM prices pr WHERE pr.code = p.code) AS storeCount, (SELECT min(price) FROM prices pr WHERE pr.code = p.code) AS minPrice
-   FROM products p WHERE (@any OR product_type IS @type) AND storeCount > 0 ORDER BY storeCount DESC, code LIMIT @limit OFFSET @offset`;
+// Mirrors the search's columns. Ranked by the stored store count (an index walk, not a count over every price); the
+// minimum price only for the page's rows.
+const byType = (typed: boolean) => `SELECT code, name, manufacturer, unit_qty AS unitQty, is_weighted AS isWeighted, product_type AS productType,
+     store_count AS storeCount, (SELECT min(price) FROM prices pr WHERE pr.code = p.code) AS minPrice
+   FROM products p WHERE ${typed ? "product_type IS @type AND " : ""}store_count > 0 ORDER BY store_count DESC, code LIMIT @limit OFFSET @offset`;
 // shortcut: a typed search filters the search's first SEARCH_CANDIDATES Products; raise that cap when a type misses some.
 
 /**
  * One page of the Products the app's search finds for `q` (its Products, not its Product groups), each with its type,
- * only those of `type` when given. Without `q`, every priced Product (of `type` when given), most widely priced first.
+ * only those of `type` when given. Without `q`, every priced Product (of `type` when given), most widely priced first,
+ * by the store counts of the last Price sync.
  */
 export function findProducts(db: Db, { q, type, page, pageSize }: { q?: string; type?: ProductTypeFilter; page: number; pageSize: number }) {
   const wanted = type === "none" ? null : type;
   if (q === undefined) {
-    const rows = db.$client.prepare(BY_TYPE).all({ any: type === undefined ? 1 : 0, type: wanted ?? null, limit: pageSize + 1, offset: (page - 1) * pageSize }) as (Product & { storeCount: number; minPrice: number })[];
+    const typed = type !== undefined;
+    const rows = db.$client.prepare(byType(typed)).all({ ...(typed && { type: wanted }), limit: pageSize + 1, offset: (page - 1) * pageSize }) as (Product & { storeCount: number; minPrice: number })[];
     return { products: rows.slice(0, pageSize).map(withMeasure), hasMore: rows.length > pageSize };
   }
   const searched = searchProducts(db, q, type ? SEARCH_CANDIDATES : page * pageSize + 1).filter((r) => r.kind === "product");
@@ -34,10 +37,10 @@ export function findProducts(db: Db, { q, type, page, pageSize }: { q?: string; 
   return { products: found.slice((page - 1) * pageSize, page * pageSize), hasMore: found.length > page * pageSize };
 }
 
-/** How many priced Products each Product type has ("none": none yet), and all of them: what the Products page lists. */
+/** How many priced Products each Product type has ("none": none yet), as the last Price sync counted them: what the Products page lists. */
 export function productTypeCounts(db: Db) {
   const rows = db.$client
-    .prepare("SELECT coalesce(product_type, 'none') AS type, count(*) AS n FROM products p WHERE EXISTS (SELECT 1 FROM prices pr WHERE pr.code = p.code) GROUP BY product_type")
+    .prepare("SELECT coalesce(product_type, 'none') AS type, count(*) AS n FROM products WHERE store_count > 0 GROUP BY product_type")
     .all() as { type: ProductTypeFilter; n: number }[];
   const types = Object.fromEntries(PRODUCT_TYPE_FILTERS.map((t) => [t, 0])) as Record<ProductTypeFilter, number>;
   for (const r of rows) types[r.type] = r.n;

@@ -104,7 +104,13 @@ export const products = sqliteTable("products", {
   isWeighted: integer("is_weighted", { mode: "boolean" }).notNull().default(false),
   // Null until a Price sync classifies it (an untyped Product counts as Other); clearing it sends it again.
   productType: text("product_type").references(() => productTypes.id),
-});
+  // How many stores price it, as the last Price sync counted them (browse-groups.ts), for the Internal dashboard's list.
+  storeCount: integer("store_count").notNull().default(0),
+}, (t) => [
+  // Most widely priced first, by code: the Products list pages these instead of counting prices per Product.
+  index("products_store_count_idx").on(sql`store_count DESC`, t.code),
+  index("products_type_store_count_idx").on(t.productType, sql`store_count DESC`, t.code),
+]);
 
 export const prices = sqliteTable(
   "prices",
