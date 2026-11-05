@@ -1,38 +1,61 @@
 import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
+import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import type { ApiClient } from "#/api-client.ts";
 import { when } from "#/pages/syncs.ts";
 
 type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
 type Found = InferResponseType<ApiClient["products"]["$get"], 200>;
 type Detail = InferResponseType<ApiClient["products"][":code"]["$get"], 200>;
+/** The Products page's type filter: a Product type, "none" for none yet, or undefined for any. */
+export type TypeFilter = (typeof PRODUCT_TYPES)[number] | "none" | undefined;
 
 const shekels = (n: number) => `₪${n.toFixed(2)}`;
 const size = (p: { measure: string | null; size: number | null }) => (p.measure ? `${p.size} ${p.measure === "unit" ? "pcs" : p.measure}` : "—");
 const SOLD_BY = { weight: "By weight", unit: "By the unit" } as const;
-const type = (t: string | null) => t ?? html`<span class="muted">None yet</span>`;
+const typeText = (t: string | null) => t ?? html`<span class="muted">None yet</span>`;
 const href = (code: string) => `/products/${encodeURIComponent(code)}`;
-const pageHref = (q: string, page: number) => `/products?${new URLSearchParams({ q, page: String(page) })}`;
+const pageHref = (q: string, type: TypeFilter, page: number) => `/products?${new URLSearchParams({ q, type: type ?? "", page: String(page) })}`;
+const option = (value: string, label: string, chosen: string | null | undefined) =>
+  html`<option value="${value}"${value === chosen ? html` selected` : ""}>${label}</option>`;
 
-export const searchForm = (q: string) => html`<form method="get" action="/products" class="search">
+export const searchForm = (q: string, type: TypeFilter) => html`<form method="get" action="/products" class="search">
   <label for="q">Name or barcode</label>
   <input id="q" name="q" type="search" value="${q}" maxlength="100" autofocus />
+  <label for="type">Product type</label>
+  <select id="type" name="type">
+    ${option("", "Any", type ?? "")} ${PRODUCT_TYPES.map((t) => option(t, t, type))} ${option("none", "None yet", type)}
+  </select>
   <button type="submit">Search</button>
 </form>`;
 
-/** The Products page: the search form, then what the search found (or nothing before a search). */
-export const productsPage = (q: string, found: Html | "" = "") => html`<header>
+/** The Products page: the search form, then what the search or the type filter found (or nothing before either). */
+export const productsPage = (q: string, type: TypeFilter, found: Html | "" = "") => html`<header>
     <h1>Products</h1>
   </header>
-  ${searchForm(q)} ${found}`;
+  ${searchForm(q, type)} ${found}`;
+
+/** A Product's type as a form that changes it (htmx swaps the answer in); "None yet" is not one to choose. */
+export const typeForm = (code: string, productType: string | null, saved = false) => html`<form
+  id="product-type"
+  class="search"
+  hx-post="/products/${encodeURIComponent(code)}/type"
+  hx-swap="outerHTML"
+>
+  <select name="productType" aria-label="Product type">
+    ${productType ? "" : html`<option value="" selected disabled>None yet</option>`} ${PRODUCT_TYPES.map((t) => option(t, t, productType))}
+  </select>
+  <button type="submit">Save</button>
+  ${saved ? html`<span role="status">Saved.</span>` : ""}
+</form>`;
 
 export const notice = (text: string) => html`<p class="notice">${text}</p>`;
 
-/** One page of Products the search found, with links to the pages around it. */
-export const productsFound = (q: string, page: number, { products, hasMore }: Found) =>
+/** One page of Products the search or the type filter found, with links to the pages around it. */
+export const productsFound = (q: string, type: TypeFilter, page: number, { products, hasMore }: Found) =>
   products.length === 0
-    ? notice(`No Products match “${q}”.`)
+    ? notice(q ? `No Products match “${q}”.` : "No priced Products have this Product type.")
     : html`<div class="scroll">
           <table>
             <thead>
@@ -55,7 +78,7 @@ export const productsFound = (q: string, page: number, { products, hasMore }: Fo
                   <td lang="he">${p.manufacturer ?? "—"}</td>
                   <td>${size(p)}</td>
                   <td>${SOLD_BY[p.soldBy]}</td>
-                  <td>${type(p.productType)}</td>
+                  <td>${typeText(p.productType)}</td>
                   <td>${shekels(p.minPrice)}</td>
                   <td>${p.storeCount}</td>
                 </tr>`,
@@ -64,9 +87,9 @@ export const productsFound = (q: string, page: number, { products, hasMore }: Fo
           </table>
         </div>
         <nav class="pages" aria-label="Pages">
-          ${page > 1 ? html`<a href="${pageHref(q, page - 1)}">Previous</a>` : ""}
+          ${page > 1 ? html`<a href="${pageHref(q, type, page - 1)}">Previous</a>` : ""}
           <span class="muted">Page ${page}</span>
-          ${hasMore ? html`<a href="${pageHref(q, page + 1)}">Next</a>` : ""}
+          ${hasMore ? html`<a href="${pageHref(q, type, page + 1)}">Next</a>` : ""}
         </nav>`;
 
 /** One Product: its Product image, details, its price at every store (cheapest first) and the Promotions running there. */
@@ -86,7 +109,7 @@ export const productPage = ({ product: p, prices }: Detail, image: string | null
       <dt>Sold by</dt>
       <dd>${SOLD_BY[p.soldBy]}</dd>
       <dt>Product type</dt>
-      <dd>${type(p.productType)}</dd>
+      <dd>${typeForm(p.code, p.productType)}</dd>
     </dl>
   </section>
   <h2>Prices</h2>
