@@ -194,8 +194,14 @@ export const promotions = sqliteTable(
     // AllowMultipleDiscounts (false = the Chain says a spend deal doesn't stack on other Promotions).
     // shortcut: AllowMultipleDiscounts is ignored, use it when a Chain's till is shown to refuse stacking
     combines: integer("combines", { mode: "boolean" }).notNull().default(true),
+    // The store's Chain, read from its id (ingest writes `${chainId}-${storeId}`), so the dashboard groups a Chain's
+    // Promotions from one index instead of joining stores for every row.
+    chainId: text("chain_id").generatedAlwaysAs(sql`substr(store_id, 1, instr(store_id, '-') - 1)`, { mode: "virtual" }),
   },
-  (t) => [uniqueIndex("promotions_store_promotion_idx").on(t.storeId, t.promotionId)],
+  (t) => [
+    uniqueIndex("promotions_store_promotion_idx").on(t.storeId, t.promotionId),
+    index("promotions_chain_promotion_idx").on(t.chainId, t.promotionId, t.kind, t.startsAt, t.endsAt),
+  ],
 );
 
 export const promotionItems = sqliteTable(

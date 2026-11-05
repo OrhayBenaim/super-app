@@ -9,7 +9,11 @@ const TOKEN = "test-sync-token";
 const NOW = new Date("2026-11-05T10:00:00Z"); // a Thursday in Israel (day 5)
 const DAY = 86_400_000;
 const RAMI = "7290058140886";
-const STORE = `${RAMI}-1`;
+const SHUFERSAL = "7290027600007";
+const TALPIOT = `${RAMI}-1`;
+const AFULA = `${RAMI}-2`;
+const HAIFA = `${RAMI}-3`;
+const DIZENGOFF = `${SHUFERSAL}-1`;
 const MILK = "7290000066318";
 const BREAD = "7290000066325";
 const UNKNOWN = "7290000099999"; // promoted, but no Product row and no price
@@ -17,64 +21,94 @@ const UNKNOWN = "7290000099999"; // promoted, but no Product row and no price
 const setup = () => buildDeps(loadConfig({ ...process.env, SYNC_TOKEN: TOKEN }), { clock: fakeClock(NOW) });
 const get = (deps: Deps, path: string, auth = `Bearer ${TOKEN}`) => createInternalApp(deps).request(path, { headers: { Authorization: auth } });
 
-const promo = (promotionId: string, from: number, to: number, extra: Partial<typeof promotions.$inferInsert> = {}) => ({
-  storeId: STORE, promotionId, description: `מבצע ${promotionId}`, kind: "bundle" as const, minQty: 2, amount: 10, audience: "club" as const,
+const promo = (storeId: string, promotionId: string, from: number, to: number, extra: Partial<typeof promotions.$inferInsert> = {}) => ({
+  storeId, promotionId, description: `מבצע ${promotionId}`, kind: "bundle" as const, minQty: 2, amount: 10, audience: "club" as const,
   startsAt: new Date(NOW.getTime() + from * DAY), endsAt: new Date(NOW.getTime() + to * DAY), ...extra,
 });
 
-/** One store with a running, an ended, a future, a not-today and an information-only Promotion. */
+/**
+ * Rami Levy publishes MILK2 at three stores, INFO at two, FRISAT (weekends) and FUTURE at one, ENDED at one; Shufersal
+ * publishes its own Promotion with the same PromotionID MILK2 at one store.
+ */
 function seed(deps: Deps) {
-  const store = (storeId: string, name: string) => ({ id: `${RAMI}-${storeId}`, chainId: RAMI, storeId, subChainId: "1", name, address: "הרצל 1", city: "חיפה", lat: null, lng: null });
-  deps.db.insert(stores).values([store("1", "רמי לוי תלפיות"), store("2", "רמי לוי עפולה")]).run();
+  const store = (id: string, chainId: string, name: string, city: string) => ({ id, chainId, storeId: id.split("-")[1]!, subChainId: "1", name, address: "הרצל 1", city });
+  deps.db
+    .insert(stores)
+    .values([
+      store(TALPIOT, RAMI, "רמי לוי תלפיות", "ירושלים"),
+      store(AFULA, RAMI, "רמי לוי עפולה", "עפולה"),
+      store(HAIFA, RAMI, "רמי לוי חיפה", "חיפה"),
+      store(DIZENGOFF, SHUFERSAL, "שופרסל דיזנגוף", "תל אביב"),
+    ])
+    .run();
   deps.db.insert(products).values([{ code: MILK, name: "חלב 3%" }, { code: BREAD, name: "לחם אחיד" }]).run();
-  deps.db.insert(prices).values([{ storeId: STORE, code: MILK, price: 6.9 }, { storeId: `${RAMI}-2`, code: BREAD, price: 7 }]).run();
+  deps.db
+    .insert(prices)
+    .values([
+      { storeId: TALPIOT, code: MILK, price: 6.9 },
+      { storeId: AFULA, code: MILK, price: 6.5 },
+      { storeId: HAIFA, code: BREAD, price: 7 },
+      { storeId: DIZENGOFF, code: MILK, price: 5 }, // another Chain's: not this Promotion's cheapest
+    ])
+    .run();
   const ids = deps.db
     .insert(promotions)
     .values([
-      promo("ENDED", -3, -1),
-      promo("RUNNING", -1, 1, { limitQty: 4, minPurchase: 100 }),
-      promo("FUTURE", 1, 3),
-      promo("FRISAT", -1, 3, { days: "6,7" }),
-      promo("INFO", -1, 1, { kind: "info", minQty: 1, amount: 0, audience: "all", days: "5" }),
-      { ...promo("OTHER", -1, 1), storeId: `${RAMI}-2` },
+      promo(TALPIOT, "MILK2", -1, 1, { limitQty: 4 }),
+      promo(AFULA, "MILK2", -1, 1, { limitQty: 4 }),
+      promo(HAIFA, "MILK2", -1, 1, { limitQty: 4 }),
+      promo(TALPIOT, "INFO", -1, 1, { kind: "info", minQty: 1, amount: 0, audience: "all" }),
+      promo(AFULA, "INFO", -1, 1, { kind: "info", minQty: 1, amount: 0, audience: "all" }),
+      promo(TALPIOT, "FRISAT", -1, 3, { days: "6,7", kind: "price", minQty: 1, amount: 5 }),
+      promo(TALPIOT, "FUTURE", 1, 3),
+      promo(HAIFA, "ENDED", -3, -1),
+      promo(DIZENGOFF, "MILK2", -1, 1, { audience: "all" }),
     ])
-    .returning({ id: promotions.id, promotionId: promotions.promotionId })
+    .returning({ id: promotions.id, storeId: promotions.storeId, promotionId: promotions.promotionId })
     .all();
-  const id = (p: string) => ids.find((r) => r.promotionId === p)!.id;
+  const id = (storeId: string, promotionId: string) => ids.find((r) => r.storeId === storeId && r.promotionId === promotionId)!.id;
   deps.db
     .insert(promotionItems)
     .values([
-      { promotionId: id("RUNNING"), code: MILK },
-      { promotionId: id("RUNNING"), code: BREAD },
-      { promotionId: id("RUNNING"), code: UNKNOWN },
-      { promotionId: id("ENDED"), code: MILK },
+      ...[TALPIOT, AFULA, HAIFA].flatMap((s) => [MILK, BREAD, UNKNOWN].map((code) => ({ promotionId: id(s, "MILK2"), code }))),
+      { promotionId: id(HAIFA, "ENDED"), code: MILK },
+      { promotionId: id(DIZENGOFF, "MILK2"), code: MILK },
     ])
     .run();
   return id;
 }
 
-type List = { store: { id: string; name: string; chainName: string }; promotions: { promotionId: string; state: string; itemCount: number }[] };
+type Row = { id: number; chainId: string; chainName: string; promotionId: string; kind: string; stores: number; products: number };
+type List = {
+  promotions: Row[];
+  total: number;
+  page: number;
+  pageSize: number;
+  counts: { running: number; future: number; ended: number };
+  info: number;
+  stores: number;
+  storeOptions: { id: string; name: string }[];
+};
+const list = async (deps: Deps, query = "") => {
+  const res = await get(deps, `/promotions${query}`);
+  expect(res.status).toBe(200);
+  return (await res.json()) as List;
+};
+const keys = (l: List) => l.promotions.map((p) => `${p.chainName} ${p.promotionId}`);
 
-describe("GET /promotions?store= (private)", () => {
-  it("lists the store's Promotions, running first, each marked running, not today, future or ended as Compare decides", async () => {
+describe("GET /promotions (private)", () => {
+  it("lists one row per Promotion of a Chain across its stores, running ones, most stores first, with the counts of each state", async () => {
     const deps = setup();
     const id = seed(deps);
-    const res = await get(deps, `/promotions?store=${STORE}`);
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as List;
-    expect(body.store).toEqual({ id: STORE, name: "רמי לוי תלפיות", chainName: "Rami Levy" });
-    expect(body.promotions.map((p) => [p.promotionId, p.state])).toEqual([
-      ["RUNNING", "running"],
-      ["INFO", "running"],
-      ["FRISAT", "notToday"],
-      ["FUTURE", "future"],
-      ["ENDED", "ended"],
-    ]);
+    const body = await list(deps);
+    // FRISAT is within its dates (not today's weekday): the list counts it as running
+    expect(keys(body)).toEqual(["Rami Levy MILK2", "Rami Levy INFO", "Rami Levy FRISAT", "Shufersal MILK2"]);
     expect(body.promotions[0]).toEqual({
-      id: id("RUNNING"),
-      storeId: STORE,
-      promotionId: "RUNNING",
-      description: "מבצע RUNNING",
+      id: id(TALPIOT, "MILK2"),
+      chainId: RAMI,
+      chainName: "Rami Levy",
+      promotionId: "MILK2",
+      description: "מבצע MILK2",
       kind: "bundle",
       minQty: 2,
       amount: 10,
@@ -83,49 +117,90 @@ describe("GET /promotions?store= (private)", () => {
       endsAt: "2026-11-06T10:00:00.000Z",
       days: null,
       limitQty: 4,
-      minPurchase: 100,
-      itemCount: 3,
-      state: "running",
+      minPurchase: null,
+      stores: 3,
+      products: 3,
     });
+    expect(body).toMatchObject({ total: 4, page: 1, counts: { running: 4, future: 1, ended: 1 }, info: 1, stores: 4, chain: null });
+    expect(body.storeOptions.map((s) => s.id)).toEqual([HAIFA, AFULA, TALPIOT, DIZENGOFF]);
   });
 
-  it("a day later the running one has ended and the future one runs", async () => {
+  it("filters by Chain, by kind and by state", async () => {
     const deps = setup();
     seed(deps);
-    (deps.clock as ReturnType<typeof fakeClock>).advance(DAY);
-    const body = (await (await get(deps, `/promotions?store=${STORE}`)).json()) as List;
-    expect(body.promotions.find((p) => p.promotionId === "RUNNING")?.state).toBe("ended");
-    expect(body.promotions.find((p) => p.promotionId === "FUTURE")?.state).toBe("running");
+    const rami = await list(deps, `?chain=${RAMI}`);
+    expect(keys(rami)).toEqual(["Rami Levy MILK2", "Rami Levy INFO", "Rami Levy FRISAT"]);
+    expect(rami).toMatchObject({ counts: { running: 3, future: 1, ended: 1 }, stores: 3 });
+    expect(rami.storeOptions.map((s) => s.id)).toEqual([HAIFA, AFULA, TALPIOT]);
+    expect(keys(await list(deps, "?kind=info"))).toEqual(["Rami Levy INFO"]);
+    expect(keys(await list(deps, "?state=future"))).toEqual(["Rami Levy FUTURE"]);
+    expect(keys(await list(deps, "?state=ended"))).toEqual(["Rami Levy ENDED"]);
   });
 
-  it("400 without a store or for one longer than 64 characters, 404 for an unknown one", async () => {
+  it("a store's Promotions, each still counting every store of its Chain that publishes it", async () => {
     const deps = setup();
-    expect((await get(deps, "/promotions")).status).toBe(400);
-    expect((await get(deps, `/promotions?store=${"1".repeat(65)}`)).status).toBe(400);
+    seed(deps);
+    const body = await list(deps, `?store=${AFULA}`);
+    expect(body.promotions.map((p) => [p.promotionId, p.stores])).toEqual([
+      ["MILK2", 3],
+      ["INFO", 2],
+    ]);
+    expect(body).toMatchObject({ counts: { running: 2, future: 0, ended: 0 }, chain: RAMI });
+    expect(body.storeOptions.map((s) => s.id)).toEqual([HAIFA, AFULA, TALPIOT]); // its Chain's
+  });
+
+  it("pages the list", async () => {
+    const deps = setup();
+    seed(deps);
+    expect(await list(deps, "?page=2")).toMatchObject({ promotions: [], total: 4, page: 2 });
+  });
+
+  it("400 for a kind, state or page it does not know, 404 for an unknown store", async () => {
+    const deps = setup();
+    seed(deps);
+    for (const q of ["?kind=free", "?state=today", "?page=0", `?store=${"1".repeat(65)}`]) expect((await get(deps, `/promotions${q}`)).status).toBe(400);
     expect((await get(deps, "/promotions?store=nope")).status).toBe(404);
   });
 
   it("401 without the token or with a wrong one", async () => {
     const deps = setup();
-    expect((await createInternalApp(deps).request(`/promotions?store=${STORE}`)).status).toBe(401);
-    expect((await get(deps, `/promotions?store=${STORE}`, "Bearer wrong")).status).toBe(401);
+    expect((await createInternalApp(deps).request("/promotions")).status).toBe(401);
+    expect((await get(deps, "/promotions", "Bearer wrong")).status).toBe(401);
   });
 });
 
+type Detail = {
+  promotion: { promotionId: string; chainName: string; state: string; combines: boolean };
+  stores: { id: string; name: string; city: string }[];
+  products: { code: string; name: string | null; price: number | null; promotion: { price: number; saving: number } | null }[];
+};
+
 describe("GET /promotions/:id (private)", () => {
-  it("returns the Promotion with its store and its Products, each with its Shelf price at that store", async () => {
+  it("returns the Promotion across its Chain's stores: its terms, the stores, and each Product at the cheapest of them", async () => {
     const deps = setup();
     const id = seed(deps);
-    const res = await get(deps, `/promotions/${id("RUNNING")}`);
+    const res = await get(deps, `/promotions/${id(AFULA, "MILK2")}`);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { promotion: { promotionId: string; state: string }; store: unknown; products: unknown };
-    expect(body.promotion).toMatchObject({ promotionId: "RUNNING", state: "running", itemCount: 3 });
-    expect(body.store).toEqual({ id: STORE, name: "רמי לוי תלפיות", chainName: "Rami Levy" });
-    expect(body.products).toEqual([
-      { code: MILK, name: "חלב 3%", price: 6.9 },
-      { code: BREAD, name: "לחם אחיד", price: null },
-      { code: UNKNOWN, name: null, price: null },
+    const body = (await res.json()) as Detail;
+    expect(body.promotion).toMatchObject({ promotionId: "MILK2", chainName: "Rami Levy", state: "running", minQty: 2, amount: 10, limitQty: 4, combines: true });
+    expect(body.stores).toEqual([
+      { id: HAIFA, name: "רמי לוי חיפה", city: "חיפה" },
+      { id: AFULA, name: "רמי לוי עפולה", city: "עפולה" },
+      { id: TALPIOT, name: "רמי לוי תלפיות", city: "ירושלים" },
     ]);
+    // 2 for ₪10 is ₪5 each; milk is cheapest at Afula (Shufersal's ₪5 is another Chain's), bread only Haifa prices
+    expect(body.products).toEqual([
+      { code: MILK, name: "חלב 3%", price: 6.5, promotion: { price: 5, saving: 23 } },
+      { code: BREAD, name: "לחם אחיד", price: 7, promotion: { price: 5, saving: 29 } },
+      { code: UNKNOWN, name: null, price: null, promotion: null },
+    ]);
+  });
+
+  it("marks a Promotion within its dates but not on today's weekday as not today", async () => {
+    const deps = setup();
+    const id = seed(deps);
+    const body = (await (await get(deps, `/promotions/${id(TALPIOT, "FRISAT")}`)).json()) as Detail;
+    expect(body.promotion.state).toBe("notToday");
   });
 
   it("400 for a bad id, 404 for an unknown one", async () => {
