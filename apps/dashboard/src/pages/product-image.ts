@@ -84,8 +84,15 @@ const IMAGE_SCRIPT = html`<script>
     const narrow = document.getElementById("narrow");
     const use = form.querySelector('button[type="submit"]');
     const blank = preview.innerHTML;
+    // The preview's object URL holds the file's bytes until revoked: one at a time, none once the dialog resets.
+    let previewUrl = null;
+    const revoke = () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
+    };
     const reset = () => {
       form.reset();
+      revoke();
       preview.innerHTML = blank;
       facts.textContent = "";
       narrow.hidden = true;
@@ -100,7 +107,9 @@ const IMAGE_SCRIPT = html`<script>
         facts.textContent = file.name + " · " + img.naturalWidth + " × " + img.naturalHeight + " · " + Math.max(1, Math.round(file.size / 1024)) + " KB";
         narrow.hidden = img.naturalWidth >= 400;
       };
-      img.src = URL.createObjectURL(file);
+      revoke();
+      previewUrl = URL.createObjectURL(file);
+      img.src = previewUrl;
       preview.replaceChildren(img);
       use.disabled = false;
     };
