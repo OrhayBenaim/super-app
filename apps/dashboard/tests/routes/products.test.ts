@@ -65,6 +65,13 @@ describe("Products page", () => {
     expect(html).not.toContain("בננות");
   });
 
+  it("loads each result's image when its row is revealed", async () => {
+    const { app, looked } = seeded();
+    const html = await (await app.request(`/products?q=${encodeURIComponent("חלב")}`)).text();
+    expect(looked).toEqual([]);
+    expect(html).toContain(`hx-get="/products/${MILK}/image" hx-trigger="revealed"`);
+  });
+
   it("finds the Product by barcode", async () => {
     const { app } = seeded();
     const html = await (await app.request(`/products?q=${MILK}`)).text();
@@ -199,5 +206,20 @@ describe("Product page", () => {
       expect(res.status).toBe(404);
       expect(await res.text()).toContain("No Product with this code");
     }
+  });
+});
+
+describe("Product image fragment", () => {
+  it("is the Product's image, or a dash when it has none or the code names none", async () => {
+    const { app, looked } = seeded();
+    const res = await app.request(`/products/${MILK}/image`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain(`<img src="${IMAGE}"`);
+    for (const code of [encodeURIComponent(LOCAL), "1".repeat(65)]) {
+      const none = await app.request(`/products/${code}/image`);
+      expect(none.status).toBe(200);
+      expect(await none.text()).not.toContain("<img");
+    }
+    expect(looked).toEqual([MILK, LOCAL]);
   });
 });

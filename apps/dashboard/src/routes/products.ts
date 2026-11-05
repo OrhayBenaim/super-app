@@ -5,7 +5,7 @@ import { SEARCH } from "@grocer/shared/search";
 import { found, unexpected } from "#/api-client.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { layout, notFound, notice } from "#/pages/layout.ts";
-import { productPage, productsFound, productsPage, typeForm } from "#/pages/products.ts";
+import { productPage, productsFound, productsPage, thumbnail, typeForm } from "#/pages/products.ts";
 
 // type: "" (Any) or anything outside the list is no filter.
 const searchQuery = z.object({
@@ -37,6 +37,11 @@ export const productsRoutes = new Hono<AppEnv>()
     const detail = await found(await c.var.deps.api.products[":code"].$get({ param: { code } }), "GET /products/:code");
     if (!detail) return missing();
     return c.html(layout(detail.product.name, productPage(detail, await c.var.deps.productImage(code))));
+  })
+  // A list's image cell (htmx, on reveal): the one Product image lookup.
+  .get("/products/:code/image", async (c) => {
+    const param = codeParam.safeParse(c.req.param());
+    return c.html(thumbnail(param.success ? await c.var.deps.productImage(param.data.code) : null));
   })
   // The Product type form (htmx): the private app sets it, and a Price sync never changes it. htmx swaps only a 2xx, so
   // a refusal is a 200 too (as the Manual sync button's).

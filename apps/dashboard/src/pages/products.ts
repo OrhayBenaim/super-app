@@ -22,6 +22,12 @@ const pageHref = (q: string, type: TypeFilter, page: number) => `/products?${new
 const option = (value: string, label: string, chosen: string | null | undefined) =>
   html`<option value="${value}"${value === chosen ? html` selected` : ""}>${label}</option>`;
 
+/** A Product image cell that loads its image when it scrolls into view: one lookup per row seen, none up front. */
+export const imageCell = (code: string) =>
+  html`<td hx-get="${href(code)}/image" hx-trigger="revealed" hx-swap="innerHTML"><span class="muted">—</span></td>`;
+/** What the image cell swaps in. The row names the Product, so the image adds no text. */
+export const thumbnail = (image: string | null) => (image ? html`<img src="${image}" alt="" width="48" height="48" />` : html`<span class="muted">—</span>`);
+
 export const searchForm = (q: string, type: TypeFilter) => html`<form method="get" action="/products" class="search">
   <label for="q">Name or barcode</label>
   <input id="q" name="q" type="search" value="${q}" maxlength="100" autofocus />
@@ -60,6 +66,7 @@ export const productsFound = (q: string, type: TypeFilter, page: number, { produ
           <table>
             <thead>
               <tr>
+                <th scope="col">Image</th>
                 <th scope="col">Product</th>
                 <th scope="col">Code</th>
                 <th scope="col">Manufacturer</th>
@@ -73,6 +80,7 @@ export const productsFound = (q: string, type: TypeFilter, page: number, { produ
             <tbody>
               ${products.map(
                 (p) => html`<tr>
+                  ${imageCell(p.code)}
                   <td lang="he"><a href="${href(p.code)}">${p.name}</a></td>
                   <td class="muted">${p.code}</td>
                   <td lang="he">${p.manufacturer ?? "—"}</td>

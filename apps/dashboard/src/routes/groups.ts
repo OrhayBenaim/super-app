@@ -8,8 +8,6 @@ import { groupSection, groupsPage } from "#/pages/groups.ts";
 import { layout, notice } from "#/pages/layout.ts";
 
 const wordsQuery = z.object({ q: z.string().trim().max(100).default("") });
-// shortcut: Product images for the 50 cheapest members only, so a big group doesn't send hundreds of lookups; raise if one is missed.
-const IMAGES = 50;
 
 /** Product groups from the private app's group search, read-only. Any answer other than 200 is a bug: onError shows it. */
 export const groupsRoutes = new Hono<AppEnv>().get("/groups", async (c) => {
@@ -22,9 +20,5 @@ export const groupsRoutes = new Hono<AppEnv>().get("/groups", async (c) => {
   if (res.status !== 200) throw unexpected(res, "GET /groups");
   const { groups } = await res.json();
   if (!groups.length) return c.html(layout("Product groups", groupsPage(q, notice(`No Product group starts with “${q}”.`))));
-  const { productImage } = c.var.deps;
-  const sections = await Promise.all(
-    groups.map(async (g) => groupSection(g, await Promise.all(g.members.map((m, i) => (i < IMAGES ? productImage(m.code) : null))))),
-  );
-  return c.html(layout("Product groups", groupsPage(q, html`${sections}`)));
+  return c.html(layout("Product groups", groupsPage(q, html`${groups.map(groupSection)}`)));
 });

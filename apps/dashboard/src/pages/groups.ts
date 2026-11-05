@@ -2,6 +2,7 @@ import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
 import type { ApiClient } from "#/api-client.ts";
+import { imageCell } from "#/pages/products.ts";
 
 type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
 export type Group = InferResponseType<ApiClient["groups"]["$get"], 200>["groups"][number];
@@ -25,7 +26,7 @@ export const groupsPage = (q: string, found: Html | "" = "") => html`<header>
   ${found}`;
 
 /** One group: what defines it, its refinements (each a narrower search) and its members, cheapest first, with images. */
-export const groupSection = (g: Group, images: (string | null)[]) => html`<section>
+export const groupSection = (g: Group) => html`<section>
   <h2 lang="he">${g.name}</h2>
   <dl>
     <dt>Ref</dt>
@@ -59,8 +60,8 @@ export const groupSection = (g: Group, images: (string | null)[]) => html`<secti
       </thead>
       <tbody>
         ${g.members.map(
-          (m, i) => html`<tr>
-            <td>${images[i] ? html`<img src="${images[i]}" alt="${m.name}" width="48" height="48" loading="lazy" />` : html`<span class="muted">—</span>`}</td>
+          (m) => html`<tr>
+            ${imageCell(m.code)}
             <td lang="he"><a href="/products/${encodeURIComponent(m.code)}">${m.name}</a></td>
             <td>${size(m.measure, m.size)}</td>
             <td>${SOLD_BY[m.soldBy]}</td>
