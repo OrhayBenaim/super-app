@@ -33,4 +33,10 @@ describe("fetchCompare", () => {
     m.api.mockRejectedValueOnce(new Error("500"));
     await expect(fetchCompare({ ...base, items: [], groups: [{ ref: "x|kg", quantity: 1 }] })).rejects.toThrow("500");
   });
+
+  it("shows each store's chain in Hebrew when it has a translation", async () => {
+    m.api.mockResolvedValueOnce({ stores: [{ storeId: "a", chainName: "Shufersal" }, { storeId: "b", chainName: "New Chain" }], unmatched: [] });
+    const { stores } = await fetchCompare({ ...base, items: [{ code: "111", quantity: 1 }], groups: [] });
+    expect(stores.map((s) => s.chainName)).toEqual(["שופרסל", "New Chain"]);
+  });
 });
