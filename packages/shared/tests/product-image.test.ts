@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { lookupProductImage } from "@/features/items/imageLookup";
+
+const CACHE_SIZE = 2_000;
+
+// The module caches answers, so each test imports a fresh copy.
+let lookupProductImage: (code: string) => Promise<string | null>;
 
 const rami = (code: string) => `https://img.rami-levy.co.il/product/${code}/small.jpg`;
 const offImage = "https://images.openfoodfacts.org/images/products/729/000/001/1/front_he.3.400.jpg";
@@ -7,7 +11,11 @@ const fetchMock = vi.fn<typeof fetch>();
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
 const status = (n: number) => new Response(null, { status: n });
 
-beforeEach(() => vi.stubGlobal("fetch", fetchMock));
+beforeEach(async () => {
+  vi.stubGlobal("fetch", fetchMock);
+  vi.resetModules();
+  ({ lookupProductImage } = await import("@grocer/shared/product-image"));
+});
 afterEach(() => {
   fetchMock.mockReset();
   vi.unstubAllGlobals();
@@ -79,5 +87,33 @@ describe("lookupProductImage", () => {
     await lookupProductImage("7290000011");
     const headers = new Headers(fetchMock.mock.calls[1][1]?.headers);
     expect(headers.get("User-Agent")).toMatch(/^Grocer\//);
+  });
+
+  it("shares one lookup between concurrent calls for a code, and answers later calls from memory", async () => {
+    fetchMock.mockResolvedValueOnce(status(200));
+    const [a, b] = await Promise.all([lookupProductImage("7290000011"), lookupProductImage("7290000011")]);
+    expect([a, b, await lookupProductImage("7290000011")]).toEqual([rami("7290000011"), rami("7290000011"), rami("7290000011")]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("remembers a code with no image too", async () => {
+    fetchMock.mockResolvedValueOnce(status(403)).mockResolvedValueOnce(json({ product: {} }));
+    await lookupProductImage("7290000011");
+    expect(await lookupProductImage("7290000011")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("forgets the least recently asked code once more than 2,000 codes are cached", async () => {
+    fetchMock.mockImplementation(async () => status(200));
+    await lookupProductImage("100");
+    await lookupProductImage("101");
+    for (let n = 2; n < CACHE_SIZE; n++) await lookupProductImage(String(1000 + n)); // the cache is now full
+    await lookupProductImage("100"); // asked again, so "101" is now the least recent
+    await lookupProductImage("9999"); // one past the bound: "101" goes
+    fetchMock.mockClear();
+    await lookupProductImage("100");
+    expect(fetchMock).not.toHaveBeenCalled();
+    await lookupProductImage("101");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
