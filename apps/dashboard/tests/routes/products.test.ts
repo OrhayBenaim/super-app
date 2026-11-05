@@ -175,8 +175,10 @@ describe("Product page", () => {
 
   it("answers 404 for an unknown Product", async () => {
     const { app } = seeded();
-    const res = await app.request("/products/123");
-    expect(res.status).toBe(404);
-    expect(await res.text()).toContain("No Product with this code");
+    for (const code of ["123", "1".repeat(65)]) {
+      const res = await app.request(`/products/${code}`);
+      expect(res.status).toBe(404);
+      expect(await res.text()).toContain("No Product with this code");
+    }
   });
 });

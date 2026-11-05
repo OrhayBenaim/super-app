@@ -26,7 +26,7 @@ export const productsRoutes = new Hono<AppEnv>()
     if (!q && !type) return c.html(layout("Products", productsPage(q, type)));
     if (q && q.length < SEARCH.minLength) return c.html(layout("Products", productsPage(q, type, notice(`Type at least ${SEARCH.minLength} characters.`))));
     const res = await c.var.deps.api.products.$get({ query: { ...(q && { q }), ...(type && { type }), page: String(page) } });
-    if (res.status !== 200) throw new Error(`api GET /products answered ${res.status}`);
+    if (res.status !== 200) throw unexpected(res, "GET /products");
     return c.html(layout("Products", productsPage(q, type, productsFound(q, type, page, await res.json()))));
   })
   .get("/products/:code", async (c) => {

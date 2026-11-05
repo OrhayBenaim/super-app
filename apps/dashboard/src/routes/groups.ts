@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { html } from "hono/html";
 import { z } from "zod";
 import { SEARCH } from "@grocer/shared/search";
+import { unexpected } from "#/api-client.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { groupSection, groupsPage } from "#/pages/groups.ts";
 import { layout, notice } from "#/pages/layout.ts";
@@ -18,7 +19,7 @@ export const groupsRoutes = new Hono<AppEnv>().get("/groups", async (c) => {
   if (!q) return c.html(layout("Product groups", groupsPage(q)));
   if (q.length < SEARCH.minLength) return c.html(layout("Product groups", groupsPage(q, notice(`Type at least ${SEARCH.minLength} characters.`))));
   const res = await c.var.deps.api.groups.$get({ query: { q } });
-  if (res.status !== 200) throw new Error(`api GET /groups answered ${res.status}`);
+  if (res.status !== 200) throw unexpected(res, "GET /groups");
   const { groups } = await res.json();
   if (!groups.length) return c.html(layout("Product groups", groupsPage(q, notice(`No Product group starts with “${q}”.`))));
   const { productImage } = c.var.deps;
