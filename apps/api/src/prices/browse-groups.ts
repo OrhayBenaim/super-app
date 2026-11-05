@@ -100,7 +100,7 @@ function withEdits(t: TeamEdits, cards: BrowseCard[], products: Product[]): Brow
   });
   const cardFor = (type: ProductType, ref: string | null) => (ref === null ? undefined : out.find((c) => c.ref === ref && (madeId(ref) !== null || c.type === type)));
   for (const [code, ref] of claimed) {
-    let card = cardFor(byCode.get(code)!.type, ref) ?? out.find((c) => c.ref === ref);
+    let card = cardFor(byCode.get(code)!.type, ref); // a word group's card of the Product's own type, as an edit places it
     if (!card) {
       const { measure, size } = editedSize(t, ref)!;
       card = { ref, name: edits.get(ref)!.name ?? parseRef(ref)!.words.join(" "), measure, size, soldBy: "unit", codes: [], type: made.get(ref)?.type ?? byCode.get(code)!.type };
