@@ -7,10 +7,10 @@ import { SEARCH } from "@grocer/shared/search";
 import { chains, prices, stores } from "#/db/appSchema.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { runningPromotionCount } from "#/prices/promotion-list.ts";
-import { bad } from "#/routes/internal/valid.ts";
+import { bad, paramOf } from "#/routes/internal/valid.ts";
 
 const PAGE_SIZE = 100;
-const idParam = z.object({ id: z.string().min(1).max(ID.maxLength) });
+const idParam = paramOf(z.object({ id: z.string().min(1).max(ID.maxLength) }));
 const listQuery = z.object({
   q: z.string().trim().min(1).max(SEARCH.maxLength).optional(), // the find field: names that hold it
   chain: z.string().min(1).max(ID.maxLength).optional(),
@@ -92,11 +92,9 @@ export const storesRoutes = new Hono<AppEnv>()
     return c.json({ stores: rows, total, page, pageSize: PAGE_SIZE, locations, counts }, 200);
   })
   // One store with its price count, when its prices were last updated, and how many running Promotions it has.
-  .get("/:id", (c) => {
-    const param = idParam.safeParse(c.req.param());
-    if (!param.success) return bad(c, param.error);
+  .get("/:id", idParam, (c) => {
     const { db, clock } = c.var.deps;
-    const store = db.select(columns).from(stores).innerJoin(chains, eq(chains.id, stores.chainId)).where(eq(stores.id, param.data.id)).get();
+    const store = db.select(columns).from(stores).innerJoin(chains, eq(chains.id, stores.chainId)).where(eq(stores.id, c.req.valid("param").id)).get();
     if (!store) return c.json({ error: "not found" }, 404);
     const stats = db.select({ priceCount: count(), updatedAt: max(prices.updatedAt) }).from(prices).where(eq(prices.storeId, store.id)).get();
     const promotionCount = runningPromotionCount(db, store.id, clock.now());
@@ -106,10 +104,9 @@ export const storesRoutes = new Hono<AppEnv>()
   .put(
     "/:id",
     editJson,
+    idParam,
     (c) => {
-      const param = idParam.safeParse(c.req.param());
-      if (!param.success) return bad(c, param.error);
-      const { id } = param.data;
+      const { id } = c.req.valid("param");
       const edit = c.req.valid("json");
       const { changes } = c.var.deps.db.update(stores).set(edit).where(eq(stores.id, id)).run();
       if (changes === 0) return c.json({ error: "not found" }, 404);

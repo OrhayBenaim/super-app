@@ -10,7 +10,7 @@ import { isProduct } from "#/db/products.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { regroupProduct } from "#/prices/browse-groups.ts";
 import { findProducts, productDetail, productTypeCounts } from "#/prices/products.ts";
-import { bad, formOf, jsonBody } from "#/routes/internal/valid.ts";
+import { bad, formOf, jsonBody, paramOf } from "#/routes/internal/valid.ts";
 
 // type: a Product type, or "none" for Products with none yet. Without q, every priced Product (of that type).
 const searchQuery = z
@@ -20,7 +20,7 @@ const searchQuery = z
     page: z.coerce.number().int().min(1).max(100).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
   });
-const codeParam = z.object({ code: z.string().trim().min(1).max(ID.maxLength) });
+const codeParam = paramOf(z.object({ code: z.string().trim().min(1).max(ID.maxLength) }));
 const typeBody = z.object({ productType: z.enum(PRODUCT_TYPES) });
 const imageForm = z.object({ image: z.instanceof(File, { message: "Choose an image." }) });
 const tooLarge = { error: `The image must be at most ${MAX_IMAGE_MB} MB.` };
@@ -38,16 +38,12 @@ export const productsRoutes = new Hono<AppEnv>()
   })
   .get("/types", (c) => c.json(productTypeCounts(c.var.deps.db), 200))
   // One Product, its Shelf price at every store that prices it (cheapest first) and the Promotions running there now.
-  .get("/:code", (c) => {
-    const param = codeParam.safeParse(c.req.param());
-    if (!param.success) return bad(c, param.error);
-    const detail = productDetail(c.var.deps.db, param.data.code, c.var.deps.clock.now());
+  .get("/:code", codeParam, (c) => {
+    const detail = productDetail(c.var.deps.db, c.req.valid("param").code, c.var.deps.clock.now());
     return detail ? c.json(detail, 200) : c.json({ error: "not found" }, 404);
   })
-  .put("/:code/type", jsonBody(typeBody), (c) => {
-    const param = codeParam.safeParse(c.req.param());
-    if (!param.success) return bad(c, param.error);
-    const { code } = param.data;
+  .put("/:code/type", jsonBody(typeBody), codeParam, (c) => {
+    const { code } = c.req.valid("param");
     const { productType } = c.req.valid("json");
     const { changes } = c.var.deps.db.$client.prepare("UPDATE products SET product_type = ? WHERE code = ?").run(productType, code);
     if (changes === 0) return c.json({ error: "not found" }, 404);
@@ -59,10 +55,9 @@ export const productsRoutes = new Hono<AppEnv>()
     "/:code/image",
     bodyLimit({ maxSize: MAX_IMAGE_BYTES + 64 * 1024, onError: (c) => c.json(tooLarge, 413) }), // room for the form around it
     formOf(imageForm),
+    codeParam,
     async (c) => {
-      const param = codeParam.safeParse(c.req.param());
-      if (!param.success) return bad(c, param.error);
-      const { code } = param.data;
+      const { code } = c.req.valid("param");
       const { image } = c.req.valid("form");
       if (image.size > MAX_IMAGE_BYTES) return c.json(tooLarge, 413);
       const bytes = new Uint8Array(await image.arrayBuffer());
@@ -73,9 +68,8 @@ export const productsRoutes = new Hono<AppEnv>()
     },
   )
   // Back to the image found by barcode.
-  .delete("/:code/image", async (c) => {
-    const param = codeParam.safeParse(c.req.param());
-    if (!param.success) return bad(c, param.error);
-    const removed = await removeProductImage(c.var.deps.imagesDir, param.data.code);
-    return removed ? c.json({ code: param.data.code }, 200) : c.json({ error: "not found" }, 404);
+  .delete("/:code/image", codeParam, async (c) => {
+    const { code } = c.req.valid("param");
+    const removed = await removeProductImage(c.var.deps.imagesDir, code);
+    return removed ? c.json({ code }, 200) : c.json({ error: "not found" }, 404);
   });

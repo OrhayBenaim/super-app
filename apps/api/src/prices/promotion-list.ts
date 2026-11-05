@@ -9,6 +9,13 @@ const PAGE_SIZE = 50;
 export const LIST_STATES = ["running", "future", "ended"] as const;
 export type ListState = (typeof LIST_STATES)[number];
 const listStateOf = (s: PromotionState): ListState => (s === "notToday" ? "running" : s);
+type Dated = { startsAt: number; endsAt: number; days: string | null };
+/** A promotions row's state at `now`, and its chip (listStateOf). */
+const statesAt = (now: Date) => {
+  const stateOf = promotionStateAt(now);
+  const state = ({ startsAt, endsAt, days }: Dated) => stateOf({ startsAt: new Date(startsAt), endsAt: new Date(endsAt), days });
+  return { state, chip: (r: Dated) => listStateOf(state(r)) };
+};
 
 export type ListFilter = { chain?: string; store?: string; kind?: PromotionKind; state: ListState; page: number };
 
@@ -29,12 +36,12 @@ const ROW = `p.id, p.chain_id AS chainId, ch.name AS chainName, p.promotion_id A
 
 /** A row as the dashboard reads it: ISO dates, its state at `now` and its deal text. */
 const shown = (now: Date) => {
-  const stateOf = promotionStateAt(now);
+  const { state } = statesAt(now);
   return <R extends Row>({ startsAt, endsAt, weighted, ...r }: R) => ({
     ...r,
     startsAt: new Date(startsAt).toISOString(),
     endsAt: new Date(endsAt).toISOString(),
-    state: stateOf({ startsAt: new Date(startsAt), endsAt: new Date(endsAt), days: r.days }),
+    state: state({ startsAt, endsAt, days: r.days }),
     deal: promotionText({ ...r, id: r.promotionId, weighted }),
   });
 };
@@ -71,13 +78,13 @@ export function promotionList(db: Db, filter: ListFilter, now: Date) {
   const storeChain = store === undefined ? undefined : (sqlite.prepare("SELECT chain_id FROM stores WHERE id = ?").pluck().get(store) as string | undefined);
   if (store !== undefined && storeChain === undefined) return null;
   const { where, args } = rowFilter(filter);
-  const stateOf = promotionStateAt(now);
+  const { chip } = statesAt(now);
 
   const counts = { running: 0, future: 0, ended: 0 };
   let info = 0;
   const listed: [id: number, stores: number][] = [];
   for (const [id, stores, startsAt, endsAt, days, kind] of groups(db, where, args)) {
-    const s = listStateOf(stateOf({ startsAt: new Date(startsAt), endsAt: new Date(endsAt), days }));
+    const s = chip({ startsAt, endsAt, days });
     counts[s]++;
     if (s === "running" && kind === "info") info++;
     if (s === state) listed.push([id, stores]);
@@ -146,11 +153,7 @@ export function promotionDetail(db: Db, id: number, now: Date) {
 
 /** How many Promotions a store publishes that its Promotions link opens on: the list's running ones. */
 export function runningPromotionCount(db: Db, storeId: string, now: Date) {
-  const stateOf = promotionStateAt(now);
-  const rows = db.$client.prepare("SELECT starts_at AS startsAt, ends_at AS endsAt, days FROM promotions WHERE store_id = ?").all(storeId) as {
-    startsAt: number;
-    endsAt: number;
-    days: string | null;
-  }[];
-  return rows.filter((r) => listStateOf(stateOf({ startsAt: new Date(r.startsAt), endsAt: new Date(r.endsAt), days: r.days })) === "running").length;
+  const { chip } = statesAt(now);
+  const rows = db.$client.prepare("SELECT starts_at AS startsAt, ends_at AS endsAt, days FROM promotions WHERE store_id = ?").all(storeId) as Dated[];
+  return rows.filter((r) => chip(r) === "running").length;
 }

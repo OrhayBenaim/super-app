@@ -1,11 +1,12 @@
 // The Price syncs the Internal dashboard reads: the kept runs with their Chains counted by outcome, the Chains that need
 // a look, and one run's Chain results.
 import { asc, desc, eq, gte, sql } from "drizzle-orm";
-import { chainOutcome, SYNC_HISTORY, type ChainOutcome } from "@grocer/shared/sync-history";
+import { CHAIN_OUTCOMES, chainOutcome, SYNC_HISTORY, type ChainOutcome } from "@grocer/shared/sync-history";
 import { chains, syncChainResults, syncRuns } from "#/db/appSchema.ts";
 import type { Db } from "#/db/index.ts";
 
 const DAY = 86_400_000;
+const noOutcomes = () => Object.fromEntries(CHAIN_OUTCOMES.map((o) => [o, 0])) as Record<ChainOutcome, number>;
 
 const listed = {
   id: syncRuns.id,
@@ -47,7 +48,7 @@ export function syncHistory(db: Db, now: Date) {
   const counts = new Map<number, Record<ChainOutcome, number>>();
   const streaks = new Map<string, { row: (typeof results)[number]; outcome: ChainOutcome; since: number; runs: number; open: boolean }>();
   for (const r of results) {
-    const n = counts.get(r.syncId) ?? { ok: 0, failed: 0, promotionFailed: 0 };
+    const n = counts.get(r.syncId) ?? noOutcomes();
     const outcome = chainOutcome(r);
     n[outcome]++;
     counts.set(r.syncId, n);
@@ -58,10 +59,10 @@ export function syncHistory(db: Db, now: Date) {
     else streak.open = false;
   }
 
-  const syncs = runs.map((run) => ({ ...run, chains: counts.get(run.id) ?? { ok: 0, failed: 0, promotionFailed: 0 } }));
+  const syncs = runs.map((run) => ({ ...run, chains: counts.get(run.id) ?? noOutcomes() }));
   const attention = [...streaks.values()]
     .filter((s): s is typeof s & { outcome: Exclude<ChainOutcome, "ok"> } => s.outcome !== "ok")
-    .sort((a, b) => (a.outcome === b.outcome ? b.runs - a.runs || a.row.name.localeCompare(b.row.name) : a.outcome === "failed" ? -1 : 1))
+    .sort((a, b) => (CHAIN_OUTCOMES.indexOf(a.outcome) - CHAIN_OUTCOMES.indexOf(b.outcome) || b.runs - a.runs || a.row.name.localeCompare(b.row.name)))
     .map(({ row, outcome, since, runs }) => ({
       chainId: row.chainId,
       name: row.name,
