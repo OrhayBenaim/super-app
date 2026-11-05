@@ -272,18 +272,30 @@ export const browseGroups = sqliteTable("browse_groups", {
   soldBy: text("sold_by").notNull(),
 });
 
-// One row, written with browse_groups. Per browse_products id: its group (-1: none yet), what its price is divided by
-// for its group's price per kilo, liter or pack, whether it is weighed, how many stores price it, and its code and lead
-// words (before its first number or size, normalized and as written); per group: its Product type (index into
-// PRODUCT_TYPES) and how many stores price any of its Products.
+// Browse's catalog: one row in each of browse_catalog, browse_group_data and browse_names, written with browse_groups.
+// Split by how a group edit (regroupProducts) writes them: in place in browse_catalog (same size, so SQLite writes
+// only the pages that change), browse_group_data whole (it grows by a card), browse_names never. In one row, an edit
+// rewrote 13 MB.
+// Per browse_products id: its group (-1: none yet), what its price is divided by for its group's price per kilo, liter
+// or pack, whether it is weighed and how many stores price it.
 export const browseCatalog = sqliteTable("browse_catalog", {
   id: integer("id").primaryKey(),
   groups: blob("groups", { mode: "buffer" }).notNull(), // Int32
   perUnit: blob("per_unit", { mode: "buffer" }).notNull(), // Float64
   weighted: blob("weighted", { mode: "buffer" }).notNull(), // Uint8
   stores: blob("stores", { mode: "buffer" }).notNull(), // Int32
+});
+
+// Per browse_groups id: its Product type (index into PRODUCT_TYPES) and how many stores price any of its Products.
+export const browseGroupData = sqliteTable("browse_group_data", {
+  id: integer("id").primaryKey(),
   groupTypes: blob("group_types", { mode: "buffer" }).notNull(), // Uint8
   groupStores: blob("group_stores", { mode: "buffer" }).notNull(), // Int32
+});
+
+// Per browse_products id: its code and lead words (before its first number or size, normalized and as written).
+export const browseNames = sqliteTable("browse_names", {
+  id: integer("id").primaryKey(),
   names: blob("names", { mode: "buffer" }).notNull(), // UTF-8 "code\tlead\tlead as written", one after another
   nameEnds: blob("name_ends", { mode: "buffer" }).notNull(), // Int32: where each Product's ends in names
 });

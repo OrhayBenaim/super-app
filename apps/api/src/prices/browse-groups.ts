@@ -226,7 +226,7 @@ export async function refreshBrowse(db: Db) {
  */
 export function regroupProducts(db: Db, codes: string[]) {
   const sqlite = db.$client;
-  const row = sqlite.prepare("SELECT groups, per_unit, stores, group_types, group_stores FROM browse_catalog WHERE id = 1").raw().get() as Buffer[] | undefined;
+  const row = sqlite.prepare("SELECT groups, per_unit, stores, group_types, group_stores FROM browse_catalog JOIN browse_group_data USING (id) WHERE id = 1").raw().get() as Buffer[] | undefined;
   if (!row) return; // not grouped yet: the next refresh groups them
   const [groups, perUnit, stores] = [i32(row[0]!).slice(), f64(row[1]!).slice(), i32(row[2]!)];
   const groupTypes = [...row[3]!];
@@ -261,9 +261,8 @@ export function regroupProducts(db: Db, codes: string[]) {
       groups[p.id] = g;
       perUnit[p.id] = perUnitOf(card.measure, p);
     }
-    sqlite
-      .prepare("UPDATE browse_catalog SET groups = ?, per_unit = ?, group_types = ?, group_stores = ? WHERE id = 1")
-      .run(pack(groups), pack(perUnit), pack(Uint8Array.from(groupTypes)), pack(Int32Array.from(groupStores)));
+    sqlite.prepare("UPDATE browse_catalog SET groups = ?, per_unit = ? WHERE id = 1").run(pack(groups), pack(perUnit));
+    sqlite.prepare("UPDATE browse_group_data SET group_types = ?, group_stores = ? WHERE id = 1").run(pack(Uint8Array.from(groupTypes)), pack(Int32Array.from(groupStores)));
   })();
 }
 

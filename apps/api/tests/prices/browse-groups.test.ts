@@ -17,7 +17,7 @@ it("gives the same catalog for a batch as for its Products moved one at a time",
   edit.run("made:1", sku(MILK3.code), 1); // a Made group claims it before a word group
   const codes = [SOY, SOY_LIGHT, POWDER, SHOKO, MILK1, MILK3, SOY].map((p) => sku(p.code)); // a code twice
   const snapshot = () => [
-    sqlite.prepare("SELECT groups, per_unit, group_types, group_stores FROM browse_catalog").raw().all(),
+    sqlite.prepare("SELECT groups, per_unit, group_types, group_stores FROM browse_catalog JOIN browse_group_data USING (id)").raw().all(),
     sqlite.prepare("SELECT * FROM browse_groups ORDER BY id").all(),
   ];
 
