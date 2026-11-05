@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { z } from "zod";
 import { ID } from "@grocer/shared/ids";
+import { SEARCH } from "@grocer/shared/search";
 import { chains, prices, stores } from "#/db/appSchema.ts";
 import type { AppEnv } from "#/middleware.ts";
 import { runningPromotionCount } from "#/prices/promotion-list.ts";
@@ -11,6 +12,7 @@ import { bad } from "#/routes/internal/valid.ts";
 const PAGE_SIZE = 100;
 const idParam = z.object({ id: z.string().min(1).max(ID.maxLength) });
 const listQuery = z.object({
+  q: z.string().trim().min(1).max(SEARCH.maxLength).optional(), // the find field: names that hold it
   chain: z.string().min(1).max(ID.maxLength).optional(),
   noLocation: z.stringbool().optional(),
   publishedDiffers: z.stringbool().optional(),
@@ -66,10 +68,10 @@ export const storesRoutes = new Hono<AppEnv>()
   .get("/", (c) => {
     const query = listQuery.safeParse(c.req.query());
     if (!query.success) return bad(c, query.error);
-    const { chain, noLocation, publishedDiffers, page } = query.data;
+    const { q, chain, noLocation, publishedDiffers, page } = query.data;
     const { db } = c.var.deps;
     const ofChain = chain ? eq(stores.chainId, chain) : undefined;
-    const where = and(ofChain, noLocation ? NO_LOCATION : undefined, publishedDiffers ? DIFFERS : undefined);
+    const where = and(ofChain, q ? sql`instr(${stores.name}, ${q}) > 0` : undefined, noLocation ? NO_LOCATION : undefined, publishedDiffers ? DIFFERS : undefined);
     const rows = db
       .select(columns)
       .from(stores)

@@ -77,6 +77,15 @@ describe("GET /stores (private)", () => {
     expect(moved.stores[0]).toMatchObject({ address: "Herzl 1", city: "Haifa", publishedAddress: "Jaffa 9", publishedCity: "Haifa" });
   });
 
+  it("finds the stores whose name holds q, for the dashboard's find field", async () => {
+    const deps = setup();
+    deps.db.insert(stores).values([store(RAMI, "1", "רמי לוי תלפיות", null), store(RAMI, "2", "רמי לוי עפולה", null), store(SHUFERSAL, "1", "שופרסל תלפיות", null)]).run();
+    const found = (await (await get(deps, `/stores?q=${encodeURIComponent(" תלפיות ")}`)).json()) as List;
+    expect(found.stores.map((s) => s.name)).toEqual(["רמי לוי תלפיות", "שופרסל תלפיות"]);
+    expect(found.total).toBe(2);
+    expect((await get(deps, `/stores?q=${"א".repeat(101)}`)).status).toBe(400);
+  });
+
   it("pages the table, while the map gets every filtered store with a location", async () => {
     const deps = setup();
     deps.db
