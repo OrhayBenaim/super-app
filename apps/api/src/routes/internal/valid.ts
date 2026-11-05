@@ -11,3 +11,10 @@ export const jsonBody = <S extends z.ZodType>(schema: S) =>
     const body = schema.safeParse(value);
     return body.success ? (body.data as z.output<S>) : bad(c, body.error);
   });
+
+/** The query `schema` accepts, read with `c.req.valid("query")`, so the dashboard's client knows its fields. */
+export const queryOf = <S extends z.ZodType>(schema: S) =>
+  validator("query", (value, c) => {
+    const query = schema.safeParse(value);
+    return query.success ? (query.data as z.output<S>) : bad(c, query.error);
+  });

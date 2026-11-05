@@ -8,10 +8,8 @@ import {
   createMadeGroup, deleteMadeGroup, groupDetail, groupList, renameGroup, setMember, updateMadeGroup, type Refusal,
 } from "#/prices/group-edits.ts";
 import { groupRefSchema, madeId } from "#/prices/groups.ts";
-import { groupsWithMembers } from "#/prices/products.ts";
-import { bad, jsonBody } from "#/routes/internal/valid.ts";
+import { bad, jsonBody, queryOf } from "#/routes/internal/valid.ts";
 
-const wordsQuery = z.object({ q: z.string().trim().min(SEARCH.minLength).max(SEARCH.maxLength) });
 const listQuery = z.object({
   q: z.string().trim().min(1).max(SEARCH.maxLength).optional(),
   page: z.coerce.number().int().min(1).max(1000).default(1),
@@ -42,22 +40,14 @@ const done = (c: Context<AppEnv>, r: Refusal | null) => (r ? refused(c, r) : c.j
 
 /**
  * The Internal dashboard's Product groups, on the private app (docs/adr/0007): the groups by Product type, one group,
- * and the team's edits; GET / is the app's search groups for `q` with their members (#168's page).
+ * and the team's edits.
  */
 export const groupsRoutes = new Hono<AppEnv>()
-  // The groups the words name, as the app's search returns them, each with its priced members, cheapest first.
-  .get("/", (c) => {
-    const query = wordsQuery.safeParse(c.req.query());
-    if (!query.success) return bad(c, query.error);
-    return c.json({ groups: groupsWithMembers(c.var.deps.db, query.data.q) }, 200);
-  })
   // A Product type's groups, those whose names hold q only, a page at a time.
-  .get("/types/:type", (c) => {
+  .get("/types/:type", queryOf(listQuery), (c) => {
     const type = z.enum(PRODUCT_TYPES).safeParse(c.req.param("type"));
     if (!type.success) return bad(c, type.error);
-    const query = listQuery.safeParse(c.req.query());
-    if (!query.success) return bad(c, query.error);
-    return c.json(groupList(c.var.deps.db, { ...query.data, type: type.data }), 200);
+    return c.json(groupList(c.var.deps.db, { ...c.req.valid("query"), type: type.data }), 200);
   })
   .post("/", jsonBody(madeBody), (c) => {
     const made = createMadeGroup(c.var.deps.db, c.req.valid("json"));

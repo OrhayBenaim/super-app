@@ -1,9 +1,9 @@
 // The Internal dashboard's reads of Products (routes/internal/): the app's search with each Product's type, every priced
-// Product of a type, one Product with its prices and Promotions, and the Product groups with their priced members.
+// Product of a type, the priced Products per type, and one Product with its Product group, prices and Promotions.
 import { PRODUCT_TYPE_FILTERS, type ProductTypeFilter } from "@grocer/shared/product-types";
 import type { Db } from "#/db/index.ts";
 import { i32 } from "#/prices/browse-data.ts";
-import { groupMembers, measureOf, soldByOf } from "#/prices/groups.ts";
+import { groupMembers } from "#/prices/groups.ts";
 import { PROMOTION_STATES, promotionStateAt, promotionText, runningPromotions, type PromotionTerms } from "#/prices/promotions.ts";
 import { SEARCH_CANDIDATES, searchProducts, withMeasure } from "#/prices/search.ts";
 
@@ -115,23 +115,4 @@ export function productDetail(db: Db, code: string, now: Date) {
     })),
     promotions,
   };
-}
-
-/**
- * The Product groups the app's search finds for `words`, each with its members (the Products Compare picks from) that
- * some store prices, cheapest per kilo or liter (per pack for a unit group) first.
- */
-export function groupsWithMembers(db: Db, words: string) {
-  const priced = db.$client.prepare("SELECT min(price) AS minPrice, count(*) AS storeCount FROM prices WHERE code = ?");
-  return searchProducts(db, words, 0).flatMap((found) => {
-    if (found.kind !== "group") return [];
-    const { kind: _, ...g } = found;
-    const members = groupMembers(db, g.ref).members.flatMap((p) => {
-      const { minPrice, storeCount } = priced.get(p.code) as { minPrice: number | null; storeCount: number };
-      if (minPrice === null) return [];
-      return [{ code: p.code, name: p.name, ...measureOf(p)!, soldBy: soldByOf(p), minPrice, storeCount }];
-    });
-    const per = (m: (typeof members)[number]) => (g.measure === "unit" ? m.minPrice : m.minPrice / m.size);
-    return [{ ...g, members: members.sort((a, b) => per(a) - per(b) || a.name.localeCompare(b.name)) }];
-  });
 }
