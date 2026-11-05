@@ -117,6 +117,21 @@ describe("Uploading a Product image (A7b)", () => {
   });
 });
 
+describe("The list's thumbnails", () => {
+  it("ask the private app for the uploaded images once, and again after this dashboard's upload or removal", async () => {
+    const { app, requests } = seeded();
+    const thumbnail = async (code: string) => (await app.request(`/products/${encodeURIComponent(code)}/image`)).text();
+    const asked = () => requests.filter((path) => path === "/products/images").length;
+    await Promise.all([thumbnail(MILK), thumbnail(LOCAL), thumbnail(MILK)]);
+    expect(asked()).toBe(1);
+    await upload(app, LOCAL, PNG);
+    expect(await thumbnail(LOCAL)).toContain(`/api/products/${encodeURIComponent(LOCAL)}/image?v=`);
+    await remove(app, LOCAL);
+    expect(await thumbnail(LOCAL)).not.toContain("/api/products/");
+    expect(asked()).toBe(3);
+  });
+});
+
 describe("Removing my image (A7b)", () => {
   it("goes back to the image found by barcode", async () => {
     const { app, privateApp } = seeded();

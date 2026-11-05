@@ -23,8 +23,15 @@ const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === "E
 export async function saveProductImage(dir: string, code: string, bytes: Uint8Array) {
   await mkdir(dir, { recursive: true });
   const temp = join(dir, `${randomUUID()}.tmp`);
-  await writeFile(temp, bytes);
-  await rename(temp, fileOf(dir, code));
+  try {
+    await writeFile(temp, bytes);
+    await rename(temp, fileOf(dir, code));
+  } catch (error) {
+    await unlink(temp).catch(() => {});
+    throw error;
+  } finally {
+    lists.delete(dir);
+  }
 }
 
 /** A code's uploaded image with its type, or null when it has none. */
@@ -46,11 +53,27 @@ export async function removeProductImage(dir: string, code: string) {
   } catch (error) {
     if (missing(error)) return false;
     throw error;
+  } finally {
+    lists.delete(dir);
   }
 }
 
+// The api is the one process that writes IMAGES_DIR (the worker never does), so each folder's list is read once and
+// dropped on every save or remove. A pending read sits here too, so a page of thumbnails shares one.
+const lists = new Map<string, Promise<Record<string, string>>>();
+
 /** Every code with an uploaded image, to a version that changes with each upload (its file's modification time). */
-export async function listProductImages(dir: string): Promise<Record<string, string>> {
+export function listProductImages(dir: string): Promise<Record<string, string>> {
+  let list = lists.get(dir);
+  if (!list) {
+    const read = readProductImages(dir);
+    read.catch(() => lists.get(dir) === read && lists.delete(dir));
+    lists.set(dir, (list = read));
+  }
+  return list;
+}
+
+async function readProductImages(dir: string): Promise<Record<string, string>> {
   let names: string[];
   try {
     names = (await readdir(dir)).filter(isImageFile);

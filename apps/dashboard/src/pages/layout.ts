@@ -1,5 +1,6 @@
 import { html } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
+import { stylesheetHref } from "#/pages/styles.ts";
 
 export type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
 
@@ -25,7 +26,7 @@ export const layout = (title: string, body: Html, nav?: Nav) => html`<!doctype h
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>${title} · Grocer dashboard</title>
-      <link rel="stylesheet" href="/assets/dashboard.css" />
+      <link rel="stylesheet" href="${stylesheetHref}" />
       <script src="/assets/htmx.min.js" defer></script>
     </head>
     <body>

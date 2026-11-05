@@ -1,5 +1,6 @@
 // The dashboard's one stylesheet (served at /assets/dashboard.css). Every colour, space and radius comes from
 // docs/design/tokens.json as a custom property; nothing else in the dashboard writes a colour (docs/design/dashboard.md).
+import { createHash } from "node:crypto";
 import tokens from "../../../../docs/design/tokens.json" with { type: "json" };
 
 const vars = [
@@ -83,6 +84,10 @@ th, td { padding: var(--space-4) var(--space-5); text-align: start; vertical-ali
 th { font: var(--font-footnote) var(--family); font-weight: 500; color: var(--labelSecondary); }
 tbody tr:last-child td { border-bottom: 0; }
 th.num, td.num { text-align: end; }
+/* The find field's stores: up to 100 in a box that scrolls under its header */
+.find-stores { max-height: 400px; overflow-y: auto; }
+.find-stores th { position: sticky; top: 0; background: var(--surface); }
+section + .cards { margin-top: var(--space-7); }
 tr.has-error td { border-bottom: 0; padding-bottom: var(--space-2); }
 tr.error td { padding-top: 0; white-space: normal; font-size: var(--size-footnote); color: var(--danger); }
 tr.error.warning td { color: var(--warning); }
@@ -106,7 +111,8 @@ tr.error.warning td { color: var(--warning); }
 .field input[aria-invalid="true"] { border: 1.5px solid var(--danger); }
 .field .message { font-size: var(--size-footnote); color: var(--danger); }
 .select { position: relative; display: flex; }
-.select select { appearance: none; width: 100%; padding-inline-end: var(--space-9); }
+/* The chevron's room: span.select outranks the control rule's padding above, whatever the order of the two */
+span.select select { appearance: none; width: 100%; padding-inline-end: var(--space-9); }
 .select::after { content: ""; position: absolute; inset-inline-end: var(--space-5); top: 13px; width: 7px; height: 7px; border: solid var(--tint); border-width: 0 2px 2px 0; transform: rotate(45deg); pointer-events: none; }
 
 /* Price syncs: the 90-day strip and Needs attention */
@@ -136,7 +142,7 @@ tr.error.warning td { color: var(--warning); }
 .counts strong { font-size: var(--size-headline); margin-inline-end: var(--space-2); }
 
 /* Products (A6): the Product types beside the chosen type's cards */
-.browse { display: grid; grid-template-columns: 240px 1fr; gap: var(--space-7); align-items: start; }
+.browse { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: var(--space-7); align-items: start; }
 .types { display: flex; flex-direction: column; padding: var(--space-2); }
 .types a { display: flex; justify-content: space-between; align-items: center; height: 34px; padding: 0 var(--space-4); border-radius: var(--radius-navItem); color: var(--label); }
 .types a:hover { text-decoration: none; background: var(--fillControl); }
@@ -148,7 +154,7 @@ tr.error.warning td { color: var(--warning); }
 .browse-head h2 { font: var(--font-title3) var(--family); font-weight: 600; margin: 0; }
 .browse-head p { margin: var(--space-1) 0 0; }
 .filter input { width: 240px; height: 36px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-control); background: var(--fillControl); font: inherit; color: var(--label); }
-.cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-5); }
+.cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-5); }
 .card { display: flex; flex-direction: column; height: 100%; background: var(--surface); border-radius: var(--radius-group); overflow: hidden; color: var(--label); }
 .card:hover { text-decoration: none; }
 .card .slot { display: flex; align-items: center; justify-content: center; height: 132px; }
@@ -292,3 +298,6 @@ h2 { font-size: var(--size-title3); margin: var(--space-7) 0 0; }
 .search button { font: inherit; font-weight: 600; height: 36px; padding: 0 var(--space-5); border: 0; border-radius: var(--radius-control); background: var(--tint); color: var(--tintOn); cursor: pointer; }
 .pages { display: flex; gap: var(--space-5); margin-top: var(--space-4); }
 `;
+
+/** The stylesheet's URL, versioned by its content: it is cached for a day, so new styles need a new URL. */
+export const stylesheetHref = `/assets/dashboard.css?v=${createHash("sha256").update(stylesheet).digest("hex").slice(0, 12)}`;
