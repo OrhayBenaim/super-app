@@ -4,17 +4,24 @@ import { createInternalApp } from "api/src/internal-app.ts";
 import { loadConfig as loadApiConfig } from "api/src/services/config.ts";
 import { apiClient } from "#/api-client.ts";
 import { createApp } from "#/app.ts";
-import { buildDeps } from "#/deps.ts";
+import { buildDeps, type Deps } from "#/deps.ts";
 import { loadConfig } from "#/services/config.ts";
 
 export const TOKEN = "test-sync-token";
 
-/** `api`: the private app's deps (seed its db); `app`: the dashboard; `privateApp`: to read what the api returns after. */
-export function setup({ api: apiOverrides = {}, token = TOKEN }: { api?: Partial<ApiDeps>; token?: string } = {}) {
+/**
+ * `api`: the private app's deps (seed its db); `app`: the dashboard; `privateApp`: to read what the api returns after.
+ * The Product image lookup answers none unless a test passes its own, so no test reaches the image servers.
+ */
+export function setup({
+  api: apiOverrides = {},
+  token = TOKEN,
+  productImage = async () => null,
+}: { api?: Partial<ApiDeps>; token?: string; productImage?: Deps["productImage"] } = {}) {
   const api = buildApiDeps(loadApiConfig({ ...process.env, SYNC_TOKEN: TOKEN }), apiOverrides);
   const privateApp = createInternalApp(api);
   const config = loadConfig({ API_URL: "http://api.internal:3001", SYNC_TOKEN: token });
-  const app = createApp(buildDeps(config, { api: apiClient(config, (input, init) => privateApp.request(input, init)) }));
+  const app = createApp(buildDeps(config, { api: apiClient(config, (input, init) => privateApp.request(input, init)), productImage }));
   return { api, app, privateApp };
 }
 

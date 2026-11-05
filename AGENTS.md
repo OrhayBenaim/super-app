@@ -10,7 +10,7 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/api.ts              entry point: loadConfig() -> buildDeps() -> serve createApp(deps) (PORT, default 3000),
                           and createInternalApp(deps) on INTERNAL_HOST:INTERNAL_PORT when SYNC_TOKEN is set
   src/internal-app.ts     private app (SYNC_TOKEN bearer, never on the public port): POST /sync records a Manual sync request;
-                          mounts src/routes/internal/*.ts, the Internal dashboard's JSON endpoints (syncs.ts: GET /syncs)
+                          mounts src/routes/internal/*.ts, the Internal dashboard's JSON endpoints (syncs.ts: GET /syncs; products.ts: GET /products, /products/:code)
   src/worker.ts           entry point: runs one job from src/jobs/ by name (npm run fetch|ingest|geocode|sync|worker)
   src/app.ts              createApp(deps): deps on the context, CORS, /api/auth/*, /health, onError; mounts routers
   src/deps.ts             Deps + buildDeps(config, overrides): the composition root
@@ -39,7 +39,7 @@ apps/dashboard/           the Internal dashboard (docs/adr/0005): Hono + htmx, N
   src/dashboard.ts        entry point: loadConfig() -> buildDeps() -> serve createApp(deps) on HOST:PORT (127.0.0.1:3002)
   src/app.ts              createApp(deps): deps on the context, csrf, /assets/htmx.min.js, onError; mounts one router per page
   src/api-client.ts       apiClient(config, fetch?): hono/client typed from createInternalApp, with the SYNC_TOKEN bearer
-  src/routes/*.ts         one router per page (syncs.ts: Price sync history, Manual sync button)
+  src/routes/*.ts         one router per page (syncs.ts: Price sync history, Manual sync button; products.ts: Product search and detail)
   src/pages/*.ts          HTML with hono's html helper (layout.ts: the shell and styles; syncs.ts)
   tests/                  seam.ts: the dashboard's fetch routed in-process to createInternalApp(buildDeps(loadConfig()))
 apps/mobile/              Expo SDK 58 + expo-router app

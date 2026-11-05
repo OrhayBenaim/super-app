@@ -39,13 +39,22 @@ export const layout = (title: string, body: Html) => html`<!doctype html>
         tr.errors td { white-space: normal; padding-top: 0; color: #9b1c1c; font-size: 14px; }
         dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 16px 0 0; }
         dt { color: #5c5c58; }
+        h2 { font-size: 18px; margin: 24px 0 0; }
+        .search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; }
+        .search input { font: inherit; padding: 7px 10px; border: 1px solid #c9c9c3; border-radius: 8px; min-width: 240px; }
+        .pages { display: flex; gap: 16px; margin-top: 12px; }
+        .product { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 16px; padding: 16px; background: #fff; border-radius: 10px; }
+        .product img { object-fit: contain; }
+        .noimage { width: 160px; margin: 0; }
+        .product dl { grid-template-columns: auto 1fr; margin: 0; }
+        .product dt { font-weight: 600; }
         dd { margin: 0; }
         .badge-ignored { background: #fff; color: #6b6b64; border-color: #d6d3cd; border-style: dotted; }
       </style>
     </head>
     <body>
       <main>
-        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a></nav>
+        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a><a href="/products">Products</a></nav>
         ${body}
       </main>
     </body>
