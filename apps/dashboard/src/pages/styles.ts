@@ -71,6 +71,7 @@ main { max-width: 1120px; margin: 0 auto; padding: var(--space-8) 0 var(--space-
 .button-tinted { background: var(--tintSoft); color: var(--tint); }
 .button-plain { background: none; color: var(--tint); padding: 0 var(--space-2); }
 .button-destructive { background: none; color: var(--danger); padding: 0 var(--space-2); }
+.button:hover { text-decoration: none; }
 .button:disabled { background: var(--fillControl); color: var(--labelSecondary); cursor: default; }
 .reason { font-size: 13px; color: var(--labelSecondary); }
 
@@ -167,15 +168,48 @@ tr.error.warning td { color: var(--warning); }
 .type-form p { flex-basis: 100%; margin: 0; }
 .deal { color: var(--saving); }
 
+/* Stores (A4): the Chain and filter chips, the table and the map beside it */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5); margin-bottom: var(--space-6); }
+.toolbar .select { width: 200px; }
+.toolbar select { height: 36px; padding-inline-start: var(--space-4); border: 1px solid var(--separator); border-radius: var(--radius-control); background: var(--surface); font: inherit; color: var(--label); }
+.toolbar .select::after { top: 12px; }
+.stores { display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: var(--space-6); align-items: start; }
+.table-foot { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-5); padding: var(--space-3) var(--space-5); font-size: 13px; color: var(--labelSecondary); }
+.table-foot .pages { margin: 0; font-size: 15px; }
+.map-panel { position: sticky; top: var(--space-5); }
+.map-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4); padding: var(--space-4) var(--space-5); background: var(--surface); border-radius: var(--radius-group) var(--radius-group) 0 0; }
+.map-head strong { font-weight: 600; }
+.map-head span { font-size: 13px; color: var(--labelSecondary); }
+#map { height: 560px; border-radius: 0 0 var(--radius-group) var(--radius-group); }
+
+/* A store (A5): the published address, the edit form and its pin map */
+.differs h2 { display: flex; align-items: center; gap: var(--space-3); margin: 0; font-size: 17px; font-weight: 600; }
+.addresses { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); margin-top: var(--space-4); }
+.addresses > div { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-4); border-radius: var(--radius-control); background: var(--groupedBg); }
+.addresses span { color: var(--labelSecondary); }
+.addresses span:first-child { font-size: 13px; }
+.addresses strong { font-size: 17px; font-weight: 400; }
+.differs p { display: flex; align-items: center; gap: var(--space-4); margin: var(--space-4) 0 0; }
+.edit { display: grid; grid-template-columns: minmax(0, 640px) 300px; justify-content: space-between; gap: var(--space-7); padding: var(--space-5); }
+.edit-fields { display: flex; flex-direction: column; gap: var(--space-4); }
+.edit-fields > p { margin: 0; }
+.edit-fields > .message { color: var(--danger); }
+.edit .row { display: grid; grid-template-columns: 212px 212px; gap: var(--space-5); align-items: start; }
+.edit .address-row { grid-template-columns: 1fr 212px; }
+.edit .actions { display: flex; align-items: center; gap: var(--space-3); }
+.pin-map { margin: 0; }
+.pin-map p { margin: var(--space-2) 0 0; }
+#pin { height: 220px; border-radius: var(--radius-control); }
+.pin { background: var(--tint); border: 2px solid var(--surface); border-radius: 50%; }
+
 /* Other pages' bits, until their own tickets restyle them */
 dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-5); margin: var(--space-5) 0 0; }
 dt { color: var(--labelSecondary); }
 dd { margin: 0; }
 h2 { font-size: 20px; margin: var(--space-7) 0 0; }
 .details { margin-top: var(--space-5); padding: var(--space-5); background: var(--surface); border-radius: var(--radius-group); }
-.search, .filters { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-5); align-items: center; margin-top: var(--space-5); }
-.search input, .search select, .filters input, .filters select { font: inherit; height: 36px; padding: 0 var(--space-4); border: 1px solid var(--separator); border-radius: var(--radius-control); background: var(--surface); }
-.search button, .filters button { font: inherit; font-weight: 600; height: 36px; padding: 0 var(--space-5); border: 0; border-radius: var(--radius-control); background: var(--tint); color: var(--tintOn); cursor: pointer; }
+.search { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-5); align-items: center; margin-top: var(--space-5); }
+.search input, .search select { font: inherit; height: 36px; padding: 0 var(--space-4); border: 1px solid var(--separator); border-radius: var(--radius-control); background: var(--surface); }
+.search button { font: inherit; font-weight: 600; height: 36px; padding: 0 var(--space-5); border: 0; border-radius: var(--radius-control); background: var(--tint); color: var(--tintOn); cursor: pointer; }
 .pages { display: flex; gap: var(--space-5); margin-top: var(--space-4); }
-#map { height: 420px; margin-top: var(--space-5); border-radius: var(--radius-group); }
 `;

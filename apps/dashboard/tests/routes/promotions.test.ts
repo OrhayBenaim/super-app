@@ -57,7 +57,7 @@ describe("A store's Promotions page", () => {
 
   it("is linked from the store's page", async () => {
     const { app } = seeded();
-    expect(await (await app.request(`/stores/${STORE}`)).text()).toContain(`href="/stores/${STORE}/promotions"`);
+    expect(await (await app.request(`/stores/${STORE}`)).text()).toContain(`href="/promotions?store=${STORE}"`);
   });
 
   it("answers an unknown store with 404", async () => {
