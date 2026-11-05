@@ -5,72 +5,40 @@ export type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
 
 export const notice = (text: string) => html`<p class="notice">${text}</p>`;
 
-/** Every dashboard page: the shell, its styles and htmx (served by app.ts, so the page loads no third-party script). */
-export const layout = (title: string, body: Html) => html`<!doctype html>
+const NAV = {
+  syncs: ["/", "Price syncs"],
+  chains: ["/chains", "Chains"],
+  stores: ["/stores", "Stores"],
+  products: ["/products", "Products"],
+  groups: ["/groups", "Product groups"],
+  promotions: ["/promotions", "Promotions"],
+} as const;
+export type Nav = keyof typeof NAV;
+
+/**
+ * Every dashboard page: the top bar (`nav` marks the current item), the tokens stylesheet and htmx, all served by app.ts,
+ * so the page loads no third-party script. The find field searches Products, which takes a name or a barcode.
+ */
+export const layout = (title: string, body: Html, nav?: Nav) => html`<!doctype html>
   <html lang="en">
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>${title} · Grocer dashboard</title>
+      <link rel="stylesheet" href="/assets/dashboard.css" />
       <script src="/assets/htmx.min.js" defer></script>
-      <style>
-        body { margin: 0; font: 15px/1.45 system-ui, sans-serif; color: #1c1c1e; background: #f6f6f4; }
-        main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
-        header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
-        h1 { font-size: 22px; margin: 0; }
-        button { font: inherit; padding: 8px 14px; border: 0; border-radius: 8px; background: #1f6f43; color: #fff; cursor: pointer; }
-        button:focus-visible { outline: 3px solid #f2b705; outline-offset: 2px; }
-        .notice { margin: 16px 0 0; padding: 10px 14px; border-radius: 8px; background: #fff; border-inline-start: 4px solid #1f6f43; }
-        .notice.busy { border-color: #b45309; }
-        .scroll { overflow-x: auto; margin-top: 16px; background: #fff; border-radius: 10px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px 12px; text-align: start; border-bottom: 1px solid #e7e7e3; white-space: nowrap; }
-        th { font-size: 13px; color: #5c5c58; font-weight: 600; }
-        tbody tr:last-child td { border-bottom: 0; }
-        .muted { color: #6b6b64; }
-        .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 13px; font-weight: 600; border: 1px solid; }
-        /* Price sync states */
-        .badge-finished { background: #e3f4e8; color: #1d5e36; border-color: #a9d8b8; }
-        .badge-running { background: #e6efff; color: #1d4ed8; border-color: #a9c1f5; }
-        .badge-requested { background: #fff; color: #1d4ed8; border-color: #a9c1f5; border-style: dashed; }
-        .badge-interrupted { background: #fdf0dc; color: #8a4b08; border-color: #f0c88a; }
-        .badge-skipped { background: #f1f0ec; color: #57534e; border-color: #d6d3cd; }
-        .badge-ignored { background: #fff; color: #6b6b64; border-color: #d6d3cd; border-style: dotted; }
-        /* A Chain's outcome and, apart, its Promotion outcome */
-        .badge-outcome-ok { background: #fff; color: #1d5e36; border-color: #1d5e36; }
-        .badge-outcome-failed { background: #9b1c1c; color: #fff; border-color: #9b1c1c; }
-        /* Promotion states */
-        .badge-promo-running { background: #1f6f43; color: #fff; border-color: #1f6f43; }
-        .badge-promo-notToday { background: #fff8db; color: #6b5300; border-color: #e3cf7a; }
-        .badge-promo-future { background: #fff; color: #5b3fa8; border-color: #c4b5ec; border-style: dashed; }
-        .badge-promo-ended { background: #f1f0ec; color: #6b6b64; border-color: #d6d3cd; text-decoration: line-through; }
-        nav { display: flex; gap: 16px; margin-bottom: 16px; }
-        a { color: #1f6f43; }
-        tr.errors td { white-space: normal; padding-top: 0; color: #9b1c1c; font-size: 14px; }
-        dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 16px 0 0; }
-        dt { color: #5c5c58; }
-        h2 { font-size: 18px; margin: 24px 0 0; }
-        .search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; }
-        .search input, .search select { font: inherit; padding: 7px 10px; border: 1px solid #c9c9c3; border-radius: 8px; min-width: 240px; }
-        .pages { display: flex; gap: 16px; margin-top: 12px; }
-        .product { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 16px; padding: 16px; background: #fff; border-radius: 10px; }
-        .product img { object-fit: contain; }
-        .noimage { width: 160px; margin: 0; }
-        .product dl { grid-template-columns: auto 1fr; margin: 0; }
-        .product dt { font-weight: 600; }
-        dd { margin: 0; }
-        .filters { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-top: 16px; }
-        select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid #c9c9c3; background: #fff; }
-        #map { height: 420px; margin-top: 16px; border-radius: 10px; }
-        .details { margin-top: 16px; padding: 16px; background: #fff; border-radius: 10px; }
-        .details dt { font-weight: 600; }
-      </style>
     </head>
     <body>
-      <main>
-        <nav aria-label="Dashboard"><a href="/">Price syncs</a><a href="/chains">Chains</a><a href="/stores">Stores</a><a href="/products">Products</a><a href="/groups">Product groups</a></nav>
-        ${body}
-      </main>
+      <header class="topbar">
+        <a class="brand" href="/">Grocer<span>Internal</span></a>
+        <nav aria-label="Dashboard">
+          ${Object.entries(NAV).map(([key, [href, text]]) => html`<a href="${href}"${key === nav ? html` aria-current="page"` : ""}>${text}</a>`)}
+        </nav>
+        <form class="find" method="get" action="/products" role="search">
+          <input type="search" name="q" aria-label="Find" placeholder="Find a store, Product or barcode" />
+        </form>
+      </header>
+      <main>${body}</main>
     </body>
   </html>`;
 

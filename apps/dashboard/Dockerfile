@@ -16,6 +16,8 @@ WORKDIR /app
 COPY --from=deps /app ./
 COPY packages/shared/src packages/shared/src
 COPY apps/dashboard/src apps/dashboard/src
+# The stylesheet's colours, spacing and type (apps/dashboard/src/pages/styles.ts imports it).
+COPY docs/design/tokens.json docs/design/tokens.json
 USER node
 WORKDIR /app/apps/dashboard
 EXPOSE 3002

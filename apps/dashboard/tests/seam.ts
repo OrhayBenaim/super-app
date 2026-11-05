@@ -2,6 +2,7 @@
 import { buildDeps as buildApiDeps, type Deps as ApiDeps } from "api/src/deps.ts";
 import { createInternalApp } from "api/src/internal-app.ts";
 import { loadConfig as loadApiConfig } from "api/src/services/config.ts";
+import { fakeClock } from "api/src/utils/clock.ts";
 import { apiClient } from "#/api-client.ts";
 import { createApp } from "#/app.ts";
 import { buildDeps, type Deps } from "#/deps.ts";
@@ -12,16 +13,18 @@ export const TOKEN = "test-sync-token";
 /**
  * `api`: the private app's deps (seed its db); `app`: the dashboard; `privateApp`: to read what the api returns after.
  * The Product image lookup answers none unless a test passes its own, so no test reaches the image servers.
+ * `now` fixes the time for both: the api's clock and the dashboard's.
  */
 export function setup({
   api: apiOverrides = {},
   token = TOKEN,
   productImage = async () => null,
-}: { api?: Partial<ApiDeps>; token?: string; productImage?: Deps["productImage"] } = {}) {
-  const api = buildApiDeps(loadApiConfig({ ...process.env, SYNC_TOKEN: TOKEN }), apiOverrides);
+  now,
+}: { api?: Partial<ApiDeps>; token?: string; productImage?: Deps["productImage"]; now?: Date } = {}) {
+  const api = buildApiDeps(loadApiConfig({ ...process.env, SYNC_TOKEN: TOKEN }), { ...(now && { clock: fakeClock(now) }), ...apiOverrides });
   const privateApp = createInternalApp(api);
   const config = loadConfig({ API_URL: "http://api.internal:3001", SYNC_TOKEN: token });
-  const app = createApp(buildDeps(config, { api: apiClient(config, (input, init) => privateApp.request(input, init)), productImage }));
+  const app = createApp(buildDeps(config, { api: apiClient(config, (input, init) => privateApp.request(input, init)), productImage, ...(now && { now: () => now }) }));
   return { api, app, privateApp };
 }
 
