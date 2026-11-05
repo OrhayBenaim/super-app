@@ -11,6 +11,7 @@
   "scripts": {
     "dev:api": "npm run dev -w apps/api",
     "dev:mobile": "npm run start -w apps/mobile",
+    "dev:dashboard": "npm run dev -w apps/dashboard",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"
   }
