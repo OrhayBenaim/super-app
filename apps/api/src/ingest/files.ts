@@ -50,7 +50,9 @@ export function newestFullAndUpdate(files: PriceFile[], chainIds: string[], full
 /** Newest Stores file plus the newest PriceFull (with its newest update) of the first `maxStores` stores, by file key. */
 export function pickFiles(files: PriceFile[], maxStores: number, chainIds: string[]) {
   let stores: PickedFile | undefined;
-  for (const s of newestOfType(files, chainIds, "stores").values()) if ((stores?.ts ?? "") < s.ts) stores = s;
+  // Hazi Hinam names its Stores file "StoresFull...".
+  const all = [...newestOfType(files, chainIds, "stores").values(), ...newestOfType(files, chainIds, "storesfull").values()];
+  for (const s of all) if ((stores?.ts ?? "") < s.ts) stores = s;
   const full = newestFullAndUpdate(files, chainIds, "pricefull", "price");
   const prices = [...full.keys()].sort().slice(0, maxStores).map((k) => full.get(k)!);
   return { stores, prices };

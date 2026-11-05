@@ -1,5 +1,5 @@
-// Chains we know how to ingest. ChainIds and sources: docs/research/price-data.md section 1; every chain's ids[0] except
-// Hazi Hinam's (no downloader yet) was seen in its own portal's files on 2026-11-01 (sections "Verified live"). The second
+// Chains we know how to ingest. ChainIds and sources: docs/research/price-data.md section 1; every chain's ids[0] was seen in
+// its own portal's files on 2026-11-01 (Hazi Hinam's on 2026-11-04) (sections "Verified live"). The second
 // ids of Victory and Machsanei Hashuk were not: their portals list only ids[0].
 // orderUrl: the online shop (docs/research/price-data.md section 6), null when the chain sells nothing online. A cart link
 // template has {items}, filled with `barcode,quantity;...`: Rami Levy's /he/basket fills the cart; the Stor.ai shops'
@@ -25,7 +25,7 @@ export const chainSeeds: ChainSeed[] = [
   { ids: ["7290103152017"], key: "osher-ad", name: "Osher Ad", nameHe: "אושר עד", source: { cerberus: "osherad" }, orderUrl: null },
   { ids: ["7290873255550"], key: "tiv-taam", name: "Tiv Taam", nameHe: "טיב טעם", source: { cerberus: "TivTaam" }, orderUrl: storAi("www.tivtaam.co.il") },
   { ids: ["7290696200003", "7290058103393"], key: "victory", name: "Victory", nameHe: "ויקטורי", source: { url: "https://laibcatalog.co.il/victory/index.html" }, orderUrl: storAi("www.victoryonline.co.il"), onlineStore: "97" },
-  { ids: ["7290055700007"], key: "carrefour", name: "Carrefour / Mega / Yeinot Bitan", nameHe: "קרפור / מגה / יינות ביתן", source: { url: "https://prices.carrefour.co.il/" }, orderUrl: storAi("www.carrefour.co.il"), onlineStore: "471" },
+  { ids: ["7290055700007"], key: "carrefour", name: "Carrefour", nameHe: "קרפור", source: { url: "https://prices.carrefour.co.il/" }, orderUrl: storAi("www.carrefour.co.il"), onlineStore: "471" },
   { ids: ["7290700100008"], key: "hazi-hinam", name: "Hazi Hinam", nameHe: "חצי חינם", source: { url: "https://shop.hazi-hinam.co.il/Prices" }, orderUrl: "https://shop.hazi-hinam.co.il/" },
   { ids: ["7290785400000"], key: "keshet", name: "Keshet Taamim", nameHe: "קשת טעמים", source: { cerberus: "Keshet" }, orderUrl: storAi("www.keshet-teamim.co.il") },
   { ids: ["7290639000004"], key: "stop-market", name: "Stop Market", nameHe: "סטופ מרקט", source: { cerberus: "Stop_Market" }, orderUrl: null },

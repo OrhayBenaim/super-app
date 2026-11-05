@@ -25,6 +25,12 @@ on:
 permissions:
   contents: read
 
+# A newer push to main cancels the staging build still running, so only the latest merge ships.
+# Releases never cancel: an interrupted production submit would burn a versionCode.
+concurrency:
+  group: deploy-mobile-${{ inputs.environment || (github.event_name == 'release' && 'production' || 'staging') }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
