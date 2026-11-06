@@ -112,6 +112,17 @@ describe("priceSyncJob", () => {
     expect(String(failure?.[1])).toMatch(logged);
   });
 
+  it.each([
+    ["a PriceFull", "INSERT"],
+    ["a price update file", "UPDATE"],
+  ])("prices from %s that can't be saved fail the Chain, not just the store", async (_, statement) => {
+    const update = `Price${OSHER}-001-001-20261021-090000.gz`;
+    const deps = setup({ pricePortal: fakePricePortal({ ...osherFiles, [update]: osherFiles[FULL1]! }) });
+    deps.db.$client.exec(`CREATE TRIGGER disk_full BEFORE ${statement} ON prices BEGIN SELECT RAISE(ABORT, 'disk full'); END`);
+    const id = await priceSyncJob(deps)({});
+    expect(osherResult(deps, id)).toEqual({ status: "failed", error: "disk full" });
+  });
+
   it("a Store failure skips that store's price update file", async () => {
     const update = `Price${OSHER}-001-001-20261021-090000.xml`;
     const files = { ...osherFiles, [update]: osherFiles[FULL2]! };
