@@ -44,7 +44,8 @@ export async function typeProducts({ db, classifier, errorHandler }: Deps, signa
         const size = measureOf(p!);
         return { name, manufacturer: p!.manufacturer || null, size: size && `${+size.size.toFixed(3)} ${size.measure}`, soldBy: soldByOf(p!) };
       });
-      const answers = await classifier.classify(products).catch((e: unknown) => {
+      const answers = await classifier.classify(products, signal).catch((e: unknown) => {
+        if (signal?.aborted) return null; // the sync was stopped, not a failed request; the loop ends below
         counts.typeRequestsFailed++;
         firstError ??= e instanceof Error ? e.message : String(e);
         console.error(`product types: request ${i / BATCH + 1} failed`, e);

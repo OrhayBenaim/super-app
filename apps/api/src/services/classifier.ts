@@ -8,9 +8,10 @@ export type ProductToClassify = { name: string; manufacturer: string | null; siz
 export interface Classifier {
   /**
    * One answer per Product, in order: its type, or null when the answer is not one of the fixed ids. Throws when the
-   * request fails: a RateLimitError when the provider's rate limit still holds after waiting it out once.
+   * request fails: a RateLimitError when the provider's rate limit still holds after waiting it out once. `signal`
+   * (the Price sync's) ends any wait or request at once.
    */
-  classify(products: ProductToClassify[]): Promise<(ProductType | null)[]>;
+  classify(products: ProductToClassify[], signal?: AbortSignal): Promise<(ProductType | null)[]>;
 }
 
 /** The provider's rate limit is used up: further requests in this Price sync would fail too. */

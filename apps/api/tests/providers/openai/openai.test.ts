@@ -92,6 +92,27 @@ describe("openaiClassifier", () => {
     expect(sent[1]! - sent[0]!).toBe(7000);
   });
 
+  it("stopping the Price sync ends the wait for a 429 at once, without a retry", async () => {
+    vi.useFakeTimers();
+    const { fetch } = sequence({ status: 429 });
+    const stop = new AbortController();
+    const answer = classifier.classify(PRODUCTS, stop.signal);
+    answer.catch(() => {});
+    await vi.advanceTimersByTimeAsync(1000);
+    stop.abort();
+    await expect(answer).rejects.toThrow(/abort/i);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends the Price sync's signal with the request", async () => {
+    const fetch = serve("good.json");
+    const stop = new AbortController();
+    await classifier.classify(PRODUCTS, stop.signal);
+    stop.abort();
+    expect(fetch.mock.calls[0]![1].signal!.aborted).toBe(true);
+  });
+
   it("a 429 without Retry-After waits 60 s", async () => {
     vi.useFakeTimers();
     const { sent } = sequence({ status: 429 });

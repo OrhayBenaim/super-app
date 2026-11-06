@@ -201,6 +201,31 @@ describe("priceSyncJob: Product types", () => {
     expect(Object.values(types(deps))).not.toContain(null);
   });
 
+  it("stopping the sync mid-request hands the classifier the signal and isn't counted as a failed request", async () => {
+    const items = Array.from({ length: 250 }, (_, i): Item => ({ code: String(1000 + i), name: `מוצר ${i}` }));
+    const stop = new AbortController();
+    const signals: (AbortSignal | undefined)[] = [];
+    const fake = fakeClassifier(() => "pantry");
+    const classifier = {
+      ...fake,
+      async classify(products: Parameters<typeof fake.classify>[0], signal?: AbortSignal) {
+        signals.push(signal);
+        if (signals.length === 2) {
+          stop.abort();
+          throw signal!.reason;
+        }
+        return fake.classify(products);
+      },
+    };
+    const errorHandler = fakeErrorHandler();
+    const deps = setup({ "001": items }, { classifier, errorHandler });
+    const id = await priceSyncJob(deps)({}, stop.signal);
+
+    expect(signals).toEqual([stop.signal, stop.signal]);
+    expect(run(deps, id)).toEqual({ status: "interrupted", products_typed: 100, products_other: 0, type_requests_failed: 0 });
+    expect(errorHandler.warnings).toEqual([]);
+  });
+
   it("other failed requests don't stop the step, and the warning names the first failure's error", async () => {
     const items = Array.from({ length: 250 }, (_, i): Item => ({ code: String(1000 + i), name: `מוצר ${i}` }));
     const classifier = fakeClassifier((p) => {

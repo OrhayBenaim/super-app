@@ -13,7 +13,14 @@ const reply = z.object({ choices: z.array(z.object({ message: z.object({ content
 const answer = z.object({ types: z.array(z.object({ i: z.number().int(), type: z.string() })) });
 const productType = z.enum(PRODUCT_TYPES);
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Resolves after `ms`, or rejects at once when `signal` aborts. */
+const wait = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    signal?.throwIfAborted();
+    const timer = setTimeout(() => (signal?.removeEventListener("abort", stop), resolve()), ms);
+    const stop = () => (clearTimeout(timer), reject(signal!.reason));
+    signal?.addEventListener("abort", stop, { once: true });
+  });
 const PACE_MS = 3000; // OpenRouter's free models allow 20 requests a minute
 const MAX_RETRY_AFTER_S = 120; // longer is a quota reset (daily), which must not hold the Price sync for hours
 
@@ -24,19 +31,20 @@ const MAX_RETRY_AFTER_S = 120; // longer is a quota reset (daily), which must no
  */
 export function openaiClassifier({ baseUrl, apiKey, model }: { baseUrl: string; apiKey: string; model: string }): Classifier {
   let last = 0;
-  const send = async (body: string) => {
+  const send = async (body: string, signal?: AbortSignal) => {
     const gap = last + PACE_MS - Date.now();
-    if (gap > 0) await wait(gap);
+    if (gap > 0) await wait(gap, signal);
     last = Date.now();
+    const timeout = AbortSignal.timeout(120_000); // a hung provider must not hold the Price sync
     return fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
       body,
-      signal: AbortSignal.timeout(120_000), // a hung provider must not hold the Price sync
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     });
   };
   return {
-    async classify(products: ProductToClassify[]) {
+    async classify(products: ProductToClassify[], signal?: AbortSignal) {
       const body = JSON.stringify({
         model,
         temperature: 0,
@@ -46,13 +54,13 @@ export function openaiClassifier({ baseUrl, apiKey, model }: { baseUrl: string; 
           { role: "user", content: JSON.stringify(products.map((p, i) => ({ i, ...p }))) },
         ],
       });
-      let res = await send(body);
+      let res = await send(body, signal);
       if (res.status === 429) {
         // shortcut: an HTTP-date Retry-After counts as absent (OpenRouter sends seconds), parse dates when a provider sends them.
         const seconds = Number(res.headers.get("retry-after") || NaN);
         if (seconds > MAX_RETRY_AFTER_S) throw new RateLimitError(`llm: HTTP 429, retry after ${seconds} s`);
-        await wait((Number.isFinite(seconds) ? seconds : 60) * 1000);
-        res = await send(body);
+        await wait((Number.isFinite(seconds) ? seconds : 60) * 1000, signal);
+        res = await send(body, signal);
         if (res.status === 429) throw new RateLimitError("llm: HTTP 429");
       }
       if (!res.ok) throw new Error(`llm: HTTP ${res.status}`);
