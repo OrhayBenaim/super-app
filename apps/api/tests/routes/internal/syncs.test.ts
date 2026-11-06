@@ -76,8 +76,13 @@ describe("GET /syncs (private)", () => {
         },
       ],
       attention: [],
-      syncTimes: ["07:00", "12:30", "20:30"],
+      nextScheduledAt: "2026-11-05T10:30:00.000Z", // 12:30 Israel: the api's default SYNC_TIMES are 07:00, 12:30, 20:30
     });
+  });
+
+  it("names Sunday 07:00 as the next Scheduled sync on Friday after 20:30: none runs on Saturday", async () => {
+    const deps = buildDeps(loadConfig({ ...process.env, SYNC_TOKEN: TOKEN }), { clock: fakeClock(new Date("2026-11-06T18:31:00Z")) });
+    expect(await (await get(deps, "/syncs")).json()).toMatchObject({ nextScheduledAt: "2026-11-08T05:00:00.000Z" });
   });
 
 it("counts each run's Chains by outcome: ok, Chain failure, Promotion failure", async () => {

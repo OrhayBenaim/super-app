@@ -35,11 +35,17 @@ const DAY = 86_400_000;
 export const time = (iso: string | Date) => hourMinute.format(new Date(iso));
 /** "Oct 29", Israel time. */
 export const shortDate = (iso: string | Date) => monthDay.format(new Date(iso));
+const weekdayName = new Intl.DateTimeFormat("en-US", { timeZone: ZONE, weekday: "long" });
+/** "Sunday", Israel time. */
+export const weekday = (iso: string | Date) => weekdayName.format(new Date(iso));
+/** Whether it falls on today's date, Israel time. */
+export const isToday = (iso: string | Date, now: Date) => dayKey.format(new Date(iso)) === dayKey.format(now);
+
 /** "Today 06:00", "Yesterday 20:00", else "Oct 29, 06:00". */
 export function day(iso: string, now: Date) {
   const d = new Date(iso);
   // shortcut: "Yesterday" is 24 h back, so for an hour after midnight on a daylight-saving day it can name the wrong day; compare calendar days if a run is ever mislabelled.
-  const label = dayKey.format(d) === dayKey.format(now) ? "Today" : dayKey.format(d) === dayKey.format(now.getTime() - DAY) ? "Yesterday" : `${shortDate(d)},`;
+  const label = isToday(d, now) ? "Today" :dayKey.format(d) === dayKey.format(now.getTime() - DAY) ? "Yesterday" : `${shortDate(d)},`;
   return `${label} ${time(d)}`;
 }
 
