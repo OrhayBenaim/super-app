@@ -11,13 +11,15 @@ type Props<T> = {
   empty: ReactNode;
   /** Called a couple of screens before the end, to load the next page. */
   onEndReached?: () => void;
+  /** Under the last card (a page that failed to load). */
+  footer?: ReactElement | false;
 };
 
 /**
  * The browse grid (DESIGN.md "Card grid"): 2 cards per row with a 12pt gap and 16pt gutters; cards in a row are as tall
  * as the tallest. An odd last card keeps its half width.
  */
-export function CardGrid<T>({ data, keyOf, render, header, empty, onEndReached }: Props<T>) {
+export function CardGrid<T>({ data, keyOf, render, header, empty, onEndReached, footer }: Props<T>) {
   const { space } = useTheme();
   const cells: (T | null)[] = data.length % 2 ? [...data, null] : data;
   return (
@@ -34,6 +36,7 @@ export function CardGrid<T>({ data, keyOf, render, header, empty, onEndReached }
       columnWrapperStyle={{ gap: space[4] }}
       contentContainerStyle={{ flexGrow: 1, gap: space[4], paddingHorizontal: space[5], paddingBottom: space[9] }}
       ListHeaderComponent={header}
+      ListFooterComponent={footer || undefined}
       ListEmptyComponent={<>{empty}</>}
       renderItem={({ item }) => (item === null ? <View style={{ flex: 1 }} /> : render(item))}
     />

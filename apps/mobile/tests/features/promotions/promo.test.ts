@@ -55,11 +55,12 @@ describe("promotionsQuery", () => {
 });
 
 describe("loadedCards", () => {
-  it("lists the loaded pages' cards in order, a card that moved to a later page once", () => {
+  it("lists the loaded pages' cards in order, a card that moved to a later page once, as the later page has it", () => {
     const milk = card();
-    const lone = card({ ref: null, code: "222" });
+    const lone = card({ ref: null, code: "222", saving: 20 });
+    const loneLater = card({ ref: null, code: "222", saving: 10 });
     const bamba = card({ ref: "במבה|kg" });
-    expect(loadedCards([{ cards: [milk, lone], next: 2 }, { cards: [lone, bamba], next: null }])).toEqual([milk, lone, bamba]);
+    expect(loadedCards([{ cards: [milk, lone], next: 2 }, { cards: [loneLater, bamba], next: null }])).toEqual([milk, loneLater, bamba]);
     expect(loadedCards()).toEqual([]);
   });
 });
