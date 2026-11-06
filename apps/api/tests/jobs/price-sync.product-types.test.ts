@@ -9,6 +9,8 @@ import { priceSyncJob } from "#/jobs/price-sync.ts";
 import { fakeClassifier } from "#/providers/openai/fake.ts";
 import { fakeGeocoder } from "#/providers/nominatim/fake.ts";
 import { fakePricePortal } from "#/providers/price-portals/fake.ts";
+import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
+import { RateLimitError } from "#/services/classifier.ts";
 import { loadConfig } from "#/services/config.ts";
 
 const OSHER = "7290103152017";
@@ -172,6 +174,49 @@ describe("priceSyncJob: Product types", () => {
     down = false;
     await priceSyncJob(deps)({});
     expect(types(deps)).toEqual({ [sku(MILK)]: "dairy-eggs", [sku(SOAP)]: "other" });
+  });
+
+  it("a rate limit stops the step for this sync: typed Products keep their type, the rest stay untyped for the next", async () => {
+    const items = Array.from({ length: 250 }, (_, i): Item => ({ code: String(1000 + i), name: `מוצר ${i}` }));
+    let limited = true;
+    const classifier = fakeClassifier((p) => {
+      if (limited && Number(p.name.split(" ")[1]) >= 100) throw new RateLimitError("llm: HTTP 429");
+      return "pantry";
+    });
+    const errorHandler = fakeErrorHandler();
+    const deps = setup({ "001": items }, { classifier, errorHandler });
+    const id = await priceSyncJob(deps)({});
+
+    expect(classifier.calls.map((c) => c.length)).toEqual([100, 100]);
+    expect(run(deps, id)).toEqual({ status: "finished", products_typed: 100, products_other: 0, type_requests_failed: 1 });
+    const typed = Object.values(types(deps));
+    expect(typed.filter((t) => t === "pantry")).toHaveLength(100);
+    expect(typed.filter((t) => t === null)).toHaveLength(150);
+    expect(errorHandler.warnings).toEqual([
+      { message: "product types: 1 classifier requests failed", details: { productsTyped: 100, productsOther: 0, typeRequestsFailed: 1, error: "llm: HTTP 429" } },
+    ]);
+
+    limited = false;
+    await priceSyncJob(deps)({});
+    expect(Object.values(types(deps))).not.toContain(null);
+  });
+
+  it("other failed requests don't stop the step, and the warning names the first failure's error", async () => {
+    const items = Array.from({ length: 250 }, (_, i): Item => ({ code: String(1000 + i), name: `מוצר ${i}` }));
+    const classifier = fakeClassifier((p) => {
+      const n = Number(p.name.split(" ")[1]);
+      if (n < 100) throw new Error("llm: HTTP 503");
+      if (n < 200) throw new Error("llm: HTTP 500");
+      return "pantry";
+    });
+    const errorHandler = fakeErrorHandler();
+    const deps = setup({ "001": items }, { classifier, errorHandler });
+    await priceSyncJob(deps)({});
+
+    expect(classifier.calls).toHaveLength(3);
+    expect(errorHandler.warnings).toEqual([
+      { message: "product types: 2 classifier requests failed", details: { productsTyped: 50, productsOther: 0, typeRequestsFailed: 2, error: "llm: HTTP 503" } },
+    ]);
   });
 
   it("classifies in batches of 100", async () => {
