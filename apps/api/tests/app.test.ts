@@ -25,6 +25,12 @@ describe("api", () => {
     expect(await res.json()).toEqual({ status: "error" });
   });
 
+  it("gzips a response for a client that accepts it", async () => {
+    const res = await app.request("/privacy", { headers: { "accept-encoding": "gzip" } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-encoding")).toBe("gzip");
+  });
+
   it("an unhandled error is a 500 and is reported", async () => {
     const errorHandler = fakeErrorHandler();
     const deps = buildDeps(loadConfig(), { errorHandler });

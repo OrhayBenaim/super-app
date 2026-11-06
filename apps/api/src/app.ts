@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { compress } from "hono/compress";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import type { Deps } from "#/deps.ts";
@@ -21,6 +22,8 @@ export function createApp(deps: Deps) {
       c.set("deps", deps);
       await next();
     })
+    // gzip for JSON and HTML: a page of Promotions cards is ~6x smaller on the wire.
+    .use(compress())
     .use(rateLimit({ max: 300, windowMs: MINUTE }))
     // Stricter where a password, a Reset code or a Deletion code can be guessed.
     .use("/api/auth/sign-in/*", signInLimit)
