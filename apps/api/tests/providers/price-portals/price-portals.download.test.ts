@@ -9,7 +9,8 @@ afterEach(() => {
 });
 
 const NAME = "PriceFull7290696200003-001-058-20261101-080802.gz";
-const PRICE_FILE = gzipSync('<?xml version="1.0" encoding="utf-8"?><root><ChainId>7290696200003</ChainId></root>');
+const XML = '<?xml version="1.0" encoding="utf-8"?><root><ChainId>7290696200003</ChainId></root>';
+const PRICE_FILE = gzipSync(XML);
 const closed = () => Promise.reject(new TypeError("fetch failed", { cause: new Error("other side closed") }));
 
 /** Victory (laibcatalog) whose downloads answer with `answers` in turn, the last one repeating. */
@@ -30,7 +31,7 @@ async function victory(answers: (() => Promise<Response>)[]) {
 describe("pricePortals download", () => {
   it("retries a closed connection and returns the file", async () => {
     const { download, downloads } = await victory([closed, async () => new Response(PRICE_FILE)]);
-    expect(await download).toEqual(new Uint8Array(PRICE_FILE));
+    expect(await download).toBe(XML);
     expect(downloads()).toBe(2);
   });
 
@@ -40,7 +41,7 @@ describe("pricePortals download", () => {
       async () => new Response("<html><body>Service Unavailable</body></html>"),
       async () => new Response(PRICE_FILE),
     ]);
-    expect(await download).toEqual(new Uint8Array(PRICE_FILE));
+    expect(await download).toBe(XML);
     expect(downloads()).toBe(3);
   });
 
@@ -49,7 +50,7 @@ describe("pricePortals download", () => {
       async () => new Response(gzipSync("<html><body>Service Unavailable</body></html>")),
       async () => new Response(PRICE_FILE),
     ]);
-    expect(await download).toEqual(new Uint8Array(PRICE_FILE));
+    expect(await download).toBe(XML);
     expect(downloads()).toBe(2);
   });
 
@@ -65,7 +66,7 @@ describe("pricePortals download", () => {
       async () => new Response("Forbidden", { status: 403 }),
       async () => new Response(PRICE_FILE),
     ]);
-    expect(await download).toEqual(new Uint8Array(PRICE_FILE));
+    expect(await download).toBe(XML);
     expect(downloads()).toBe(3);
   });
 
@@ -73,5 +74,28 @@ describe("pricePortals download", () => {
     const { download, downloads } = await victory([async () => new Response("Not Found", { status: 404 })]);
     await expect(download).rejects.toThrow(`${NAME}: HTTP 404`);
     expect(downloads()).toBe(1);
+  });
+
+  it("after 3 files in a row fail, tries each later file once, until one downloads", async () => {
+    const names = [1, 2, 3, 4, 5, 6].map((n) => NAME.replace("-058-", `-00${n}-`));
+    const tries: Record<string, number> = {};
+    vi.stubGlobal("fetch", async (url: string | URL) => {
+      if (String(url).includes("/api/getfiles")) return Response.json(names.map((fileName) => ({ fileName })));
+      const name = names.find((n) => String(url).includes(n))!;
+      tries[name] = (tries[name] ?? 0) + 1;
+      // The 5th answers its first try; the 6th drops once, then answers. The rest always drop.
+      if (name === names[4] || (name === names[5] && tries[name] > 1)) return new Response(PRICE_FILE);
+      return closed();
+    });
+    const portal = await pricePortals().open(chainByKey("victory")!);
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    const results: unknown[] = [];
+    for (const name of names) {
+      const download = portal.download(portal.files.find((f) => f.name === name)!).catch((e: Error) => e);
+      await vi.runAllTimersAsync();
+      results.push(await download);
+    }
+    expect(names.map((n) => tries[n])).toEqual([3, 3, 3, 1, 1, 2]);
+    expect(results.slice(4)).toEqual([XML, XML]);
   });
 });

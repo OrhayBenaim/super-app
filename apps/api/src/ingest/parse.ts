@@ -25,6 +25,13 @@ export function looksLikePriceFile(buf: Uint8Array) {
   return (buf[0] === 0x1f && buf[1] === 0x8b) || (buf[0] === 0x50 && buf[1] === 0x4b) || /^\s*<(\?xml|(?!html[\s/>])[a-z][\w:.-]*[\s/>])/i.test(head);
 }
 
+/** A downloaded price file's XML. Throws on a cut-off gzip or zip, and on a body (gzipped or not) that isn't a price file. */
+export function readPriceFile(buf: Uint8Array, name: string) {
+  const xml = decodeXml(Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength));
+  if (!looksLikePriceFile(Buffer.from(xml.slice(0, 64)))) throw new Error(`${name}: not a price file`);
+  return xml;
+}
+
 // Tags are lower-cased so ChainId/ChainID, Root/root, Item/item all match. Values stay strings ("034", long barcodes).
 // shortcut: builds the whole tree (~10 MB files are fine); switch to a SAX stream if files reach hundreds of MB.
 const parser = new XMLParser({

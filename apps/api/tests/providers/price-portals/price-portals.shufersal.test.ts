@@ -10,7 +10,8 @@ afterEach(() => {
 const BLOB = "https://pricesprodpublic.blob.core.windows.net/promofull";
 const A = "PromoFull7290027600007-007-347-20261104-030000.gz";
 const B = "PromoFull7290027600007-007-348-20261104-030000.gz";
-const FILE = new TextEncoder().encode("<root/>");
+const XML = "<root/>";
+const FILE = new TextEncoder().encode(XML);
 const link =(name: string, sig: string) => `<a href="${BLOB}/${name}?sv=2014-02-14&amp;sr=b&amp;sig=${sig}&amp;sp=r">x</a>`;
 
 /** Shufersal whose PromoFull listing (catID=4) signs links with `sig()` and whose blobs answer 403 to an old sig. */
@@ -42,8 +43,8 @@ describe("pricePortals on Shufersal", () => {
     listed.length = 0;
     sig = "new";
     const [a, b] = [A, B].map((n) => portal.files.find((f) => f.name === n)!);
-    expect(await portal.download(a!)).toEqual(FILE);
-    expect(await portal.download(b!)).toEqual(FILE);
+    expect(await portal.download(a!)).toBe(XML);
+    expect(await portal.download(b!)).toBe(XML);
     expect(listed).toEqual(["4"]);
   });
 
@@ -62,7 +63,7 @@ describe("pricePortals on Shufersal", () => {
     expect(listed).toEqual(["4"]);
     vi.setSystemTime(Date.now() + 11 * 60_000);
     names = [B];
-    expect(await portal.download(b!)).toEqual(FILE);
+    expect(await portal.download(b!)).toBe(XML);
     expect(listed).toEqual(["4", "4"]);
   });
 
@@ -76,7 +77,7 @@ describe("pricePortals on Shufersal", () => {
     listed.length = 0;
     sig = "new";
     names = [A2, B];
-    expect(await portal.download(a)).toEqual(FILE);
+    expect(await portal.download(a)).toBe(XML);
     expect(listed).toEqual(["4"]);
   });
 });

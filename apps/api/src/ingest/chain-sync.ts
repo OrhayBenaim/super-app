@@ -4,7 +4,6 @@ import type { Deps } from "#/deps.ts";
 import type { ChainSeed } from "#/ingest/chains.ts";
 import { newestFullAndUpdate, pickFiles, type PickedFile } from "#/ingest/files.ts";
 import { ingestPrices, ingestPromotions, ingestStores } from "#/ingest/ingest.ts";
-import { decodeXml, looksLikePriceFile } from "#/ingest/parse.ts";
 import type { PriceFile } from "#/services/price-portal.ts";
 
 /** Prices that can't be saved are a Chain failure (CONTEXT.md), so a DB error goes on; a download or parse error doesn't. */
@@ -24,11 +23,7 @@ export async function openChainFiles({ pricePortal }: Pick<Deps, "pricePortal">,
   return {
     files: [stores, ...prices],
     promos: [...promoFull.keys()].sort().slice(0, maxStores).map((k) => promoFull.get(k)!),
-    async download(f: PriceFile) {
-      const buf = await portal.download(f);
-      if (!looksLikePriceFile(buf)) throw new Error(`${f.name}: not a price file`);
-      return buf;
-    },
+    download: (f: PriceFile) => portal.download(f),
   };
 }
 
@@ -124,7 +119,7 @@ async function syncPromotions(deps: Deps, chain: ChainSeed, promos: PickedFile[]
 export async function syncChain(deps: Deps, chain: ChainSeed, maxStores: number, counts: ChainCounts) {
   const { files, promos, download } = await openChainFiles(deps, chain, maxStores);
   const load = async (f: PriceFile) => {
-    const xml = decodeXml(Buffer.from(await download(f)));
+    const xml = await download(f);
     counts.filesDownloaded++;
     return xml;
   };
