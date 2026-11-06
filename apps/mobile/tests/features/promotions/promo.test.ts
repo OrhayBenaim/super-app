@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api", () => ({ api: vi.fn() }));
 
-import { chainLine, pageSubtitle, promoLines, promotionsQuery, type ChainPromo, type PromoCard } from "@/features/promotions/promo";
+import { chainLine, loadedCards, pageSubtitle, promoLines, promotionsQuery, type ChainPromo, type PromoCard } from "@/features/promotions/promo";
 import { en, t, type StringKey } from "@/lib/strings";
 
 const english = (k: StringKey) => en[k];
@@ -51,6 +51,16 @@ describe("promotionsQuery", () => {
     expect(promotionsQuery({ lat: 32.08531, lng: 34.78179 }, 5, "snacks-sweets", "7290058140886")).toBe(
       "?lat=32.085&lng=34.782&radiusKm=5&type=snacks-sweets&chain=7290058140886",
     );
+  });
+});
+
+describe("loadedCards", () => {
+  it("lists the loaded pages' cards in order, a card that moved to a later page once", () => {
+    const milk = card();
+    const lone = card({ ref: null, code: "222" });
+    const bamba = card({ ref: "במבה|kg" });
+    expect(loadedCards([{ cards: [milk, lone], next: 2 }, { cards: [lone, bamba], next: null }])).toEqual([milk, lone, bamba]);
+    expect(loadedCards()).toEqual([]);
   });
 });
 

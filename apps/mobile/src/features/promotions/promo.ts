@@ -22,6 +22,15 @@ export type PromoCard = Card & {
   kind: Promotion["kind"] | "info"; minQty: number; amount: number; audience: Audience; text: string; chainCount: number;
 };
 
+/** One page of GET /api/browse/promotions and the next page's number (null on the last). */
+export type PromoCardsPage = { cards: PromoCard[]; next: number | null };
+
+/** A card's list key: its group ref, else its Product code. */
+export const promoKey = (c: PromoCard) => c.ref ?? c.code;
+
+/** The loaded pages' cards in order, each once: a Price sync between two pages can move a card onto the next one. */
+export const loadedCards = (pages: PromoCardsPage[] = []) => [...new Map(pages.flatMap((p) => p.cards).map((c) => [promoKey(c), c])).values()];
+
 /** The short label for a Restricted price on a card ("במועדון", "בכרטיס", "עם קופון"); none for everyone. */
 export const restrictedKey = (audience: Audience): StringKey | undefined =>
   audience === "all" ? undefined : AUDIENCE_KEYS[audience].short;

@@ -20,12 +20,17 @@ export type Card = {
 export const nearQuery = (coords: Coords | null, radiusKm: number) =>
   coords ? `?lat=${Math.round(coords.lat * 1000) / 1000}&lng=${Math.round(coords.lng * 1000) / 1000}&radiusKm=${radiusKm}` : "";
 
+/** Browse data changes only at a Price sync, a few times a day: a screen or filter seen in the last 10 minutes is not refetched. */
+export const BROWSE_STALE_MS = 10 * 60_000;
+
 /**
  * A browse route at the User's location (keyed by its path and query). `query` defaults to the rounded location;
  * `enabled` waits until the location is known one way or the other.
  */
 export const useBrowse = <T>(path: string, coords: Coords | null, radiusKm: number, enabled: boolean, query = nearQuery(coords, radiusKm)) =>
-  useQuery({ queryKey: ["browse", path, query], queryFn: () => api<T>(`api/browse/${path}${query}`), enabled, placeholderData: keepPreviousData });
+  useQuery({
+    queryKey: ["browse", path, query], queryFn: () => api<T>(`api/browse/${path}${query}`), enabled, placeholderData: keepPreviousData, staleTime: BROWSE_STALE_MS,
+  });
 
 export const useProductTypes = (coords: Coords | null, radiusKm: number, enabled: boolean) => useBrowse<TypeCount[]>("types", coords, radiusKm, enabled);
 
