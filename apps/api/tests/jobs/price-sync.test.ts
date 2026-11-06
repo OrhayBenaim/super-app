@@ -240,6 +240,19 @@ describe("priceSyncJob", () => {
     expect(store(`${OSHER}-5`)).toEqual({ name: "Newcomer", address: "New 5", city: "Ashdod", lat: 32, lng: 34, published_address: "New 5", published_city: "Ashdod" });
   });
 
+  it("names a city saved as a CBS code once the code is known, and leaves a named city alone", async () => {
+    const deps = setup();
+    await priceSyncJob(deps)({});
+    // Saved before the parser knew CBS code 3000, and a city the team named.
+    deps.db.$client.prepare(`UPDATE stores SET city = '3000' WHERE id = '${OSHER}-2'`).run();
+    deps.db.$client.prepare(`UPDATE stores SET city = 'Fixedville' WHERE id = '${OSHER}-1'`).run();
+
+    await priceSyncJob(deps)({});
+    const city = (id: string) => one(deps, "SELECT city, published_city FROM stores WHERE id = ?", `${OSHER}-${id}`);
+    expect(city("2")).toEqual({ city: "ירושלים", published_city: "ירושלים" });
+    expect(city("1")).toEqual({ city: "Fixedville", published_city: "אשדוד" });
+  });
+
   it("keeps a store edited on the Internal dashboard, and geocodes one whose location the edit cleared", async () => {
     const deps = buildDeps(loadConfig({ ...process.env, SYNC_TOKEN: "t" }), {
       pricePortal: fakePricePortal(osherFiles),
