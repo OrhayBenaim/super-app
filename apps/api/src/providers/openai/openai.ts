@@ -14,16 +14,18 @@ const answer = z.object({ types: z.array(z.object({ i: z.number().int(), type: z
 const productType = z.enum(PRODUCT_TYPES);
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const PACE_MS = 3000; // OpenRouter's free models allow 20 requests a minute
+const MAX_RETRY_AFTER_S = 120; // longer is a quota reset (daily), which must not hold the Price sync for hours
 
 /**
  * Any OpenAI-compatible Chat Completions API (OpenAI, Anthropic, Google, OpenRouter, a local server) through plain fetch.
  * Requests go at least 3 s apart (OpenRouter's free models allow 20 a minute). A 429 waits Retry-After (60 s without
- * one) and retries once; a second 429 throws a RateLimitError.
+ * one) and retries once; a second 429, or a Retry-After over 120 s, throws a RateLimitError.
  */
 export function openaiClassifier({ baseUrl, apiKey, model }: { baseUrl: string; apiKey: string; model: string }): Classifier {
   let last = 0;
   const send = async (body: string) => {
-    const gap = last + 3000 - Date.now();
+    const gap = last + PACE_MS - Date.now();
     if (gap > 0) await wait(gap);
     last = Date.now();
     return fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
@@ -46,8 +48,9 @@ export function openaiClassifier({ baseUrl, apiKey, model }: { baseUrl: string; 
       });
       let res = await send(body);
       if (res.status === 429) {
-        // shortcut: an HTTP-date Retry-After counts as absent; OpenRouter sends seconds.
+        // shortcut: an HTTP-date Retry-After counts as absent (OpenRouter sends seconds), parse dates when a provider sends them.
         const seconds = Number(res.headers.get("retry-after") || NaN);
+        if (seconds > MAX_RETRY_AFTER_S) throw new RateLimitError(`llm: HTTP 429, retry after ${seconds} s`);
         await wait((Number.isFinite(seconds) ? seconds : 60) * 1000);
         res = await send(body);
         if (res.status === 429) throw new RateLimitError("llm: HTTP 429");
