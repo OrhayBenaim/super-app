@@ -244,6 +244,8 @@ summary::-webkit-details-marker { display: none; }
 .toolbar .select { width: 200px; }
 .toolbar .select::after { top: 12px; }
 .stores { display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: var(--space-6); align-items: start; }
+/* Beside the map the table has about 650px: names and addresses wrap instead of scrolling it sideways */
+.stores td { white-space: normal; }
 .table-foot { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-5); padding: var(--space-3) var(--space-5); font-size: var(--size-footnote); color: var(--labelSecondary); }
 .table-foot .pages { margin: 0; font-size: var(--size-subhead); }
 .map-panel { position: sticky; top: var(--space-5); }
