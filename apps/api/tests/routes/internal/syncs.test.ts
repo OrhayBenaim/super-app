@@ -76,7 +76,7 @@ describe("GET /syncs (private)", () => {
         },
       ],
       attention: [],
-      syncTimes: ["05:00", "12:00", "23:30"],
+      syncTimes: ["07:00", "12:30", "20:30"],
     });
   });
 

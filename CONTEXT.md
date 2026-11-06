@@ -57,7 +57,7 @@ One run that brings every Chain's prices up to date: download each Chain's newes
 _Avoid_: Fetch, scrape, import (each names only one part of it)
 
 **Scheduled sync**:
-A Price sync started by the schedule, three times a day outside rush hours: early morning, midday and late night.
+A Price sync started by the schedule, three times a day except Saturday: morning, midday and evening, each starting after the day's price files are out and done before midnight.
 _Avoid_: Cron, nightly job
 
 **Manual sync**:
