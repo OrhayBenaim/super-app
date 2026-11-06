@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildDeps, type Deps } from "#/deps.ts";
 import { chainSeeds } from "#/ingest/chains.ts";
 import { createInternalApp } from "#/internal-app.ts";
@@ -68,6 +68,70 @@ describe("priceSyncJob", () => {
       prices_loaded: 0,
       error: expect.stringMatching(/no prices loaded from any of 2 PriceFull files/),
     });
+  });
+
+  const STORES = `Stores${OSHER}-000-20261021-080500.xml`;
+  const FULL1 = `PriceFull${OSHER}-001-001-20261021-051600.gz`;
+  const FULL2 = `PriceFull${OSHER}-001-002-20261021-051600.xml`;
+  /** fakePricePortal, except that downloading a name in `failing` throws. */
+  const portal = (files: Record<string, Uint8Array>, ...failing: string[]) => {
+    const fake = fakePricePortal(files);
+    return {
+      ...fake,
+      async open() {
+        const p = await fake.open();
+        return { files: p.files, download: (f) => (failing.includes(f.name) ? Promise.reject(new Error("other side closed")) : p.download(f)) };
+      },
+    } satisfies PricePortal;
+  };
+  const osherResult = (deps: Deps, id: number) =>
+    one(deps, "SELECT status, error FROM sync_chain_results WHERE sync_run_id = ? AND chain_id = ?", id, OSHER);
+  const storePrices = (deps: Deps, store: string) => rows(deps, "SELECT code, price FROM prices WHERE store_id = ? ORDER BY code", `${OSHER}-${store}`);
+
+  it.each([
+    ["whose download throws", (): [Uint8Array, boolean] => [osherFiles[FULL1]!, true], /other side closed/],
+    ["that is not a price file", (): [Uint8Array, boolean] => [new TextEncoder().encode("<html><body>login</body></html>"), false], /not a price file/],
+    ["that is a cut-off gzip", (): [Uint8Array, boolean] => [osherFiles[FULL1]!.subarray(0, 200), false], /unexpected end of file/],
+  ])("a PriceFull %s is a Store failure: that store keeps its prices, later stores load, the Chain is ok", async (_, bad, logged) => {
+    const deps = setup({ pricePortal: fakePricePortal({ [STORES]: osherFiles[STORES]!, [FULL1]: osherFiles[FULL1]! }) });
+    await priceSyncJob(deps)({});
+    const store1 = storePrices(deps, "1");
+    expect(store1.length).toBeGreaterThan(0);
+    expect(storePrices(deps, "2")).toEqual([]);
+
+    const [bytes, throws] = bad();
+    const files = { [STORES]: osherFiles[STORES]!, [FULL1]: bytes, [FULL2]: osherFiles[FULL2]! };
+    const errors = vi.spyOn(console, "error");
+    const id = await priceSyncJob({ ...deps, pricePortal: portal(files, ...(throws ? [FULL1] : [])) })({});
+    const failure = errors.mock.calls.find(([m]) => String(m).includes(FULL1));
+    errors.mockRestore();
+
+    expect(osherResult(deps, id)).toEqual({ status: "ok", error: null });
+    expect(storePrices(deps, "1")).toEqual(store1);
+    expect(storePrices(deps, "2").length).toBeGreaterThan(0);
+    expect(String(failure?.[1])).toMatch(logged);
+  });
+
+  it("a Store failure skips that store's price update file", async () => {
+    const update = `Price${OSHER}-001-001-20261021-090000.xml`;
+    const files = { ...osherFiles, [update]: osherFiles[FULL2]! };
+    const pricePortal = portal(files, FULL1);
+    await priceSyncJob(setup({ pricePortal }))({});
+    expect(pricePortal.downloaded).toContain(FULL2);
+    expect(pricePortal.downloaded).not.toContain(update);
+  });
+
+  it("a Chain whose every PriceFull fails is still failed", async () => {
+    const deps = setup({ pricePortal: portal(osherFiles, FULL1, FULL2) });
+    const id = await priceSyncJob(deps)({});
+    expect(osherResult(deps, id)).toEqual({ status: "failed", error: expect.stringMatching(/no prices loaded from any of 2 PriceFull files/) });
+  });
+
+  it("a Chain whose Stores file fails is still failed", async () => {
+    const deps = setup({ pricePortal: portal(osherFiles, STORES) });
+    const id = await priceSyncJob(deps)({});
+    expect(osherResult(deps, id)).toEqual({ status: "failed", error: "other side closed" });
+    expect(one(deps, "SELECT count(*) AS n FROM prices").n).toBe(0);
   });
 
   it("refuses to start while a Price sync is running or a request is waiting, and records nothing", async () => {

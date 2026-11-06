@@ -122,10 +122,16 @@ export async function syncChain(deps: Deps, chain: ChainSeed, maxStores: number,
     counts.filesDownloaded++;
     return xml;
   };
-  for (const [i, f] of files.entries()) {
-    const xml = await load(f);
-    if (i === 0) counts.storesLoaded = ingestStores(deps, chain.key, xml);
-    else counts.pricesLoaded += ingestPrices(deps, chain.key, xml, f.name);
+  const [stores, ...prices] = files;
+  counts.storesLoaded = ingestStores(deps, chain.key, await load(stores!));
+  for (const f of prices) {
+    // A PriceFull that can't be downloaded or loaded is a Store failure (CONTEXT.md): the store keeps its previous prices.
+    try {
+      counts.pricesLoaded += ingestPrices(deps, chain.key, await load(f), f.name);
+    } catch (e) {
+      console.error(`${f.name}: skipped this store's prices`, e);
+      continue;
+    }
     // An update that can't be downloaded or loaded leaves the store on its full file's prices; not a Chain failure.
     if (f.update)
       counts.pricesLoaded += await load(f.update)
@@ -133,8 +139,8 @@ export async function syncChain(deps: Deps, chain: ChainSeed, maxStores: number,
         .catch((e: unknown) => (console.error(`${f.update!.name}: skipped this price update`, e), 0));
   }
   await syncPromotions(deps, chain, promos, load, counts);
-  // ingestPrices skips a file whose store is not in the Stores file; when every file is skipped, the chain is broken.
-  if (files.length > 1 && counts.pricesLoaded === 0)
-    throw new Error(`${chain.key}: no prices loaded from any of ${files.length - 1} PriceFull files (stores not in the Stores file?)`);
+  // A file fails, or ingestPrices skips it when its store is not in the Stores file; when every file does, the chain is broken.
+  if (prices.length && counts.pricesLoaded === 0)
+    throw new Error(`${chain.key}: no prices loaded from any of ${prices.length} PriceFull files (failed, or stores not in the Stores file)`);
   counts.storesGeocoded = await geocodeStores(deps, chain.ids[0]!);
 }
