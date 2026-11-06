@@ -15,3 +15,17 @@ export function useMinDuration(on: boolean, ms: number) {
   }, [on, ms]);
   return on || held;
 }
+
+/** True once `on` has stayed on for `ms`, so a wait that ends sooner shows nothing. */
+export function useDelayed(on: boolean, ms: number) {
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    if (!on) {
+      setLate(false);
+      return;
+    }
+    const id = setTimeout(() => setLate(true), ms);
+    return () => clearTimeout(id);
+  }, [on, ms]);
+  return on && late;
+}

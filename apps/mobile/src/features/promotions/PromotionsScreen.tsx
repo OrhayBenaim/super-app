@@ -13,7 +13,7 @@ import { useBrowseLocation } from "@/features/home/LocationBanner";
 import { useCurrentListId, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
-import { useMinDuration } from "@/lib/useMinDuration";
+import { useDelayed, useMinDuration } from "@/lib/loaderTiming";
 import { useTheme } from "@/theme";
 import { Button, COUPON_DIG_MS, CouponLoader, EmptyState, LargeTitle, Screen, Text } from "@/ui";
 import { useChains, usePromotions } from "./api";
@@ -21,6 +21,9 @@ import { ChainMenu } from "./ChainMenu";
 import { loadedCards, promoKey } from "./promo";
 import { PromoCard } from "./PromoCard";
 import { TypeBar } from "./TypeBar";
+
+// A filter answer slower than this shows the loader; a faster one just swaps the cards.
+const SLOW_SWITCH_MS = 300;
 
 /** The Promotions tab: group cards of the Products on a Promotion nearby, biggest saving first, under the filters. */
 export function PromotionsScreen() {
@@ -34,8 +37,10 @@ export function PromotionsScreen() {
   const listId = useCurrentListId();
   // One poll for the screen keeps every card's "on the List" in step with the other Members.
   const items = useList(listId, { poll: useIsFocused() }).data?.items ?? [];
+  // A new type, Chain or radius keeps the old cards up (placeholder data); a slow one swaps them for the loader.
+  const switching = useDelayed(!off && promos.isPlaceholderData, SLOW_SWITCH_MS);
   // A nearby search can answer at once; hold the loader for one dig cycle (both flings) so it never just flashes.
-  const loading = useMinDuration(!off && (!coords || promos.isPending), COUPON_DIG_MS);
+  const loading = useMinDuration(!off && (!coords || promos.isPending || switching), COUPON_DIG_MS);
   const data = off || loading ? [] : loadedCards(promos.data?.pages);
   // After a page fails, only the footer's retry loads it: scrolling would repeat the failing request unseen.
   const more = () => {
@@ -111,7 +116,7 @@ export function PromotionsScreen() {
               start={<MenuButton />}
               nav={!off && <ChainMenu chains={chains} value={chain} onChange={setChain} />}
               title={t("tabs.promotions")}
-              subtitle={loading ? t("promotions.loading") : fmt(t("promotions.subtitle"), { km: radiusKm })}
+              subtitle={fmt(t("promotions.subtitle"), { km: radiusKm })}
             />
             {!off && <TypeBar value={type} onChange={setType} />}
           </>

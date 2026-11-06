@@ -9,7 +9,7 @@ import { syncGeofences, useNearbyAlerts } from "@/features/geofence/useNearbyAle
 import { Events, Taps, track } from "@/lib/analytics";
 import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
-import { useMinDuration } from "@/lib/useMinDuration";
+import { useMinDuration } from "@/lib/loaderTiming";
 import { springs, useTheme } from "@/theme";
 import { MenuButton } from "@/features/drawer/MenuButton";
 import { EmptyState, Group, LargeTitle, Screen, ShoppingLoader } from "@/ui";
