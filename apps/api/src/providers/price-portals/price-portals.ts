@@ -192,21 +192,21 @@ export function pricePortals(): PricePortal {
         files,
         async download(file) {
           for (let attempt = 1; ; attempt++) {
+            let final = false;
             try {
               const url = fresh.get(file.name) ?? file.url;
               let res = await http(url, jar);
               const newUrl = res.status === 403 ? await relink?.(file.name) : undefined;
               if (newUrl && newUrl !== url) res = await http(newUrl, jar);
               // A 404: the file is gone. A 403 after a relink: the file is no longer listed, and relisting waits 10 min.
-              const final = res.status === 404 || (res.status === 403 && relink !== undefined);
-              if (!res.ok) throw Object.assign(new Error(`${file.name}: HTTP ${res.status}`), { final });
+              final = res.status === 404 || (res.status === 403 && relink !== undefined);
+              if (!res.ok) throw new Error(`${file.name}: HTTP ${res.status}`);
               const buf = new Uint8Array(await res.arrayBuffer());
               // A cut-off gzip throws in decodeXml and an error page (gzipped or not) isn't a price file; the next attempt may get the whole file.
-              const head = Buffer.from(decodeXml(Buffer.from(buf)).slice(0, 64));
-              if (!looksLikePriceFile(buf) || !looksLikePriceFile(head)) throw new Error(`${file.name}: not a price file`);
+              if (!looksLikePriceFile(Buffer.from(decodeXml(Buffer.from(buf)).slice(0, 64)))) throw new Error(`${file.name}: not a price file`);
               return buf;
             } catch (e) {
-              if (attempt === DOWNLOAD_ATTEMPTS || (e as { final?: boolean }).final) throw e;
+              if (attempt === DOWNLOAD_ATTEMPTS || final) throw e;
               await new Promise((r) => setTimeout(r, RETRY_PAUSE_MS));
             }
           }

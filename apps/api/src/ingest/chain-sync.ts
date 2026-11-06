@@ -8,7 +8,7 @@ import { decodeXml, looksLikePriceFile } from "#/ingest/parse.ts";
 import type { PriceFile } from "#/services/price-portal.ts";
 
 /** Prices that can't be saved are a Chain failure (CONTEXT.md), so a DB error goes on; a download or parse error doesn't. */
-const unlessSaveError = (e: unknown) => {
+const rethrowSaveError = (e: unknown) => {
   if (e instanceof Database.SqliteError) throw e;
 };
 
@@ -135,7 +135,7 @@ export async function syncChain(deps: Deps, chain: ChainSeed, maxStores: number,
     try {
       counts.pricesLoaded += ingestPrices(deps, chain.key, await load(f), f.name);
     } catch (e) {
-      unlessSaveError(e);
+      rethrowSaveError(e);
       console.error(`${f.name}: skipped this store's prices`, e);
       continue;
     }
@@ -143,7 +143,7 @@ export async function syncChain(deps: Deps, chain: ChainSeed, maxStores: number,
     if (f.update)
       counts.pricesLoaded += await load(f.update)
         .then((u) => ingestPrices(deps, chain.key, u, f.update!.name))
-        .catch((e: unknown) => (unlessSaveError(e), console.error(`${f.update!.name}: skipped this price update`, e), 0));
+        .catch((e: unknown) => (rethrowSaveError(e), console.error(`${f.update!.name}: skipped this price update`, e), 0));
   }
   await syncPromotions(deps, chain, promos, load, counts);
   // A file fails, or ingestPrices skips it when its store is not in the Stores file; when every file does, the chain is broken.

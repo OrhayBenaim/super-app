@@ -34,16 +34,12 @@ function scheduledBetween(times: string[], from: number, to: number) {
 }
 
 /** The scheduled time before the minute start `t`. */
-function previousScheduled(times: string[], t: number) {
-  for (let m = t - MINUTE; m > t - LONGEST_GAP; m -= MINUTE) if (isScheduled(times, m)) return m;
-  return t - LONGEST_GAP;
-}
+const previousScheduled = (times: string[], t: number) => scheduledBetween(times, t - LONGEST_GAP, t - MINUTE).at(-1) ?? t - LONGEST_GAP;
 
 /** The first scheduled time after `t` (ms): the next Scheduled sync. */
 export function nextScheduled(times: string[], t: number) {
-  const from = Math.floor(t / MINUTE) * MINUTE;
-  for (let m = from + MINUTE; m <= from + LONGEST_GAP; m += MINUTE) if (isScheduled(times, m)) return m;
-  return from + LONGEST_GAP;
+  const until = Math.floor(t / MINUTE) * MINUTE + LONGEST_GAP;
+  return scheduledBetween(times, t, until)[0] ?? until;
 }
 
 /**
