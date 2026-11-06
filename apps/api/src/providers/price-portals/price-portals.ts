@@ -201,9 +201,9 @@ export function pricePortals(): PricePortal {
               const final = res.status === 404 || (res.status === 403 && relink !== undefined);
               if (!res.ok) throw Object.assign(new Error(`${file.name}: HTTP ${res.status}`), { final });
               const buf = new Uint8Array(await res.arrayBuffer());
-              // A cut-off gzip throws in decodeXml and an error page isn't a price file; the next attempt may get the whole file.
-              decodeXml(Buffer.from(buf));
-              if (!looksLikePriceFile(buf)) throw new Error(`${file.name}: not a price file`);
+              // A cut-off gzip throws in decodeXml and an error page (gzipped or not) isn't a price file; the next attempt may get the whole file.
+              const head = Buffer.from(decodeXml(Buffer.from(buf)).slice(0, 64));
+              if (!looksLikePriceFile(buf) || !looksLikePriceFile(head)) throw new Error(`${file.name}: not a price file`);
               return buf;
             } catch (e) {
               if (attempt === DOWNLOAD_ATTEMPTS || (e as { final?: boolean }).final) throw e;
