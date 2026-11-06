@@ -71,6 +71,19 @@ describe("nominatimUrl", () => {
   });
 });
 
+describe("nominatimUrl house numbers", () => {
+  it("splits a house number stuck to the street name (about 10 prod stores, 2026-11-06)", () => {
+    expect(q("מלצר20", "רחובות")).toBe("מלצר 20, רחובות, Israel");
+    expect(q("רחוב הרצל12", "חולון")).toBe("הרצל 12, חולון, Israel");
+  });
+
+  it("leaves a street whose number is already separated, and digits not stuck to Hebrew letters", () => {
+    expect(q("מלצר 20", "רחובות")).toBe("מלצר 20, רחובות, Israel");
+    expect(q("כביש 4", "חיפה")).toBe("כביש 4, חיפה, Israel");
+    expect(q("Road20", "אילת")).toBe("Road20, אילת, Israel");
+  });
+});
+
 describe("nominatimUrl base URL", () => {
   it("takes the base as its first argument and drops a trailing slash", () => {
     expect(nominatimUrl(BASE, "a", "b")?.startsWith("https://nominatim.openstreetmap.org/search?")).toBe(true);
