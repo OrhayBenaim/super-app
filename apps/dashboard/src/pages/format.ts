@@ -45,7 +45,7 @@ export const isToday = (iso: string | Date, now: Date) => dayKey.format(new Date
 export function day(iso: string, now: Date) {
   const d = new Date(iso);
   // shortcut: "Yesterday" is 24 h back, so for an hour after midnight on a daylight-saving day it can name the wrong day; compare calendar days if a run is ever mislabelled.
-  const label = isToday(d, now) ? "Today" :dayKey.format(d) === dayKey.format(now.getTime() - DAY) ? "Yesterday" : `${shortDate(d)},`;
+  const label = isToday(d, now) ? "Today" : dayKey.format(d) === dayKey.format(now.getTime() - DAY) ? "Yesterday" : `${shortDate(d)},`;
   return `${label} ${time(d)}`;
 }
 

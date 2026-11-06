@@ -1,10 +1,16 @@
 // The per-Chain steps of a Price sync (CONTEXT.md "Prices"), shared by the sync and the one-shot fetch and geocode jobs.
+import Database from "better-sqlite3";
 import type { Deps } from "#/deps.ts";
 import type { ChainSeed } from "#/ingest/chains.ts";
-import { looksLikePriceFile, newestFullAndUpdate, pickFiles, type PickedFile } from "#/ingest/files.ts";
+import { newestFullAndUpdate, pickFiles, type PickedFile } from "#/ingest/files.ts";
 import { ingestPrices, ingestPromotions, ingestStores } from "#/ingest/ingest.ts";
-import { decodeXml } from "#/ingest/parse.ts";
+import { decodeXml, looksLikePriceFile } from "#/ingest/parse.ts";
 import type { PriceFile } from "#/services/price-portal.ts";
+
+/** Prices that can't be saved are a Chain failure (CONTEXT.md), so a DB error goes on; a download or parse error doesn't. */
+const unlessSaveError = (e: unknown) => {
+  if (e instanceof Database.SqliteError) throw e;
+};
 
 /**
  * Opens the Chain's portal: the newest Stores file first, then the newest PriceFull of the first `maxStores` stores, and
@@ -125,18 +131,19 @@ export async function syncChain(deps: Deps, chain: ChainSeed, maxStores: number,
   const [stores, ...prices] = files;
   counts.storesLoaded = ingestStores(deps, chain.key, await load(stores!));
   for (const f of prices) {
-    // A PriceFull that can't be downloaded or loaded is a Store failure (CONTEXT.md): the store keeps its previous prices.
+    // A PriceFull that can't be downloaded or read is a Store failure (CONTEXT.md): the store keeps its previous prices.
     try {
       counts.pricesLoaded += ingestPrices(deps, chain.key, await load(f), f.name);
     } catch (e) {
+      unlessSaveError(e);
       console.error(`${f.name}: skipped this store's prices`, e);
       continue;
     }
-    // An update that can't be downloaded or loaded leaves the store on its full file's prices; not a Chain failure.
+    // An update that can't be downloaded or read leaves the store on its full file's prices; not a Chain failure.
     if (f.update)
       counts.pricesLoaded += await load(f.update)
         .then((u) => ingestPrices(deps, chain.key, u, f.update!.name))
-        .catch((e: unknown) => (console.error(`${f.update!.name}: skipped this price update`, e), 0));
+        .catch((e: unknown) => (unlessSaveError(e), console.error(`${f.update!.name}: skipped this price update`, e), 0));
   }
   await syncPromotions(deps, chain, promos, load, counts);
   // A file fails, or ingestPrices skips it when its store is not in the Stores file; when every file does, the chain is broken.

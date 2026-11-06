@@ -112,6 +112,17 @@ describe("priceSyncJob", () => {
     expect(String(failure?.[1])).toMatch(logged);
   });
 
+  it.each([
+    ["a PriceFull", "INSERT"],
+    ["a price update file", "UPDATE"],
+  ])("prices from %s that can't be saved fail the Chain, not just the store", async (_, statement) => {
+    const update = `Price${OSHER}-001-001-20261021-090000.gz`;
+    const deps = setup({ pricePortal: fakePricePortal({ ...osherFiles, [update]: osherFiles[FULL1]! }) });
+    deps.db.$client.exec(`CREATE TRIGGER disk_full BEFORE ${statement} ON prices BEGIN SELECT RAISE(ABORT, 'disk full'); END`);
+    const id = await priceSyncJob(deps)({});
+    expect(osherResult(deps, id)).toEqual({ status: "failed", error: "disk full" });
+  });
+
   it("a Store failure skips that store's price update file", async () => {
     const update = `Price${OSHER}-001-001-20261021-090000.xml`;
     const files = { ...osherFiles, [update]: osherFiles[FULL2]! };
@@ -238,6 +249,19 @@ describe("priceSyncJob", () => {
 
     expect(store(fixed)).toEqual({ name: "Fixed", address: "Fixed 1", city: "Fixedville", lat: 31.1, lng: 34.1, published_address: "Moved 7", published_city: "Haifa" });
     expect(store(`${OSHER}-5`)).toEqual({ name: "Newcomer", address: "New 5", city: "Ashdod", lat: 32, lng: 34, published_address: "New 5", published_city: "Ashdod" });
+  });
+
+  it("names a city saved as a CBS code once the code is known, and leaves a named city alone", async () => {
+    const deps = setup();
+    await priceSyncJob(deps)({});
+    // Saved before the parser knew CBS code 3000, and a city the team named.
+    deps.db.$client.prepare(`UPDATE stores SET city = '3000' WHERE id = '${OSHER}-2'`).run();
+    deps.db.$client.prepare(`UPDATE stores SET city = 'Fixedville' WHERE id = '${OSHER}-1'`).run();
+
+    await priceSyncJob(deps)({});
+    const city = (id: string) => one(deps, "SELECT city, published_city FROM stores WHERE id = ?", `${OSHER}-${id}`);
+    expect(city("2")).toEqual({ city: "ירושלים", published_city: "ירושלים" });
+    expect(city("1")).toEqual({ city: "Fixedville", published_city: "אשדוד" });
   });
 
   it("keeps a store edited on the Internal dashboard, and geocodes one whose location the edit cleared", async () => {

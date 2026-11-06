@@ -37,6 +37,7 @@ function storeOf({ db }: IngestDeps, chainId: string, fileName: string | undefin
 /**
  * Loads a Stores file. A store Grocer has not seen is added from it; an existing one keeps its name, address, city and
  * location (corrected only on the Internal dashboard, ADR 0006) and gets the address and city the Chain publishes now.
+ * A city saved as a bare CBS code (the parser couldn't name it then) takes the published one: the team never set it.
  */
 export function ingestStores({ db }: IngestDeps, chainKey: string, xml: string) {
   const sqlite = db.$client;
@@ -46,6 +47,7 @@ export function ingestStores({ db }: IngestDeps, chainKey: string, xml: string) 
     `INSERT INTO stores (id, chain_id, store_id, sub_chain_id, name, address, city, published_address, published_city)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET sub_chain_id = excluded.sub_chain_id,
+       city = CASE WHEN stores.city <> '' AND stores.city NOT GLOB '*[^0-9]*' THEN excluded.city ELSE stores.city END,
        published_address = excluded.published_address, published_city = excluded.published_city`,
   );
   sqlite.transaction(() => {

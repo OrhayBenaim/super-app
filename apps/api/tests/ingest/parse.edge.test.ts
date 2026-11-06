@@ -1,7 +1,7 @@
 // QA edge cases for parse.ts: isGtin matrix, every real fixture, placeholders, CBS cities, numbers, entities.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { decodeXml, isGtin, parsePrices, parseStores } from "#/ingest/parse.ts";
+import { decodeXml, looksLikePriceFile, isGtin, parsePrices, parseStores } from "#/ingest/parse.ts";
 
 // Independent GS1 check digit: weights 3,1,3,... from the digit next to the check digit.
 const withCheck = (body: string) => {
@@ -285,5 +285,25 @@ describe("decodeXml", () => {
   it("rejects garbage that is not XML (parse throws instead of returning an empty store)", () => {
     expect(() => parseStores(decodeXml(Buffer.from("not xml at all")))).toThrow();
     expect(() => parsePrices(decodeXml(Buffer.from("")))).toThrow();
+  });
+});
+
+describe("looksLikePriceFile", () => {
+  const b = (s: string) => Buffer.from(s, "utf8");
+  it("accepts XML with an attributed root and no declaration, with a namespace prefix, or with leading whitespace", () => {
+    expect(looksLikePriceFile(b('<Root xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ChainId>1</ChainId></Root>'))).toBe(true);
+    expect(looksLikePriceFile(b("\r\n  <Root>"))).toBe(true);
+    expect(looksLikePriceFile(b("<ns:Root>"))).toBe(true);
+    expect(looksLikePriceFile(b("<NewDataSet>"))).toBe(true);
+    expect(looksLikePriceFile(b("<Root/>"))).toBe(true);
+    expect(looksLikePriceFile(b('<?xml version="1.0" encoding="utf-8"?>'))).toBe(true);
+  });
+  it("rejects HTML pages in any casing, doctype, JSON, plain text, empty and a redirect stub", () => {
+    for (const s of ["<!DOCTYPE html><html>", "<html>", "<HTML>", '<html lang="en"><head>', '<HTML LANG="he">', '\n<html dir="rtl">', '{"error":"Invalid request"}', "Not Found", "", "302 Found"])
+      expect(looksLikePriceFile(b(s)), JSON.stringify(s)).toBe(false);
+  });
+  it("accepts a UTF-16BE BOM'd XML and a UTF-8 BOM'd XML, and rejects a UTF-16 HTML page", () => {
+    expect(looksLikePriceFile(Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from("\0<\0R\0o\0o\0t\0>", "latin1")]))).toBe(true);
+    expect(looksLikePriceFile(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("<html>", "utf16le")]))).toBe(false);
   });
 });

@@ -2,7 +2,7 @@
 // sites, and laibcatalog.co.il (Victory, Machsanei Hashuk). docs/research/price-data.md section 1. Each lists every store.
 import type { ChainSeed } from "#/ingest/chains.ts";
 import { parseFileName } from "#/ingest/files.ts";
-import { decodeXml } from "#/ingest/parse.ts";
+import { decodeXml, looksLikePriceFile } from "#/ingest/parse.ts";
 import type { PriceFile, PricePortal } from "#/services/price-portal.ts";
 
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
@@ -197,11 +197,13 @@ export function pricePortals(): PricePortal {
               let res = await http(url, jar);
               const newUrl = res.status === 403 ? await relink?.(file.name) : undefined;
               if (newUrl && newUrl !== url) res = await http(newUrl, jar);
-              // A 4xx (404: the file is gone; a 403 was relinked above) answers the same again, so it isn't retried.
-              if (!res.ok) throw Object.assign(new Error(`${file.name}: HTTP ${res.status}`), { final: res.status < 500 });
+              // A 404: the file is gone. A 403 after a relink: the file is no longer listed, and relisting waits 10 min.
+              const final = res.status === 404 || (res.status === 403 && relink !== undefined);
+              if (!res.ok) throw Object.assign(new Error(`${file.name}: HTTP ${res.status}`), { final });
               const buf = new Uint8Array(await res.arrayBuffer());
-              // A cut-off gzip throws here and an error page decodes to HTML; the next attempt may get the whole file.
-              if (!/^\s*<(?!html|!doctype)/i.test(decodeXml(Buffer.from(buf)))) throw new Error(`${file.name}: not a price file`);
+              // A cut-off gzip throws in decodeXml and an error page (gzipped or not) isn't a price file; the next attempt may get the whole file.
+              const head = Buffer.from(decodeXml(Buffer.from(buf)).slice(0, 64));
+              if (!looksLikePriceFile(buf) || !looksLikePriceFile(head)) throw new Error(`${file.name}: not a price file`);
               return buf;
             } catch (e) {
               if (attempt === DOWNLOAD_ATTEMPTS || (e as { final?: boolean }).final) throw e;

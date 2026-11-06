@@ -3,7 +3,8 @@ import type { Geocoder, LatLng } from "#/services/geocoder.ts";
 // City arrives decoded by parseStores; a code still numeric is one we cannot name, so it counts as empty. Without a city
 // the store name usually carries the locality (Yohananof publishes City=0 for all 51 stores). Null = nothing to look up.
 export function nominatimUrl(base: string, address: string, city: string, name = "") {
-  const town = /^\d+$/.test(city) ? "" : city;
+  // CBS qualifies some names ("גת (קיבוץ)", "(שבט)"); OSM names the place without it.
+  const town = /^\d+$/.test(city) ? "" : city.replace(/\s*\([^)]*\)/g, "").trim();
   // "האומן,15" and "מלצר20"; OSM names streets without "רחוב"/"שדרות"/"דרך", and Nominatim finds nothing when the query keeps them.
   const street = address.replace(/,(?=\d)/g, " ").replace(/([א-ת])(?=\d)/g, "$1 ").replace(/^\s*(?:(?:רחוב|רח|שדרות|שד|דרך)\s+|(?:רח|שד)['׳`.]\s*)/, "");
   const place = town ? (street.includes(town) ? "" : town) : name;

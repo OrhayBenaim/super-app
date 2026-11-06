@@ -33,6 +33,11 @@ describe("nominatimUrl", () => {
     expect(q("", "874")).toBeNull();
   });
 
+  it("drops a CBS qualifier in brackets from the town", () => {
+    expect(q("הדקל 3", "גת (קיבוץ)")).toBe("הדקל 3, גת, Israel");
+    expect(q("", "אבו עמרה (שבט)")).toBe("אבו עמרה, Israel");
+  });
+
   it("a city that merely contains digits is a name, not a code", () => {
     expect(q("הרצל 1", "קריית 4")).toBe("הרצל 1, קריית 4, Israel");
   });

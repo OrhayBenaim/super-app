@@ -19,6 +19,12 @@ export function decodeXml(buf: Buffer): string {
   return new TextDecoder(enc).decode(buf); // strips the BOM
 }
 
+/** Rejects HTML login pages and redirect stubs: a price file is gzip, zip, or XML (optionally with a BOM). */
+export function looksLikePriceFile(buf: Uint8Array) {
+  const head = Buffer.from(buf.subarray(0, 64)).toString("latin1").replace(/^\xEF\xBB\xBF|^\xFF\xFE|^\xFE\xFF/, "").replace(/\0/g, "");
+  return (buf[0] === 0x1f && buf[1] === 0x8b) || (buf[0] === 0x50 && buf[1] === 0x4b) || /^\s*<(\?xml|(?!html[\s/>])[a-z][\w:.-]*[\s/>])/i.test(head);
+}
+
 // Tags are lower-cased so ChainId/ChainID, Root/root, Item/item all match. Values stay strings ("034", long barcodes).
 // shortcut: builds the whole tree (~10 MB files are fine); switch to a SAX stream if files reach hundreds of MB.
 const parser = new XMLParser({

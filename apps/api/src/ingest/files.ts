@@ -57,9 +57,3 @@ export function pickFiles(files: PriceFile[], maxStores: number, chainIds: strin
   const prices = [...full.keys()].sort().slice(0, maxStores).map((k) => full.get(k)!);
   return { stores, prices };
 }
-
-/** Rejects HTML login pages and redirect stubs: a price file is gzip, zip, or XML (optionally with a BOM). */
-export function looksLikePriceFile(buf: Uint8Array) {
-  const head = Buffer.from(buf.subarray(0, 64)).toString("latin1").replace(/^\xEF\xBB\xBF|^\xFF\xFE|^\xFE\xFF/, "").replace(/\0/g, "");
-  return (buf[0] === 0x1f && buf[1] === 0x8b) || (buf[0] === 0x50 && buf[1] === 0x4b) || /^\s*<(\?xml|(?!html[\s>])[a-z][\w:.-]*[\s>])/i.test(head);
-}

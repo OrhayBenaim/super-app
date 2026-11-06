@@ -44,9 +44,28 @@ describe("pricePortals download", () => {
     expect(downloads()).toBe(3);
   });
 
+  it("retries a gzipped error page", async () => {
+    const { download, downloads } = await victory([
+      async () => new Response(gzipSync("<html><body>Service Unavailable</body></html>")),
+      async () => new Response(PRICE_FILE),
+    ]);
+    expect(await download).toEqual(new Uint8Array(PRICE_FILE));
+    expect(downloads()).toBe(2);
+  });
+
   it("throws the last error after three failed attempts", async () => {
     const { download, downloads } = await victory([closed, closed, async () => new Response("", { status: 503 })]);
     await expect(download).rejects.toThrow(`${NAME}: HTTP 503`);
+    expect(downloads()).toBe(3);
+  });
+
+  it("retries a 429 and other 4xx like any failed attempt", async () => {
+    const { download, downloads } = await victory([
+      async () => new Response("Too Many Requests", { status: 429 }),
+      async () => new Response("Forbidden", { status: 403 }),
+      async () => new Response(PRICE_FILE),
+    ]);
+    expect(await download).toEqual(new Uint8Array(PRICE_FILE));
     expect(downloads()).toBe(3);
   });
 

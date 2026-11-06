@@ -102,6 +102,13 @@ describe("openaiClassifier", () => {
     expect(await answer).toEqual(["dairy-eggs", "produce", "other"]);
   });
 
+  it("a 429 whose Retry-After is over 120 s (a daily quota) throws a rate-limit error at once", async () => {
+    vi.useFakeTimers();
+    const { fetch } = sequence({ status: 429, retryAfter: "121" });
+    await expect(classifier.classify(PRODUCTS)).rejects.toThrow(RateLimitError);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("two 429s in a row throw a rate-limit error; other HTTP errors are not retried", async () => {
     vi.useFakeTimers();
     const { fetch } = sequence({ status: 429 }, { status: 429 }, { status: 503 });

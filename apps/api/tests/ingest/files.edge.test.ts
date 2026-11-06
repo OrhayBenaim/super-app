@@ -1,6 +1,6 @@
 // QA edge cases for the pure helpers of files.ts (no network).
 import { describe, expect, it } from "vitest";
-import { looksLikePriceFile, parseFileName, pickFiles } from "#/ingest/files.ts";
+import { parseFileName, pickFiles } from "#/ingest/files.ts";
 
 const KESHET = "7290785400000";
 const CARREFOUR = "7290055700007";
@@ -88,24 +88,5 @@ describe("pickFiles", () => {
     );
     expect(stores?.name).toBe(`Stores${s}-000-20261101-020.gz`);
     expect(prices.map((p) => p.name)).toEqual([`PriceFull${s}-001-001-20261101-032630.gz`]);
-  });
-});
-
-describe("looksLikePriceFile", () => {
-  const b = (s: string) => Buffer.from(s, "utf8");
-  it("accepts XML with an attributed root and no declaration, with a namespace prefix, or with leading whitespace", () => {
-    expect(looksLikePriceFile(b('<Root xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ChainId>1</ChainId></Root>'))).toBe(true);
-    expect(looksLikePriceFile(b("\r\n  <Root>"))).toBe(true);
-    expect(looksLikePriceFile(b("<ns:Root>"))).toBe(true);
-    expect(looksLikePriceFile(b("<NewDataSet>"))).toBe(true);
-    expect(looksLikePriceFile(b('<?xml version="1.0" encoding="utf-8"?>'))).toBe(true);
-  });
-  it("rejects HTML pages in any casing, doctype, JSON, plain text, empty and a redirect stub", () => {
-    for (const s of ["<!DOCTYPE html><html>", "<html>", "<HTML>", '<html lang="en"><head>', '<HTML LANG="he">', '\n<html dir="rtl">', '{"error":"Invalid request"}', "Not Found", "", "302 Found"])
-      expect(looksLikePriceFile(b(s)), JSON.stringify(s)).toBe(false);
-  });
-  it("accepts a UTF-16BE BOM'd XML and a UTF-8 BOM'd XML, and rejects a UTF-16 HTML page", () => {
-    expect(looksLikePriceFile(Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from("\0<\0R\0o\0o\0t\0>", "latin1")]))).toBe(true);
-    expect(looksLikePriceFile(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("<html>", "utf16le")]))).toBe(false);
   });
 });
