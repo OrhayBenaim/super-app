@@ -120,7 +120,7 @@ as its Tailscale exit node. Price syncs fail while that machine is off or offlin
 | Name | Notes |
 | --- | --- |
 | `TS_AUTHKEY` | Tailscale auth key for the container (admin console > Settings > Keys); used on first start, state lives in the `tailscale-state` volume |
-| `TS_EXIT_NODE` | the Tailscale IP (`100.x.y.z`) of the machine in Israel; it runs Tailscale with "Run exit node" on, approved in the admin console |
+| `TS_EXIT_NODE` | the Tailscale IP (`100.x.y.z`) of the machine in Israel; it runs Tailscale with "Run exit node" on, approved in the admin console. Read on first start only (`TS_AUTH_ONCE`): to change it, delete the `tailscale-state` volume |
 | `SYNC_TOKEN` | required: `openssl rand -base64 32`. The api's private app starts with it and the dashboard calls it with it |
 
 The Internal dashboard (`dashboard` service) shares the `tailscale` container's network (`network_mode: service:tailscale`), and
