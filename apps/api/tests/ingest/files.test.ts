@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { looksLikePriceFile, newestFullAndUpdate, parseFileName, pickFiles } from "#/ingest/files.ts";
+import { newestFullAndUpdate, parseFileName, pickFiles } from "#/ingest/files.ts";
 
 const fixture = (name: string) => readFileSync(new URL(`../__fixtures__/real/${name}`, import.meta.url), "utf8");
 const RAMI = "7290058140886";
@@ -58,17 +58,6 @@ describe("pickFiles on Hazi Hinam's names", () => {
     );
     expect(stores?.name).toBe(`StoresFull${HAZI}-000-20261104-010530.gz`);
     expect(prices.map((p) => [p.name, p.update?.name])).toEqual([[`PriceFull${HAZI}-000-219-20261104-231501.gz`, `Price${HAZI}-000-219-20261104-235534.gz`]]);
-  });
-});
-
-describe("looksLikePriceFile", () => {
-  it("accepts gzip, zip and XML (with BOMs) and rejects an HTML login page", () => {
-    expect(looksLikePriceFile(new Uint8Array([0x1f, 0x8b, 8, 0]))).toBe(true);
-    expect(looksLikePriceFile(new Uint8Array([0x50, 0x4b, 3, 4]))).toBe(true);
-    expect(looksLikePriceFile(Buffer.from('﻿<?xml version="1.0"?><Root/>', "utf8"))).toBe(true);
-    expect(looksLikePriceFile(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("<Root>", "utf16le")]))).toBe(true);
-    expect(looksLikePriceFile(Buffer.from("<!DOCTYPE html><html><body>login</body></html>"))).toBe(false);
-    expect(looksLikePriceFile(Buffer.from("<html><body>302</body></html>"))).toBe(false);
   });
 });
 

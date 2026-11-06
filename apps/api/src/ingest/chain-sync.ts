@@ -2,9 +2,9 @@
 import Database from "better-sqlite3";
 import type { Deps } from "#/deps.ts";
 import type { ChainSeed } from "#/ingest/chains.ts";
-import { looksLikePriceFile, newestFullAndUpdate, pickFiles, type PickedFile } from "#/ingest/files.ts";
+import { newestFullAndUpdate, pickFiles, type PickedFile } from "#/ingest/files.ts";
 import { ingestPrices, ingestPromotions, ingestStores } from "#/ingest/ingest.ts";
-import { decodeXml } from "#/ingest/parse.ts";
+import { decodeXml, looksLikePriceFile } from "#/ingest/parse.ts";
 import type { PriceFile } from "#/services/price-portal.ts";
 
 /** Prices that can't be saved are a Chain failure (CONTEXT.md), so a DB error goes on; a download or parse error doesn't. */

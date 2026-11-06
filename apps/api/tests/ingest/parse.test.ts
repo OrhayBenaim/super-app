@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { nominatimUrl, parseNominatim } from "#/providers/nominatim/nominatim.ts";
-import { decodeXml, parsePrices, parseStores } from "#/ingest/parse.ts";
+import { decodeXml, looksLikePriceFile, parsePrices, parseStores } from "#/ingest/parse.ts";
 
 const NOMINATIM = "https://nominatim.openstreetmap.org";
 const fixture = (name: string) => readFileSync(new URL(`../__fixtures__/${name}`, import.meta.url));
@@ -67,5 +67,16 @@ describe("parse", () => {
     expect(q("", "", "")).toBeNull();
     expect(parseNominatim([{ lat: "31.80", lon: "34.65" }])).toEqual({ lat: 31.8, lng: 34.65 });
     expect(parseNominatim([])).toBeNull();
+  });
+});
+
+describe("looksLikePriceFile", () => {
+  it("accepts gzip, zip and XML (with BOMs) and rejects an HTML login page", () => {
+    expect(looksLikePriceFile(new Uint8Array([0x1f, 0x8b, 8, 0]))).toBe(true);
+    expect(looksLikePriceFile(new Uint8Array([0x50, 0x4b, 3, 4]))).toBe(true);
+    expect(looksLikePriceFile(Buffer.from('﻿<?xml version="1.0"?><Root/>', "utf8"))).toBe(true);
+    expect(looksLikePriceFile(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("<Root>", "utf16le")]))).toBe(true);
+    expect(looksLikePriceFile(Buffer.from("<!DOCTYPE html><html><body>login</body></html>"))).toBe(false);
+    expect(looksLikePriceFile(Buffer.from("<html><body>302</body></html>"))).toBe(false);
   });
 });
