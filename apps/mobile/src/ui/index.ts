@@ -8,6 +8,7 @@ export { ListRow } from "./ListRow";
 export { Row } from "./Row";
 export { Screen } from "./Screen";
 export { SearchField } from "./SearchField";
+export { COUPON_DIG_MS, CouponLoader } from "./CouponLoader";
 export { ShoppingLoader } from "./ShoppingLoader";
 export { Sheet, SheetField, SheetHeader, SheetTextField } from "./Sheet";
 export { Skeleton } from "./Skeleton";

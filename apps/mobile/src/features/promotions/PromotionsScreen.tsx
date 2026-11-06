@@ -13,8 +13,9 @@ import { useBrowseLocation } from "@/features/home/LocationBanner";
 import { useCurrentListId, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
+import { useMinDuration } from "@/lib/useMinDuration";
 import { useTheme } from "@/theme";
-import { Button, EmptyState, LargeTitle, Screen, Skeleton, Text } from "@/ui";
+import { Button, COUPON_DIG_MS, CouponLoader, EmptyState, LargeTitle, Screen, Text } from "@/ui";
 import { useChains, usePromotions } from "./api";
 import { ChainMenu } from "./ChainMenu";
 import { loadedCards, promoKey } from "./promo";
@@ -33,7 +34,9 @@ export function PromotionsScreen() {
   const listId = useCurrentListId();
   // One poll for the screen keeps every card's "on the List" in step with the other Members.
   const items = useList(listId, { poll: useIsFocused() }).data?.items ?? [];
-  const data = off ? [] : loadedCards(promos.data?.pages);
+  // A nearby search can answer at once; hold the loader for one dig cycle (both flings) so it never just flashes.
+  const loading = useMinDuration(!off && (!coords || promos.isPending), COUPON_DIG_MS);
+  const data = off || loading ? [] : loadedCards(promos.data?.pages);
   // After a page fails, only the footer's retry loads it: scrolling would repeat the failing request unseen.
   const more = () => {
     if (promos.hasNextPage && !promos.isFetchingNextPage && !promos.isFetchNextPageError) void promos.fetchNextPage();
@@ -52,7 +55,6 @@ export function PromotionsScreen() {
       />
     </View>
   );
-  const loading = !off && (!coords || promos.isPending);
 
   const chainName = chains.find((c) => c.id === chain)?.name;
   const filteredTitle = type && chainName
@@ -84,11 +86,7 @@ export function PromotionsScreen() {
   ) : promos.isError ? (
     <EmptyState icon={TriangleAlert} title={t("promotions.error.title")} action={{ title: t("compare.retry"), analyticsName: Taps.promotionsRetry, onPress: () => promos.refetch() }} />
   ) : loading ? (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[4] }}>
-      {[0, 1, 2, 3].map((i) => (
-        <Skeleton key={i} style={{ width: "47%", flexGrow: 1, height: 314 }} />
-      ))}
-    </View>
+    <CouponLoader label={t("promotions.loading")} />
   ) : type || chain ? (
     <EmptyState icon={Tag} title={filteredTitle} body={t("promotions.filtered.body")} action={{ title: t("promotions.filtered.clear"), analyticsName: Taps.promotionsClearFilter, onPress: clear }} />
   ) : (
