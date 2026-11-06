@@ -7,6 +7,7 @@
 !apps/api/drizzle
 !apps/dashboard/package.json
 !apps/dashboard/src
+!docs/design/tokens.json
 !apps/mobile/package.json
 !packages/shared/package.json
 !packages/shared/src
