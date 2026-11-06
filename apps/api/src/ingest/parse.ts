@@ -2,6 +2,7 @@
 import { gunzipSync } from "node:zlib";
 import { XMLParser } from "fast-xml-parser";
 import { unzipSync } from "fflate";
+import { cbsLocality } from "#/ingest/localities.ts";
 
 export type Node = Record<string, any>;
 
@@ -45,25 +46,11 @@ export const num = (v: unknown) => {
 };
 export const isWeighted = (v: unknown) => /^(1|true)$/i.test(str(v));
 
-// CBS locality codes, the most common City values in real Stores files (2026-11-01), each checked against store names.
-// shortcut: other codes stay numeric ("0" = unknown becomes ""); load the full CBS list when that matters.
-const cbsCity: Record<string, string> = {
-  "5000": "תל אביב", "4000": "חיפה", "3000": "ירושלים", "7900": "פתח תקווה", "7400": "נתניה", "9000": "באר שבע",
-  "70": "אשדוד", "8300": "ראשון לציון", "6900": "כפר סבא", "8600": "רמת גן", "6600": "חולון", "6500": "חדרה",
-  "6300": "גבעתיים", "8700": "רעננה", "6400": "הרצליה", "6200": "בת ים", "7100": "אשקלון", "6100": "בני ברק",
-  "9700": "הוד השרון", "8400": "רחובות", "2610": "בית שמש", "2600": "אילת", "7700": "עפולה", "1200": "מודיעין",
-  "9500": "קריית ביאליק", "8200": "קריית מוצקין", "2640": "ראש העין", "2620": "קריית אונו", "1139": "כרמיאל",
-  "9400": "יהוד", "6800": "קריית אתא", "2660": "יבנה", "2650": "רמת השרון", "1247": "חריש", "2530": "באר יעקב",
-  "2630": "קריית גת", "6700": "טבריה", "7200": "נס ציונה", "7600": "עכו", "9100": "נהריה",
-  // Seen in Carrefour's and Shufersal's Stores files (2026-11-01); without them Nominatim got street + chain-branded name.
-  "8500": "רמלה", "7000": "לוד", "7800": "פרדס חנה-כרכור", "2800": "קריית שמונה", "2400": "אור יהודה", "1020": "אור עקיבא",
-  "2560": "ערד", "2200": "דימונה", "31": "אופקים", "246": "נתיבות", "1031": "שדרות", "9200": "בית שאן", "874": "מגדל העמק",
-  "9300": "זכרון יעקב", "8000": "צפת", "2300": "קריית טבעון", "1063": "מעלות-תרשיחא", "154": "תל מונד", "240": "יקנעם עילית",
-  "168": "כפר יונה", "1304": "שוהם", "1309": "אלעד", "2100": "טירת כרמל", "2500": "נשר", "2550": "גדרה", "28": "מזכרת בתיה",
-  "3570": "אריאל", "494": "דאלית אל-כרמל", "53": "עתלית", "681": "גבעת שמואל", "166": "גן יבנה", "182": "אבן יהודה",
-  "1015": "מבשרת ציון", "1161": "רהט", "3616": "מעלה אדומים", "4100": "קצרין", "831": "ירוחם", "99": "מצפה רמון",
+// "0" means unknown; a code CBS doesn't list stays numeric, which the geocoder counts as no town.
+const cityName = (v: unknown) => {
+  const c = str(v);
+  return c === "0" ? "" : Object.hasOwn(cbsLocality, c) ? cbsLocality[c]! : c;
 };
-const cityName = (v: unknown) => (str(v) === "0" ? "" : (cbsCity[str(v)] ?? str(v)));
 
 export type ParsedStore = { storeId: string; subChainId: string; name: string; address: string; city: string };
 

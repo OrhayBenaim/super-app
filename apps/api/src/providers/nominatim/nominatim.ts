@@ -4,8 +4,8 @@ import type { Geocoder, LatLng } from "#/services/geocoder.ts";
 // the store name usually carries the locality (Yohananof publishes City=0 for all 51 stores). Null = nothing to look up.
 export function nominatimUrl(base: string, address: string, city: string, name = "") {
   const town = /^\d+$/.test(city) ? "" : city;
-  // "האומן,15"; OSM names streets without "רחוב"/"שדרות"/"דרך", and Nominatim finds nothing when the query keeps them.
-  const street = address.replace(/,(?=\d)/g, " ").replace(/^\s*(?:(?:רחוב|רח|שדרות|שד|דרך)\s+|(?:רח|שד)['׳`.]\s*)/, "");
+  // "האומן,15" and "מלצר20"; OSM names streets without "רחוב"/"שדרות"/"דרך", and Nominatim finds nothing when the query keeps them.
+  const street = address.replace(/,(?=\d)/g, " ").replace(/([א-ת])(?=\d)/g, "$1 ").replace(/^\s*(?:(?:רחוב|רח|שדרות|שד|דרך)\s+|(?:רח|שד)['׳`.]\s*)/, "");
   const place = town ? (street.includes(town) ? "" : town) : name;
   const q = [street, place].filter(Boolean).join(", ");
   return q ? `${base.replace(/\/$/, "")}/search?format=json&limit=1&q=${encodeURIComponent(`${q}, Israel`)}` : null;
