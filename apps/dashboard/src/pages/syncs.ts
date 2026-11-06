@@ -2,7 +2,7 @@ import type { InferResponseType } from "hono/client";
 import { html } from "hono/html";
 import { CHAIN_OUTCOMES, SYNC_HISTORY, type ChainOutcome } from "@grocer/shared/sync-history";
 import type { ApiClient } from "#/api-client.ts";
-import { day, minutes, plural, shortDate, time } from "#/pages/format.ts";
+import { day, isToday, minutes, plural, shortDate, time, weekday } from "#/pages/format.ts";
 import { badge, button, outcomeBadge, pageHeader, section, table, type BadgeKind } from "#/pages/ui.ts";
 
 export type Syncs = InferResponseType<ApiClient["syncs"]["$get"], 200>;
@@ -47,12 +47,6 @@ function stripKind(s: Sync): "ok" | "warning" | "failed" | "skipped" | "running"
   return s.chains.promotionFailed || s.status === "interrupted" ? "warning" : "ok";
 }
 
-/** The next Scheduled sync's time today or, past the last one, tomorrow's first (SYNC_TIMES are Israel times). */
-function nextScheduled(times: string[], now: Date) {
-  const sorted = [...times].sort();
-  return sorted.find((t) => t > time(now)) ?? sorted[0];
-}
-
 const busyOf = (syncs: Sync[]) => syncs.find((s) => s.status === "running") ?? syncs.find((s) => s.status === "requested");
 
 function manualSync(syncs: Sync[]) {
@@ -61,8 +55,9 @@ function manualSync(syncs: Sync[]) {
   return button("Start a Manual sync", { attrs: { "hx-post": "/syncs", "hx-target": "#syncs-page", "hx-swap": "outerHTML" } });
 }
 
-function summary(syncs: Sync[], syncTimes: string[], now: Date) {
-  const next = `Scheduled sync at ${nextScheduled(syncTimes, now)}`;
+/** The api's next Scheduled sync: "at 12:30" today, else "on Sunday at 07:00". */
+function summary(syncs: Sync[], nextScheduledAt: string, now: Date) {
+  const next = `Scheduled sync ${isToday(nextScheduledAt, now) ? "" : `on ${weekday(nextScheduledAt)} `}at ${time(nextScheduledAt)}`;
   const busy = busyOf(syncs);
   return busy ? `A ${TRIGGERS[busy.trigger]} sync is ${busy.status} · next ${next}` : `Next ${next}`;
 }
@@ -141,8 +136,8 @@ const historyRow = (s: Sync, now: Date) => html`<tr>
 </tr>`;
 
 /** The Price syncs home (A1), swapped whole by the Manual sync button with its notice. */
-export const syncsPage = ({ syncs, attention, syncTimes }: Syncs, now: Date, notice?: Notice) => html`<div id="syncs-page">
-  ${pageHeader({ title: "Price syncs", summary: summary(syncs, syncTimes, now), action: manualSync(syncs) })}
+export const syncsPage = ({ syncs, attention, nextScheduledAt }: Syncs, now: Date, notice?: Notice) => html`<div id="syncs-page">
+  ${pageHeader({ title: "Price syncs", summary: summary(syncs, nextScheduledAt, now), action: manualSync(syncs) })}
   ${notice ? html`<p role="status" class="notice ${notice}">${NOTICES[notice]}</p>` : ""}
   ${strip(syncs, attention, now)}
   ${attention.length ? section("Needs attention", html`<ul class="attention">${attention.map((a) => attentionRow(a, now))}</ul>`, attention.length) : ""}
