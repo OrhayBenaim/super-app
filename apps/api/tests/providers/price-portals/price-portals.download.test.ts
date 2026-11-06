@@ -50,6 +50,16 @@ describe("pricePortals download", () => {
     expect(downloads()).toBe(3);
   });
 
+  it("retries a 429 and other 4xx like any failed attempt", async () => {
+    const { download, downloads } = await victory([
+      async () => new Response("Too Many Requests", { status: 429 }),
+      async () => new Response("Forbidden", { status: 403 }),
+      async () => new Response(PRICE_FILE),
+    ]);
+    expect(await download).toEqual(new Uint8Array(PRICE_FILE));
+    expect(downloads()).toBe(3);
+  });
+
   it("throws a 404 at once: the file is gone", async () => {
     const { download, downloads } = await victory([async () => new Response("Not Found", { status: 404 })]);
     await expect(download).rejects.toThrow(`${NAME}: HTTP 404`);
