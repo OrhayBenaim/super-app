@@ -124,7 +124,7 @@ as its Tailscale exit node. Price syncs fail while that machine is off or offlin
 | `SYNC_TOKEN` | required: `openssl rand -base64 32`. The api's private app starts with it and the dashboard calls it with it |
 
 The Internal dashboard (`dashboard` service) shares the `tailscale` container's network (`network_mode: service:tailscale`), and
-`tailscale serve` publishes it on the tailnet only, from `apps/dashboard/serve.json` (`TS_SERVE_CONFIG`): open
+`tailscale serve` publishes it on the tailnet only, from `apps/dashboard/serve.json` (`TS_SERVE_CONFIG`, baked into the image by `apps/dashboard/tailscale.Dockerfile`): open
 `https://grocer-worker.<tailnet>.ts.net` from any device on the tailnet. Give it no domain in Coolify. It needs MagicDNS and HTTPS
 certificates on in the admin console (DNS page). It has no sign-in: the tailnet is the access control. It reaches the api's private
 app at `http://api:3001`; inbound tailnet traffic does not use the exit node, so it keeps working while the machine in Israel is off.

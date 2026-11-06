@@ -67,7 +67,7 @@ services:
     restart: unless-stopped
 
   tailscale:
-    image: tailscale/tailscale:v1.104.2
+    build: { context: ., dockerfile: apps/dashboard/tailscale.Dockerfile } # tailscale/tailscale + serve.json
     hostname: grocer-worker
     environment:
       TS_AUTHKEY: ${TS_AUTHKEY}
@@ -82,7 +82,6 @@ services:
       TS_SERVE_CONFIG: /config/serve.json
     volumes:
       - tailscale-state:/var/lib/tailscale
-      - ./apps/dashboard/serve.json:/config/serve.json:ro
     restart: unless-stopped
 
 volumes:
