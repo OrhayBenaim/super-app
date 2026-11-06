@@ -34,7 +34,7 @@ function scheduledBetween(times: string[], from: number, to: number) {
 }
 
 /** The scheduled time before the minute start `t`. */
-export function previousScheduled(times: string[], t: number) {
+function previousScheduled(times: string[], t: number) {
   for (let m = t - MINUTE; m > t - LONGEST_GAP; m -= MINUTE) if (isScheduled(times, m)) return m;
   return t - LONGEST_GAP;
 }
