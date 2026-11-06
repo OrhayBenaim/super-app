@@ -1,6 +1,6 @@
 import { useIsFocused, useRouter } from "expo-router";
 import { MapPin, SearchX, ShoppingBasket, TriangleAlert } from "lucide-react-native";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RefreshControl, ScrollView } from "react-native";
 import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
@@ -9,6 +9,7 @@ import { syncGeofences, useNearbyAlerts } from "@/features/geofence/useNearbyAle
 import { Events, Taps, track } from "@/lib/analytics";
 import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
+import { useMinDuration } from "@/lib/loaderTiming";
 import { springs, useTheme } from "@/theme";
 import { MenuButton } from "@/features/drawer/MenuButton";
 import { EmptyState, Group, LargeTitle, Screen, ShoppingLoader } from "@/ui";
@@ -25,22 +26,6 @@ const reorder = LinearTransition.springify().damping(springs.snappy.damping).sti
 
 // Local prices answer in milliseconds; hold the loader until the mascot reaches the store (half of its 2.8 s trip) so it never just flashes.
 const MIN_LOADER_MS = 1400;
-
-/** True while `on`, and for the rest of `ms` after it turned on. */
-function useMinDuration(on: boolean, ms: number) {
-  const [held, setHeld] = useState(on);
-  const since = useRef(0);
-  useEffect(() => {
-    if (on) {
-      since.current = Date.now();
-      setHeld(true);
-      return;
-    }
-    const id = setTimeout(() => setHeld(false), Math.max(0, since.current + ms - Date.now()));
-    return () => clearTimeout(id);
-  }, [on, ms]);
-  return on || held;
-}
 
 export function CompareScreen() {
   const router = useRouter();

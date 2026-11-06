@@ -1,17 +1,13 @@
 import { Image } from "expo-image";
-import type { ReactNode } from "react";
-import { I18nManager, View } from "react-native";
+import { I18nManager } from "react-native";
 import Animated, { useReducedMotion } from "react-native-reanimated";
-import { useTheme } from "@/theme";
-import { Text } from "./Text";
+import { blink, Bone, loop, MascotScene, Part, parts, SIZE } from "./Mascot";
 
 // One trip: the mascot walks in from off-screen to the store door (0–50%), steps inside (50–55%),
 // and the store squishes, bounces and spills groceries (55–100%). CSS keyframes run on the UI thread with no JS state.
 const TRIP = 2800;
 const STRIDE = 520;
-const SIZE = 84;
 const DIR = I18nManager.isRTL ? -1 : 1;
-const loop = (animationName: object, animationDuration: number, extra?: object) => ({ animationName, animationDuration, animationIterationCount: "infinite" as const, ...extra });
 
 const walk = loop(
   {
@@ -24,7 +20,7 @@ const walk = loop(
   { animationTimingFunction: "linear" },
 );
 
-// The walk cycle: every part keyed to one stride (two steps). Pivots are percentages of the 84px box.
+// The walk cycle: every part keyed to one stride (two steps).
 const torso = loop(
   {
     "0%": { transform: [{ translateY: 0 }, { rotate: "2deg" }, { scaleX: 1.02 }, { scaleY: 0.98 }] },
@@ -76,7 +72,6 @@ const shadow = loop(
   },
   STRIDE,
 );
-const blink = loop({ "0%": { transform: [{ scaleY: 1 }] }, "92%": { transform: [{ scaleY: 1 }] }, "95%": { transform: [{ scaleY: 0.1 }] }, "98%": { transform: [{ scaleY: 1 }] } }, 3100);
 
 const squish = loop(
   {
@@ -106,64 +101,32 @@ const groceries = [
   { source: require("../../assets/loading/cheese.png"), style: fly(60, 95, 45) },
   { source: require("../../assets/loading/eggs.png"), style: fly(-5, 70, 20) },
 ];
-const parts = {
-  shadow: require("../../assets/loading/mascot/shadow.png"),
-  footL: require("../../assets/loading/mascot/foot-l.png"),
-  footR: require("../../assets/loading/mascot/foot-r.png"),
-  cargo: require("../../assets/loading/mascot/cargo.png"),
-  armL: require("../../assets/loading/mascot/arm-l.png"),
-  armR: require("../../assets/loading/mascot/arm-r.png"),
-  body: require("../../assets/loading/mascot/body.png"),
-  eyes: require("../../assets/loading/mascot/eyes.png"),
-};
-
-const box = { position: "absolute" as const, top: 0, start: 0, width: SIZE, height: SIZE };
-
-/** One bone of the mascot: a full-size layer that rotates and scales around `origin` ("x% y%" of the box). */
-function Bone({ origin, anim, children }: { origin: string; anim: object; children: ReactNode }) {
-  const reduced = useReducedMotion();
-  return <Animated.View style={[box, { transformOrigin: origin }, !reduced && anim]}>{children}</Animated.View>;
-}
-function Part({ part, origin, anim }: { part: keyof typeof parts; origin: string; anim: object }) {
-  return (
-    <Bone origin={origin} anim={anim}>
-      <Image source={parts[part]} style={{ width: SIZE, height: SIZE }} />
-    </Bone>
-  );
-}
-
 /** The mascot going shopping, for screens that wait on prices. `label` is read to assistive tech and shown under the scene. */
 export function ShoppingLoader({ label }: { label: string }) {
-  const { space } = useTheme();
   const reduced = useReducedMotion();
   return (
-    <View accessible accessibilityRole="progressbar" accessibilityLabel={label} style={{ alignItems: "center", gap: space[5], paddingVertical: space[10] }}>
-      <View style={{ width: 300, height: 190, overflow: "hidden" }}>
-        <Animated.View style={[{ position: "absolute", end: 16, bottom: 0, transformOrigin: "50% 100%" }, !reduced && squish]}>
-          <Image source={require("../../assets/loading/store.png")} style={{ width: 150, height: 150 }} />
-        </Animated.View>
-        {!reduced &&
-          groceries.map((g, i) => (
-            <Animated.View key={i} style={[{ position: "absolute", end: 73, bottom: 60, opacity: 0 }, g.style]}>
-              <Image source={g.source} style={{ width: 36, height: 36 }} contentFit="contain" />
-            </Animated.View>
-          ))}
-        <Animated.View style={[{ position: "absolute", start: 20, bottom: 0, width: SIZE, height: SIZE, transformOrigin: "50% 100%" }, !reduced && walk]}>
-          <Part part="shadow" origin="50% 94%" anim={shadow} />
-          <Part part="footL" origin="39% 80%" anim={footL} />
-          <Part part="footR" origin="61% 80%" anim={footR} />
-          <Bone origin="50% 88%" anim={torso}>
-            <Part part="cargo" origin="50% 39%" anim={cargo} />
-            <Part part="armL" origin="20% 63%" anim={armL} />
-            <Part part="armR" origin="80% 63%" anim={armR} />
-            <Image source={parts.body} style={{ width: SIZE, height: SIZE }} />
-            <Part part="eyes" origin="50% 59%" anim={blink} />
-          </Bone>
-        </Animated.View>
-      </View>
-      <Text variant="callout" color="labelSecondary" style={{ textAlign: "center" }}>
-        {label}
-      </Text>
-    </View>
+    <MascotScene label={label} width={300} height={190}>
+      <Animated.View style={[{ position: "absolute", end: 16, bottom: 0, transformOrigin: "50% 100%" }, !reduced && squish]}>
+        <Image source={require("../../assets/loading/store.png")} style={{ width: 150, height: 150 }} />
+      </Animated.View>
+      {!reduced &&
+        groceries.map((g, i) => (
+          <Animated.View key={i} style={[{ position: "absolute", end: 73, bottom: 60, opacity: 0 }, g.style]}>
+            <Image source={g.source} style={{ width: 36, height: 36 }} contentFit="contain" />
+          </Animated.View>
+        ))}
+      <Animated.View style={[{ position: "absolute", start: 20, bottom: 0, width: SIZE, height: SIZE, transformOrigin: "50% 100%" }, !reduced && walk]}>
+        <Part part="shadow" origin="50% 94%" anim={shadow} />
+        <Part part="footL" origin="39% 80%" anim={footL} />
+        <Part part="footR" origin="61% 80%" anim={footR} />
+        <Bone origin="50% 88%" anim={torso}>
+          <Part part="cargo" origin="50% 39%" anim={cargo} />
+          <Part part="armL" origin="20% 63%" anim={armL} />
+          <Part part="armR" origin="80% 63%" anim={armR} />
+          <Image source={parts.body} style={{ width: SIZE, height: SIZE }} />
+          <Part part="eyes" origin="50% 59%" anim={blink} />
+        </Bone>
+      </Animated.View>
+    </MascotScene>
   );
 }
