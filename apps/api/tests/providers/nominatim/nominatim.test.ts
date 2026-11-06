@@ -33,6 +33,11 @@ describe("nominatimUrl", () => {
     expect(q("", "874")).toBeNull();
   });
 
+  it("drops a CBS qualifier in brackets from the town", () => {
+    expect(q("הדקל 3", "גת (קיבוץ)")).toBe("הדקל 3, גת, Israel");
+    expect(q("", "אבו עמרה (שבט)")).toBe("אבו עמרה, Israel");
+  });
+
   it("a city that merely contains digits is a name, not a code", () => {
     expect(q("הרצל 1", "קריית 4")).toBe("הרצל 1, קריית 4, Israel");
   });
@@ -68,6 +73,19 @@ describe("nominatimUrl", () => {
     expect(q("שד.הארזים 2", "תל אביב")).toBe("הארזים 2, תל אביב, Israel");
     expect(q("שדה בוקר 3", "ירוחם")).toBe("שדה בוקר 3, ירוחם, Israel"); // a word that starts with שד stays
     expect(q("הדרך 5", "חיפה")).toBe("הדרך 5, חיפה, Israel"); // only a whole leading word
+  });
+});
+
+describe("nominatimUrl house numbers", () => {
+  it("splits a house number stuck to the street name (about 10 prod stores, 2026-11-06)", () => {
+    expect(q("מלצר20", "רחובות")).toBe("מלצר 20, רחובות, Israel");
+    expect(q("רחוב הרצל12", "חולון")).toBe("הרצל 12, חולון, Israel");
+  });
+
+  it("leaves a street whose number is already separated, and digits not stuck to Hebrew letters", () => {
+    expect(q("מלצר 20", "רחובות")).toBe("מלצר 20, רחובות, Israel");
+    expect(q("כביש 4", "חיפה")).toBe("כביש 4, חיפה, Israel");
+    expect(q("Road20", "אילת")).toBe("Road20, אילת, Israel");
   });
 });
 

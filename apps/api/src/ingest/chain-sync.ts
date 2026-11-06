@@ -1,10 +1,15 @@
 // The per-Chain steps of a Price sync (CONTEXT.md "Prices"), shared by the sync and the one-shot fetch and geocode jobs.
+import Database from "better-sqlite3";
 import type { Deps } from "#/deps.ts";
 import type { ChainSeed } from "#/ingest/chains.ts";
-import { looksLikePriceFile, newestFullAndUpdate, pickFiles, type PickedFile } from "#/ingest/files.ts";
+import { newestFullAndUpdate, pickFiles, type PickedFile } from "#/ingest/files.ts";
 import { ingestPrices, ingestPromotions, ingestStores } from "#/ingest/ingest.ts";
-import { decodeXml } from "#/ingest/parse.ts";
 import type { PriceFile } from "#/services/price-portal.ts";
+
+/** Prices that can't be saved are a Chain failure (CONTEXT.md), so a DB error goes on; a download or parse error doesn't. */
+const rethrowSaveError = (e: unknown) => {
+  if (e instanceof Database.SqliteError) throw e;
+};
 
 /**
  * Opens the Chain's portal: the newest Stores file first, then the newest PriceFull of the first `maxStores` stores, and
@@ -18,11 +23,7 @@ export async function openChainFiles({ pricePortal }: Pick<Deps, "pricePortal">,
   return {
     files: [stores, ...prices],
     promos: [...promoFull.keys()].sort().slice(0, maxStores).map((k) => promoFull.get(k)!),
-    async download(f: PriceFile) {
-      const buf = await portal.download(f);
-      if (!looksLikePriceFile(buf)) throw new Error(`${f.name}: not a price file`);
-      return buf;
-    },
+    download: (f: PriceFile) => portal.download(f),
   };
 }
 
@@ -118,23 +119,30 @@ async function syncPromotions(deps: Deps, chain: ChainSeed, promos: PickedFile[]
 export async function syncChain(deps: Deps, chain: ChainSeed, maxStores: number, counts: ChainCounts) {
   const { files, promos, download } = await openChainFiles(deps, chain, maxStores);
   const load = async (f: PriceFile) => {
-    const xml = decodeXml(Buffer.from(await download(f)));
+    const xml = await download(f);
     counts.filesDownloaded++;
     return xml;
   };
-  for (const [i, f] of files.entries()) {
-    const xml = await load(f);
-    if (i === 0) counts.storesLoaded = ingestStores(deps, chain.key, xml);
-    else counts.pricesLoaded += ingestPrices(deps, chain.key, xml, f.name);
-    // An update that can't be downloaded or loaded leaves the store on its full file's prices; not a Chain failure.
+  const [stores, ...prices] = files;
+  counts.storesLoaded = ingestStores(deps, chain.key, await load(stores!));
+  for (const f of prices) {
+    // A PriceFull that can't be downloaded or read is a Store failure (CONTEXT.md): the store keeps its previous prices.
+    try {
+      counts.pricesLoaded += ingestPrices(deps, chain.key, await load(f), f.name);
+    } catch (e) {
+      rethrowSaveError(e);
+      console.error(`${f.name}: skipped this store's prices`, e);
+      continue;
+    }
+    // An update that can't be downloaded or read leaves the store on its full file's prices; not a Chain failure.
     if (f.update)
       counts.pricesLoaded += await load(f.update)
         .then((u) => ingestPrices(deps, chain.key, u, f.update!.name))
-        .catch((e: unknown) => (console.error(`${f.update!.name}: skipped this price update`, e), 0));
+        .catch((e: unknown) => (rethrowSaveError(e), console.error(`${f.update!.name}: skipped this price update`, e), 0));
   }
   await syncPromotions(deps, chain, promos, load, counts);
-  // ingestPrices skips a file whose store is not in the Stores file; when every file is skipped, the chain is broken.
-  if (files.length > 1 && counts.pricesLoaded === 0)
-    throw new Error(`${chain.key}: no prices loaded from any of ${files.length - 1} PriceFull files (stores not in the Stores file?)`);
+  // A file fails, or ingestPrices skips it when its store is not in the Stores file; when every file does, the chain is broken.
+  if (prices.length && counts.pricesLoaded === 0)
+    throw new Error(`${chain.key}: no prices loaded from any of ${prices.length} PriceFull files (failed, or stores not in the Stores file)`);
   counts.storesGeocoded = await geocodeStores(deps, chain.ids[0]!);
 }

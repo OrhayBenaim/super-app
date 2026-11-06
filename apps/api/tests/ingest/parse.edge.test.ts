@@ -1,7 +1,7 @@
 // QA edge cases for parse.ts: isGtin matrix, every real fixture, placeholders, CBS cities, numbers, entities.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { decodeXml, isGtin, parsePrices, parseStores } from "#/ingest/parse.ts";
+import { decodeXml, looksLikePriceFile, isGtin, parsePrices, parseStores } from "#/ingest/parse.ts";
 
 // Independent GS1 check digit: weights 3,1,3,... from the digit next to the check digit.
 const withCheck = (body: string) => {
@@ -134,10 +134,10 @@ describe("real dialect quirks", () => {
     expect(stores.map((s) => s.city)).toEqual(["באר יעקב", "הרצליה", "חיפה", "קריית אתא"]);
   });
 
-  it("Stop Market keeps an unmapped CBS code (96) numeric; Dor Alon keeps 9800 numeric and decodes 5000", () => {
-    expect(parseStores(real("stop-market-stores.xml")).stores.map((s) => s.city)).toContain("96");
+  it("Stop Market decodes CBS 96 and Dor Alon 9800 and 5000, codes the old partial list could not name", () => {
+    expect(parseStores(real("stop-market-stores.xml")).stores.map((s) => s.city)).toContain("יגור");
     const dor = parseStores(real("dor-alon-stores.xml")).stores.map((s) => s.city);
-    expect(dor).toContain("9800");
+    expect(dor).toContain("בנימינה-גבעת עדה");
     expect(dor).toContain("תל אביב");
     expect(dor).toContain(""); // empty <City/>
   });
@@ -167,6 +167,30 @@ describe("CBS city decoding", () => {
     for (const [code, name] of [["2630", "קריית גת"], ["6700", "טבריה"], ["7200", "נס ציונה"], ["7600", "עכו"], ["9100", "נהריה"]]) expect(cityOf(code), code).toBe(name);
     expect(cityOf("חיפה")).toBe("חיפה"); // a real name passes through
     expect(cityOf("00")).toBe("00"); // not the unknown marker "0": stays numeric (geocode treats it as empty)
+  });
+
+  it("names a code outside the old partial list from the full CBS locality list", () => {
+    expect(cityOf("72")).toBe("גן שמואל");
+  });
+
+  it("every code from the old partial list keeps its name", () => {
+    // The partial list parse.ts had before the full CBS list (2026-11-01), names checked against store names.
+    const old: Record<string, string> = {
+      "5000": "תל אביב", "4000": "חיפה", "3000": "ירושלים", "7900": "פתח תקווה", "7400": "נתניה", "9000": "באר שבע",
+      "70": "אשדוד", "8300": "ראשון לציון", "6900": "כפר סבא", "8600": "רמת גן", "6600": "חולון", "6500": "חדרה",
+      "6300": "גבעתיים", "8700": "רעננה", "6400": "הרצליה", "6200": "בת ים", "7100": "אשקלון", "6100": "בני ברק",
+      "9700": "הוד השרון", "8400": "רחובות", "2610": "בית שמש", "2600": "אילת", "7700": "עפולה", "1200": "מודיעין",
+      "9500": "קריית ביאליק", "8200": "קריית מוצקין", "2640": "ראש העין", "2620": "קריית אונו", "1139": "כרמיאל",
+      "9400": "יהוד", "6800": "קריית אתא", "2660": "יבנה", "2650": "רמת השרון", "1247": "חריש", "2530": "באר יעקב",
+      "2630": "קריית גת", "6700": "טבריה", "7200": "נס ציונה", "7600": "עכו", "9100": "נהריה",
+      "8500": "רמלה", "7000": "לוד", "7800": "פרדס חנה-כרכור", "2800": "קריית שמונה", "2400": "אור יהודה", "1020": "אור עקיבא",
+      "2560": "ערד", "2200": "דימונה", "31": "אופקים", "246": "נתיבות", "1031": "שדרות", "9200": "בית שאן", "874": "מגדל העמק",
+      "9300": "זכרון יעקב", "8000": "צפת", "2300": "קריית טבעון", "1063": "מעלות-תרשיחא", "154": "תל מונד", "240": "יקנעם עילית",
+      "168": "כפר יונה", "1304": "שוהם", "1309": "אלעד", "2100": "טירת כרמל", "2500": "נשר", "2550": "גדרה", "28": "מזכרת בתיה",
+      "3570": "אריאל", "494": "דאלית אל-כרמל", "53": "עתלית", "681": "גבעת שמואל", "166": "גן יבנה", "182": "אבן יהודה",
+      "1015": "מבשרת ציון", "1161": "רהט", "3616": "מעלה אדומים", "4100": "קצרין", "831": "ירוחם", "99": "מצפה רמון",
+    };
+    for (const [code, name] of Object.entries(old)) expect(cityOf(code), code).toBe(name);
   });
 
   it("handles a missing <City> element and a self-closing <City/>", () => {
@@ -261,5 +285,25 @@ describe("decodeXml", () => {
   it("rejects garbage that is not XML (parse throws instead of returning an empty store)", () => {
     expect(() => parseStores(decodeXml(Buffer.from("not xml at all")))).toThrow();
     expect(() => parsePrices(decodeXml(Buffer.from("")))).toThrow();
+  });
+});
+
+describe("looksLikePriceFile", () => {
+  const b = (s: string) => Buffer.from(s, "utf8");
+  it("accepts XML with an attributed root and no declaration, with a namespace prefix, or with leading whitespace", () => {
+    expect(looksLikePriceFile(b('<Root xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><ChainId>1</ChainId></Root>'))).toBe(true);
+    expect(looksLikePriceFile(b("\r\n  <Root>"))).toBe(true);
+    expect(looksLikePriceFile(b("<ns:Root>"))).toBe(true);
+    expect(looksLikePriceFile(b("<NewDataSet>"))).toBe(true);
+    expect(looksLikePriceFile(b("<Root/>"))).toBe(true);
+    expect(looksLikePriceFile(b('<?xml version="1.0" encoding="utf-8"?>'))).toBe(true);
+  });
+  it("rejects HTML pages in any casing, doctype, JSON, plain text, empty and a redirect stub", () => {
+    for (const s of ["<!DOCTYPE html><html>", "<html>", "<HTML>", '<html lang="en"><head>', '<HTML LANG="he">', '\n<html dir="rtl">', '{"error":"Invalid request"}', "Not Found", "", "302 Found"])
+      expect(looksLikePriceFile(b(s)), JSON.stringify(s)).toBe(false);
+  });
+  it("accepts a UTF-16BE BOM'd XML and a UTF-8 BOM'd XML, and rejects a UTF-16 HTML page", () => {
+    expect(looksLikePriceFile(Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from("\0<\0R\0o\0o\0t\0>", "latin1")]))).toBe(true);
+    expect(looksLikePriceFile(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("<html>", "utf16le")]))).toBe(false);
   });
 });

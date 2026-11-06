@@ -10,7 +10,9 @@ afterEach(() => {
 const BLOB = "https://pricesprodpublic.blob.core.windows.net/promofull";
 const A = "PromoFull7290027600007-007-347-20261104-030000.gz";
 const B = "PromoFull7290027600007-007-348-20261104-030000.gz";
-const link = (name: string, sig: string) => `<a href="${BLOB}/${name}?sv=2014-02-14&amp;sr=b&amp;sig=${sig}&amp;sp=r">x</a>`;
+const XML = "<root/>";
+const FILE = new TextEncoder().encode(XML);
+const link =(name: string, sig: string) => `<a href="${BLOB}/${name}?sv=2014-02-14&amp;sr=b&amp;sig=${sig}&amp;sp=r">x</a>`;
 
 /** Shufersal whose PromoFull listing (catID=4) signs links with `sig()` and whose blobs answer 403 to an old sig. */
 function stubShufersal(promoNames: () => string[], sig: () => string) {
@@ -22,7 +24,7 @@ function stubShufersal(promoNames: () => string[], sig: () => string) {
       listed.push(cat);
       return new Response(cat === "4" ? promoNames().map((n) => link(n, sig())).join("") : "<html></html>");
     }
-    return u.searchParams.get("sig") === sig() ? new Response(new Uint8Array([1, 2, 3])) : new Response("AuthenticationFailed", { status: 403 });
+    return u.searchParams.get("sig") === sig() ? new Response(FILE) : new Response("AuthenticationFailed", { status: 403 });
   });
   return listed;
 }
@@ -41,8 +43,8 @@ describe("pricePortals on Shufersal", () => {
     listed.length = 0;
     sig = "new";
     const [a, b] = [A, B].map((n) => portal.files.find((f) => f.name === n)!);
-    expect(await portal.download(a!)).toEqual(new Uint8Array([1, 2, 3]));
-    expect(await portal.download(b!)).toEqual(new Uint8Array([1, 2, 3]));
+    expect(await portal.download(a!)).toBe(XML);
+    expect(await portal.download(b!)).toBe(XML);
     expect(listed).toEqual(["4"]);
   });
 
@@ -61,7 +63,7 @@ describe("pricePortals on Shufersal", () => {
     expect(listed).toEqual(["4"]);
     vi.setSystemTime(Date.now() + 11 * 60_000);
     names = [B];
-    expect(await portal.download(b!)).toEqual(new Uint8Array([1, 2, 3]));
+    expect(await portal.download(b!)).toBe(XML);
     expect(listed).toEqual(["4", "4"]);
   });
 
@@ -75,7 +77,7 @@ describe("pricePortals on Shufersal", () => {
     listed.length = 0;
     sig = "new";
     names = [A2, B];
-    expect(await portal.download(a)).toEqual(new Uint8Array([1, 2, 3]));
+    expect(await portal.download(a)).toBe(XML);
     expect(listed).toEqual(["4"]);
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { syncChainResults, syncRuns } from "api/src/db/appSchema.ts";
 import { post, setup, TOKEN } from "../seam.ts";
 
-const NOW = new Date("2026-11-05T10:00:00Z"); // 12:00 in Israel; the api's default SYNC_TIMES are 05:00, 12:00, 23:30
+const NOW = new Date("2026-11-05T10:00:00Z"); // 12:00 in Israel; the api's default SYNC_TIMES are 07:00, 12:30, 20:30
 const MIN = 60_000;
 const at = (minutesAgo: number) => new Date(NOW.getTime() - minutesAgo * MIN);
 const seeded = () => setup({ now: NOW });
@@ -80,7 +80,23 @@ describe("Price syncs home: History", () => {
   it("says so when there are no Price syncs yet", async () => {
     const html = await (await seeded().app.request("/")).text();
     expect(html).toContain("No Price syncs in the last 90 days");
-    expect(html).toContain("Next Scheduled sync at 23:30");
+  });
+});
+
+describe("Price syncs home: next Scheduled sync", () => {
+  const nextOf = async (privateApp: ReturnType<typeof setup>["privateApp"]) =>
+    ((await (await privateApp.request("/syncs", { headers: { Authorization: `Bearer ${TOKEN}` } })).json()) as { nextScheduledAt: string }).nextScheduledAt;
+
+  it("shows the api's next Scheduled sync by its time when it is today", async () => {
+    const { app, privateApp } = seeded();
+    expect(await (await app.request("/")).text()).toContain("Next Scheduled sync at 12:30");
+    expect(await nextOf(privateApp)).toBe("2026-11-05T10:30:00.000Z");
+  });
+
+  it("names the day on Friday after 20:30: Sunday 07:00, as none runs on Saturday", async () => {
+    const { app, privateApp } = setup({ now: new Date("2026-11-06T18:31:00Z") }); // Friday 20:31 in Israel
+    expect(await (await app.request("/")).text()).toContain("Next Scheduled sync on Sunday at 07:00");
+    expect(await nextOf(privateApp)).toBe("2026-11-08T05:00:00.000Z");
   });
 });
 
@@ -169,7 +185,7 @@ describe("Manual sync button", () => {
     api.db.insert(syncRuns).values({ trigger: "manual", status: "running", requestedAt: at(3), startedAt: at(3) }).run();
     const html = await (await app.request("/")).text();
     expect(html).toMatch(/disabled[^>]*>Start a Manual sync<\/button>\s*<span class="reason"[^>]*>One is running now<\/span>/);
-    expect(html).toContain("A Manual sync is running · next Scheduled sync at 23:30");
+    expect(html).toContain("A Manual sync is running · next Scheduled sync at 12:30");
   });
 
   it("says a Price sync is already running instead of starting one", async () => {

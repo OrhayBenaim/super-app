@@ -34,7 +34,7 @@ const runs = (deps: Deps) =>
 const at = (iso: string) => new Date(iso).getTime();
 
 describe("priceSyncCheck: Scheduled syncs", () => {
-  it("runs a Scheduled sync at 05:00, 12:00 and 23:30 Asia/Jerusalem and does nothing between them", async () => {
+  it("runs a Scheduled sync at 07:00, 12:30 and 20:30 Asia/Jerusalem and does nothing between them", async () => {
     // 2026-11-02 is winter time, UTC+2.
     const { deps, clock } = setup("2026-11-02T02:00:00Z");
     const check = priceSyncCheck(deps);
@@ -43,25 +43,40 @@ describe("priceSyncCheck: Scheduled syncs", () => {
       await check();
     }
     expect(runs(deps).map((r) => [r.trigger, r.status, r.scheduled_at])).toEqual([
-      ["scheduled", "finished", at("2026-11-02T03:00:00Z")],
-      ["scheduled", "finished", at("2026-11-02T10:00:00Z")],
-      ["scheduled", "finished", at("2026-11-02T21:30:00Z")],
+      ["scheduled", "finished", at("2026-11-02T05:00:00Z")],
+      ["scheduled", "finished", at("2026-11-02T10:30:00Z")],
+      ["scheduled", "finished", at("2026-11-02T18:30:00Z")],
+    ]);
+  });
+
+  it("runs none on Saturday and records no Skipped sync for it, but runs Friday's 20:30", async () => {
+    const { deps, clock } = setup("2026-11-05T22:00:00Z"); // Friday 2026-11-06 00:00
+    const check = priceSyncCheck(deps);
+    while (clock.now().getTime() < at("2026-11-08T05:00:00Z")) {
+      clock.advance(30 * MIN); // one scheduled time per check at most
+      await check();
+    }
+    expect(runs(deps).map((r) => [r.status, r.scheduled_at])).toEqual([
+      ["finished", at("2026-11-06T05:00:00Z")],
+      ["finished", at("2026-11-06T10:30:00Z")],
+      ["finished", at("2026-11-06T18:30:00Z")], // Friday 20:30
+      ["finished", at("2026-11-08T05:00:00Z")], // Sunday 07:00
     ]);
   });
 
   it.each([
-    ["summer time (UTC+3)", "2026-07-01T02:00:00Z"],
-    ["the day summer time ends (2026-10-25)", "2026-10-25T03:00:00Z"],
-    ["the day summer time starts (2027-03-26)", "2027-03-26T02:00:00Z"],
-  ])("uses local time on %s", async (_, fiveAm) => {
-    const { deps, clock } = setup(new Date(at(fiveAm) - HOUR - MIN).toISOString());
+    ["summer time (UTC+3)", "2026-07-01T04:00:00Z"],
+    ["the day summer time ends (2026-10-25)", "2026-10-25T05:00:00Z"],
+    ["the day summer time starts (2027-03-26)", "2027-03-26T04:00:00Z"],
+  ])("uses local time on %s", async (_, sevenAm) => {
+    const { deps, clock } = setup(new Date(at(sevenAm) - HOUR - MIN).toISOString());
     const check = priceSyncCheck(deps);
-    clock.advance(HOUR); // up to 04:59 local, and to 05:00 of the wrong offset
+    clock.advance(HOUR); // up to 06:59 local, and to 07:00 of the wrong offset
     await check();
     expect(runs(deps)).toEqual([]);
     clock.advance(MIN);
     await check();
-    expect(runs(deps).map((r) => r.scheduled_at)).toEqual([at(fiveAm)]);
+    expect(runs(deps).map((r) => r.scheduled_at)).toEqual([at(sevenAm)]);
   });
 
   it("reads the times from SYNC_TIMES", async () => {
@@ -73,10 +88,10 @@ describe("priceSyncCheck: Scheduled syncs", () => {
   });
 
   it("does not make up a scheduled time missed while the worker was down", async () => {
-    const { deps, clock } = setup("2026-11-02T02:59:00Z");
-    priceSyncCheck(deps); // the worker starts at 04:59 and dies
+    const { deps, clock } = setup("2026-11-02T04:59:00Z");
+    priceSyncCheck(deps); // the worker starts at 06:59 and dies
     clock.advance(10 * MIN);
-    await priceSyncCheck(deps)(); // restarted at 05:09
+    await priceSyncCheck(deps)(); // restarted at 07:09
     expect(runs(deps)).toEqual([]);
   });
 
@@ -137,34 +152,56 @@ describe("priceSyncCheck: Manual syncs", () => {
   });
 
   it("a finished Manual sync, even with Chain failures, skips the next scheduled time with reason manual_sync", async () => {
-    const { deps, clock } = setup("2026-11-02T03:30:00Z"); // 05:30, after the 05:00 sync
+    const { deps, clock } = setup("2026-11-02T05:30:00Z"); // 07:30, after the 07:00 sync
     const check = priceSyncCheck(deps);
     request(deps);
     await check(); // the fake fails every Chain but Osher Ad
     expect(deps.db.$client.prepare("SELECT count(*) AS n FROM sync_chain_results WHERE status = 'failed'").get()).toEqual({ n: 14 });
-    clock.advance(6 * 60 * MIN + 30 * MIN); // 12:00
+    clock.advance(5 * HOUR); // 12:30
     await check();
-    clock.advance(11 * 60 * MIN + 30 * MIN); // 23:30
+    clock.advance(8 * HOUR); // 20:30
     await check();
     expect(runs(deps).map((r) => [r.trigger, r.status, r.skip_reason, r.scheduled_at])).toEqual([
       ["manual", "finished", null, null],
-      ["scheduled", "skipped", "manual_sync", at("2026-11-02T10:00:00Z")],
-      ["scheduled", "finished", null, at("2026-11-02T21:30:00Z")],
+      ["scheduled", "skipped", "manual_sync", at("2026-11-02T10:30:00Z")],
+      ["scheduled", "finished", null, at("2026-11-02T18:30:00Z")],
+    ]);
+  });
+
+  it("runs a Manual sync request on Saturday", async () => {
+    const { deps, clock } = setup("2026-11-07T08:00:00Z"); // Saturday 10:00
+    const check = priceSyncCheck(deps);
+    request(deps);
+    clock.advance(MIN);
+    await check();
+    expect(runs(deps).map((r) => [r.trigger, r.status])).toEqual([["manual", "finished"]]);
+  });
+
+  it("a Manual sync that finishes on Saturday skips Sunday's 07:00, the scheduled time after Friday's 20:30", async () => {
+    const { deps, clock } = setup("2026-11-07T08:00:00Z"); // Saturday 10:00
+    const check = priceSyncCheck(deps);
+    request(deps);
+    await check();
+    clock.advance(21 * HOUR); // Sunday 07:00
+    await check();
+    expect(runs(deps).map((r) => [r.trigger, r.status, r.skip_reason, r.scheduled_at])).toEqual([
+      ["manual", "finished", null, null],
+      ["scheduled", "skipped", "manual_sync", at("2026-11-08T05:00:00Z")],
     ]);
   });
 
   it("an Interrupted Manual sync skips nothing", async () => {
     const controller = new AbortController();
     const fake = fakePricePortal(osherFiles);
-    const { deps, clock } = setup("2026-11-02T09:00:00Z", {
+    const { deps, clock } = setup("2026-11-02T09:30:00Z", {
       pricePortal: { open: async () => (controller.abort(), fake.open()) },
     });
     const check = priceSyncCheck(deps, controller.signal);
     request(deps);
     await check();
-    clock.advance(HOUR - MIN); // 11:59: the worker restarts after the deploy
+    clock.advance(HOUR - MIN); // 12:29: the worker restarts after the deploy
     const restarted = priceSyncCheck({ ...deps, pricePortal: fakePricePortal(osherFiles) });
-    clock.advance(MIN); // 12:00
+    clock.advance(MIN); // 12:30
     await restarted();
     expect(runs(deps).map((r) => [r.trigger, r.status, r.skip_reason])).toEqual([
       ["manual", "interrupted", null],

@@ -24,11 +24,11 @@ export function fetchPricesJob(deps: Deps) {
     mkdirSync(outDir, { recursive: true });
     const saved: string[] = [];
     for (const f of files) {
-      const buf = await download(f);
+      const xml = await download(f); // saved decoded, whatever the name's extension; ingest reads either
       const path = join(outDir, f.name.replace(/[^\w.-]/g, "_"));
-      writeFileSync(path, buf);
+      writeFileSync(path, xml);
       saved.push(path);
-      console.log(`${path} ${buf.length} bytes`);
+      console.log(`${path} ${xml.length} characters`);
     }
     return saved;
   };

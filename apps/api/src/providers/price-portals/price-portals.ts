@@ -2,6 +2,7 @@
 // sites, and laibcatalog.co.il (Victory, Machsanei Hashuk). docs/research/price-data.md section 1. Each lists every store.
 import type { ChainSeed } from "#/ingest/chains.ts";
 import { parseFileName } from "#/ingest/files.ts";
+import { readPriceFile } from "#/ingest/parse.ts";
 import type { PriceFile, PricePortal } from "#/services/price-portal.ts";
 
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
@@ -166,6 +167,12 @@ async function haziList(base: string, jar: Jar): Promise<PriceFile[]> {
   return files;
 }
 
+// Carrefour and Dor Alon drop connections and cut bodies off mid-run (prod, 2026-11-06); a retry usually gets the file.
+const DOWNLOAD_ATTEMPTS = 3;
+const RETRY_PAUSE_MS = 5_000;
+// After this many files in a row fail, the portal is refusing us (throttled): retrying each later file only adds pauses.
+const FAILED_IN_A_ROW = 3;
+
 export function pricePortals(): PricePortal {
   return {
     async open(chain: ChainSeed) {
@@ -183,15 +190,33 @@ export function pricePortals(): PricePortal {
       else if (src.url.startsWith("https://prices.carrefour.co.il/")) files = await carrefourList(src.url, jar);
       else if (src.url.startsWith("https://shop.hazi-hinam.co.il/")) files = await haziList(src.url, jar);
       else throw new Error(`no downloader for ${chain.key} (${src.url})`);
+      let failedInARow = 0;
       return {
         files,
         async download(file) {
-          const url = fresh.get(file.name) ?? file.url;
-          let res = await http(url, jar);
-          const newUrl = res.status === 403 ? await relink?.(file.name) : undefined;
-          if (newUrl && newUrl !== url) res = await http(newUrl, jar);
-          if (!res.ok) throw new Error(`${file.name}: HTTP ${res.status}`);
-          return new Uint8Array(await res.arrayBuffer());
+          const attempts = failedInARow >= FAILED_IN_A_ROW ? 1 : DOWNLOAD_ATTEMPTS;
+          for (let attempt = 1; ; attempt++) {
+            let final = false;
+            try {
+              const url = fresh.get(file.name) ?? file.url;
+              let res = await http(url, jar);
+              const newUrl = res.status === 403 ? await relink?.(file.name) : undefined;
+              if (newUrl && newUrl !== url) res = await http(newUrl, jar);
+              // A 404: the file is gone. A 403 after a relink: the file is no longer listed, and relisting waits 10 min.
+              final = res.status === 404 || (res.status === 403 && relink !== undefined);
+              if (!res.ok) throw new Error(`${file.name}: HTTP ${res.status}`);
+              // A cut-off gzip or an error page throws here; the next attempt may get the whole file.
+              const xml = readPriceFile(new Uint8Array(await res.arrayBuffer()), file.name);
+              failedInARow = 0;
+              return xml;
+            } catch (e) {
+              if (attempt >= attempts || final) {
+                failedInARow++;
+                throw e;
+              }
+              await new Promise((r) => setTimeout(r, RETRY_PAUSE_MS));
+            }
+          }
         },
       };
     },

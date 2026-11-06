@@ -23,4 +23,5 @@ changed, so it was geocoded again. That would silently undo every correction mad
 
 - A store that moves keeps its old address and location until the team edits it. The geocoder only fills stores with no
   location.
+- A city the parser could only keep as a CBS code isn't a correction, so the sync names it once the code is known.
 - Products already behaved this way (the first Chain to publish a barcode names it); stores now match them.

@@ -1,7 +1,7 @@
 // The Product type step of a Price sync (CONTEXT.md "Product type", docs/adr/0003).
 import type { Deps } from "#/deps.ts";
 import { measureOf, soldByOf } from "#/prices/groups.ts";
-import type { ProductToClassify } from "#/services/classifier.ts";
+import { RateLimitError, type ProductToClassify } from "#/services/classifier.ts";
 
 const BATCH = 100;
 /** Distinct names classified per Price sync; the rest wait for the next. */
@@ -12,7 +12,8 @@ type Untyped = { code: string; name: string; manufacturer: string | null; unitQt
 /**
  * Gives a Product type to the untyped Products that have a current price: each distinct name once (trimmed, spaces
  * folded), in batches, up to MAX_NAMES names, saving each answer on every such Product of that name. Never throws:
- * a failed request or an answer outside the list leaves its Products untyped for the next sync. Null when skipped.
+ * a failed request or an answer outside the list leaves its Products untyped for the next sync, and a rate limit
+ * stops the step, leaving the batches not sent for the next sync too. Null when skipped.
  */
 export async function typeProducts({ db, classifier, errorHandler }: Deps, signal?: AbortSignal) {
   if (!classifier) {
@@ -20,6 +21,8 @@ export async function typeProducts({ db, classifier, errorHandler }: Deps, signa
     return null;
   }
   const counts = { productsTyped: 0, productsOther: 0, typeRequestsFailed: 0 };
+  let firstError: string | undefined;
+  let limited = false;
   try {
     const sqlite = db.$client;
     const rows = sqlite
@@ -41,11 +44,15 @@ export async function typeProducts({ db, classifier, errorHandler }: Deps, signa
         const size = measureOf(p!);
         return { name, manufacturer: p!.manufacturer || null, size: size && `${+size.size.toFixed(3)} ${size.measure}`, soldBy: soldByOf(p!) };
       });
-      const answers = await classifier.classify(products).catch((e: unknown) => {
+      const answers = await classifier.classify(products, signal).catch((e: unknown) => {
+        if (signal?.aborted) return null; // the sync was stopped, not a failed request; the loop ends below
         counts.typeRequestsFailed++;
+        firstError ??= e instanceof Error ? e.message : String(e);
         console.error(`product types: request ${i / BATCH + 1} failed`, e);
+        if (e instanceof RateLimitError) limited = true;
         return null;
       });
+      if (limited) break; // every further request would hit the limit too
       if (!answers) continue;
       sqlite.transaction(() => {
         for (const [j, [, same]] of batch.entries()) {
@@ -62,6 +69,7 @@ export async function typeProducts({ db, classifier, errorHandler }: Deps, signa
     console.error("product types: step failed", e);
     errorHandler.report(e);
   }
-  if (counts.typeRequestsFailed) errorHandler.warn(`product types: ${counts.typeRequestsFailed} classifier requests failed`, counts);
+  if (counts.typeRequestsFailed)
+    errorHandler.warn(`product types: ${counts.typeRequestsFailed} classifier requests failed`, { ...counts, error: firstError });
   return counts;
 }

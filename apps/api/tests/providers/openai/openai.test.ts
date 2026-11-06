@@ -1,10 +1,10 @@
 // The OpenAI-compatible classifier against recorded Chat Completions replies (no network).
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { openaiClassifier } from "#/providers/openai/openai.ts";
-import type { ProductToClassify } from "#/services/classifier.ts";
+import { RateLimitError, type ProductToClassify } from "#/services/classifier.ts";
 
 const reply = (f: string) => readFileSync(fileURLToPath(new URL(`../../__fixtures__/openai/${f}`, import.meta.url)), "utf8");
 const PRODUCTS: ProductToClassify[] = [
@@ -12,14 +12,33 @@ const PRODUCTS: ProductToClassify[] = [
   { name: "עגבניה", manufacturer: null, size: "1 kg", soldBy: "weight" },
   { name: "סבון ידיים", manufacturer: "סנו", size: null, soldBy: "unit" },
 ];
-const classifier = openaiClassifier({ baseUrl: "https://llm.example/v1/", apiKey: "sk-test", model: "small-model" });
+// A new one per test: each paces its own requests.
+let classifier: ReturnType<typeof openaiClassifier>;
+beforeEach(() => {
+  classifier = openaiClassifier({ baseUrl: "https://llm.example/v1/", apiKey: "sk-test", model: "small-model" });
+});
 const serve = (file: string, status = 200) => {
   const fetch = vi.fn(async (_url: string, _init: RequestInit) => new Response(reply(file), { status, headers: { "content-type": "application/json" } }));
   vi.stubGlobal("fetch", fetch);
   return fetch;
 };
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+/** Answers each request with the next status in turn (200 = the good reply); records when each request was sent. */
+const sequence = (...replies: { status: number; retryAfter?: string }[]) => {
+  const sent: number[] = [];
+  const fetch = vi.fn(async () => {
+    sent.push(Date.now());
+    const { status, retryAfter } = replies.shift() ?? { status: 200 };
+    return new Response(status === 200 ? reply("good.json") : "{}", { status, headers: retryAfter ? { "retry-after": retryAfter } : {} });
+  });
+  vi.stubGlobal("fetch", fetch);
+  return { fetch, sent };
+};
 
 describe("openaiClassifier", () => {
   it("posts the Products to <base>/chat/completions with the key and model, and reads one type per Product", async () => {
@@ -48,5 +67,80 @@ describe("openaiClassifier", () => {
   it("an HTTP error fails the request", async () => {
     serve("http-error.json", 401);
     await expect(classifier.classify(PRODUCTS)).rejects.toThrow("llm: HTTP 401");
+  });
+
+  it("sends requests at least 3 s apart", async () => {
+    vi.useFakeTimers();
+    const { sent } = sequence();
+    await classifier.classify(PRODUCTS);
+    const second = classifier.classify(PRODUCTS);
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(sent).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await second;
+    expect(sent[1]! - sent[0]!).toBe(3000);
+  });
+
+  it("a 429 waits as long as Retry-After says and retries once", async () => {
+    vi.useFakeTimers();
+    const { sent } = sequence({ status: 429, retryAfter: "7" });
+    const answer = classifier.classify(PRODUCTS);
+    await vi.advanceTimersByTimeAsync(6999);
+    expect(sent).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await answer).toEqual(["dairy-eggs", "produce", "other"]);
+    expect(sent[1]! - sent[0]!).toBe(7000);
+  });
+
+  it("stopping the Price sync ends the wait for a 429 at once, without a retry", async () => {
+    vi.useFakeTimers();
+    const { fetch } = sequence({ status: 429 });
+    const stop = new AbortController();
+    const answer = classifier.classify(PRODUCTS, stop.signal);
+    answer.catch(() => {});
+    await vi.advanceTimersByTimeAsync(1000);
+    stop.abort();
+    await expect(answer).rejects.toThrow(/abort/i);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends the Price sync's signal with the request", async () => {
+    const fetch = serve("good.json");
+    const stop = new AbortController();
+    await classifier.classify(PRODUCTS, stop.signal);
+    stop.abort();
+    expect(fetch.mock.calls[0]![1].signal!.aborted).toBe(true);
+  });
+
+  it("a 429 without Retry-After waits 60 s", async () => {
+    vi.useFakeTimers();
+    const { sent } = sequence({ status: 429 });
+    const answer = classifier.classify(PRODUCTS);
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(sent).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await answer).toEqual(["dairy-eggs", "produce", "other"]);
+  });
+
+  it("a 429 whose Retry-After is over 120 s (a daily quota) throws a rate-limit error at once", async () => {
+    vi.useFakeTimers();
+    const { fetch } = sequence({ status: 429, retryAfter: "121" });
+    await expect(classifier.classify(PRODUCTS)).rejects.toThrow(RateLimitError);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("two 429s in a row throw a rate-limit error; other HTTP errors are not retried", async () => {
+    vi.useFakeTimers();
+    const { fetch } = sequence({ status: 429 }, { status: 429 }, { status: 503 });
+    const limited = expect(classifier.classify(PRODUCTS)).rejects.toThrow(RateLimitError);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await limited;
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    const failed = expect(classifier.classify(PRODUCTS)).rejects.toThrow("llm: HTTP 503");
+    await vi.advanceTimersByTimeAsync(3000);
+    await failed;
+    expect(fetch).toHaveBeenCalledTimes(3);
   });
 });

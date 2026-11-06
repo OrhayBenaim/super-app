@@ -1,3 +1,4 @@
+import { readPriceFile } from "#/ingest/parse.ts";
 import type { PriceFile, PricePortal } from "#/services/price-portal.ts";
 
 /** Serves the given files (name -> bytes) for every chain. */
@@ -12,7 +13,7 @@ export function fakePricePortal(files: Record<string, Uint8Array>) {
           const buf = files[file.name];
           if (!buf) throw new Error(`${file.name}: not found`);
           downloaded.push(file.name);
-          return buf;
+          return readPriceFile(buf, file.name);
         },
       };
     },
