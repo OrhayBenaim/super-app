@@ -2,6 +2,7 @@
 // sites, and laibcatalog.co.il (Victory, Machsanei Hashuk). docs/research/price-data.md section 1. Each lists every store.
 import type { ChainSeed } from "#/ingest/chains.ts";
 import { parseFileName } from "#/ingest/files.ts";
+import { decodeXml } from "#/ingest/parse.ts";
 import type { PriceFile, PricePortal } from "#/services/price-portal.ts";
 
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
@@ -166,6 +167,10 @@ async function haziList(base: string, jar: Jar): Promise<PriceFile[]> {
   return files;
 }
 
+// Carrefour and Dor Alon drop connections and cut bodies off mid-run (prod, 2026-11-06); a retry usually gets the file.
+const DOWNLOAD_ATTEMPTS = 3;
+const RETRY_PAUSE_MS = 5_000;
+
 export function pricePortals(): PricePortal {
   return {
     async open(chain: ChainSeed) {
@@ -186,12 +191,23 @@ export function pricePortals(): PricePortal {
       return {
         files,
         async download(file) {
-          const url = fresh.get(file.name) ?? file.url;
-          let res = await http(url, jar);
-          const newUrl = res.status === 403 ? await relink?.(file.name) : undefined;
-          if (newUrl && newUrl !== url) res = await http(newUrl, jar);
-          if (!res.ok) throw new Error(`${file.name}: HTTP ${res.status}`);
-          return new Uint8Array(await res.arrayBuffer());
+          for (let attempt = 1; ; attempt++) {
+            try {
+              const url = fresh.get(file.name) ?? file.url;
+              let res = await http(url, jar);
+              const newUrl = res.status === 403 ? await relink?.(file.name) : undefined;
+              if (newUrl && newUrl !== url) res = await http(newUrl, jar);
+              // A 4xx (404: the file is gone; a 403 was relinked above) answers the same again, so it isn't retried.
+              if (!res.ok) throw Object.assign(new Error(`${file.name}: HTTP ${res.status}`), { final: res.status < 500 });
+              const buf = new Uint8Array(await res.arrayBuffer());
+              // A cut-off gzip throws here and an error page decodes to HTML; the next attempt may get the whole file.
+              if (!/^\s*<(?!html|!doctype)/i.test(decodeXml(Buffer.from(buf)))) throw new Error(`${file.name}: not a price file`);
+              return buf;
+            } catch (e) {
+              if (attempt === DOWNLOAD_ATTEMPTS || (e as { final?: boolean }).final) throw e;
+              await new Promise((r) => setTimeout(r, RETRY_PAUSE_MS));
+            }
+          }
         },
       };
     },
