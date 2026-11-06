@@ -346,15 +346,23 @@ function promoCard({ nr: { cat }, chains }: ReturnType<typeof promotionOffers>, 
   };
 }
 
+/** Promotions cards per request: central Tel Aviv has ~10k, and the app loads the next page as the User scrolls. */
+export const PROMOTIONS_PAGE = 60;
+
 /**
- * Cards of the Products with a Promotion running at `now` at `storeIds`, optionally of one Product type or at one
- * Chain's stores. Biggest saving first, those with no price last.
+ * One page (from 1) of the cards of the Products with a Promotion running at `now` at `storeIds`, optionally of one
+ * Product type or at one Chain's stores, and the next page's number (null on the last). Biggest saving first, those
+ * with no price last.
  */
-export function promotionCards(db: Db, storeIds: string[], now: Date, filters: { type?: ProductType; chain?: string } = {}): PromoCard[] {
+export function promotionCards(
+  db: Db, storeIds: string[], now: Date, filters: { type?: ProductType; chain?: string } = {}, { page = 1, size = PROMOTIONS_PAGE } = {},
+): { cards: PromoCard[]; next: number | null } {
   const promoted = promotionOffers(near(db, storeIds, { chain: filters.chain, offers: true }), now, filters.type);
-  const cards = cardsOf(promoted.nr, (k) => !!promoted.best[k]).map((card) => ({ card, top: topOffer(promoted, card) }));
-  const strings = promotionStrings(db, cards.map(({ top }) => top.promo.rowid));
-  return cards.map(({ card, top }) => promoCard(promoted, strings, card, top)).sort((a, b) => (b.saving ?? -1) - (a.saving ?? -1));
+  const saving = ({ top }: { top: Ranked }) => top.off?.saving ?? -1;
+  const ranked = cardsOf(promoted.nr, (k) => !!promoted.best[k]).map((card) => ({ card, top: topOffer(promoted, card) })).sort((a, b) => saving(b) - saving(a));
+  const mine = ranked.slice((page - 1) * size, page * size); // only the page's cards are worded
+  const strings = promotionStrings(db, mine.map(({ top }) => top.promo.rowid));
+  return { cards: mine.map(({ card, top }) => promoCard(promoted, strings, card, top)), next: page * size < ranked.length ? page + 1 : null };
 }
 
 /**
