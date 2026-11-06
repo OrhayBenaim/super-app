@@ -75,6 +75,9 @@ services:
       TS_USERSPACE: "true" # no TUN device or NET_ADMIN; traffic leaves only through the proxy below
       TS_OUTBOUND_HTTP_PROXY_LISTEN: 0.0.0.0:1055
       TS_EXTRA_ARGS: --exit-node=${TS_EXIT_NODE}
+      # `tailscale up` only on first login: re-running it on a restart checks the exit node against the cached netmap,
+      # which can have 0 peers, and the container exits with "no node found in netmap". The exit node stays in state.
+      TS_AUTH_ONCE: "true"
       # Publishes the dashboard at https://grocer-worker.<tailnet>.ts.net, tailnet only (no Funnel).
       TS_SERVE_CONFIG: /config/serve.json
     volumes:
