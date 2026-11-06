@@ -9,9 +9,22 @@ export const syncWorkerData = z.object({});
 export type SyncWorkerData = z.input<typeof syncWorkerData>;
 
 const MINUTE = 60_000;
-const jerusalem = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const jerusalem = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Jerusalem",
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+// Two days and an hour: from Friday's last time to Sunday's first, across a daylight-saving change.
+const LONGEST_GAP = 49 * 60 * MINUTE;
+
+/** A minute start at one of `times` (Asia/Jerusalem), except on Saturday, when no Scheduled sync runs (CONTEXT.md). */
 // shortcut: a time inside the fall-back hour (01:00-02:00 on the last Sunday of October) fires twice; fine while none is there.
-const isScheduled = (times: string[], ms: number) => times.includes(jerusalem.format(ms));
+function isScheduled(times: string[], ms: number) {
+  const [day, time] = jerusalem.format(ms).split(" ");
+  return day !== "Sat" && times.includes(time!);
+}
 
 /** Minute starts in (from, to] that are scheduled times. */
 function scheduledBetween(times: string[], from: number, to: number) {
@@ -20,10 +33,17 @@ function scheduledBetween(times: string[], from: number, to: number) {
   return due;
 }
 
-/** The scheduled time before `t` (within 26 h, which covers a daylight-saving day). */
-function previousScheduled(times: string[], t: number) {
-  for (let m = t - MINUTE; m > t - 26 * 60 * MINUTE; m -= MINUTE) if (isScheduled(times, m)) return m;
-  return t - 26 * 60 * MINUTE;
+/** The scheduled time before the minute start `t`. */
+export function previousScheduled(times: string[], t: number) {
+  for (let m = t - MINUTE; m > t - LONGEST_GAP; m -= MINUTE) if (isScheduled(times, m)) return m;
+  return t - LONGEST_GAP;
+}
+
+/** The first scheduled time after `t` (ms): the next Scheduled sync. */
+export function nextScheduled(times: string[], t: number) {
+  const from = Math.floor(t / MINUTE) * MINUTE;
+  for (let m = from + MINUTE; m <= from + LONGEST_GAP; m += MINUTE) if (isScheduled(times, m)) return m;
+  return from + LONGEST_GAP;
 }
 
 /**

@@ -41,7 +41,7 @@ On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN IP, not lo
 | api | `TRUSTED_ORIGINS` | extra comma-separated origins (auth + CORS); set `http://localhost:8081` in dev for Expo web, never in production |
 | api | `TRUST_PROXY` | `true` behind a reverse proxy: rate limits key by the last `X-Forwarded-For` hop; default `false` (socket address). The API port must then be reachable only through the proxy, or clients can spoof the header |
 | api | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional; Google sign-in on when both set. The OAuth client must allow `<BETTER_AUTH_URL>/api/auth/callback/google` (the deletion page at `/account` signs in through it) |
-| api | `SYNC_TIMES` | Scheduled sync times, comma-separated `HH:MM` in Asia/Jerusalem time, default `05:00,12:00,23:30` |
+| api | `SYNC_TIMES` | Scheduled sync times, comma-separated `HH:MM` in Asia/Jerusalem time, default `07:00,12:30,20:30`; none run on Saturday |
 | api | `SYNC_TOKEN` | shared secret for the private app (Manual syncs and the Internal dashboard, `Authorization: Bearer <token>`); the private port starts only when set |
 | api | `INTERNAL_PORT`, `INTERNAL_HOST` | private app address, default `127.0.0.1:3001`; never expose it publicly (production binds `0.0.0.0` inside the container, unpublished) |
 | api | `RESEND_API_KEY` | required; Resend API key for sending email (Reset codes and Deletion codes) |
