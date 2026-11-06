@@ -16,8 +16,12 @@ const nearQuery = z
   })
   .refine((q) => (q.lat === undefined) === (q.lng === undefined), "lat and lng go together");
 const typeParam = z.enum(PRODUCT_TYPES);
-/** Promotions' filters: a Product type and a Chain (its id, as GET /api/chains lists it). */
-const promotionsQuery = z.object({ type: typeParam.optional(), chain: z.string().regex(/^\d{1,20}$/, "invalid chain").optional() });
+/** Promotions' filters: a Product type and a Chain (its id, as GET /api/chains lists it), and the page (from 1). */
+const promotionsQuery = z.object({
+  type: typeParam.optional(),
+  chain: z.string().regex(/^\d{1,20}$/, "invalid chain").optional(),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+});
 
 /** `input` parsed by `schema`, or a 400 with the first issue's message (thrown: onError returns it). */
 function parse<S extends z.ZodType>(schema: S, input: unknown): z.output<S> {
@@ -48,11 +52,11 @@ export const browseRoutes = new Hono<AppEnv>()
     const page = groupPage(c.var.deps.db, storesFor(c), type, ref);
     return page ? c.json(page) : c.json({ error: "not found" }, 404);
   })
-  // Promotions: group cards of the Products on a Promotion running nearby; nothing without a location.
+  // Promotions: a page of group cards of the Products on a Promotion running nearby; nothing without a location.
   .get("/promotions", (c) => {
     const stores = storesFor(c);
-    const filters = parse(promotionsQuery, c.req.query());
-    return c.json(stores ? promotionCards(c.var.deps.db, stores, c.var.deps.clock.now(), filters) : []);
+    const { page, ...filters } = parse(promotionsQuery, c.req.query());
+    return c.json(stores ? promotionCards(c.var.deps.db, stores, c.var.deps.clock.now(), filters, { page }) : { cards: [], next: null });
   })
   // A Promotions card's product page: its Products on a Promotion running nearby, each broken down by Chain.
   .get("/promotions/types/:type/groups/:ref", (c) => {

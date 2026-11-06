@@ -4,6 +4,8 @@ import { createApp } from "#/app.ts";
 import { buildDeps } from "#/deps.ts";
 import { ingestPrices, ingestPromotions, ingestStores } from "#/ingest/ingest.ts";
 import { priceSyncJob } from "#/jobs/price-sync.ts";
+import { promotionCards } from "#/prices/browse.ts";
+import { nearbyStoreIds } from "#/prices/nearby.ts";
 import { fakeClassifier } from "#/providers/openai/fake.ts";
 import { fakePricePortal } from "#/providers/price-portals/fake.ts";
 import { fakeErrorHandler } from "#/providers/sentry/fake.ts";
@@ -81,7 +83,7 @@ async function world(setups: Setup[], types: Record<string, ProductType>) {
     body: JSON.stringify({ email: "promos@browse.test", password: "password1234", name: "Pia" }),
   });
   const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
-  return { app, cookie };
+  return { app, cookie, deps };
 }
 
 // --- the world -------------------------------------------------------------------------------------------------------
@@ -104,9 +106,10 @@ const TYPES: Record<string, ProductType> = {
 
 let app: Awaited<ReturnType<typeof world>>["app"];
 let cookie: string;
+let deps: Awaited<ReturnType<typeof world>>["deps"];
 
 beforeAll(async () => {
-  ({ app, cookie } = await world(
+  ({ app, cookie, deps } = await world(
     [
       {
         chain: OSHER,
@@ -154,7 +157,9 @@ const get = (path: string, auth = true) => app.request(path, { headers: auth ? {
 const cards = async (query = "") => {
   const res = await get(`/api/browse/promotions?${near}${query}`);
   expect(res.status).toBe(200);
-  return (await res.json()) as PromoCard[];
+  const body = (await res.json()) as { cards: PromoCard[]; next: number | null };
+  expect(body.next).toBeNull(); // this world's cards fit on one page
+  return body.cards;
 };
 
 describe("GET /api/browse/promotions", () => {
@@ -209,11 +214,26 @@ describe("GET /api/browse/promotions", () => {
   it("is empty without a location", async () => {
     const res = await get("/api/browse/promotions");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual([]);
+    expect(await res.json()).toEqual({ cards: [], next: null });
   });
 
-  it("returns 400 for a bad type, Chain or location", async () => {
-    for (const q of ["&type=sweets", "&chain=osher"]) expect((await get(`/api/browse/promotions?${near}${q}`)).status).toBe(400);
+  it("pages the cards in order, each page naming the next, the last none", () => {
+    const stores = nearbyStoreIds(deps.db, { ...here, radiusKm: 10 });
+    const pageOf = (page: number) => promotionCards(deps.db, stores, WEDNESDAY, {}, { page, size: 2 });
+    expect([1, 2, 3].map((p) => pageOf(p)).map(({ cards, next }) => [cards.map((c) => c.ref), next])).toEqual([
+      [["חלב תנובה|l", "במבה אסם|kg"], 2],
+      [["קפה נמס|kg"], null],
+      [[], null],
+    ]);
+  });
+
+  it("is empty past the last page", async () => {
+    const res = await get(`/api/browse/promotions?${near}&page=2`);
+    expect(await res.json()).toEqual({ cards: [], next: null });
+  });
+
+  it("returns 400 for a bad type, Chain, page or location", async () => {
+    for (const q of ["&type=sweets", "&chain=osher", "&page=0", "&page=x"]) expect((await get(`/api/browse/promotions?${near}${q}`)).status).toBe(400);
     expect((await get(`/api/browse/promotions?lat=${here.lat}&lng=${here.lng}&radiusKm=0`)).status).toBe(400);
     expect((await get("/api/browse/promotions?lat=32")).status).toBe(400);
   });

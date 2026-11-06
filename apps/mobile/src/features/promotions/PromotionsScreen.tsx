@@ -14,9 +14,10 @@ import { useCurrentListId, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
-import { EmptyState, LargeTitle, Screen, Skeleton } from "@/ui";
+import { Button, EmptyState, LargeTitle, Screen, Skeleton, Text } from "@/ui";
 import { useChains, usePromotions } from "./api";
 import { ChainMenu } from "./ChainMenu";
+import { loadedCards, promoKey } from "./promo";
 import { PromoCard } from "./PromoCard";
 import { TypeBar } from "./TypeBar";
 
@@ -32,7 +33,25 @@ export function PromotionsScreen() {
   const listId = useCurrentListId();
   // One poll for the screen keeps every card's "on the List" in step with the other Members.
   const items = useList(listId, { poll: useIsFocused() }).data?.items ?? [];
-  const data = off ? [] : (promos.data ?? []);
+  const data = off ? [] : loadedCards(promos.data?.pages);
+  // After a page fails, only the footer's retry loads it: scrolling would repeat the failing request unseen.
+  const more = () => {
+    if (promos.hasNextPage && !promos.isFetchingNextPage && !promos.isFetchNextPageError) void promos.fetchNextPage();
+  };
+  const pageFailed = promos.isFetchNextPageError && (
+    <View style={{ alignItems: "center", gap: space[2], paddingTop: space[5] }}>
+      <Text variant="subhead" color="labelSecondary">
+        {t("promotions.error.title")}
+      </Text>
+      <Button
+        title={t("compare.retry")}
+        variant="tinted"
+        analyticsName={Taps.promotionsRetry}
+        loading={promos.isFetchingNextPage}
+        onPress={() => void promos.fetchNextPage()}
+      />
+    </View>
+  );
   const loading = !off && (!coords || promos.isPending);
 
   const chainName = chains.find((c) => c.id === chain)?.name;
@@ -85,7 +104,9 @@ export function PromotionsScreen() {
     <Screen edges={["top"]} style={{ paddingHorizontal: 0 }}>
       <CardGrid
         data={data}
-        keyOf={(c) => c.ref ?? c.code}
+        keyOf={promoKey}
+        onEndReached={more}
+        footer={pageFailed}
         header={
           <>
             <LargeTitle
