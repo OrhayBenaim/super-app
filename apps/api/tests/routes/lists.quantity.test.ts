@@ -1,8 +1,11 @@
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "#/app.ts";
-import { buildDeps } from "#/deps.ts";
+import { products as productsTable } from "#/db/schema.ts";
+import { buildDeps, type Deps } from "#/deps.ts";
 import { ingestPrices, ingestStores } from "#/ingest/ingest.ts";
 import { loadConfig } from "#/services/config.ts";
+import { fakeClock } from "#/utils/clock.ts";
 
 const OSHER = "7290103152017";
 // Chain-scoped codes (not GTINs): [code, name, unit, weighted]
@@ -16,6 +19,8 @@ const code = (c: string) => `${OSHER}:${c}`;
 const [banana, , melon, rice] = products.map(([c]) => code(c));
 
 let app: ReturnType<typeof createApp>;
+let deps: Deps;
+const clock = fakeClock(new Date("2026-01-01T10:00:00Z"));
 let cookie: string;
 let other: string;
 let listId: string;
@@ -43,7 +48,7 @@ const patch = (id: string, body: unknown) => call("PATCH", `/${listId}/items/${i
 const detailItem = async (id: string) => ((await (await call("GET", `/${listId}`)).json()).items as { id: string }[]).find((i) => i.id === id);
 
 beforeAll(async () => {
-  const deps = buildDeps(loadConfig());
+  deps = buildDeps(loadConfig(), { clock });
   app = createApp(deps);
   ingestStores(deps, "osher-ad", `<Root><ChainID>${OSHER}</ChainID><SubChains><SubChain><SubChainID>1</SubChainID><Stores><Store><StoreID>1</StoreID><StoreName>s</StoreName><Address>a</Address><City>c</City></Store></Stores></SubChain></SubChains></Root>`);
   ingestPrices(
@@ -76,6 +81,20 @@ describe("item quantities", () => {
     const produce = await add({ groupRef: "בננה|kg" });
     expect(await detailItem(produce.id)).toMatchObject({ soldBy: "weight" });
     expect(await add({ groupRef: "אורז|kg" })).toMatchObject({ soldBy: "unit" });
+  });
+
+  it("reuses a Product group's sold-by for five minutes, then works it out again", async () => {
+    const produce = await add({ groupRef: "בננה|kg" });
+    const weighed = (w: boolean) => deps.db.update(productsTable).set({ isWeighted: w }).where(eq(productsTable.code, banana)).run();
+    weighed(false);
+    try {
+      expect(await detailItem(produce.id)).toMatchObject({ soldBy: "weight" });
+      clock.advance(5 * 60_000 + 1);
+      expect(await detailItem(produce.id)).toMatchObject({ soldBy: "unit" });
+    } finally {
+      weighed(true);
+      clock.advance(5 * 60_000 + 1);
+    }
   });
 
   it("creates an item with a quantity, validated against its sold-by", async () => {

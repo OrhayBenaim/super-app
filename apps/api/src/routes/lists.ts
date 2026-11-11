@@ -37,21 +37,36 @@ const notFound = (c: Context<AppEnv>) => c.json({ error: "not found" }, 404);
 const badQuantity = (c: Context<AppEnv>, soldBy: SoldBy) => c.json({ error: `invalid quantity for an item sold by ${soldBy}` }, 400);
 
 type Match = { productCode: string | null; groupRef: string | null };
+
+// A group's sold-by takes a group search (tens of ms each, more on a cold page cache), and every poll and item write
+// needs it. It changes only with a Price sync or a group edit, so it is reused for a while.
+// shortcut: per-process TTL cache, so a group edit reaches Lists up to GROUP_SOLD_BY_MS late; clear it on edits if that matters.
+const GROUP_SOLD_BY_MS = 5 * 60_000;
+const groupSoldBy = new WeakMap<Db, Map<string, { soldBy: SoldBy; until: number }>>();
+function soldByOfGroup({ db, clock }: Deps, ref: string) {
+  const now = clock.now().getTime();
+  let cache = groupSoldBy.get(db);
+  if (!cache) groupSoldBy.set(db, (cache = new Map()));
+  const hit = cache.get(ref);
+  if (hit && hit.until > now) return hit.soldBy;
+  const { soldBy } = groupMembers(db, ref);
+  cache.set(ref, { soldBy, until: now + GROUP_SOLD_BY_MS });
+  return soldBy;
+}
+
 /** How an item is sold, from its matched product or Product group; unmatched items (and unknown codes) by the unit. */
-function soldByOfItem(db: Db, { productCode, groupRef }: Match): SoldBy {
-  if (groupRef) return groupMembers(db, groupRef).soldBy;
-  const p = productCode && db.select({ unitQty: products.unitQty, isWeighted: products.isWeighted }).from(products).where(eq(products.code, productCode)).get();
+function soldByOfItem(deps: Deps, { productCode, groupRef }: Match): SoldBy {
+  if (groupRef) return soldByOfGroup(deps, groupRef);
+  const p = productCode && deps.db.select({ unitQty: products.unitQty, isWeighted: products.isWeighted }).from(products).where(eq(products.code, productCode)).get();
   return p ? soldByOf(p) : "unit";
 }
 
-// shortcut: a group item's sold-by runs a group search on every poll (once per distinct match); cache it per group ref
-// if list polling shows up as slow.
 /** Items with their sold-by, worked out once per distinct match. */
-function withSoldBy<T extends Match>(db: Db, rows: T[]) {
+function withSoldBy<T extends Match>(deps: Deps, rows: T[]) {
   const known = new Map<string, SoldBy>();
   return rows.map((i) => {
     const key = `${i.productCode}|${i.groupRef}`;
-    if (!known.has(key)) known.set(key, soldByOfItem(db, i));
+    if (!known.has(key)) known.set(key, soldByOfItem(deps, i));
     return { ...i, soldBy: known.get(key)! };
   });
 }
@@ -137,7 +152,7 @@ export const listsRoutes = new Hono<AppEnv>()
       .where(eq(listMembers.listId, id))
       .all();
     const rows = db.select().from(items).where(eq(items.listId, id)).orderBy(asc(items.createdAt)).all();
-    return c.json({ list, members, items: withSoldBy(db, rows) });
+    return c.json({ list, members, items: withSoldBy(c.var.deps, rows) });
   })
   .patch("/:id", async (c) => {
     const { db, clock } = c.var.deps;
@@ -158,7 +173,7 @@ export const listsRoutes = new Hono<AppEnv>()
     const p = await parse(c, itemBody);
     if (!p.success) return bad(c, p.error);
     const { name, category, productCode = null, groupRef = null, missing = true, quantity = QUANTITY.start } = p.data;
-    const soldBy = soldByOfItem(db, { productCode, groupRef });
+    const soldBy = soldByOfItem(c.var.deps, { productCode, groupRef });
     if (!isValidQuantity(quantity, soldBy)) return badQuantity(c, soldBy);
     const item = db.insert(items).values({ id: randomUUID(), listId, name, category, productCode, groupRef, missing, quantity }).returning().get();
     touch(c.var.deps, listId);
@@ -176,8 +191,8 @@ export const listsRoutes = new Hono<AppEnv>()
     const other = p.data.productCode ? { groupRef: null } : p.data.groupRef ? { productCode: null } : {}; // matching one unmatches the other
     const next = { ...before, ...p.data, ...other };
     const rematched = next.productCode !== before.productCode || next.groupRef !== before.groupRef;
-    const soldBy = soldByOfItem(db, next);
-    const quantity = patchedQuantity(before.quantity, p.data.quantity, soldBy, rematched ? soldByOfItem(db, before) : undefined);
+    const soldBy = soldByOfItem(c.var.deps, next);
+    const quantity = patchedQuantity(before.quantity, p.data.quantity, soldBy, rematched ? soldByOfItem(c.var.deps, before) : undefined);
     // Only a sent quantity is checked, so a stored one can never block checking the item off.
     if (p.data.quantity !== undefined && !isValidQuantity(quantity, soldBy)) return badQuantity(c, soldBy);
     const item = db
