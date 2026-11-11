@@ -17,6 +17,7 @@ export const parts = {
   cargo: require("../../assets/loading/mascot/cargo.png"),
   armL: require("../../assets/loading/mascot/arm-l.png"),
   armR: require("../../assets/loading/mascot/arm-r.png"),
+  armRGlass: require("../../assets/loading/mascot/arm-r-glass.png"),
   body: require("../../assets/loading/mascot/body.png"),
   eyes: require("../../assets/loading/mascot/eyes.png"),
 };
