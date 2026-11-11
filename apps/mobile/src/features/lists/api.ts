@@ -1,5 +1,5 @@
 // Shared list data layer (types mirror docs/api.md). Both the list screens and Compare build on this.
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useIsMutating, useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { Events, track } from "@/lib/analytics";
@@ -42,14 +42,18 @@ export function selectList(id: string) {
 
 // Polling keeps a shared list in sync with the spouse; screens pass poll: useIsFocused() so hidden tabs stay quiet.
 // shortcut: polling, not websockets (see docs/api.md).
-export const useList = (id: string | null, { poll = true } = {}) =>
-  useQuery({
-    queryKey: listKeys.detail(id ?? ""),
+// The poll pauses while item mutations are in flight: a read taken mid-burst lacks the later writes and would undo them on screen.
+export function useList(id: string | null, { poll = true } = {}) {
+  const key = listKeys.detail(id ?? "");
+  const mutating = useIsMutating({ mutationKey: key }) > 0;
+  return useQuery({
+    queryKey: key,
     queryFn: () => api<ListDetail>(`api/lists/${id}`),
     enabled: !!id,
-    refetchInterval: poll ? 5000 : false,
+    refetchInterval: poll && !mutating ? 5000 : false,
     refetchOnWindowFocus: true,
   });
+}
 
 export const useCategories = (id: string | null) =>
   useQuery({ queryKey: listKeys.categories(id ?? ""), queryFn: () => api<string[]>(`api/lists/${id}/categories`), enabled: !!id });
@@ -93,7 +97,9 @@ export const optimisticItem = ({ soldBy = "unit", ...body }: NewItem, listId: st
 export function useItemMutations(listId: string | null) {
   const qc = useQueryClient();
   const key = listKeys.detail(listId ?? "");
+  // Refetch once the last of a burst settles: an earlier refetch would bring back the list without the writes still in flight.
   const invalidate = () => {
+    if (qc.isMutating({ mutationKey: key }) > 1) return;
     void qc.invalidateQueries({ queryKey: key });
     void qc.invalidateQueries({ queryKey: listKeys.categories(listId ?? "") });
   };
@@ -110,6 +116,7 @@ export function useItemMutations(listId: string | null) {
 
   // `soldBy` only shapes the optimistic row (the server owns it); it is not sent.
   const add = useMutation({
+    mutationKey: key,
     mutationFn: ({ soldBy: _, ...body }: NewItem) => api<Item>(`api/lists/${listId}/items`, { method: "POST", body: JSON.stringify(body) }),
     onMutate: async (body) => {
       const temp = optimisticItem(body, listId ?? "", new Date().toISOString());
@@ -122,6 +129,7 @@ export function useItemMutations(listId: string | null) {
     onSettled: invalidate,
   });
   const update = useMutation({
+    mutationKey: key,
     mutationFn: ({ id, ...patch }: ItemPatch & { id: string }) =>
       api<Item>(`api/lists/${listId}/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
     onMutate: ({ id, ...patch }) => patchCache((items) => items.map((i) => (i.id === id ? { ...i, ...patch } : i))),
@@ -134,6 +142,7 @@ export function useItemMutations(listId: string | null) {
     onSettled: invalidate,
   });
   const remove = useMutation({
+    mutationKey: key,
     mutationFn: (id: string) => api<void>(`api/lists/${listId}/items/${id}`, { method: "DELETE" }),
     onMutate: (id) => patchCache((items) => items.filter((i) => i.id !== id)),
     onError: rollback,
