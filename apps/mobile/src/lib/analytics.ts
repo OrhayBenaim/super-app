@@ -22,7 +22,7 @@ export const Events = {
   itemQuantityChanged: "item_quantity_changed",
   listShared: "list_shared",
   listJoined: "list_joined",
-  /** One per scan: `result` added | alreadyOnList | unknown | denied, `from` list | items. Never the Barcode or a name. */
+  /** One per scan: `result` added | alreadyOnList | named | unknown | denied, `from` list | items. Never the Barcode or a name. */
   itemScanned: "item_scanned",
 } as const;
 export type Event = (typeof Events)[keyof typeof Events];

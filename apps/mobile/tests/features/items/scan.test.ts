@@ -10,7 +10,16 @@ const product = (code: string, name = `p${code}`) => ({ kind: "product", code, n
 const item = (over: Partial<Item>): Item => ({ id: "i1", listId: "l1", name: "Milk", category: "Other", productCode: null, groupRef: null, missing: true, quantity: 2, soldBy: "unit", createdAt: "", updatedAt: "", ...over });
 const searchReturns = (results: unknown[]) => vi.mocked(api).mockResolvedValueOnce(results);
 
-beforeEach(() => vi.mocked(api).mockReset());
+const off = vi.fn<typeof fetch>();
+const offReturns = (body: unknown) => off.mockResolvedValueOnce(new Response(JSON.stringify(body)));
+
+beforeEach(() => {
+  vi.mocked(api).mockReset();
+  off.mockReset();
+  // Open Food Facts knows no product unless a test says so.
+  off.mockImplementation(async () => new Response(JSON.stringify({ status: 0 })));
+  vi.stubGlobal("fetch", off);
+});
 
 describe("resolveScan", () => {
   it("finds the 12-digit stored Barcode from a 13-digit reading starting with 0", async () => {
@@ -73,5 +82,53 @@ describe("resolveScan", () => {
   it("throws when Grocer's search fails", async () => {
     vi.mocked(api).mockRejectedValueOnce(new Error("500"));
     await expect(resolveScan("7290011111111", [])).rejects.toThrow("500");
+  });
+
+  describe("when Grocer's search finds nothing", () => {
+    beforeEach(() => searchReturns([]));
+
+    it("is named with Open Food Facts' product_name_he", async () => {
+      offReturns({ status: 1, product: { product_name_he: "במבה", product_name: "Bamba" } });
+      expect(await resolveScan("7290000066318", [])).toEqual({ kind: "named", name: "במבה" });
+      expect(new Headers(off.mock.calls[0]![1]?.headers).get("User-Agent")).toMatch(/^Grocer\//);
+    });
+
+    it("is named with a product_name in Hebrew when there is no product_name_he", async () => {
+      offReturns({ status: 1, product: { product_name: "ביסלי גריל" } });
+      expect(await resolveScan("7290000066318", [])).toEqual({ kind: "named", name: "ביסלי גריל" });
+    });
+
+    it("is unknown when the only name is not in Hebrew", async () => {
+      offReturns({ status: 1, product: { product_name_he: "", product_name: "Bamba 80g" } });
+      expect(await resolveScan("7290000066318", [])).toEqual({ kind: "unknown" });
+    });
+
+    it("is unknown when Open Food Facts has no such product", async () => {
+      off.mockResolvedValueOnce(new Response(JSON.stringify({ status: 0, status_verbose: "product not found" }), { status: 404 }));
+      expect(await resolveScan("7290000066318", [])).toEqual({ kind: "unknown" });
+    });
+
+    it("is unknown when Open Food Facts can't be reached", async () => {
+      off.mockRejectedValueOnce(new TypeError("Network request failed"));
+      expect(await resolveScan("7290000066318", [])).toEqual({ kind: "unknown" });
+    });
+
+    it("is unknown when Open Food Facts takes more than 8 seconds", async () => {
+      vi.useFakeTimers();
+      try {
+        off.mockImplementationOnce((_url, init) => new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(new Error("aborted")))));
+        const outcome = resolveScan("7290000066318", []);
+        await vi.advanceTimersByTimeAsync(8_000);
+        expect(await outcome).toEqual({ kind: "unknown" });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  it("never asks Open Food Facts when Grocer's search finds the Product", async () => {
+    searchReturns([product("7290011111111", "Cola")]);
+    await resolveScan("7290011111111", []);
+    expect(off).not.toHaveBeenCalled();
   });
 });

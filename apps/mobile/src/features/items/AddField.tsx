@@ -72,6 +72,8 @@ export function AddField({ listId, items, from, onClose }: Props) {
     useCallback(() => {
       const found = takeScan();
       if (!found) return;
+      // Open Food Facts' name becomes the query, so the User picks from the usual results (the API rejects longer ones).
+      if (found.kind === "named") return setQuery(found.name.slice(0, SEARCH.maxLength));
       if (found.kind === "added") createItem(found.product.name, { productCode: found.product.code });
       if (found.kind === "returned") toggle(found.item, true);
       const name = found.kind === "added" ? found.product.name : found.item.name;

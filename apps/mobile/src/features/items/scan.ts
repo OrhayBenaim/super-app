@@ -1,3 +1,4 @@
+import { fetchOrNull, USER_AGENT } from "@grocer/shared/product-image";
 import type { Item } from "@/features/lists/api";
 import { api } from "@/lib/api";
 import type { SearchResult } from "./products";
@@ -10,6 +11,8 @@ export type ScanOutcome =
   | { kind: "returned"; item: Item }
   /** This Item is matched to the Product and already on the List. */
   | { kind: "alreadyOnList"; item: Item }
+  /** Grocer doesn't know the Barcode; Open Food Facts gave this Hebrew name for the add box. */
+  | { kind: "named"; name: string }
   | { kind: "unknown" };
 
 /**
@@ -22,10 +25,27 @@ export async function resolveScan(read: string, items: Item[]): Promise<ScanOutc
   if (!code) return { kind: "unknown" };
   const results = await api<SearchResult[]>(`api/products/search?q=${encodeURIComponent(code)}`);
   const found = results.find((r) => r.kind === "product" && r.code === code);
-  if (!found) return { kind: "unknown" };
+  if (!found) return named(read);
   const item = items.find((i) => i.productCode === code);
   if (item) return { kind: item.missing ? "alreadyOnList" : "returned", item };
   return { kind: "added", product: { code, name: found.name } };
+}
+
+/** The Hebrew name Open Food Facts gives the Barcode as read, else unknown; a failure or 8s timeout is unknown too. */
+async function named(read: string): Promise<ScanOutcome> {
+  const name = await fetchOrNull(
+    `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(read)}.json?fields=product_name_he,product_name`,
+    { headers: { "User-Agent": USER_AGENT } },
+    async (res) => hebrewName((await res.json())?.product),
+  );
+  return name ? { kind: "named", name } : { kind: "unknown" };
+}
+
+/** `product_name_he`, else `product_name` only when it has Hebrew letters: the add box never gets a foreign name. */
+function hebrewName(product?: { product_name_he?: unknown; product_name?: unknown }): string | null {
+  const he = typeof product?.product_name_he === "string" ? product.product_name_he.trim() : "";
+  const any = typeof product?.product_name === "string" ? product.product_name.trim() : "";
+  return he || (/[א-ת]/.test(any) ? any : null);
 }
 
 /** An outcome that closes the scan sheet. */
