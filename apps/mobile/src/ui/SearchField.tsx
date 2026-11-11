@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react-native";
 import { Search } from "lucide-react-native";
-import type { Ref } from "react";
+import type { ReactNode, Ref } from "react";
 import { I18nManager, TextInput, View, type TextInputInstance, type TextInputProps, type ViewStyle } from "react-native";
 import { text, useTheme } from "@/theme";
 
@@ -8,11 +8,13 @@ export type SearchFieldProps = TextInputProps & {
   label: string;
   ref?: Ref<TextInputInstance>;
   icon?: LucideIcon;
+  /** At the field's end, after the text (e.g. a scan button). */
+  trailing?: ReactNode;
   containerStyle?: ViewStyle;
 };
 
 /** Control Fill field, 10pt radius, leading icon in Secondary Label. `label` is the placeholder and the accessibility label. */
-export function SearchField({ label, ref, icon: Icon = Search, containerStyle, style, ...rest }: SearchFieldProps) {
+export function SearchField({ label, ref, icon: Icon = Search, trailing, containerStyle, style, ...rest }: SearchFieldProps) {
   const { colors, radius, space } = useTheme();
   return (
     <View
@@ -29,6 +31,7 @@ export function SearchField({ label, ref, icon: Icon = Search, containerStyle, s
         style={[text("body"), { flex: 1, color: colors.label, paddingVertical: space[3], textAlign: I18nManager.isRTL ? "right" : "left" }, style]}
         {...rest}
       />
+      {trailing}
     </View>
   );
 }

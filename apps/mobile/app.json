@@ -73,6 +73,13 @@
           "isAndroidBackgroundLocationEnabled": true
         }
       ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Grocer uses the camera to scan product barcodes and add them to your list.",
+          "recordAudioAndroid": false
+        }
+      ],
       "@sentry/react-native",
       [
         "expo-splash-screen",
