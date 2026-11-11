@@ -44,8 +44,8 @@ async function named(read: string): Promise<ScanOutcome> {
 /** `product_name_he`, else `product_name` only when it has Hebrew letters: the add box never gets a foreign name. */
 function hebrewName(product?: { product_name_he?: unknown; product_name?: unknown }): string | null {
   const he = typeof product?.product_name_he === "string" ? product.product_name_he.trim() : "";
-  const any = typeof product?.product_name === "string" ? product.product_name.trim() : "";
-  return he || (/[א-ת]/.test(any) ? any : null);
+  const fallback = typeof product?.product_name === "string" ? product.product_name.trim() : "";
+  return he || (/[א-ת]/.test(fallback) ? fallback : null);
 }
 
 /** An outcome that closes the scan sheet. */
