@@ -27,3 +27,19 @@ export async function resolveScan(read: string, items: Item[]): Promise<ScanOutc
   if (item) return { kind: item.missing ? "alreadyOnList" : "returned", item };
   return { kind: "added", product: { code, name: found.name } };
 }
+
+/** An outcome that closes the scan sheet. */
+export type ScanFound = Exclude<ScanOutcome, { kind: "unknown" }>;
+
+// The scan sheet closes before a Toast could show, so it hands what it found to the add box it returns to.
+let pending: ScanFound | null = null;
+
+export const handScan = (found: ScanFound) => {
+  pending = found;
+};
+
+export function takeScan(): ScanFound | null {
+  const found = pending;
+  pending = null;
+  return found;
+}

@@ -1,7 +1,9 @@
+import { Camera } from "expo-camera";
 import * as Haptics from "expo-haptics";
-import { Plus } from "lucide-react-native";
-import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { Plus, ScanBarcode } from "lucide-react-native";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { SEARCH } from "@grocer/shared/search";
 import { fmt } from "@/features/compare/format";
@@ -9,13 +11,14 @@ import { useItemMutations, type Item } from "@/features/lists/api";
 import { Events, Taps, track, trackTap } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
-import { Group, Row, SearchField, Tap, Text } from "@/ui";
+import { Group, Row, SearchField, Tap, Text, Toast } from "@/ui";
 import { suggestItems } from "./autocomplete";
 import { GroupResult } from "./GroupResult";
 import { AddBadge, ItemRow } from "./ItemRow";
 import { groupTitle, productDetail } from "./labels";
 import { ProductImage } from "./ProductImage";
 import { splitResults, useProductSearch, type Product, type ProductGroup } from "./products";
+import { takeScan } from "./scan";
 
 type Props = {
   listId: string | null;
@@ -55,6 +58,26 @@ export function AddField({ listId, items, from, onClose }: Props) {
     );
     setQuery("");
   };
+
+  // Scanning: ask for the camera on the first tap; the sheet explains a refusal. What it finds comes back here on return.
+  const router = useRouter();
+  const [toast, setToast] = useState<{ message: string; at: number } | null>(null);
+  const scan = async () => {
+    Keyboard.dismiss();
+    const { granted } = await Camera.requestCameraPermissionsAsync();
+    if (!granted) track(Events.itemScanned, { result: "denied", from });
+    router.push({ pathname: "/scan", params: { from, listId: listId ?? "" } });
+  };
+  useFocusEffect(
+    useCallback(() => {
+      const found = takeScan();
+      if (!found) return;
+      if (found.kind === "added") createItem(found.product.name, { productCode: found.product.code });
+      if (found.kind === "returned") toggle(found.item, true);
+      const name = found.kind === "added" ? found.product.name : found.item.name;
+      setToast({ message: fmt(t(found.kind === "alreadyOnList" ? "items.scan.alreadyOnList" : "items.scan.added"), { name }), at: Date.now() });
+    }, [listId, from]),
+  );
   const addTop = () => {
     const top = matches[0];
     if (top) {
@@ -100,6 +123,13 @@ export function AddField({ listId, items, from, onClose }: Props) {
           submitBehavior="submit"
           onSubmitEditing={addTop}
           containerStyle={{ flex: 1 }}
+          trailing={
+            !query && (
+              <Tap accessibilityLabel={t("items.scan")} analyticsName={Taps.itemsScan} onPress={scan} hitSlop={8} style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
+                <ScanBarcode size={22} color={colors.tint} strokeWidth={1.75} />
+              </Tap>
+            )
+          }
         />
         <Tap accessibilityLabel={t("common.cancel")} analyticsName={Taps.commonCancel} onPress={onClose} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>
           <Text color="tint">{t("common.cancel")}</Text>
@@ -138,6 +168,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
           </Group>
         </ScrollView>
       )}
+      <Toast key={toast?.at} message={toast?.message ?? null} onHide={() => setToast(null)} />
     </Animated.View>
   );
 }
