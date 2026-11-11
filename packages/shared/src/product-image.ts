@@ -3,7 +3,8 @@ export const MAX_IMAGE_MB = 5;
 export const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
 
 const TIMEOUT_MS = 8_000;
-const USER_AGENT = "Grocer/1.0 (https://github.com/OrhayBenaim/super-app)";
+/** How Grocer names itself to Open Food Facts. */
+export const USER_AGENT = "Grocer/1.0 (https://github.com/OrhayBenaim/super-app)";
 /** How many codes' answers stay in memory: the most recently asked ones. */
 const CACHE_SIZE = 2_000;
 /** Where Rami Levy's image server keeps Product images by barcode (the dashboard names it as the source). */
@@ -28,7 +29,7 @@ export const hasImageSource = (code: string | null, uploaded?: UploadedImages): 
   !!code && (hasBarcode(code) || uploadedVersion(code, uploaded) !== undefined);
 
 /** Fetches `url` and reads the reply with `read`, giving up after TIMEOUT_MS. Any failure answers null, never throws. */
-async function fetchOrNull<T>(url: string, init: RequestInit, read: (res: Response) => Promise<T>): Promise<T | null> {
+export async function fetchOrNull<T>(url: string, init: RequestInit, read: (res: Response) => Promise<T>): Promise<T | null> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
