@@ -1,11 +1,14 @@
 import { Drawer } from "expo-router/drawer";
 import { DrawerContent } from "@/features/drawer/DrawerContent";
+import { useCurrentListId, useList } from "@/features/lists/api";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 
 /** Tabs, My items and Settings live in the drawer. No swipe: only the menu icon opens it, so swiping a List row can't. */
 export default function DrawerLayout() {
   const { colors, radius } = useTheme();
+  // Load the List while Home shows, so My list and My items open with it instead of a spinner.
+  useList(useCurrentListId(), { poll: false });
   return (
     <Drawer
       drawerContent={(props) => <DrawerContent {...props} />}
