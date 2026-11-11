@@ -2,17 +2,20 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult, type Barc
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { CameraOff } from "lucide-react-native";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Alert, Linking, View, type ViewStyle } from "react-native";
 import { useList } from "@/features/lists/api";
 import { Events, Taps, track } from "@/lib/analytics";
+import { useDelayed, useMinDuration } from "@/lib/loaderTiming";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
-import { Button, Sheet, SheetHeader, Text } from "@/ui";
+import { Button, SEARCH_MS, SearchLoader, Sheet, SheetHeader, Text } from "@/ui";
 import { handScan, resolveScan } from "./scan";
 
 /** Retail product Barcodes only, so QR codes on shelf labels and packs are never read. */
 const BARCODES: BarcodeType[] = ["ean13", "ean8", "upc_a", "upc_e"];
+// A lookup slower than this shows the searching mascot; a faster one shows its result at once.
+const SLOW_LOOKUP_MS = 400;
 
 /**
  * The scan sheet route: a live camera that reads one Barcode per opening. A found Product or Item goes back to the add
@@ -30,6 +33,14 @@ export function ScanSheet() {
   const reading = useRef(true);
   // An unknown pack stays in front of the camera; only a different Barcode is read again.
   const lastUnknown = useRef<string | null>(null);
+  // Once shown, the mascot plays one full cycle, so a lookup's result waits here until it is done.
+  const searching = useMinDuration(useDelayed(lookingUp, SLOW_LOOKUP_MS), SEARCH_MS);
+  const [result, setResult] = useState<() => void>();
+  useEffect(() => {
+    if (searching || !result) return;
+    setResult(undefined);
+    result();
+  }, [searching, result]);
 
   const read = ({ data }: BarcodeScanningResult) => {
     if (!reading.current || data === lastUnknown.current) return;
@@ -37,25 +48,30 @@ export function ScanSheet() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setUnknown(false);
     setLookingUp(true);
+    const settle = (show: () => void) => {
+      setLookingUp(false);
+      setResult(() => show);
+    };
     resolveScan(data, items).then(
-      (outcome) => {
-        track(Events.itemScanned, { result: outcome.kind === "returned" ? "added" : outcome.kind, from });
-        if (outcome.kind !== "unknown") {
-          handScan(outcome);
+      (outcome) =>
+        settle(() => {
+          track(Events.itemScanned, { result: outcome.kind === "returned" ? "added" : outcome.kind, from });
+          if (outcome.kind !== "unknown") {
+            handScan(outcome);
+            router.back();
+            return;
+          }
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          AccessibilityInfo.announceForAccessibility(`${t("items.scan.unknown.title")}. ${t("items.scan.unknown.body")}`);
+          lastUnknown.current = data;
+          setUnknown(true);
+          reading.current = true;
+        }),
+      () =>
+        settle(() => {
           router.back();
-          return;
-        }
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        AccessibilityInfo.announceForAccessibility(`${t("items.scan.unknown.title")}. ${t("items.scan.unknown.body")}`);
-        lastUnknown.current = data;
-        setUnknown(true);
-        setLookingUp(false);
-        reading.current = true;
-      },
-      () => {
-        router.back();
-        Alert.alert(t("common.error"));
-      },
+          Alert.alert(t("common.error"));
+        }),
     );
   };
 
@@ -80,19 +96,25 @@ export function ScanSheet() {
         </>
       ) : (
         <>
-          {/* The lookup state (#212's searching mascot) takes this card's place while `lookingUp`. */}
-          <View style={card}>
-            {permission?.granted && (
-              <CameraView
-                style={{ flex: 1 }}
-                facing="back"
-                barcodeScannerSettings={{ barcodeTypes: BARCODES }}
-                onBarcodeScanned={lookingUp ? undefined : read}
-                accessibilityLabel={t("items.scan.hint")}
-              />
-            )}
-            <Brackets />
-          </View>
+          {searching ? (
+            // No card behind the mascot: it stands on the sheet itself.
+            <View style={{ height: card.height, justifyContent: "center" }}>
+              <SearchLoader label={t("items.scan.searching")} />
+            </View>
+          ) : (
+            <View style={card}>
+              {permission?.granted && (
+                <CameraView
+                  style={{ flex: 1 }}
+                  facing="back"
+                  barcodeScannerSettings={{ barcodeTypes: BARCODES }}
+                  onBarcodeScanned={lookingUp ? undefined : read}
+                  accessibilityLabel={t("items.scan.hint")}
+                />
+              )}
+              <Brackets />
+            </View>
+          )}
           <View accessibilityLiveRegion="polite" style={{ minHeight: 64, justifyContent: "center", gap: space[1] }}>
             {unknown ? (
               <>
