@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { CameraOff } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Alert, Linking, View, type ViewStyle } from "react-native";
+import { AccessibilityInfo, Alert, AppState, Linking, View, type TextStyle, type ViewStyle } from "react-native";
 import { useList } from "@/features/lists/api";
 import { Events, Taps, track } from "@/lib/analytics";
 import { useDelayed, useMinDuration } from "@/lib/loaderTiming";
@@ -16,6 +16,8 @@ import { handScan, resolveScan } from "./scan";
 const BARCODES: BarcodeType[] = ["ean13", "ean8", "upc_a", "upc_e"];
 // A lookup slower than this shows the searching mascot; a faster one shows its result at once.
 const SLOW_LOOKUP_MS = 400;
+const CAMERA_HEIGHT = 300;
+const centered: TextStyle = { textAlign: "center" };
 
 /**
  * The scan sheet route: a live camera that reads one Barcode per opening. A found Product or Item goes back to the add
@@ -26,7 +28,12 @@ export function ScanSheet() {
   const router = useRouter();
   const { from, listId } = useLocalSearchParams<{ from: "list" | "items"; listId?: string }>();
   const items = useList(listId || null, { poll: false }).data?.items ?? [];
-  const [permission] = useCameraPermissions();
+  const [permission, , getPermission] = useCameraPermissions();
+  // The hook reads the permission once, so read it again when the User comes back from Settings.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => state === "active" && getPermission());
+    return () => sub.remove();
+  }, [getPermission]);
   const [lookingUp, setLookingUp] = useState(false);
   const [unknown, setUnknown] = useState(false);
   // The camera fires many events per second, faster than state updates, so the one-read lock is a ref.
@@ -35,12 +42,12 @@ export function ScanSheet() {
   const lastUnknown = useRef<string | null>(null);
   // Once shown, the mascot plays one full cycle, so a lookup's result waits here until it is done.
   const searching = useMinDuration(useDelayed(lookingUp, SLOW_LOOKUP_MS), SEARCH_MS);
-  const [result, setResult] = useState<() => void>();
+  const [showResult, setShowResult] = useState<() => void>();
   useEffect(() => {
-    if (searching || !result) return;
-    setResult(undefined);
-    result();
-  }, [searching, result]);
+    if (searching || !showResult) return;
+    setShowResult(undefined);
+    showResult();
+  }, [searching, showResult]);
 
   const read = ({ data }: BarcodeScanningResult) => {
     if (!reading.current || data === lastUnknown.current) return;
@@ -48,13 +55,14 @@ export function ScanSheet() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setUnknown(false);
     setLookingUp(true);
-    const settle = (show: () => void) => {
+    // Ends the lookup and queues `show`, which runs once the mascot (if it showed) has finished its cycle.
+    const finishLookup = (show: () => void) => {
       setLookingUp(false);
-      setResult(() => show);
+      setShowResult(() => show);
     };
     resolveScan(data, items).then(
       (outcome) =>
-        settle(() => {
+        finishLookup(() => {
           track(Events.itemScanned, { result: outcome.kind === "returned" ? "added" : outcome.kind, from });
           if (outcome.kind !== "unknown") {
             handScan(outcome);
@@ -68,14 +76,14 @@ export function ScanSheet() {
           reading.current = true;
         }),
       () =>
-        settle(() => {
+        finishLookup(() => {
           router.back();
           Alert.alert(t("common.error"));
         }),
     );
   };
 
-  const card: ViewStyle = { height: 300, borderRadius: radius.group, overflow: "hidden", backgroundColor: colors.surface };
+  const card: ViewStyle = { borderRadius: radius.group, overflow: "hidden", backgroundColor: colors.surface };
   const denied = permission && !permission.granted;
 
   return (
@@ -83,26 +91,26 @@ export function ScanSheet() {
       <SheetHeader title={t("items.scan")} start={{ title: t("common.cancel"), analyticsName: Taps.commonCancel, onPress: () => router.back() }} />
       {denied ? (
         <>
-          <View style={[card, { alignItems: "center", justifyContent: "center", gap: space[3], padding: space[5] }]}>
+          <View style={[card, { minHeight: CAMERA_HEIGHT, alignItems: "center", justifyContent: "center", gap: space[3], padding: space[5] }]}>
             <CameraOff size={40} color={colors.labelSecondary} strokeWidth={1.75} />
-            <Text variant="title3" accessibilityRole="header" style={{ textAlign: "center" }}>
+            <Text variant="title3" accessibilityRole="header" style={centered}>
               {t("items.scan.denied.title")}
             </Text>
-            <Text variant="subhead" color="labelSecondary" style={{ textAlign: "center", maxWidth: 300 }}>
+            <Text variant="subhead" color="labelSecondary" style={[centered, { paddingHorizontal: space[8] }]}>
               {t("items.scan.denied.body")}
             </Text>
           </View>
-          <Button title={t("settings.openSettings")} analyticsName={Taps.settingsOpenSettings} onPress={() => Linking.openSettings()} />
+          <Button title={t("settings.openSettings")} analyticsName={Taps.itemsScanOpenSettings} onPress={() => Linking.openSettings()} />
         </>
       ) : (
         <>
           {searching ? (
             // No card behind the mascot: it stands on the sheet itself.
-            <View style={{ height: card.height, justifyContent: "center" }}>
+            <View style={{ height: CAMERA_HEIGHT, justifyContent: "center" }}>
               <SearchLoader label={t("items.scan.searching")} />
             </View>
           ) : (
-            <View style={card}>
+            <View style={[card, { height: CAMERA_HEIGHT }]}>
               {permission?.granted && (
                 <CameraView
                   style={{ flex: 1 }}
@@ -115,14 +123,14 @@ export function ScanSheet() {
               <Brackets />
             </View>
           )}
-          <View accessibilityLiveRegion="polite" style={{ minHeight: 64, justifyContent: "center", gap: space[1] }}>
+          <View accessibilityLiveRegion="polite" style={{ minHeight: space[11], justifyContent: "center", gap: space[1] }}>
             {unknown ? (
               <>
-                <Text variant="headline" style={{ textAlign: "center" }}>{t("items.scan.unknown.title")}</Text>
-                <Text variant="subhead" color="labelSecondary" style={{ textAlign: "center" }}>{t("items.scan.unknown.body")}</Text>
+                <Text variant="headline" style={centered}>{t("items.scan.unknown.title")}</Text>
+                <Text variant="subhead" color="labelSecondary" style={centered}>{t("items.scan.unknown.body")}</Text>
               </>
             ) : (
-              <Text variant="subhead" color="labelSecondary" style={{ textAlign: "center" }}>{t("items.scan.hint")}</Text>
+              <Text variant="subhead" color="labelSecondary" style={centered}>{t(searching ? "items.scan.searching" : "items.scan.hint")}</Text>
             )}
           </View>
         </>

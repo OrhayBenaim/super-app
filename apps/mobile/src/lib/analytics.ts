@@ -104,6 +104,7 @@ export const Taps = {
   itemsQuantity: "items.quantity",
   itemsRemoveFromList: "items.removeFromList",
   itemsScan: "items.scan",
+  itemsScanOpenSettings: "items.scan.openSettings",
   listCheapest: "list.cheapest",
   listCheck: "list.check",
   listItem: "list.item",
