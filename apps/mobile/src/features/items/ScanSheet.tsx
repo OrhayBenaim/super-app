@@ -130,7 +130,7 @@ export function ScanSheet() {
                 <Text variant="subhead" color="labelSecondary" style={centered}>{t("items.scan.unknown.body")}</Text>
               </>
             ) : (
-              <Text variant="subhead" color="labelSecondary" style={centered}>{t(searching ? "items.scan.searching" : "items.scan.hint")}</Text>
+              <Text variant="subhead" color="labelSecondary" style={centered}>{searching ? "" : t("items.scan.hint")}</Text>
             )}
           </View>
         </>
