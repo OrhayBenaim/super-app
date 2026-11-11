@@ -37,10 +37,10 @@ export function SearchLoader({ label }: { label: string }) {
       {/* The 84pt rig at 128pt, standing on the scene's bottom edge. */}
       <View style={{ position: "absolute", start: (W - SIZE) / 2, bottom: 0, width: SIZE, height: SIZE, transform: [{ scale: SCALE }], transformOrigin: "50% 100%" }}>
         <Part part="shadow" origin="50% 94%" anim={shadow} />
-        <Image source={parts.footL} style={{ position: "absolute", width: SIZE, height: SIZE }} />
-        <Image source={parts.footR} style={{ position: "absolute", width: SIZE, height: SIZE }} />
+        <Part part="footL" />
+        <Part part="footR" />
         <Bone origin="50% 88%" anim={torso}>
-          <Part part="armL" origin="20% 63%" anim={{}} />
+          <Part part="armL" />
           <Part part="armRGlass" origin="80% 63%" anim={glass} />
           <Image source={parts.body} style={{ width: SIZE, height: SIZE }} />
           <Bone origin="50% 50%" anim={eyes}>

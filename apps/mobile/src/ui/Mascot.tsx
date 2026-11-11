@@ -25,11 +25,12 @@ export const parts = {
 const box = { position: "absolute" as const, top: 0, start: 0, width: SIZE, height: SIZE };
 
 /** One bone of the mascot: a full-size layer that rotates and scales around `origin` ("x% y%" of the box). */
-export function Bone({ origin, anim, children }: { origin: string; anim: object; children: ReactNode }) {
+export function Bone({ origin, anim, children }: { origin?: string; anim?: object; children: ReactNode }) {
   const reduced = useReducedMotion();
   return <Animated.View style={[box, { transformOrigin: origin }, !reduced && anim]}>{children}</Animated.View>;
 }
-export function Part({ part, origin, anim }: { part: keyof typeof parts; origin: string; anim: object }) {
+/** A bone holding one image; a part with no `anim` stays still. */
+export function Part({ part, origin, anim }: { part: keyof typeof parts; origin?: string; anim?: object }) {
   return (
     <Bone origin={origin} anim={anim}>
       <Image source={parts[part]} style={{ width: SIZE, height: SIZE }} />
