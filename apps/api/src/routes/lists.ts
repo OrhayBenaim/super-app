@@ -23,7 +23,7 @@ const itemFields = z.object({
 });
 // An item is matched to one product or one Product group, never both.
 const oneMatch = [(b: { productCode?: string | null; groupRef?: string | null }) => !(b.productCode && b.groupRef), "send productCode or groupRef, not both"] as const;
-const itemBody = itemFields.refine(...oneMatch);
+const itemBody = itemFields.extend({ id: z.uuid() }).refine(...oneMatch); // the id is made by the phone
 const itemPatch = itemFields.partial().refine(...oneMatch);
 const joinBody = z.object({ code: z.string().trim().min(1).max(32) });
 /** Name of the List a User gets automatically, stored as is and shown the same on every phone. */
@@ -172,10 +172,13 @@ export const listsRoutes = new Hono<AppEnv>()
     if (!roleOf(db, listId, c.var.user.id)) return notFound(c);
     const p = await parse(c, itemBody);
     if (!p.success) return bad(c, p.error);
-    const { name, category, productCode = null, groupRef = null, missing = true, quantity = QUANTITY.start } = p.data;
+    const { id, name, category, productCode = null, groupRef = null, missing = true, quantity = QUANTITY.start } = p.data;
+    // A retried add (same id, same List) returns the item as it is; an id on another List is not revealed.
+    const existing = db.select().from(items).where(eq(items.id, id)).get();
+    if (existing) return existing.listId === listId ? c.json({ ...existing, soldBy: soldByOfItem(c.var.deps, existing) }) : notFound(c);
     const soldBy = soldByOfItem(c.var.deps, { productCode, groupRef });
     if (!isValidQuantity(quantity, soldBy)) return badQuantity(c, soldBy);
-    const item = db.insert(items).values({ id: randomUUID(), listId, name, category, productCode, groupRef, missing, quantity }).returning().get();
+    const item = db.insert(items).values({ id, listId, name, category, productCode, groupRef, missing, quantity }).returning().get();
     touch(c.var.deps, listId);
     return c.json({ ...item, soldBy });
   })

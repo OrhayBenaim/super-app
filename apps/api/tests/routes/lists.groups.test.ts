@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "#/app.ts";
 import { buildDeps } from "#/deps.ts";
@@ -18,7 +19,7 @@ const call = (method: string, path: string, body?: unknown, auth = true) =>
     headers: { "content-type": "application/json", ...(auth ? { cookie } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-const addItem = async (body: Record<string, unknown>) => (await call("POST", `/${listId}/items`, { category: "Pantry", ...body })).json();
+const addItem = async (body: Record<string, unknown>) => (await call("POST", `/${listId}/items`, { id: randomUUID(), category: "Pantry", ...body })).json();
 const row = (id: string) => deps.db.$client.prepare("SELECT product_code AS productCode, group_ref AS groupRef FROM items WHERE id = ?").get(id) as { productCode: string | null; groupRef: string | null };
 
 beforeAll(async () => {
@@ -47,7 +48,7 @@ describe("items matched to a Product group", () => {
   });
 
   it("400 for both productCode and groupRef, on create and on patch", async () => {
-    expect((await call("POST", `/${listId}/items`, { name: "x", category: "y", productCode: "123", groupRef: "בורגול|kg" })).status).toBe(400);
+    expect((await call("POST", `/${listId}/items`, { id: randomUUID(), name: "x", category: "y", productCode: "123", groupRef: "בורגול|kg" })).status).toBe(400);
     const item = await addItem({ name: "Rice" });
     expect((await call("PATCH", `/${listId}/items/${item.id}`, { productCode: "123", groupRef: "אורז|kg" })).status).toBe(400);
     expect(row(item.id)).toEqual({ productCode: null, groupRef: null });
@@ -56,7 +57,7 @@ describe("items matched to a Product group", () => {
   it("400 for a malformed groupRef, on create and on patch", async () => {
     const item = await addItem({ name: "Oil" });
     for (const groupRef of ["x|kg|3", "x|foo", "x", "", "x|unit", "a\"b|kg"]) {
-      expect((await call("POST", `/${listId}/items`, { name: "x", category: "y", groupRef })).status, groupRef).toBe(400);
+      expect((await call("POST", `/${listId}/items`, { id: randomUUID(), name: "x", category: "y", groupRef })).status, groupRef).toBe(400);
       expect((await call("PATCH", `/${listId}/items/${item.id}`, { groupRef })).status, groupRef).toBe(400);
     }
   });
@@ -77,7 +78,7 @@ describe("items matched to a Product group", () => {
   });
 
   it("401 signed out", async () => {
-    expect((await call("POST", `/${listId}/items`, { name: "x", category: "y", groupRef: "בורגול|kg" }, false)).status).toBe(401);
+    expect((await call("POST", `/${listId}/items`, { id: randomUUID(), name: "x", category: "y", groupRef: "בורגול|kg" }, false)).status).toBe(401);
   });
 });
 
