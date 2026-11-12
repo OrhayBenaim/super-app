@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useIsFocused, useRouter } from "expo-router";
 import { Check, Plus, Share, ShoppingBasket } from "lucide-react-native";
@@ -22,16 +23,16 @@ import { showPill } from "@/features/items/labels";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
 import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
-import { springs, useTheme } from "@/theme";
+import { springs, tokens, useTheme } from "@/theme";
 import { MenuButton } from "@/features/drawer/MenuButton";
 import { EmptyState, Group, IconButton, LargeTitle, OfflineLine, Row, Screen, Tap, Text } from "@/ui";
-import { missingItems, useCategories, useCurrentListId, useItemMutations, useList, type Item } from "./api";
+import { missingItems, refreshList, useCategories, useCurrentListId, useItemMutations, useList, type Item } from "./api";
 import { Avatars } from "./Avatars";
 import { groupByCategory, RECENT_MS, recentlyBought } from "./group";
 
 const LAYOUT = LinearTransition.duration(200);
 const ENTER = FadeIn.duration(200);
-const EXIT = FadeOut.duration(150);
+const EXIT = FadeOut.duration(tokens.motion.duration.fast);
 // Check row: 16 gutter + 24 circle + 12 gap, so hairlines start at the text.
 const CHECK_INSET = 52;
 
@@ -39,6 +40,7 @@ export function ShoppingList() {
   const router = useRouter();
   const { colors, space } = useTheme();
   const listId = useCurrentListId();
+  const qc = useQueryClient();
   const { data, refetch } = useList(listId, { poll: useIsFocused() });
   const categories = useCategories(listId).data ?? [];
   const { update } = useItemMutations(listId);
@@ -63,7 +65,7 @@ export function ShoppingList() {
   // Own flag, not isRefetching: the 5s poll would flash the spinner.
   const onRefresh = async () => {
     setRefreshing(true);
-    await refetch();
+    await refreshList(qc, listId, refetch);
     setRefreshing(false);
   };
 
