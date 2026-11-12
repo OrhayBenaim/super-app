@@ -126,21 +126,36 @@ export const optimisticItem = ({ soldBy = "unit", ...body }: Omit<AddVars, "list
 });
 
 /**
- * The one failure rule for item edits, from the error the edit ended on. #221 adds the case for no status (the request
- * never got a response): that edit pauses instead of failing.
+ * The one failure rule for item edits, from the error the edit ended on.
+ *  - "network": no status, the request never got a response (or timed out); the edit waits for the network and is sent
+ *    again without limit, never undone.
  *  - "retry": a 5xx; sent again with backoff, then it counts as "undo".
  *  - "gone": a 404; the item no longer exists, so a delete is done and an add or update is dropped quietly.
  *  - "undo": any other failure; the item goes back and the toast shows.
  */
-export const failureOf = (e: unknown): "retry" | "gone" | "undo" => {
+export const failureOf = (e: unknown): "network" | "retry" | "gone" | "undo" => {
   const status = e instanceof ApiError ? e.status : 0;
-  return status >= 500 ? "retry" : status === 404 ? "gone" : "undo";
+  return !status ? "network" : status >= 500 ? "retry" : status === 404 ? "gone" : "undo";
 };
 const RETRIES = 3;
+// "online" network mode: an edit made offline waits for the network instead of failing, and so does a retry that finds it gone.
 const retryPolicy = {
-  retry: (count: number, e: unknown) => failureOf(e) === "retry" && count < RETRIES,
+  networkMode: "online" as const,
+  retry: (count: number, e: unknown) => failureOf(e) === "network" || (failureOf(e) === "retry" && count < RETRIES),
   retryDelay: (count: number) => Math.min(1000 * 2 ** count, 30_000),
 };
+
+const EDIT_TIMEOUT = 15_000;
+/** An item-edit request that gives up after EDIT_TIMEOUT: the abort has no status, so it counts as a network error. */
+async function send<T>(path: string, init: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), EDIT_TIMEOUT);
+  try {
+    return await api<T>(path, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** Calls `onFail(name)` once an item edit has given up for good (after its retries), whichever screen it came from. */
 export function onItemSaveFailed(qc: QueryClient, onFail: (name: string) => void) {
@@ -171,7 +186,7 @@ export function registerItemEdits(qc: QueryClient) {
   // `soldBy` only shapes the optimistic row (the server owns it); it is not sent.
   qc.setMutationDefaults(itemKeys.add, {
     ...retryPolicy,
-    mutationFn: ({ listId, soldBy: _, ...body }: AddVars) => api<Item>(`api/lists/${listId}/items`, { method: "POST", body: JSON.stringify(body) }),
+    mutationFn: ({ listId, soldBy: _, ...body }: AddVars) => send<Item>(`api/lists/${listId}/items`, { method: "POST", body: JSON.stringify(body) }),
     onMutate: (vars: AddVars) => {
       start(vars.listId);
       patchItems(vars.listId, (items) => [...items, optimisticItem(vars, vars.listId, new Date().toISOString())]);
@@ -188,7 +203,7 @@ export function registerItemEdits(qc: QueryClient) {
 
   qc.setMutationDefaults(itemKeys.update, {
     ...retryPolicy,
-    mutationFn: ({ listId, id, ...patch }: UpdateVars) => api<Item>(`api/lists/${listId}/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    mutationFn: ({ listId, id, ...patch }: UpdateVars) => send<Item>(`api/lists/${listId}/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
     onMutate: ({ listId, id, ...patch }: UpdateVars) => {
       start(listId);
       const before = qc.getQueryData<ListDetail>(listKeys.detail(listId))?.items.find((i) => i.id === id);
@@ -223,7 +238,7 @@ export function registerItemEdits(qc: QueryClient) {
     ...retryPolicy,
     // Already deleted (the spouse got there first) is what the User asked for.
     mutationFn: ({ listId, id }: RemoveVars) =>
-      api<void>(`api/lists/${listId}/items/${id}`, { method: "DELETE" }).catch((e: unknown) => {
+      send<void>(`api/lists/${listId}/items/${id}`, { method: "DELETE" }).catch((e: unknown) => {
         if (failureOf(e) !== "gone") throw e;
       }),
     onMutate: ({ listId, id }: RemoveVars) => {
