@@ -20,6 +20,19 @@ describe("debounce", () => {
     expect(compare).toHaveBeenCalledWith(last);
   });
 
+  it("calls at once while `immediate` says so (the first non-empty basket), then waits for later changes", () => {
+    const fn = vi.fn();
+    let first = true;
+    const settle = debounce(fn, SETTLE_MS, () => first);
+    settle("first");
+    expect(fn).toHaveBeenCalledWith("first");
+    first = false;
+    settle("later");
+    expect(fn).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(SETTLE_MS);
+    expect(fn).toHaveBeenLastCalledWith("later");
+  });
+
   it("cancel drops the pending call", () => {
     const fn = vi.fn();
     const settle = debounce(fn, SETTLE_MS);
