@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { useIsFocused, useRouter } from "expo-router";
 import { Check, Plus, Share, ShoppingBasket } from "lucide-react-native";
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { ActivityIndicator, RefreshControl, View } from "react-native";
 import Animated, {
   FadeIn,
@@ -31,7 +31,7 @@ import { groupByCategory, RECENT_MS, recentlyBought } from "./group";
 
 const LAYOUT = LinearTransition.duration(200);
 const ENTER = FadeIn.duration(200);
-const EXIT = FadeOut.duration(200);
+const EXIT = FadeOut.duration(150);
 // Check row: 16 gutter + 24 circle + 12 gap, so hairlines start at the text.
 const CHECK_INSET = 52;
 
@@ -50,7 +50,16 @@ export function ShoppingList() {
   const missing = missingItems(data);
   const groups = groupByCategory(missing, categories);
   const recent = recentlyBought(data?.items ?? [], 50, Date.now() - RECENT_MS);
-  const bought = (id: string) => update.mutate({ id, missing: false }, { onSuccess: () => track(Events.listItemChecked) });
+  const { mutate } = update;
+  // Stable callbacks that take the id, so a memoized row re-renders only when its own item changes.
+  const bought = useCallback((id: string) => mutate({ id, missing: false }, { onSuccess: () => track(Events.listItemChecked) }), [mutate]);
+  const edit = useCallback(
+    (id: string) => {
+      track(Events.itemEditOpened, { from: "list" });
+      router.push({ pathname: "/item/[id]", params: { id } });
+    },
+    [router],
+  );
   // Own flag, not isRefetching: the 5s poll would flash the spinner.
   const onRefresh = async () => {
     setRefreshing(true);
@@ -119,10 +128,7 @@ export function ShoppingList() {
                   <Group title={g.category} count={g.count} inset={CHECK_INSET + space[5]}>
                     {g.items.map((item) => (
                       <Animated.View key={item.id} layout={LAYOUT} entering={ENTER} exiting={EXIT}>
-                        <CheckRow item={item} onBought={bought} onEdit={() => {
-                          track(Events.itemEditOpened, { from: "list" });
-                          router.push({ pathname: "/item/[id]", params: { id: item.id } });
-                        }} />
+                        <CheckRow item={item} onBought={bought} onEdit={edit} />
                       </Animated.View>
                     ))}
                   </Group>
@@ -148,7 +154,7 @@ export function ShoppingList() {
 }
 
 /** Leading check circle (the only way to tick), name; long-press edits. Checked: strike-through, then the row leaves. */
-function CheckRow({ item, onBought, onEdit }: { item: Item; onBought: (id: string) => void; onEdit: () => void }) {
+const CheckRow = memo(function CheckRow({ item, onBought, onEdit }: { item: Item; onBought: (id: string) => void; onEdit: (id: string) => void }) {
   const { colors, space, size, motion } = useTheme();
   const reduced = useReducedMotion();
   const [done, setDone] = useState(false);
@@ -199,7 +205,7 @@ function CheckRow({ item, onBought, onEdit }: { item: Item; onBought: (id: strin
         scaleTo={1}
         onLongPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          onEdit();
+          onEdit(item.id);
         }}
         style={{ flex: 1, alignSelf: "stretch", justifyContent: "center", paddingEnd: space[5] }}
       >
@@ -214,4 +220,4 @@ function CheckRow({ item, onBought, onEdit }: { item: Item; onBought: (id: strin
       )}
     </Animated.View>
   );
-}
+});
