@@ -8,7 +8,7 @@ vi.mock("expo-secure-store", () => ({ getItem: () => null, setItemAsync: vi.fn()
 
 import { api } from "@/lib/api";
 import {
-  basketSize, currentListId, itemEdit, listDetailOptions, listKeys, matchKey, missingBasket, optimisticItem, registerItemEdits,
+  basketSize, currentListId, itemEdit, listDetailOptions, listKeys, matchKey, missingBasket, optimisticItem, reAdd, registerItemEdits,
   type Item, type ListDetail,
 } from "@/features/lists/api";
 
@@ -78,17 +78,23 @@ describe("currentListId", () => {
   });
 });
 
+describe("reAdd", () => {
+  it("is Undo: the same id and every field, Quantity included", () => {
+    const gone = item("g", { name: "Eggs", category: "Dairy", productCode: "729", quantity: 6, missing: false, soldBy: "weight" });
+    expect(reAdd(gone)).toEqual({ id: "g", name: "Eggs", category: "Dairy", productCode: "729", groupRef: null, missing: false, quantity: 6, soldBy: "weight" });
+  });
+});
+
 describe("optimisticItem", () => {
   it("shows a new item at once with what was sent, and the API's defaults for the rest", () => {
-    expect(optimisticItem({ name: "חלב", category: "אחר", groupRef: "חלב|l", quantity: 2, soldBy: "unit" }, "l", "now")).toMatchObject({
-      listId: "l", name: "חלב", category: "אחר", groupRef: "חלב|l", productCode: null, missing: true, quantity: 2, soldBy: "unit",
+    expect(optimisticItem({ id: "n1", name: "חלב", category: "אחר", groupRef: "חלב|l", quantity: 2, soldBy: "unit" }, "l", "now")).toMatchObject({
+      id: "n1", listId: "l", name: "חלב", category: "אחר", groupRef: "חלב|l", productCode: null, missing: true, quantity: 2, soldBy: "unit",
     });
-    expect(optimisticItem({ name: "x", category: "y", missing: false }, "l", "now")).toMatchObject({ missing: false, quantity: 1, soldBy: "unit" });
+    expect(optimisticItem({ id: "n2", name: "x", category: "y", missing: false }, "l", "now")).toMatchObject({ missing: false, quantity: 1, soldBy: "unit" });
   });
 
-  it("gives every pending item its own id", () => {
-    const body = { name: "x", category: "y" };
-    expect(optimisticItem(body, "l", "now").id).not.toBe(optimisticItem(body, "l", "now").id);
+  it("shows the row under the id the phone made", () => {
+    expect(optimisticItem({ id: "n3", name: "x", category: "y" }, "l", "now").id).toBe("n3");
   });
 });
 
@@ -159,8 +165,8 @@ describe("item edits", () => {
     void tap("update", { id: "a", missing: false });
     void tap("update", { id: "b", missing: false });
     void tap("remove", { id: "c" });
-    await tap("add", { name: "new", category: "c" });
-    expect(items().map((i) => i.id)).toEqual(["a", "b", expect.stringMatching(/^pending-/)]); // c is gone
+    await tap("add", { id: "n", name: "new", category: "c" });
+    expect(items().map((i) => i.id)).toEqual(["a", "b", "n"]); // c is gone
     calls[0]!.fail(new Error("500"));
     await tick();
     expect(state()).toMatchObject({ a: true, b: false });
@@ -168,11 +174,22 @@ describe("item edits", () => {
     await tick();
     calls[2]!.fail(new Error("500")); // the delete
     await tick();
-    expect(items().map((i) => i.id)).toEqual(["a", "b", "c", expect.stringMatching(/^pending-/)]);
+    expect(items().map((i) => i.id)).toEqual(["a", "b", "c", "n"]);
     calls[3]!.fail(new Error("500")); // the add
     await tick();
     expect(items().map((i) => i.id)).toEqual(["a", "b", "c"]);
     expect(state()).toEqual({ a: true, b: false, c: true });
+  });
+
+  it("sends the phone-made id, keeps the row under it, and lets a later edit of the new item use it at once", async () => {
+    void tap("add", { id: "n", name: "new", category: "c", quantity: 3 });
+    await tap("update", { id: "n", missing: false });
+    expect(JSON.parse(String((vi.mocked(api).mock.calls[0]![1] as RequestInit).body))).toMatchObject({ id: "n", name: "new", quantity: 3 });
+    expect(items().at(-1)).toMatchObject({ id: "n", missing: false });
+    calls[0]!.ok(item("n", { name: "new", quantity: 3, createdAt: "t" }));
+    await tick();
+    expect(items().map((i) => i.id)).toEqual(["a", "b", "c", "n"]);
+    expect(sent().map((c) => c.path)).toEqual(["api/lists/l/items", "api/lists/l/items/n"]);
   });
 
   it("keeps a poll answer that arrives while an edit is in flight from overwriting it, then refetches once", async () => {

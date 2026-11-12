@@ -10,3 +10,6 @@ vi.mock("posthog-react-native", () => ({
     flush = async () => {};
   },
 }));
+
+// expo-crypto needs the native runtime (__DEV__); Node's own randomUUID stands in.
+vi.mock("expo-crypto", () => ({ randomUUID: () => crypto.randomUUID() }));
