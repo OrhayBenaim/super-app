@@ -4,6 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { Events, track } from "@/lib/analytics";
 import { api } from "@/lib/api";
+import { ApiError } from "@/lib/api-error";
 import { QUANTITY, type SoldBy } from "@grocer/shared/quantity";
 
 export type List = { id: string; name: string; ownerId: string; role: "owner" | "member"; memberCount: number; updatedAt: string };
@@ -117,6 +118,32 @@ export const optimisticItem = ({ soldBy = "unit", ...body }: NewItem, listId: st
   updatedAt: now,
 });
 
+/**
+ * The one failure rule for item edits, from the error the edit ended on. #221 adds the case for no status (the request
+ * never got a response): that edit pauses instead of failing.
+ *  - "retry": a 5xx; sent again with backoff, then it counts as "undo".
+ *  - "gone": a 404; the item no longer exists, so a delete is done and an add or update is dropped quietly.
+ *  - "undo": any other failure; the item goes back and the toast shows.
+ */
+export const failureOf = (e: unknown): "retry" | "gone" | "undo" => {
+  const status = e instanceof ApiError ? e.status : 0;
+  return status >= 500 ? "retry" : status === 404 ? "gone" : "undo";
+};
+const RETRIES = 3;
+const retryPolicy = {
+  retry: (count: number, e: unknown) => failureOf(e) === "retry" && count < RETRIES,
+  retryDelay: (count: number) => Math.min(1000 * 2 ** count, 30_000),
+};
+
+/** Calls `onFail(name)` once an item edit has given up for good (after its retries), whichever screen it came from. */
+export function onItemSaveFailed(qc: QueryClient, onFail: (name: string) => void) {
+  return qc.getMutationCache().subscribe((event) => {
+    if (event.type !== "updated" || event.action.type !== "error" || event.mutation.options.mutationKey?.[0] !== itemKeys.all[0]) return;
+    if (failureOf(event.action.error) === "gone") return;
+    onFail((event.mutation.state.context as { name?: string } | undefined)?.name ?? "");
+  });
+}
+
 const inScope = (listId: string) => (m: { options: { scope?: { id: string } } }) => m.options.scope?.id === itemScope(listId).id;
 /** Item edits for a List that are queued, paused or in flight: reads of that List wait for them. */
 export const itemEditsPending = (qc: QueryClient, listId: string) => qc.isMutating({ mutationKey: itemKeys.all, predicate: inScope(listId) });
@@ -136,12 +163,13 @@ export function registerItemEdits(qc: QueryClient) {
 
   // `soldBy` only shapes the optimistic row (the server owns it); it is not sent.
   qc.setMutationDefaults(itemKeys.add, {
+    ...retryPolicy,
     mutationFn: ({ listId, soldBy: _, ...body }: AddVars) => api<Item>(`api/lists/${listId}/items`, { method: "POST", body: JSON.stringify(body) }),
     onMutate: (vars: AddVars) => {
       start(vars.listId);
       const temp = optimisticItem(vars, vars.listId, new Date().toISOString());
       patchItems(vars.listId, (items) => [...items, temp]);
-      return { tempId: temp.id };
+      return { tempId: temp.id, name: vars.name };
     },
     onError: (_e: unknown, { listId }: AddVars, ctx?: { tempId: string }) => patchItems(listId, (items) => items.filter((i) => i.id !== ctx?.tempId)),
     // Swap the pending row's id for the server's now, not at the next refetch; the rest stays as tapped.
@@ -153,15 +181,17 @@ export function registerItemEdits(qc: QueryClient) {
   });
 
   qc.setMutationDefaults(itemKeys.update, {
+    ...retryPolicy,
     mutationFn: ({ listId, id, ...patch }: UpdateVars) => api<Item>(`api/lists/${listId}/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
     onMutate: ({ listId, id, ...patch }: UpdateVars) => {
       start(listId);
       const before = qc.getQueryData<ListDetail>(listKeys.detail(listId))?.items.find((i) => i.id === id);
       patchItem(listId, id, (i) => ({ ...i, ...patch }));
-      return { before };
+      return { before, name: before?.name ?? patch.name };
     },
-    // Put back the fields this edit changed, unless a later edit has changed them since.
-    onError: (_e: unknown, { listId, id, ...patch }: UpdateVars, ctx?: { before?: Item }) =>
+    // Put back the fields this edit changed, unless a later edit has changed them since. A gone item is not put back: the refetch drops it.
+    onError: (e: unknown, { listId, id, ...patch }: UpdateVars, ctx?: { before?: Item }) =>
+      failureOf(e) !== "gone" &&
       ctx?.before &&
       patchItem(listId, id, (cur) => {
         const undone: Record<string, unknown> = { ...cur };
@@ -184,12 +214,18 @@ export function registerItemEdits(qc: QueryClient) {
   });
 
   qc.setMutationDefaults(itemKeys.remove, {
-    mutationFn: ({ listId, id }: RemoveVars) => api<void>(`api/lists/${listId}/items/${id}`, { method: "DELETE" }),
+    ...retryPolicy,
+    // Already deleted (the spouse got there first) is what the User asked for.
+    mutationFn: ({ listId, id }: RemoveVars) =>
+      api<void>(`api/lists/${listId}/items/${id}`, { method: "DELETE" }).catch((e: unknown) => {
+        if (failureOf(e) !== "gone") throw e;
+      }),
     onMutate: ({ listId, id }: RemoveVars) => {
       start(listId);
       const items = qc.getQueryData<ListDetail>(listKeys.detail(listId))?.items ?? [];
       patchItems(listId, (all) => all.filter((i) => i.id !== id));
-      return { item: items.find((i) => i.id === id), index: items.findIndex((i) => i.id === id) };
+      const item = items.find((i) => i.id === id);
+      return { item, index: items.findIndex((i) => i.id === id), name: item?.name };
     },
     onError: (_e: unknown, { listId }: RemoveVars, ctx?: { item?: Item; index: number }) =>
       ctx?.item && patchItems(listId, (items) => (items.some((i) => i.id === ctx.item!.id) ? items : items.toSpliced(ctx.index, 0, ctx.item!))),
