@@ -9,7 +9,7 @@ import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { MenuButton } from "@/features/drawer/MenuButton";
-import { EmptyState, Group, IconButton, LargeTitle, Screen, SearchField, SwipeRow, Text } from "@/ui";
+import { EmptyState, Group, IconButton, LargeTitle, OfflineLine, Screen, SearchField, SwipeRow, Text } from "@/ui";
 import { AddField } from "./AddField";
 import { ItemRow } from "./ItemRow";
 import { useDeleteWithUndo } from "./useDeleteWithUndo";
@@ -54,12 +54,12 @@ export function MyItems() {
         <ActivityIndicator style={{ flex: 1 }} color={colors.labelSecondary} />
       ) : items.length === 0 ? (
         <Animated.View entering={ENTER} style={{ flex: 1, paddingHorizontal: space[5] }}>
-          <LargeTitle start={<MenuButton />} title={t("tabs.items")} nav={nav} />
+          <LargeTitle start={<MenuButton />} title={t("tabs.items")} status={<OfflineLine />} nav={nav} />
           <EmptyState title={t("items.empty.title")} body={t("items.empty.body")} action={{ title: t("items.empty.cta"), analyticsName: Taps.itemsEmptyCta, onPress: () => setAdding(true) }} />
         </Animated.View>
       ) : (
         <Animated.ScrollView contentContainerStyle={{ paddingHorizontal: space[5], paddingBottom: space[9] }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <LargeTitle start={<MenuButton />} title={t("tabs.items")} nav={nav} />
+          <LargeTitle start={<MenuButton />} title={t("tabs.items")} status={<OfflineLine />} nav={nav} />
           <SearchField label={t("items.search.placeholder")} value={query} onChangeText={setQuery} returnKeyType="search" />
           {groups.length === 0 && (
             <Text variant="callout" color="labelSecondary" style={{ paddingTop: space[7], textAlign: "center" }}>
