@@ -8,12 +8,14 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "@/features/geofence/task"; // registers the background geofence task at startup
 import { useNearbyNotificationTap } from "@/features/geofence/useNearbyNotificationTap";
+import { registerItemEdits } from "@/features/lists/api";
 import { usePendingInvite } from "@/features/share/usePendingInvite";
 import { useAnalytics } from "@/lib/useAnalytics";
 import { authClient } from "@/lib/auth-client";
 import { useTheme } from "@/theme";
 
 const queryClient = new QueryClient();
+registerItemEdits(queryClient);
 
 // Keep the native splash (logo) up until the session is read, instead of a blank first frame.
 SplashScreen.preventAutoHideAsync();
