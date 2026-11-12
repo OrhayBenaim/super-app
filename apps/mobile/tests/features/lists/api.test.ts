@@ -1,4 +1,4 @@
-import { MutationObserver, QueryClient, QueryObserver } from "@tanstack/react-query";
+import { MutationObserver, QueryClient, QueryObserver, onlineManager } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api", () => ({ api: vi.fn() }));
@@ -9,7 +9,7 @@ vi.mock("expo-secure-store", () => ({ getItem: () => null, setItemAsync: vi.fn()
 import { api } from "@/lib/api";
 import { ApiError } from "@/lib/api-error";
 import {
-  basketSize, currentListId, itemEdit, listDetailOptions, listKeys, matchKey, missingBasket, onItemSaveFailed, optimisticItem, reAdd, registerItemEdits,
+  basketSize, currentListId, failureOf, itemEdit, itemEditsPending, listDetailOptions, listKeys, matchKey, missingBasket, onItemSaveFailed, optimisticItem, reAdd, registerItemEdits,
   type Item, type ListDetail,
 } from "@/features/lists/api";
 
@@ -86,6 +86,16 @@ describe("reAdd", () => {
   });
 });
 
+describe("failureOf", () => {
+  it("sorts the error by what the item edit should do next", () => {
+    expect(failureOf(new TypeError("Network request failed"))).toBe("network");
+    expect(failureOf(new DOMException("timed out", "AbortError"))).toBe("network");
+    expect(failureOf(new ApiError("x", 503))).toBe("retry");
+    expect(failureOf(new ApiError("x", 404))).toBe("gone");
+    expect(failureOf(new ApiError("x", 422))).toBe("undo");
+  });
+});
+
 describe("optimisticItem", () => {
   it("shows a new item at once with what was sent, and the API's defaults for the rest", () => {
     expect(optimisticItem({ id: "n1", name: "חלב", category: "אחר", groupRef: "חלב|l", quantity: 2, soldBy: "unit" }, "l", "now")).toMatchObject({
@@ -122,9 +132,13 @@ describe("item edits", () => {
       new Promise((ok, fail) => calls.push({ method: init?.method ?? "GET", path, ok, fail }))) as never);
     qc = new QueryClient();
     registerItemEdits(qc);
+    qc.mount(); // the provider does this in the app: it sends paused edits once the phone is back online
     qc.setQueryData(key, detail([item("a"), item("b"), item("c")]));
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    qc.unmount();
+    vi.useRealTimers();
+  });
 
   it("shows quick toggles of different items at once and never an old state", async () => {
     void tap("update", { id: "a", missing: false });
@@ -169,15 +183,15 @@ describe("item edits", () => {
     void tap("remove", { id: "c" });
     await tap("add", { id: "n", name: "new", category: "c" });
     expect(items().map((i) => i.id)).toEqual(["a", "b", "n"]); // c is gone
-    calls[0]!.fail(new Error("500"));
+    calls[0]!.fail(new ApiError("422", 422));
     await tick();
     expect(state()).toMatchObject({ a: true, b: false });
     calls[1]!.ok(item("b", { missing: false }));
     await tick();
-    calls[2]!.fail(new Error("500")); // the delete
+    calls[2]!.fail(new ApiError("422", 422)); // the delete
     await tick();
     expect(items().map((i) => i.id)).toEqual(["a", "b", "c", "n"]);
-    calls[3]!.fail(new Error("500")); // the add
+    calls[3]!.fail(new ApiError("422", 422)); // the add
     await tick();
     expect(items().map((i) => i.id)).toEqual(["a", "b", "c"]);
     expect(state()).toEqual({ a: true, b: false, c: true });
@@ -213,6 +227,105 @@ describe("item edits", () => {
     await tick();
     expect(gets()).toBe(2); // exactly one, after the last
     stop();
+  });
+
+  describe("when the phone is offline", () => {
+    afterEach(() => onlineManager.setOnline(true));
+    const goOnline = async () => {
+      onlineManager.setOnline(true);
+      await tick();
+    };
+
+    it("shows edits at once, sends nothing, then sends them in tap order once back online", async () => {
+      onlineManager.setOnline(false);
+      void tap("update", { id: "a", missing: false });
+      void tap("remove", { id: "b" });
+      await tap("add", { id: "n", name: "new", category: "c" });
+      expect(items().map((i) => i.id)).toEqual(["a", "c", "n"]);
+      expect(state().a).toBe(false);
+      expect(sent()).toHaveLength(0);
+      await goOnline();
+      expect(sent().map((c) => c.path)).toEqual(["api/lists/l/items/a"]);
+      calls[0]!.ok(item("a", { missing: false }));
+      await tick();
+      calls[1]!.ok(undefined);
+      await tick();
+      expect(sent().map((c) => `${c.method} ${c.path}`)).toEqual(["PATCH api/lists/l/items/a", "DELETE api/lists/l/items/b", "POST api/lists/l/items"]);
+    });
+
+    it("lets a new item be changed and checked off while still offline, then creates it before changing it", async () => {
+      onlineManager.setOnline(false);
+      void tap("add", { id: "n", name: "new", category: "c" });
+      void tap("update", { id: "n", quantity: 3 });
+      await tap("update", { id: "n", missing: false });
+      expect(items().at(-1)).toMatchObject({ id: "n", quantity: 3, missing: false });
+      await goOnline();
+      expect(sent().map((c) => `${c.method} ${c.path}`)).toEqual(["POST api/lists/l/items"]);
+      calls[0]!.ok(item("n", { name: "new" }));
+      await tick();
+      calls[1]!.ok(item("n", { quantity: 3 }));
+      await tick();
+      expect(sent().map((c) => `${c.method} ${c.path}`)).toEqual(["POST api/lists/l/items", "PATCH api/lists/l/items/n", "PATCH api/lists/l/items/n"]);
+      expect(items().at(-1)).toMatchObject({ quantity: 3, missing: false });
+    });
+
+    it("holds off refetches while edits wait, then refetches after the last one", async () => {
+      const watcher = new QueryObserver(qc, listDetailOptions("l")); // stale at once, so it refetches on reconnect
+      const stop = watcher.subscribe(() => {});
+      await tick();
+      calls[0]!.ok(detail([item("a"), item("b"), item("c")]));
+      await tick();
+      calls.length = 0;
+      onlineManager.setOnline(false);
+      void tap("update", { id: "a", missing: false });
+      await tap("update", { id: "b", missing: false });
+      expect(itemEditsPending(qc, "l")).toBe(2); // paused edits count
+      await goOnline();
+      expect(gets()).toBe(0); // reconnecting does not refetch while edits go out
+      calls[0]!.ok(item("a", { missing: false }));
+      await tick();
+      expect(gets()).toBe(0);
+      calls[1]!.ok(item("b", { missing: false }));
+      await tick();
+      expect(gets()).toBeGreaterThan(0); // the List catches up once the last edit has gone
+      stop();
+    });
+
+    it("pauses an edit whose request never got a response, and sends it again once back online", async () => {
+      vi.useFakeTimers();
+      await tap("update", { id: "a", missing: false });
+      onlineManager.setOnline(false);
+      calls[0]!.fail(new TypeError("Network request failed"));
+      await tick();
+      expect(sent()).toHaveLength(1);
+      expect(state().a).toBe(false); // still as tapped, no undo
+      await goOnline();
+      await vi.advanceTimersByTimeAsync(1000); // its backoff
+      expect(sent()).toHaveLength(2);
+    });
+
+    it("keeps retrying a request that gets no response, with backoff capped at 30s, never undoing or toasting", async () => {
+      vi.useFakeTimers();
+      const toasts: string[] = [];
+      onItemSaveFailed(qc, (name) => toasts.push(name));
+      await tap("update", { id: "a", missing: false });
+      for (let n = 1; n <= 8; n++) {
+        calls.at(-1)!.fail(new TypeError("Network request failed"));
+        await vi.advanceTimersByTimeAsync(Math.min(1000 * 2 ** (n - 1), 30_000));
+        expect(sent()).toHaveLength(n + 1);
+      }
+      expect(state().a).toBe(false);
+      expect(toasts).toEqual([]);
+    });
+
+    it("aborts a request that hangs, so it counts as a network error", async () => {
+      vi.useFakeTimers();
+      await tap("update", { id: "a", missing: false });
+      const signal = (vi.mocked(api).mock.calls[0]![1] as RequestInit).signal!;
+      expect(signal.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(signal.aborted).toBe(true);
+    });
   });
 
   describe("when the server fails", () => {
