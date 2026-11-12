@@ -1,10 +1,8 @@
 import { stepQuantity } from "@grocer/shared/quantity";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
-import { Alert } from "react-native";
 import { useItemMutations, type Item } from "@/features/lists/api";
 import { Events, track } from "@/lib/analytics";
-import { t } from "@/lib/strings";
 import { cardSend, cardView, productView, type CardTarget } from "./card";
 
 /** Where the card was tapped, for analytics. */
@@ -19,7 +17,6 @@ export function useCard(target: CardTarget, listId: string | null, items: Item[]
   const { add, update } = useItemMutations(listId);
   const [picked, setPicked] = useState<number | null>(null);
   const view = group ? productView(items, group, target, picked) : cardView(items, target, picked);
-  const fail = () => Alert.alert(t("common.error"));
 
   const step = (dir: 1 | -1) => setPicked(stepQuantity(view.quantity, view.soldBy, dir));
   const act = () => {
@@ -27,10 +24,10 @@ export function useCard(target: CardTarget, listId: string | null, items: Item[]
     if (!send || !listId) return;
     Haptics.selectionAsync();
     if (send.kind === "add") {
-      add.mutate({ ...send.body, soldBy: target.soldBy }, { onError: fail });
+      add.mutate({ ...send.body, soldBy: target.soldBy });
       track(Events.listItemAdded, { existing: false, matched: true, matchedKind: send.body.groupRef ? "group" : "product", screen });
     } else {
-      update.mutate({ id: send.id, ...send.patch }, { onError: fail });
+      update.mutate({ id: send.id, ...send.patch });
       if (!send.patch.missing && !send.patch.productCode) track(Events.itemQuantityChanged, { soldBy: view.soldBy, quantity: send.patch.quantity, screen });
     }
     setPicked(null);
