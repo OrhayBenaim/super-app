@@ -1,7 +1,7 @@
 import { useIsFocused, useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { memo, useCallback, useRef, useState } from "react";
-import { ActivityIndicator, Alert } from "react-native";
+import { ActivityIndicator } from "react-native";
 import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, LinearTransition } from "react-native-reanimated";
 import { useCategories, useCurrentListId, useItemMutations, useList, type Item } from "@/features/lists/api";
 import { groupByCategory } from "@/features/lists/group";
@@ -34,7 +34,7 @@ export function MyItems() {
   const groups = groupByCategory(q ? items.filter((i) => i.name.toLocaleLowerCase().includes(q)) : items, categories);
   const { mutate } = update;
   // Stable callbacks that take the id, so a memoized row re-renders only when its own item changes.
-  const toggle = useCallback((id: string, missing: boolean) => mutate({ id, missing }, { onError: () => Alert.alert(t("common.error")) }), [mutate]);
+  const toggle = useCallback((id: string, missing: boolean) => mutate({ id, missing }), [mutate]);
   const edit = useCallback(
     (id: string) => {
       track(Events.itemEditOpened, { from: "items" });

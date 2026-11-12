@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "@/features/geofence/task"; // registers the background geofence task at startup
 import { useNearbyNotificationTap } from "@/features/geofence/useNearbyNotificationTap";
 import { registerItemEdits } from "@/features/lists/api";
+import { ItemSaveToast } from "@/features/lists/ItemSaveToast";
 import { usePendingInvite } from "@/features/share/usePendingInvite";
 import { useAnalytics } from "@/lib/useAnalytics";
 import { authClient } from "@/lib/auth-client";
@@ -75,6 +76,7 @@ function RootLayout() {
             <Stack.Screen name="(auth)" />
           </Stack.Protected>
         </Stack>
+        <ItemSaveToast />
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

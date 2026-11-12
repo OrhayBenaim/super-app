@@ -1,5 +1,5 @@
 import { MutationObserver, QueryClient, QueryObserver } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api", () => ({ api: vi.fn() }));
 vi.mock("@/lib/analytics", () => ({ Events: {}, track: vi.fn() }));
@@ -7,8 +7,9 @@ vi.mock("@/lib/strings", () => ({ t: (k: string) => k }));
 vi.mock("expo-secure-store", () => ({ getItem: () => null, setItemAsync: vi.fn(), deleteItemAsync: vi.fn() }));
 
 import { api } from "@/lib/api";
+import { ApiError } from "@/lib/api-error";
 import {
-  basketSize, currentListId, itemEdit, listDetailOptions, listKeys, matchKey, missingBasket, optimisticItem, registerItemEdits,
+  basketSize, currentListId, itemEdit, listDetailOptions, listKeys, matchKey, missingBasket, onItemSaveFailed, optimisticItem, registerItemEdits,
   type Item, type ListDetail,
 } from "@/features/lists/api";
 
@@ -97,7 +98,7 @@ describe("item edits", () => {
   type Call = { method: string; path: string; ok: (v: unknown) => void; fail: (e: Error) => void };
   let calls: Call[];
   let qc: QueryClient;
-  const tick = () => new Promise((r) => setTimeout(r, 0));
+  const tick = () => (vi.isFakeTimers() ? vi.advanceTimersByTimeAsync(0) : new Promise((r) => setTimeout(r, 0)));
   const key = listKeys.detail("l");
   const items = () => qc.getQueryData<ListDetail>(key)!.items;
   const state = () => Object.fromEntries(items().map((i) => [i.id, i.missing]));
@@ -117,6 +118,7 @@ describe("item edits", () => {
     registerItemEdits(qc);
     qc.setQueryData(key, detail([item("a"), item("b"), item("c")]));
   });
+  afterEach(() => vi.useRealTimers());
 
   it("shows quick toggles of different items at once and never an old state", async () => {
     void tap("update", { id: "a", missing: false });
@@ -194,5 +196,76 @@ describe("item edits", () => {
     await tick();
     expect(gets()).toBe(2); // exactly one, after the last
     stop();
+  });
+
+  describe("when the server fails", () => {
+    const failWith = (status: number) => new ApiError(`${status}`, status);
+    const toasts: string[] = [];
+    beforeEach(() => {
+      toasts.length = 0;
+      onItemSaveFailed(qc, (name) => toasts.push(name));
+    });
+
+    it("retries a 5xx three times with backoff, then undoes only that item and raises the toast", async () => {
+      vi.useFakeTimers();
+      void tap("update", { id: "a", missing: false });
+      await tap("update", { id: "b", missing: false });
+      calls[0]!.fail(failWith(503));
+      await vi.advanceTimersByTimeAsync(999);
+      expect(sent()).toHaveLength(1); // backing off
+      await vi.advanceTimersByTimeAsync(1);
+      calls.at(-1)!.fail(failWith(503));
+      await vi.advanceTimersByTimeAsync(2000);
+      calls.at(-1)!.fail(failWith(503));
+      await vi.advanceTimersByTimeAsync(4000);
+      calls.at(-1)!.fail(failWith(503));
+      await tick();
+      expect(sent().slice(0, 4).map((c) => c.path)).toEqual(Array(4).fill("api/lists/l/items/a")); // the first try and three retries
+      expect(state()).toEqual({ a: true, b: false, c: true }); // only a went back
+      expect(toasts).toEqual(["a"]);
+      expect(sent().at(-1)!.path).toBe("api/lists/l/items/b"); // the queue moves on
+    });
+
+    it("does not retry another 4xx: the item is undone and the toast shows", async () => {
+      await tap("update", { id: "a", missing: false });
+      calls[0]!.fail(failWith(422));
+      await tick();
+      expect(sent()).toHaveLength(1);
+      expect(state().a).toBe(true);
+      expect(toasts).toEqual(["a"]);
+    });
+
+    it("counts a 404 on a delete as done: no undo, no toast", async () => {
+      await tap("remove", { id: "c" });
+      calls[0]!.fail(failWith(404));
+      await tick();
+      expect(items().map((i) => i.id)).toEqual(["a", "b"]);
+      expect(toasts).toEqual([]);
+    });
+
+    it("drops a 404 on an update silently and refetches the List", async () => {
+      const watcher = new QueryObserver(qc, { ...listDetailOptions("l"), staleTime: Infinity });
+      const stop = watcher.subscribe(() => {});
+      await tick();
+      calls.length = 0;
+      await tap("update", { id: "a", missing: false });
+      calls[0]!.fail(failWith(404));
+      await tick();
+      expect(toasts).toEqual([]);
+      expect(sent()).toHaveLength(1); // not retried
+      expect(gets()).toBe(1); // refetched
+      calls[1]!.ok(detail([item("b"), item("c")])); // the spouse deleted a
+      await tick();
+      expect(items().map((i) => i.id)).toEqual(["b", "c"]);
+      stop();
+    });
+
+    it("drops a 404 on an add silently: the pending row goes, no toast", async () => {
+      await tap("add", { name: "new", category: "c" });
+      calls[0]!.fail(failWith(404));
+      await tick();
+      expect(items().map((i) => i.id)).toEqual(["a", "b", "c"]);
+      expect(toasts).toEqual([]);
+    });
   });
 });
