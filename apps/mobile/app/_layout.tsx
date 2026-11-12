@@ -14,6 +14,7 @@ import { usePendingInvite } from "@/features/share/usePendingInvite";
 import { useAnalytics } from "@/lib/useAnalytics";
 import { authClient } from "@/lib/auth-client";
 import { connectQueryManagers } from "@/lib/online";
+import { keepSavedCopy } from "@/lib/saved";
 import { useTheme } from "@/theme";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,9 @@ function RootLayout() {
   useSentryUser(session?.user.id);
   const { colors, radius, shadow } = useTheme();
   useAnalytics(session?.user.id ?? null);
+  // The saved List copy belongs to the signed-in User: restore it (a copy for another User is thrown away), then keep saving.
+  const userId = session?.user.id;
+  useEffect(() => (userId ? keepSavedCopy(queryClient, userId) : undefined), [userId]);
   // Gate only the first load: a signed-out refetch (sign-in, app focus) sets isPending again,
   // and returning null then would unmount the whole navigator mid-form.
   const loaded = useRef(false);

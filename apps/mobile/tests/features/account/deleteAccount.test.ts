@@ -1,26 +1,28 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ deleteUser: vi.fn(), disable: vi.fn() }));
+const m = vi.hoisted(() => ({ deleteUser: vi.fn(), disable: vi.fn(), wipe: vi.fn() }));
 
 vi.mock("@/lib/auth-client", () => ({ authClient: { deleteUser: m.deleteUser } }));
 vi.mock("@/features/geofence/useNearbyAlerts", () => ({ disableNearbyAlerts: m.disable }));
+vi.mock("@/lib/saved", () => ({ wipeDevice: m.wipe }));
 
 import { deleteAccount } from "@/features/account/deleteAccount";
 
-const clear = vi.fn();
-const qc = { clear } as unknown as QueryClient;
+const clear = m.wipe;
+const qc = {} as QueryClient;
 
 beforeEach(() => {
   vi.resetAllMocks();
+  m.wipe.mockResolvedValue(undefined);
   m.disable.mockResolvedValue(undefined);
 });
 
 describe("deleteAccount", () => {
-  it("clears the cache and disables alerts on success", async () => {
+  it("wipes the phone (cache, queue and saved copy) and disables alerts on success", async () => {
     m.deleteUser.mockResolvedValue({ data: { success: true }, error: null });
     expect(await deleteAccount(qc)).toBe("deleted");
-    expect(clear).toHaveBeenCalledOnce();
+    expect(clear).toHaveBeenCalledWith(qc);
     expect(m.disable).toHaveBeenCalledOnce();
   });
 
@@ -49,6 +51,6 @@ describe("deleteAccount", () => {
     m.deleteUser.mockResolvedValue({ data: { success: true }, error: null });
     m.disable.mockRejectedValue(new Error("location"));
     expect(await deleteAccount(qc)).toBe("deleted");
-    expect(clear).toHaveBeenCalledOnce();
+    expect(clear).toHaveBeenCalledWith(qc);
   });
 });
