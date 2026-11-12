@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 // The app's search, Compare and Lists over the team's group edits and Made groups (docs/adr/0007).
 import { describe, expect, it } from "vitest";
 import { groupWorld, here, MILK1, MILK3, SHOKO, SOY, SOY_LIGHT, sku } from "../__fixtures__/group-world.ts";
@@ -59,7 +60,7 @@ describe("a Made group", () => {
     const { user, team } = await groupWorld();
     const { ref } = (await (await team("/groups", "POST", soyGroup)).json()) as { ref: string };
     const [list] = (await (await user("/api/lists")).json()) as { id: string }[];
-    const added = await user(`/api/lists/${list!.id}/items`, "POST", { name: "חלב סויה", category: "חלב", groupRef: ref });
+    const added = await user(`/api/lists/${list!.id}/items`, "POST", { id: randomUUID(), name: "חלב סויה", category: "חלב", groupRef: ref });
     expect(added.status).toBe(200);
 
     expect((await team(`/groups/${ref}`, "DELETE")).status).toBe(200);

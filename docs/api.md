@@ -12,9 +12,9 @@ Model: a **list** is shared; **items** belong to a list (not a user). A user's f
 | POST | `/lists` | `{ name }` | `List` |
 | GET | `/lists/:id` | | `{ list: List, members: Member[], items: Item[] }` |
 | PATCH | `/lists/:id` | `{ name }` (owner) | `List` |
-| POST | `/lists/:id/items` | `{ name, category, productCode?, groupRef?, missing? = true, quantity? = 1 }` (not both productCode and groupRef) | `Item` |
+| POST | `/lists/:id/items` | `{ id (a UUID made by the phone), name, category, productCode?, groupRef?, missing? = true, quantity? = 1 }` (not both productCode and groupRef) | `Item` |
 | PATCH | `/lists/:id/items/:itemId` | `{ name?, category?, productCode?, groupRef? (null clears; setting one clears the other), missing?, quantity? }` | `Item` |
-| DELETE | `/lists/:id/items/:itemId` | | 204 |
+| DELETE | `/lists/:id/items/:itemId` | | 204 (404 if gone) |
 | GET | `/lists/:id/categories` | | `string[]` distinct categories, most-used first (autocomplete) |
 | POST | `/lists/:id/invite` | | `{ code, url }` — rotates the invite code; `url = grocer://join/<code>` |
 | POST | `/lists/join` | `{ code }` | `List` (adds caller as member) |
@@ -26,6 +26,8 @@ type Member = { userId; name; email; role }
 type SoldBy = "unit" | "weight"   // @grocer/shared/quantity
 type Item = { id; listId; name; category; productCode: string|null; groupRef: string|null; missing: boolean; quantity: number; soldBy: SoldBy; createdAt; updatedAt }
 ```
+**Item ids**: the phone makes them. A missing or non-UUID `id` is 400. Posting an `id` that already exists on the same list returns that item unchanged and creates nothing (a retried add is safe); an `id` on another list is 404.
+
 **Quantity** (CONTEXT.md): a count for `unit` items, kilos for `weight` items. `soldBy` is derived on read from the matched product (weighted with a weight unit: `weight`) or Product group (by the kilo and mostly weighed products: `weight`); unmatched items are `unit`. A sent `quantity` must pass `isValidQuantity` for the item's sold-by after the patch (units: whole, 1-99; weight: steps of 0.5, 0.5-99), else 400. A patch that re-matches the item to a different sold-by resets `quantity` to 1 unless it sends one. Toggling `missing` never changes `quantity`.
 Any member may rotate the invite code. "הרשימה שלי" is auto-created only when the user has no lists. Categories are case-sensitive (client autocomplete mitigates). Any item/list mutation bumps `list.updatedAt`. Realtime: the mobile app polls `GET /lists/:id` (refetchInterval ~5s while focused). `shortcut: polling instead of websockets, upgrade when >2 members per list is common`.
 

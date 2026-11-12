@@ -2,7 +2,7 @@ import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { fmt } from "@/features/compare/format";
-import { useItemMutations, type Item } from "@/features/lists/api";
+import { reAdd, useItemMutations, type Item } from "@/features/lists/api";
 import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { Toast } from "@/ui";
@@ -39,8 +39,7 @@ export function useDeleteWithUndo(listId: string | null) {
         analyticsName: Taps.commonUndo,
         onPress: () => {
           if (!deleted) return;
-          const { name, category, productCode, groupRef, missing } = deleted;
-          add.mutate({ name, category, productCode, groupRef, missing });
+          add.mutate(reAdd(deleted));
         },
       }}
       onHide={() => setDeleted(null)}

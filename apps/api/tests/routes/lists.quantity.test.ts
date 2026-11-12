@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "#/app.ts";
@@ -40,7 +41,7 @@ const call = (method: string, path: string, body?: unknown, as: string | null = 
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 const add = async (body: Record<string, unknown>) => {
-  const res = await call("POST", `/${listId}/items`, { name: "x", category: "c", ...body });
+  const res = await call("POST", `/${listId}/items`, { id: randomUUID(), name: "x", category: "c", ...body });
   expect(res.status).toBe(200);
   return res.json();
 };
@@ -99,8 +100,8 @@ describe("item quantities", () => {
 
   it("creates an item with a quantity, validated against its sold-by", async () => {
     expect(await add({ productCode: banana, quantity: 1.5 })).toMatchObject({ quantity: 1.5 });
-    expect((await call("POST", `/${listId}/items`, { name: "x", category: "c", quantity: 1.5 })).status).toBe(400);
-    expect((await call("POST", `/${listId}/items`, { name: "x", category: "c", quantity: 0 })).status).toBe(400);
+    expect((await call("POST", `/${listId}/items`, { id: randomUUID(), name: "x", category: "c", quantity: 1.5 })).status).toBe(400);
+    expect((await call("POST", `/${listId}/items`, { id: randomUUID(), name: "x", category: "c", quantity: 0 })).status).toBe(400);
   });
 
   it("saves a valid quantity: units take whole numbers, weight half kilos", async () => {

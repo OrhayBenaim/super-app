@@ -1,5 +1,6 @@
 // Shared list data layer (types mirror docs/api.md). Both the list screens and Compare build on this.
 import { useIsMutating, useQuery, useQueryClient, useMutation, type MutateOptions, type QueryClient } from "@tanstack/react-query";
+import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { Events, track } from "@/lib/analytics";
@@ -98,14 +99,20 @@ export const itemScope = (listId: string) => ({ id: `items:${listId}` });
 export const itemEdit = (kind: ItemKind, listId: string) => ({ mutationKey: itemKeys[kind], scope: itemScope(listId) });
 
 type ItemPatch = Partial<Pick<Item, "name" | "category" | "productCode" | "groupRef" | "missing" | "quantity">>;
-export type NewItem = { name: string; category: string; productCode?: string | null; groupRef?: string | null; missing?: boolean; quantity?: number; soldBy?: SoldBy };
-export type AddVars = NewItem & { listId: string };
+/** `id` is the item's own UUID, made by the phone: the row has its real id from the first tap and a retried add creates it once. */
+export type NewItem = { id?: string; name: string; category: string; productCode?: string | null; groupRef?: string | null; missing?: boolean; quantity?: number; soldBy?: SoldBy };
+export type AddVars = NewItem & { id: string; listId: string };
 export type UpdateVars = ItemPatch & { listId: string; id: string };
 export type RemoveVars = { listId: string; id: string };
 
+/** Undo of a delete: the item re-created with the same id and every field, Quantity included. */
+export const reAdd = ({ id, name, category, productCode, groupRef, missing, quantity, soldBy }: Item): Omit<AddVars, "listId"> => ({
+  id, name, category, productCode, groupRef, missing, quantity, soldBy,
+});
+
 /** The row a new item shows until the server answers; the API's defaults (on the List, Quantity 1) fill what is left out. */
-export const optimisticItem = ({ soldBy = "unit", ...body }: NewItem, listId: string, now: string): Item => ({
-  id: `pending-${now}-${Math.random().toString(36).slice(2)}`,
+export const optimisticItem = ({ soldBy = "unit", ...body }: Omit<AddVars, "listId">, listId: string, now: string): Item => ({
+  id: body.id,
   listId,
   name: body.name,
   category: body.category,
@@ -167,15 +174,14 @@ export function registerItemEdits(qc: QueryClient) {
     mutationFn: ({ listId, soldBy: _, ...body }: AddVars) => api<Item>(`api/lists/${listId}/items`, { method: "POST", body: JSON.stringify(body) }),
     onMutate: (vars: AddVars) => {
       start(vars.listId);
-      const temp = optimisticItem(vars, vars.listId, new Date().toISOString());
-      patchItems(vars.listId, (items) => [...items, temp]);
-      return { tempId: temp.id, name: vars.name };
+      patchItems(vars.listId, (items) => [...items, optimisticItem(vars, vars.listId, new Date().toISOString())]);
+      return { name: vars.name };
     },
-    onError: (_e: unknown, { listId }: AddVars, ctx?: { tempId: string }) => patchItems(listId, (items) => items.filter((i) => i.id !== ctx?.tempId)),
-    // Swap the pending row's id for the server's now, not at the next refetch; the rest stays as tapped.
-    onSuccess: (data: unknown, { listId }: AddVars, ctx?: { tempId: string }) => {
+    onError: (_e: unknown, { listId, id }: AddVars) => patchItems(listId, (items) => items.filter((i) => i.id !== id)),
+    // The row already has its real id; take what the server owns now, not at the next refetch. The rest stays as tapped.
+    onSuccess: (data: unknown, { listId, id }: AddVars) => {
       const item = data as Item;
-      patchItem(listId, ctx?.tempId ?? "", (i) => ({ ...i, id: item.id, soldBy: item.soldBy, createdAt: item.createdAt, updatedAt: item.updatedAt }));
+      patchItem(listId, id, (i) => ({ ...i, soldBy: item.soldBy, createdAt: item.createdAt, updatedAt: item.updatedAt }));
     },
     onSettled: (_d: unknown, _e: unknown, { listId }: AddVars) => settled(listId),
   });
@@ -240,7 +246,7 @@ export function useItemMutations(listId: string | null) {
   const update = useMutation<Item, Error, UpdateVars>(itemEdit("update", id));
   const remove = useMutation<void, Error, RemoveVars>(itemEdit("remove", id));
   return {
-    add: { mutate: (v: NewItem, o?: MutateOptions<Item, Error, AddVars>) => add.mutate({ ...v, listId: id }, o) },
+    add: { mutate: (v: NewItem, o?: MutateOptions<Item, Error, AddVars>) => add.mutate({ ...v, id: v.id ?? Crypto.randomUUID(), listId: id }, o) },
     update: { mutate: (v: Omit<UpdateVars, "listId">, o?: MutateOptions<Item, Error, UpdateVars>) => update.mutate({ ...v, listId: id }, o) },
     remove: { mutate: (itemId: string, o?: MutateOptions<void, Error, RemoveVars>) => remove.mutate({ listId: id, id: itemId }, o) },
   };

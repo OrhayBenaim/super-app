@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "#/app.ts";
 import { buildDeps } from "#/deps.ts";
@@ -34,7 +35,7 @@ async function newList(cookie: string, name = "L") {
   return (await json(await call(cookie, "POST", "", { name }))).id as string;
 }
 async function addItem(cookie: string, listId: string, body: Record<string, unknown>) {
-  return json(await call(cookie, "POST", `/${listId}/items`, { name: "x", category: "c", ...body }));
+  return json(await call(cookie, "POST", `/${listId}/items`, { id: randomUUID(), name: "x", category: "c", ...body }));
 }
 async function detail(cookie: string, listId: string) {
   return json(await call(cookie, "GET", `/${listId}`));
@@ -186,8 +187,8 @@ describe("validation", () => {
       { productCode: 123 },
       { productCode: "9".repeat(65) },
     ];
-    for (const b of bad) expect((await call(owner, "POST", `/${listId}/items`, { name: "x", category: "c", ...b })).status, JSON.stringify(b)).toBe(400);
-    expect((await call(owner, "POST", `/${listId}/items`, { name: "x" })).status).toBe(400); // category is required
+    for (const b of bad) expect((await call(owner, "POST", `/${listId}/items`, { id: randomUUID(), name: "x", category: "c", ...b })).status, JSON.stringify(b)).toBe(400);
+    expect((await call(owner, "POST", `/${listId}/items`, { id: randomUUID(), name: "x" })).status).toBe(400); // category is required
     expect((await detail(owner, listId)).items).toEqual([]);
   });
 
@@ -347,7 +348,7 @@ describe("sharing", () => {
 
     expect((await call(member, "GET", `/${listId}`)).status).toBe(404);
     expect((await call(member, "GET", `/${listId}/categories`)).status).toBe(404);
-    expect((await call(member, "POST", `/${listId}/items`, { name: "x", category: "y" })).status).toBe(404);
+    expect((await call(member, "POST", `/${listId}/items`, { id: randomUUID(), name: "x", category: "y" })).status).toBe(404);
     expect((await call(member, "PATCH", `/${listId}/items/${item.id}`, { name: "x" })).status).toBe(404);
     expect((await call(member, "DELETE", `/${listId}/items/${item.id}`)).status).toBe(404);
     expect((await call(member, "POST", `/${listId}/invite`)).status).toBe(404);
@@ -419,7 +420,7 @@ describe("updatedAt", () => {
     await sleep();
     await call(owner, "PATCH", `/${listId}/items/nope`, { name: "x" });
     await call(owner, "DELETE", `/${listId}/items/nope`);
-    await call(owner, "POST", `/${listId}/items`, { name: "" });
+    await call(owner, "POST", `/${listId}/items`, { id: randomUUID(), name: "" });
     await call(member, "POST", "/join", { code });
     expect((await detail(owner, listId)).list.updatedAt).toBe(before);
   });

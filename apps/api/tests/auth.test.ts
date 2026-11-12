@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createApp } from "#/app.ts";
 import { buildDeps } from "#/deps.ts";
@@ -45,7 +46,7 @@ describe("delete account", () => {
     const bCode = (await (await call(b, "POST", `/${bList}/invite`)).json()).code;
     expect((await call(b, "POST", "/join", { code: aCode })).status).toBe(200);
     expect((await call(a, "POST", "/join", { code: bCode })).status).toBe(200);
-    expect((await call(b, "POST", `/${bList}/items`, { name: "Milk", category: "dairy" })).status).toBeLessThan(300);
+    expect((await call(b, "POST", `/${bList}/items`, { id: randomUUID(), name: "Milk", category: "dairy" })).status).toBeLessThan(300);
 
     expect((await deleteUser(a)).status).toBe(200);
 
