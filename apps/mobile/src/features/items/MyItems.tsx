@@ -1,6 +1,6 @@
 import { useIsFocused, useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
-import { useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert } from "react-native";
 import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, LinearTransition } from "react-native-reanimated";
 import { useCategories, useCurrentListId, useItemMutations, useList, type Item } from "@/features/lists/api";
@@ -32,7 +32,20 @@ export function MyItems() {
   const q = query.trim().toLocaleLowerCase();
   const items = data?.items ?? [];
   const groups = groupByCategory(q ? items.filter((i) => i.name.toLocaleLowerCase().includes(q)) : items, categories);
-  const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing }, { onError: () => Alert.alert(t("common.error")) });
+  const { mutate } = update;
+  // Stable callbacks that take the id, so a memoized row re-renders only when its own item changes.
+  const toggle = useCallback((id: string, missing: boolean) => mutate({ id, missing }, { onError: () => Alert.alert(t("common.error")) }), [mutate]);
+  const edit = useCallback(
+    (id: string) => {
+      track(Events.itemEditOpened, { from: "items" });
+      router.push({ pathname: "/item/[id]", params: { id } });
+    },
+    [router],
+  );
+  // deleteItem is recreated every render; the ref keeps the row's callback stable.
+  const deleteRef = useRef(deleteItem);
+  deleteRef.current = deleteItem;
+  const remove = useCallback((item: Item) => deleteRef.current(item, "swipe"), []);
   const nav = <IconButton icon={Plus} accessibilityLabel={t("items.add")} analyticsName={Taps.itemsAdd} onPress={() => setAdding(true)} />;
 
   return (
@@ -59,12 +72,7 @@ export function MyItems() {
                 <Group title={g.category} count={g.count} footer={gi === groups.length - 1 ? t("items.footer") : undefined}>
                   {g.items.map((item) => (
                     <Animated.View key={item.id} layout={LAYOUT} entering={ENTER} exiting={EXIT}>
-                      <SwipeRow label={t("common.delete")} onDelete={() => deleteItem(item, "swipe")}>
-                        <ItemRow item={item} onToggle={(missing) => toggle(item, missing)} onEdit={() => {
-                          track(Events.itemEditOpened, { from: "items" });
-                          router.push({ pathname: "/item/[id]", params: { id: item.id } });
-                        }} />
-                      </SwipeRow>
+                      <MyItemRow item={item} onToggle={toggle} onEdit={edit} onDelete={remove} />
                     </Animated.View>
                   ))}
                 </Group>
@@ -79,3 +87,21 @@ export function MyItems() {
     </Screen>
   );
 }
+
+const MyItemRow = memo(function MyItemRow({
+  item,
+  onToggle,
+  onEdit,
+  onDelete,
+}: {
+  item: Item;
+  onToggle: (id: string, missing: boolean) => void;
+  onEdit: (id: string) => void;
+  onDelete: (item: Item) => void;
+}) {
+  return (
+    <SwipeRow label={t("common.delete")} onDelete={() => onDelete(item)}>
+      <ItemRow item={item} onToggle={(missing) => onToggle(item.id, missing)} onEdit={() => onEdit(item.id)} />
+    </SwipeRow>
+  );
+});
