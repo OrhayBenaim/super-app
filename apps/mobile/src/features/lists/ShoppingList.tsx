@@ -24,7 +24,7 @@ import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { springs, useTheme } from "@/theme";
 import { MenuButton } from "@/features/drawer/MenuButton";
-import { EmptyState, Group, IconButton, LargeTitle, Row, Screen, Tap, Text } from "@/ui";
+import { EmptyState, Group, IconButton, LargeTitle, OfflineLine, Row, Screen, Tap, Text } from "@/ui";
 import { missingItems, useCategories, useCurrentListId, useItemMutations, useList, type Item } from "./api";
 import { Avatars } from "./Avatars";
 import { groupByCategory, RECENT_MS, recentlyBought } from "./group";
@@ -96,6 +96,7 @@ export function ShoppingList() {
           title={data.list.name}
           menu={{ hint: t("lists.title"), analyticsName: Taps.listSwitch, onPress: () => router.push("/lists") }}
           subtitle={missing.length ? fmt(t("list.summary"), { n: missing.length }) : undefined}
+          status={<OfflineLine />}
           nav={nav}
         />
 
