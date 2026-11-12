@@ -51,11 +51,18 @@ export const listDetailOptions = (id: string | null) => ({
   queryFn: () => api<ListDetail>(`api/lists/${id}`),
   enabled: !!id,
 });
+/** True from sign-in until the saved copy is back in memory (src/lib/persist.ts): List reads wait for it. */
+export const useRestoring = create<{ restoring: boolean }>(() => ({ restoring: true }));
+
 export function useList(id: string | null, { poll = true } = {}) {
   const qc = useQueryClient();
+  const restoring = useRestoring((s) => s.restoring);
   const mutating = useIsMutating({ mutationKey: itemKeys.all, predicate: inScope(id ?? "") }) > 0;
   return useQuery({
     ...listDetailOptions(id),
+    // No read before the restore, nor while edits (restored ones too) are pending: it would land over the rows they changed.
+    // The edit that settles last invalidates, and the query fetches when `mutating` ends.
+    enabled: !!id && !restoring && !mutating,
     refetchInterval: poll && !mutating ? 5000 : false,
     refetchOnWindowFocus: () => !itemEditsPending(qc, id ?? ""),
   });
@@ -169,6 +176,15 @@ export function onItemSaveFailed(qc: QueryClient, onFail: (name: string) => void
 const inScope = (listId: string) => (m: { options: { scope?: { id: string } } }) => m.options.scope?.id === itemScope(listId).id;
 /** Item edits for a List that are queued, paused or in flight: reads of that List wait for them. */
 export const itemEditsPending = (qc: QueryClient, listId: string) => qc.isMutating({ mutationKey: itemKeys.all, predicate: inScope(listId) });
+
+/** Invalidate the Lists, skipping a List (detail, categories) with item edits pending: the edit that settles last refetches it. */
+export const invalidateLists = (qc: QueryClient) =>
+  qc.invalidateQueries({ queryKey: listKeys.all, predicate: (q) => !itemEditsPending(qc, String(q.queryKey[1] ?? "")) });
+
+/** Pull-to-refresh of a List: does nothing while it has item edits pending (a read now would lack them); otherwise `refetch`. */
+export const refreshList = async (qc: QueryClient, listId: string | null, refetch: () => Promise<unknown>) => {
+  if (!itemEditsPending(qc, listId ?? "")) await refetch();
+};
 
 export function registerItemEdits(qc: QueryClient) {
   const patchItems = (listId: string, fn: (items: Item[]) => Item[]) =>

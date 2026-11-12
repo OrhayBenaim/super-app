@@ -1,10 +1,11 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useIsFocused, useRouter } from "expo-router";
 import { MapPin, SearchX, ShoppingBasket, TriangleAlert } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshControl, ScrollView } from "react-native";
 import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
-import { basketSize, missingBasket, missingItems, useCurrentListId, useList } from "@/features/lists/api";
+import { basketSize, missingBasket, missingItems, refreshList, useCurrentListId, useList } from "@/features/lists/api";
 import { syncGeofences, useNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
 import { Events, Taps, track } from "@/lib/analytics";
 import { useLocation } from "@/lib/location";
@@ -37,6 +38,7 @@ export function CompareScreen() {
   const [pulling, setPulling] = useState(false);
 
   const listId = useCurrentListId();
+  const qc = useQueryClient();
   const list = useList(listId, { poll: false });
   const items = missingItems(list.data);
   const basket = missingBasket(list.data);
@@ -134,7 +136,7 @@ export function CompareScreen() {
             tintColor={colors.labelSecondary}
             onRefresh={async () => {
               setPulling(true);
-              await Promise.all([list.refetch(), compare.refetch()]).finally(() => setPulling(false));
+              await Promise.all([refreshList(qc, listId, list.refetch), compare.refetch()]).finally(() => setPulling(false));
             }}
           />
         }

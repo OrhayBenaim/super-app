@@ -7,7 +7,7 @@ import { useCategories, useCurrentListId, useItemMutations, useList, type Item }
 import { groupByCategory } from "@/features/lists/group";
 import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
-import { useTheme } from "@/theme";
+import { tokens, useTheme } from "@/theme";
 import { MenuButton } from "@/features/drawer/MenuButton";
 import { EmptyState, Group, IconButton, LargeTitle, OfflineLine, Screen, SearchField, SwipeRow, Text } from "@/ui";
 import { AddField } from "./AddField";
@@ -16,7 +16,7 @@ import { useDeleteWithUndo } from "./useDeleteWithUndo";
 
 const LAYOUT = LinearTransition.duration(200);
 const ENTER = FadeIn.duration(200);
-const EXIT = FadeOut.duration(150);
+const EXIT = FadeOut.duration(tokens.motion.duration.fast);
 
 export function MyItems() {
   const { colors, space } = useTheme();

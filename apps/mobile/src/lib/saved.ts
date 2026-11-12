@@ -8,5 +8,5 @@ const copy = createSavedCopy(Storage);
 /** Restore and keep saving the copy for `userId`; returns the stop function (an effect's cleanup). */
 export const keepSavedCopy = (qc: QueryClient, userId: string) => keepSaved(qc, copy, userId)[0];
 
-/** The one function sign-out, Account deletion and Data deletion call: the cache, the item-edit queue and the saved copy. */
+/** The one function sign-out and Account deletion call: the cache, the item-edit queue and the saved copy. */
 export const wipeDevice = (qc: QueryClient) => copy.wipe(qc);

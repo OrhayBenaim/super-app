@@ -9,7 +9,7 @@ vi.mock("expo-secure-store", () => ({ getItem: () => null, setItemAsync: vi.fn()
 import { api } from "@/lib/api";
 import { ApiError } from "@/lib/api-error";
 import {
-  basketSize, currentListId, failureOf, itemEdit, itemEditsPending, listDetailOptions, listKeys, matchKey, missingBasket, onItemSaveFailed, optimisticItem, reAdd, registerItemEdits,
+  basketSize, currentListId, failureOf, invalidateLists, itemEdit, itemEditsPending, listDetailOptions, refreshList, listKeys, matchKey, missingBasket, onItemSaveFailed, optimisticItem, reAdd, registerItemEdits,
   type Item, type ListDetail,
 } from "@/features/lists/api";
 
@@ -288,6 +288,29 @@ describe("item edits", () => {
       calls[1]!.ok(item("b", { missing: false }));
       await tick();
       expect(gets()).toBeGreaterThan(0); // the List catches up once the last edit has gone
+      stop();
+    });
+
+    it("skips a refresh of a List with edits pending (invalidate and pull-to-refresh), and refreshes once nothing is queued", async () => {
+      const watcher = new QueryObserver(qc, listDetailOptions("l"));
+      const stop = watcher.subscribe(() => {});
+      await tick();
+      calls[0]!.ok(detail([item("a")]));
+      await tick();
+      calls.length = 0;
+      await tap("update", { id: "a", missing: false });
+      await invalidateLists(qc);
+      await refreshList(qc, "l", () => watcher.refetch());
+      expect(gets()).toBe(0);
+      expect(qc.getQueryState(key)!.isInvalidated).toBe(false);
+      calls[0]!.ok(item("a", { missing: false }));
+      await tick();
+      calls.find((c) => c.method === "GET")!.ok(detail([item("a", { missing: false })])); // the last edit's own refetch
+      await tick();
+      calls.length = 0;
+      void refreshList(qc, "l", () => watcher.refetch());
+      await tick();
+      expect(gets()).toBe(1);
       stop();
     });
 

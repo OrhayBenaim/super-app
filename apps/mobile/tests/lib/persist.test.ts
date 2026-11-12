@@ -7,7 +7,7 @@ vi.mock("@/lib/strings", () => ({ t: (k: string) => k }));
 vi.mock("expo-secure-store", () => ({ getItem: () => null, setItemAsync: vi.fn(), deleteItemAsync: vi.fn() }));
 
 import { api } from "@/lib/api";
-import { itemEdit, listKeys, registerItemEdits, type Item, type ListDetail } from "@/features/lists/api";
+import { itemEdit, listKeys, registerItemEdits, useRestoring, type Item, type ListDetail } from "@/features/lists/api";
 import { createSavedCopy, keepSaved } from "@/lib/persist";
 
 // The saved-copy seam: real QueryClients with the item-edit defaults, a fake in-memory storage, the api held by hand.
@@ -126,6 +126,53 @@ describe("the saved List copy", () => {
     const fresh = newClient();
     await keepSaved(fresh, copy, "u1")[1];
     expect(fresh.getQueryData(listKeys.detail("l"))).toBeUndefined();
+  });
+
+  it("still sends the queued edits of a copy older than 30 days, but drops its queries", async () => {
+    const { storage, copy } = await offlineWithEdits();
+    const saved = savedState(storage);
+    saved.timestamp -= 31 * 24 * 60 * 60 * 1000;
+    storage.data.set(storage.data.keys().next().value!, JSON.stringify(saved));
+    const fresh = newClient();
+    await keepSaved(fresh, copy, "u1")[1];
+    expect(fresh.getQueryData(listKeys.detail("l"))).toBeUndefined();
+    expect(fresh.getMutationCache().getAll()).toHaveLength(2);
+    onlineManager.setOnline(true);
+    await tick();
+    expect(sent()).toEqual(["PATCH api/lists/l/items/a"]);
+  });
+
+  it("wipes the memory and the queue when another User signs in without a Sign out, and saves nothing of the first under the second", async () => {
+    const storage = fakeStorage();
+    const copy = createSavedCopy(storage, 0);
+    const qc = newClient();
+    const [stopA, restoredA] = keepSaved(qc, copy, "u1");
+    await restoredA;
+    onlineManager.setOnline(false);
+    qc.setQueryData(listKeys.detail("l"), detail([item("a")]));
+    tap(qc, "update", { id: "a", missing: false });
+    await vi.waitFor(() => expect(savedState(storage).clientState.mutations).toHaveLength(1));
+    stopA(); // the session ended; nobody signed out
+    await keepSaved(qc, copy, "u2")[1];
+    expect(qc.getQueryData(listKeys.detail("l"))).toBeUndefined();
+    expect(qc.getMutationCache().getAll()).toHaveLength(0);
+    qc.setQueryData(listKeys.detail("m"), detail([item("b")]));
+    await vi.waitFor(() => expect(savedState(storage).buster).toBe("u2"));
+    const saved = savedState(storage).clientState;
+    expect(saved.queries.map((q: { queryKey: unknown[] }) => q.queryKey)).toEqual([["lists", "m"]]);
+    expect(saved.mutations).toEqual([]);
+  });
+
+  it("holds List reads until the copy is back, and again for the next sign-in", async () => {
+    const { copy } = await offlineWithEdits();
+    const fresh = newClient();
+    const [stop, restored] = keepSaved(fresh, copy, "u1");
+    expect(useRestoring.getState().restoring).toBe(true);
+    await restored;
+    expect(useRestoring.getState().restoring).toBe(false);
+    stop();
+    keepSaved(fresh, copy, "u1");
+    expect(useRestoring.getState().restoring).toBe(true);
   });
 
   it("keeps a List's queries in memory while no screen shows it, so they stay in the copy", () => {

@@ -13,5 +13,5 @@ export function ItemSaveToast() {
   const qc = useQueryClient();
   const [failed, setFailed] = useState<{ name: string; n: number } | null>(null);
   useEffect(() => onItemSaveFailed(qc, (name) => setFailed((f) => ({ name, n: (f?.n ?? 0) + 1 }))), [qc]);
-  return <Toast key={failed?.n} message={failed && fmt(t("items.saveFailed"), { name: failed.name })} onHide={() => setFailed(null)} />;
+  return <Toast above key={failed?.n} message={failed && fmt(t("items.saveFailed"), { name: failed.name })} onHide={() => setFailed(null)} />;
 }
