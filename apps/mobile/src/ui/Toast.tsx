@@ -5,11 +5,17 @@ import type { TapName } from "@/lib/analytics";
 import { Button } from "./Button";
 import { Text } from "./Text";
 
-export type ToastProps = { message: string | null; action?: { title: string; analyticsName: TapName; onPress: () => void }; onHide: () => void };
+export type ToastProps = {
+  message: string | null;
+  action?: { title: string; analyticsName: TapName; onPress: () => void };
+  /** Sits one toast higher, for a toast that can show together with another (e.g. "Couldn't save" over delete + Undo). */
+  above?: boolean;
+  onHide: () => void;
+};
 
 /** Floating message near the bottom (e.g. delete + Undo); hides after motion.duration.toast. */
-export function Toast({ message, action, onHide }: ToastProps) {
-  const { colors, radius, space, shadow, motion } = useTheme();
+export function Toast({ message, action, above, onHide }: ToastProps) {
+  const { colors, radius, space, size, shadow, motion } = useTheme();
   const hide = useRef(onHide);
   hide.current = onHide;
   // Restarts per message; pass a `key` to restart for a repeated message.
@@ -25,7 +31,7 @@ export function Toast({ message, action, onHide }: ToastProps) {
       exiting={FadeOut.duration(motion.duration.fast)}
       accessibilityLiveRegion="polite"
       style={[
-        { position: "absolute", start: space[5], end: space[5], bottom: space[5], flexDirection: "row", alignItems: "center", gap: space[3], paddingStart: space[5], minHeight: 52, borderRadius: radius.group, backgroundColor: colors.elevated },
+        { position: "absolute", start: space[5], end: space[5], bottom: above ? space[5] + size.row + space[3] : space[5], flexDirection: "row", alignItems: "center", gap: space[3], paddingStart: space[5], minHeight: size.row, borderRadius: radius.group, backgroundColor: colors.elevated },
         shadow.sheet,
       ]}
     >
