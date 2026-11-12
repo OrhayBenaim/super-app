@@ -63,7 +63,8 @@ export type SavedCopy = ReturnType<typeof createSavedCopy>;
 
 /**
  * Restores the copy saved for `userId` (a copy for another User is thrown away; one older than 30 days keeps only its
- * queued edits), sends the queued edits once the phone is online, then keeps saving. Returns [stop, restored]. Until
+ * queued edits), sends the queued edits once the phone is online, then keeps saving. Returns [stop, restored]; `restored`
+ * rejects if the restore failed (List reads go ahead either way). Until
  * `restored` settles, List reads wait (useRestoring), so none lands over rows a restored edit changed. Queries of a List
  * stay in memory forever (never garbage collected) so a List nobody is viewing does not drop out of the copy.
  */
@@ -82,7 +83,6 @@ export function keepSaved(qc: QueryClient, copy: SavedCopy, userId: string): [()
       return done;
     })
     .then(() => void qc.resumePausedMutations())
-    .catch(() => {})
     .finally(() => {
       if (!stopped) useRestoring.setState({ restoring: false });
     });

@@ -1,11 +1,12 @@
 // Shared list data layer (types mirror docs/api.md). Both the list screens and Compare build on this.
+import { useMemo } from "react";
 import { useIsMutating, useQuery, useMutation, type MutateOptions, type QueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { Events, track } from "@/lib/analytics";
 import { api } from "@/lib/api";
-import { ApiError } from "@/lib/api-error";
+import { ApiError, NetworkError } from "@/lib/api-error";
 import { QUANTITY, type SoldBy } from "@grocer/shared/quantity";
 
 export type List = { id: string; name: string; ownerId: string; role: "owner" | "member"; memberCount: number; updatedAt: string };
@@ -132,15 +133,16 @@ export const optimisticItem = ({ soldBy = "unit", ...body }: Omit<AddVars, "list
 
 /**
  * The one failure rule for item edits, from the error the edit ended on.
- *  - "network": no status, the request never got a response (or timed out); the edit waits for the network and is sent
- *    again without limit, never undone.
- *  - "retry": a 5xx; sent again with backoff, then it counts as "undo".
+ *  - "network": the request never got a response (or timed out); the edit waits for the network and is sent again
+ *    without limit, never undone.
+ *  - "retry": a 5xx, or an error that is no response at all (a bug); sent again with backoff, then it counts as "undo".
  *  - "gone": a 404; the item no longer exists, so a delete is done and an add or update is dropped quietly.
  *  - "undo": any other failure; the item goes back and the toast shows.
  */
 export const failureOf = (e: unknown): "network" | "retry" | "gone" | "undo" => {
-  const status = e instanceof ApiError ? e.status : 0;
-  return !status ? "network" : status >= 500 ? "retry" : status === 404 ? "gone" : "undo";
+  if (e instanceof NetworkError) return "network";
+  if (!(e instanceof ApiError) || e.status >= 500) return "retry";
+  return e.status === 404 ? "gone" : "undo";
 };
 const RETRIES = 3;
 // "online" network mode: an edit made offline waits for the network instead of failing, and so does a retry that finds it gone.
@@ -154,7 +156,7 @@ const retryPolicy = {
 };
 
 const EDIT_TIMEOUT = 15_000;
-/** An item-edit request that gives up after EDIT_TIMEOUT: the abort has no status, so it counts as a network error. */
+/** An item-edit request that gives up after EDIT_TIMEOUT: the abort gets no response, so it counts as a network error. */
 async function send<T>(path: string, init: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), EDIT_TIMEOUT);
@@ -178,9 +180,18 @@ const inScope = (listId: string) => (m: { options: { scope?: { id: string } } })
 /** Item edits for a List that are queued, paused or in flight: reads of that List wait for them. */
 export const itemEditsPending = (qc: QueryClient, listId: string) => qc.isMutating({ mutationKey: itemKeys.all, predicate: inScope(listId) });
 
-/** Pull-to-refresh of a List: does nothing while it has item edits pending (a read now would lack them); otherwise `refetch`. */
+/** Pull-to-refresh of a List: waits for its pending item edits (a read before then would lack them), then `refetch`. */
 export const refreshList = async (qc: QueryClient, listId: string | null, refetch: () => Promise<unknown>) => {
-  if (!itemEditsPending(qc, listId ?? "")) await refetch();
+  await new Promise<void>((resolve) => {
+    const check = () => {
+      if (itemEditsPending(qc, listId ?? "")) return;
+      stop();
+      resolve();
+    };
+    const stop = qc.getMutationCache().subscribe(check);
+    check();
+  });
+  await refetch();
 };
 
 export function registerItemEdits(qc: QueryClient) {
@@ -266,15 +277,22 @@ export function registerItemEdits(qc: QueryClient) {
   });
 }
 
-/** The same item edits as `add.mutate(body)`, `update.mutate({ id, ...patch })`, `remove.mutate(id)`: the hook adds the List id. */
+/**
+ * The same item edits as `add.mutate(body)`, `update.mutate({ id, ...patch })`, `remove.mutate(id)`: the hook adds the List id.
+ * Stable across renders (useMutation's `mutate` is), so memoized rows that take them re-render only for their own item.
+ */
 export function useItemMutations(listId: string | null) {
   const id = listId ?? "";
   const add = useMutation<Item, Error, AddVars>(itemEdit("add", id));
   const update = useMutation<Item, Error, UpdateVars>(itemEdit("update", id));
   const remove = useMutation<void, Error, RemoveVars>(itemEdit("remove", id));
-  return {
-    add: { mutate: (v: NewItem, o?: MutateOptions<Item, Error, AddVars>) => add.mutate({ ...v, id: v.id ?? Crypto.randomUUID(), listId: id }, o) },
-    update: { mutate: (v: Omit<UpdateVars, "listId">, o?: MutateOptions<Item, Error, UpdateVars>) => update.mutate({ ...v, listId: id }, o) },
-    remove: { mutate: (itemId: string, o?: MutateOptions<void, Error, RemoveVars>) => remove.mutate({ listId: id, id: itemId }, o) },
-  };
+  const [addItem, updateItem, removeItem] = [add.mutate, update.mutate, remove.mutate];
+  return useMemo(
+    () => ({
+      add: { mutate: (v: NewItem, o?: MutateOptions<Item, Error, AddVars>) => addItem({ ...v, id: v.id ?? Crypto.randomUUID(), listId: id }, o) },
+      update: { mutate: (v: Omit<UpdateVars, "listId">, o?: MutateOptions<Item, Error, UpdateVars>) => updateItem({ ...v, listId: id }, o) },
+      remove: { mutate: (itemId: string, o?: MutateOptions<void, Error, RemoveVars>) => removeItem({ listId: id, id: itemId }, o) },
+    }),
+    [addItem, updateItem, removeItem, id],
+  );
 }

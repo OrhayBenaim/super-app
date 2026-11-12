@@ -7,7 +7,7 @@ vi.mock("@/lib/strings", () => ({ t: (k: string) => k }));
 vi.mock("expo-secure-store", () => ({ getItem: () => null, setItemAsync: vi.fn(), deleteItemAsync: vi.fn() }));
 
 import { api } from "@/lib/api";
-import { ApiError } from "@/lib/api-error";
+import { ApiError, NetworkError } from "@/lib/api-error";
 import {
   basketSize, currentListId, failureOf, itemEdit, itemEditsPending, listDetailOptions, refreshList, listKeys, matchKey, missingBasket, onItemSaveFailed, optimisticItem, reAdd, registerItemEdits,
   type Item, type ListDetail,
@@ -88,8 +88,8 @@ describe("reAdd", () => {
 
 describe("failureOf", () => {
   it("sorts the error by what the item edit should do next", () => {
-    expect(failureOf(new TypeError("Network request failed"))).toBe("network");
-    expect(failureOf(new DOMException("timed out", "AbortError"))).toBe("network");
+    expect(failureOf(new NetworkError("GET x got no response: Network request failed"))).toBe("network");
+    expect(failureOf(new TypeError("Cannot read properties of undefined"))).toBe("retry"); // a bug: a few tries, then undo
     expect(failureOf(new ApiError("x", 503))).toBe("retry");
     expect(failureOf(new ApiError("x", 404))).toBe("gone");
     expect(failureOf(new ApiError("x", 422))).toBe("undo");
@@ -291,7 +291,7 @@ describe("item edits", () => {
       stop();
     });
 
-    it("skips a pull-to-refresh of a List with edits pending, and refreshes once nothing is queued", async () => {
+    it("holds a pull-to-refresh of a List until its pending edits are done, then refreshes", async () => {
       const watcher = new QueryObserver(qc, listDetailOptions("l"));
       const stop = watcher.subscribe(() => {});
       await tick();
@@ -299,16 +299,17 @@ describe("item edits", () => {
       await tick();
       calls.length = 0;
       await tap("update", { id: "a", missing: false });
-      await refreshList(qc, "l", () => watcher.refetch());
-      expect(gets()).toBe(0);
+      let refreshed = false;
+      void refreshList(qc, "l", () => watcher.refetch()).then(() => (refreshed = true));
+      await tick();
+      expect(gets()).toBe(0); // waits for the edit
+      expect(refreshed).toBe(false);
       calls[0]!.ok(item("a", { missing: false }));
       await tick();
-      calls.find((c) => c.method === "GET")!.ok(detail([item("a", { missing: false })])); // the last edit's own refetch
+      expect(gets()).toBeGreaterThan(0);
+      calls.filter((c) => c.method === "GET").forEach((c) => c.ok(detail([item("a", { missing: false })])));
       await tick();
-      calls.length = 0;
-      void refreshList(qc, "l", () => watcher.refetch());
-      await tick();
-      expect(gets()).toBe(1);
+      expect(refreshed).toBe(true);
       stop();
     });
 
@@ -316,7 +317,7 @@ describe("item edits", () => {
       vi.useFakeTimers();
       await tap("update", { id: "a", missing: false });
       onlineManager.setOnline(false);
-      calls[0]!.fail(new TypeError("Network request failed"));
+      calls[0]!.fail(new NetworkError("no response"));
       await tick();
       expect(sent()).toHaveLength(1);
       expect(state().a).toBe(false); // still as tapped, no undo
@@ -331,7 +332,7 @@ describe("item edits", () => {
       onItemSaveFailed(qc, (name) => toasts.push(name));
       await tap("update", { id: "a", missing: false });
       for (let n = 1; n <= 8; n++) {
-        calls.at(-1)!.fail(new TypeError("Network request failed"));
+        calls.at(-1)!.fail(new NetworkError("no response"));
         await vi.advanceTimersByTimeAsync(Math.min(1000 * 2 ** (n - 1), 30_000));
         expect(sent()).toHaveLength(n + 1);
       }

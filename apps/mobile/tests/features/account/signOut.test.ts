@@ -18,16 +18,16 @@ beforeEach(() => {
 describe("signOut", () => {
   it("signs out, then wipes the phone (cache, queue and saved copy)", async () => {
     const order: string[] = [];
-    m.signOut.mockImplementation(async () => void order.push("signOut"));
+    m.signOut.mockImplementation(async () => (order.push("signOut"), { error: null }));
     m.wipe.mockImplementation(async () => void order.push("wipe"));
     await signOut(qc);
     expect(order).toEqual(["signOut", "wipe"]);
     expect(m.wipe).toHaveBeenCalledWith(qc);
   });
 
-  it("wipes even when signing out fails", async () => {
-    m.signOut.mockRejectedValue(new Error("network"));
-    await signOut(qc).catch(() => {});
-    expect(m.wipe).toHaveBeenCalledWith(qc);
+  it("keeps the phone's data when signing out fails: the User is still signed in", async () => {
+    m.signOut.mockResolvedValue({ error: { status: 0, message: "network" } });
+    await signOut(qc);
+    expect(m.wipe).not.toHaveBeenCalled();
   });
 });
