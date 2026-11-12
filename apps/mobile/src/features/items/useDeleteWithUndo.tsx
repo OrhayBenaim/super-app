@@ -1,7 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Alert } from "react-native";
 import { fmt } from "@/features/compare/format";
 import { reAdd, useItemMutations, type Item } from "@/features/lists/api";
 import { Events, Taps, track } from "@/lib/analytics";
@@ -16,12 +15,11 @@ import { takePendingDelete } from "./pendingDelete";
 export function useDeleteWithUndo(listId: string | null) {
   const { add, remove } = useItemMutations(listId);
   const [deleted, setDeleted] = useState<Item | null>(null);
-  const fail = () => Alert.alert(t("common.error"));
 
   const deleteItem = (item: Item, via: "swipe" | "sheet") => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     track(Events.itemDeleted, { via });
-    remove.mutate(item.id, { onError: fail });
+    remove.mutate(item.id);
     setDeleted(item);
   };
 
@@ -41,7 +39,7 @@ export function useDeleteWithUndo(listId: string | null) {
         analyticsName: Taps.commonUndo,
         onPress: () => {
           if (!deleted) return;
-          add.mutate(reAdd(deleted), { onError: fail });
+          add.mutate(reAdd(deleted));
         },
       }}
       onHide={() => setDeleted(null)}

@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Plus, ScanBarcode } from "lucide-react-native";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Keyboard, Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { SEARCH } from "@grocer/shared/search";
 import { fmt } from "@/features/compare/format";
@@ -37,7 +37,6 @@ export function AddField({ listId, items, from, onClose }: Props) {
   const { add, update } = useItemMutations(listId);
   const [query, setQuery] = useState("");
   const { matches, create } = suggestItems(query, items);
-  const fail = () => Alert.alert(t("common.error"));
   const linked = new Set(items.flatMap((i) => [i.productCode, i.groupRef]));
   const search = useProductSearch(query);
   // The search is debounced, so hide its last results as soon as the field is cleared.
@@ -47,14 +46,14 @@ export function AddField({ listId, items, from, onClose }: Props) {
   const groups = found.groups.filter((g) => !linked.has(g.ref));
   const products = found.products.filter((p) => !linked.has(p.code) && !items.some((i) => i.name === p.name));
 
-  const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing }, { onError: fail });
+  const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing });
   // New items count here; re-adds count in useItemMutations (the Undo re-create must not count as an add).
   const createItem = (name: string, match: { productCode: string } | { groupRef: string } | null = null) => {
     Haptics.selectionAsync();
     const matchedKind = match ? ("groupRef" in match ? "group" : "product") : null;
     add.mutate(
       { name, category: t("items.category.other"), ...match, missing: from === "list" },
-      { onError: fail, onSuccess: () => from === "list" && track(Events.listItemAdded, { existing: false, matched: !!match, ...(matchedKind && { matchedKind }) }) },
+      { onSuccess: () => from === "list" && track(Events.listItemAdded, { existing: false, matched: !!match, ...(matchedKind && { matchedKind }) }) },
     );
     setQuery("");
   };

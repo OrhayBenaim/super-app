@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Barcode, Check, Layers } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert } from "react-native";
+import { ActivityIndicator } from "react-native";
 import { fmt } from "@/features/compare/format";
 import { useCachedChainName } from "@/features/compare/api";
 import { useCategories, useCurrentListId, useItemMutations, useList } from "@/features/lists/api";
@@ -60,13 +60,13 @@ export function ItemSheet() {
   const back = { title: t("common.back"), analyticsName: Taps.commonBack, onPress: () => setPage("form") };
   const save = () => {
     if (!valid) return;
-    update.mutate({ id: item.id, name: name.trim(), category: category.trim(), productCode, groupRef }, { onError: () => Alert.alert(t("common.error")) });
+    update.mutate({ id: item.id, name: name.trim(), category: category.trim(), productCode, groupRef });
     onClose();
   };
   // An item is matched to one product or one Product group (null, null: no match).
   const pick = (code: string | null, ref: string | null, shown: string | null) => {
     if (storeMode) {
-      update.mutate({ id: item.id, productCode: code, groupRef: ref }, { onError: () => Alert.alert(t("common.error")) });
+      update.mutate({ id: item.id, productCode: code, groupRef: ref });
       return onClose();
     }
     setProductCode(code);
