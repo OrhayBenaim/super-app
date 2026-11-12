@@ -2,7 +2,7 @@ import { QUANTITY, stepQuantity } from "@grocer/shared/quantity";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Minus, Plus } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import { useBestStore } from "@/features/compare/useBestStore";
 import { fmt, shekels } from "@/features/compare/format";
 import { lineKey } from "@/features/compare/sort";
@@ -30,7 +30,7 @@ export function QuantitySheet() {
   const close = () => router.back();
   const save = () => {
     if (quantity !== item.quantity) {
-      update.mutate({ id: item.id, quantity }, { onError: () => Alert.alert(t("common.error")) });
+      update.mutate({ id: item.id, quantity });
       track(Events.itemQuantityChanged, { soldBy, quantity, screen: from });
     }
     close();

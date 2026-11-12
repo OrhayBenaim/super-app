@@ -1,6 +1,8 @@
-import { missingBasket, type ListDetail } from "@/features/lists/api";
+import { useEffect, useState } from "react";
+import { basketSize, missingBasket, type Basket, type ListDetail } from "@/features/lists/api";
 import { useLocation } from "@/lib/location";
 import { useCompare, useRadius } from "./api";
+import { debounce, SETTLE_MS } from "./debounce";
 import { sortStores } from "./sort";
 
 /**
@@ -9,7 +11,18 @@ import { sortStores } from "./sort";
  * cached or not (when the List's items change, the stores are the previous result until the new one lands).
  */
 export function useCompareStores(list?: ListDetail) {
-  const compare = useCompare(useLocation().coords, useRadius((s) => s.km), missingBasket(list));
+  const basket = missingBasket(list);
+  const [settled, setSettled] = useState(basket);
+  // Compare gets the basket once it has held still for SETTLE_MS; until then the previous result stays (useCompare keeps it).
+  // The first non-empty basket (the List just loaded) goes at once: there is no previous result to keep.
+  const [settle] = useState(() => {
+    let last = basket;
+    return debounce((b: Basket) => setSettled((last = b)), SETTLE_MS, () => basketSize(last) === 0);
+  });
+  const key = JSON.stringify(basket);
+  useEffect(() => settle(JSON.parse(key)), [key, settle]);
+  useEffect(() => settle.cancel, [settle]);
+  const compare = useCompare(useLocation().coords, useRadius((s) => s.km), settled);
   return { stores: sortStores(compare.data?.stores ?? [], "price"), updating: compare.isFetching };
 }
 

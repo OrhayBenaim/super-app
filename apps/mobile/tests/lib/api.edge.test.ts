@@ -112,10 +112,10 @@ describe("responses", () => {
     const api = await load("http://a.test");
     await expect(api("/boom")).rejects.toThrow(/^GET \/boom failed: 500/);
   });
-  it("does not swallow network errors", async () => {
+  it("does not swallow network errors: they come back as a request that got no response", async () => {
     fetchMock.mockRejectedValue(new TypeError("Network request failed"));
     const api = await load("http://a.test");
-    await expect(api("/x")).rejects.toThrow("Network request failed");
+    await expect(api("/x")).rejects.toThrow(/^GET \/x got no response: Network request failed/);
   });
   it("treats 3xx/4xx/5xx as errors but 201 as success", async () => {
     const api = await load("http://a.test");

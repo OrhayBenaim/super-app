@@ -5,6 +5,7 @@ export { Group, SectionHeader } from "./Group";
 export { IconButton } from "./IconButton";
 export { LargeTitle } from "./LargeTitle";
 export { ListRow } from "./ListRow";
+export { OfflineLine } from "./OfflineLine";
 export { Row } from "./Row";
 export { Screen } from "./Screen";
 export { SearchField } from "./SearchField";

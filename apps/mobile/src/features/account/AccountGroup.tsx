@@ -6,6 +6,7 @@ import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/strings";
 import { Group, Row } from "@/ui";
 import { deleteAccount } from "./deleteAccount";
+import { signOut as signOutAndWipe } from "./signOut";
 
 /** Settings' Account group: email, Sign out, Delete account. The root Stack.Protected swaps to (auth) once the session clears. */
 export function AccountGroup() {
@@ -15,7 +16,7 @@ export function AccountGroup() {
 
   const signOut = async () => {
     setBusy("signOut");
-    await authClient.signOut().finally(() => setBusy(null));
+    await signOutAndWipe(queryClient).finally(() => setBusy(null));
   };
   const runDelete = async () => {
     setBusy("delete");
@@ -23,7 +24,7 @@ export function AccountGroup() {
     if (result === "reauth")
       Alert.alert(t("settings.deleteReauth"), undefined, [
         { text: t("common.cancel"), style: "cancel" },
-        { text: t("settings.signOut"), onPress: () => authClient.signOut() },
+        { text: t("settings.signOut"), onPress: () => signOutAndWipe(queryClient) },
       ]);
     if (result === "failed") Alert.alert(t("settings.deleteFailed"));
   };

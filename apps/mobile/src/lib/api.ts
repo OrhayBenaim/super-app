@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/react-native";
+import { ApiError, NetworkError } from "./api-error";
 import { authClient } from "./auth-client";
 
 export const BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000").replace(/\/+$/, "");
@@ -17,9 +18,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     // credentials "omit": "include" can clobber the Cookie header we set (better-auth Expo docs).
     const res = await Sentry.withActiveSpan(span, () =>
       fetch(`${BASE_URL}/${path.replace(/^\/+/, "")}`, { ...init, headers, credentials: "omit" }),
-    );
+    ).catch((e: unknown) => {
+      throw new NetworkError(`${method} ${path} got no response: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
+    });
     if (!res.ok) {
-      const error = new Error(`${method} ${path} failed: ${res.status} ${await res.text()}`);
+      const error = new ApiError(`${method} ${path} failed: ${res.status} ${await res.text()}`, res.status);
       // The API already reported this 5xx in the same trace; this event links the mobile side to it.
       if (res.status >= 500) Sentry.withActiveSpan(span, () => Sentry.captureException(error));
       throw error;

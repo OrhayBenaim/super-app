@@ -38,7 +38,7 @@ it("joins base URL and path, sends the auth cookie, parses JSON", async () => {
 it("throws on non-2xx", async () => {
   vi.stubGlobal("fetch", async () => new Response("nope", { status: 401 }));
   const { api } = await import("@/lib/api");
-  await expect(api("/me")).rejects.toThrow("401");
+  await expect(api("/me")).rejects.toMatchObject({ status: 401, message: expect.stringContaining("401") });
 });
 
 it("sends a server error to Sentry, so it shares a trace with the API's event", async () => {

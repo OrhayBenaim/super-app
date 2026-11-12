@@ -8,12 +8,18 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "@/features/geofence/task"; // registers the background geofence task at startup
 import { useNearbyNotificationTap } from "@/features/geofence/useNearbyNotificationTap";
+import { registerItemEdits } from "@/features/lists/api";
+import { ItemSaveToast } from "@/features/lists/ItemSaveToast";
 import { usePendingInvite } from "@/features/share/usePendingInvite";
 import { useAnalytics } from "@/lib/useAnalytics";
 import { authClient } from "@/lib/auth-client";
+import { connectQueryManagers } from "@/lib/online";
+import { keepSavedCopy } from "@/features/lists/saved";
 import { useTheme } from "@/theme";
 
 const queryClient = new QueryClient();
+registerItemEdits(queryClient);
+connectQueryManagers();
 
 // Keep the native splash (logo) up until the session is read, instead of a blank first frame.
 SplashScreen.preventAutoHideAsync();
@@ -24,6 +30,9 @@ function RootLayout() {
   useSentryUser(session?.user.id);
   const { colors, radius, shadow } = useTheme();
   useAnalytics(session?.user.id ?? null);
+  // The saved List copy belongs to the signed-in User: restore it (a copy for another User is thrown away), then keep saving.
+  const userId = session?.user.id;
+  useEffect(() => (userId ? keepSavedCopy(queryClient, userId) : undefined), [userId]);
   // Gate only the first load: a signed-out refetch (sign-in, app focus) sets isPending again,
   // and returning null then would unmount the whole navigator mid-form.
   const loaded = useRef(false);
@@ -73,6 +82,7 @@ function RootLayout() {
             <Stack.Screen name="(auth)" />
           </Stack.Protected>
         </Stack>
+        <ItemSaveToast />
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
