@@ -1,5 +1,5 @@
 // Shared list data layer (types mirror docs/api.md). Both the list screens and Compare build on this.
-import { useIsMutating, useQuery, useQueryClient, useMutation, type MutateOptions, type QueryClient } from "@tanstack/react-query";
+import { useIsMutating, useQuery, useMutation, type MutateOptions, type QueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
@@ -51,20 +51,18 @@ export const listDetailOptions = (id: string | null) => ({
   queryFn: () => api<ListDetail>(`api/lists/${id}`),
   enabled: !!id,
 });
-/** True from sign-in until the saved copy is back in memory (src/lib/persist.ts): List reads wait for it. */
+/** True from sign-in until the saved copy is back in memory (persist.ts): List reads wait for it. */
 export const useRestoring = create<{ restoring: boolean }>(() => ({ restoring: true }));
 
 export function useList(id: string | null, { poll = true } = {}) {
-  const qc = useQueryClient();
   const restoring = useRestoring((s) => s.restoring);
   const mutating = useIsMutating({ mutationKey: itemKeys.all, predicate: inScope(id ?? "") }) > 0;
   return useQuery({
     ...listDetailOptions(id),
     // No read before the restore, nor while edits (restored ones too) are pending: it would land over the rows they changed.
-    // The edit that settles last invalidates, and the query fetches when `mutating` ends.
+    // A disabled query neither polls nor refetches on focus. The edit that settles last invalidates, and the query fetches when `mutating` ends.
     enabled: !!id && !restoring && !mutating,
-    refetchInterval: poll && !mutating ? 5000 : false,
-    refetchOnWindowFocus: () => !itemEditsPending(qc, id ?? ""),
+    refetchInterval: poll ? 5000 : false,
   });
 }
 
@@ -148,7 +146,10 @@ const RETRIES = 3;
 // "online" network mode: an edit made offline waits for the network instead of failing, and so does a retry that finds it gone.
 const retryPolicy = {
   networkMode: "online" as const,
-  retry: (count: number, e: unknown) => failureOf(e) === "network" || (failureOf(e) === "retry" && count < RETRIES),
+  retry: (count: number, e: unknown) => {
+    const f = failureOf(e);
+    return f === "network" || (f === "retry" && count < RETRIES);
+  },
   retryDelay: (count: number) => Math.min(1000 * 2 ** count, 30_000),
 };
 
@@ -177,10 +178,6 @@ const inScope = (listId: string) => (m: { options: { scope?: { id: string } } })
 /** Item edits for a List that are queued, paused or in flight: reads of that List wait for them. */
 export const itemEditsPending = (qc: QueryClient, listId: string) => qc.isMutating({ mutationKey: itemKeys.all, predicate: inScope(listId) });
 
-/** Invalidate the Lists, skipping a List (detail, categories) with item edits pending: the edit that settles last refetches it. */
-export const invalidateLists = (qc: QueryClient) =>
-  qc.invalidateQueries({ queryKey: listKeys.all, predicate: (q) => !itemEditsPending(qc, String(q.queryKey[1] ?? "")) });
-
 /** Pull-to-refresh of a List: does nothing while it has item edits pending (a read now would lack them); otherwise `refetch`. */
 export const refreshList = async (qc: QueryClient, listId: string | null, refetch: () => Promise<unknown>) => {
   if (!itemEditsPending(qc, listId ?? "")) await refetch();
@@ -200,44 +197,41 @@ export function registerItemEdits(qc: QueryClient) {
   };
 
   // `soldBy` only shapes the optimistic row (the server owns it); it is not sent.
-  qc.setMutationDefaults(itemKeys.add, {
+  qc.setMutationDefaults<Item, Error, AddVars, { name: string }>(itemKeys.add, {
     ...retryPolicy,
-    mutationFn: ({ listId, soldBy: _, ...body }: AddVars) => send<Item>(`api/lists/${listId}/items`, { method: "POST", body: JSON.stringify(body) }),
-    onMutate: (vars: AddVars) => {
+    mutationFn: ({ listId, soldBy: _, ...body }) => send<Item>(`api/lists/${listId}/items`, { method: "POST", body: JSON.stringify(body) }),
+    onMutate: (vars) => {
       start(vars.listId);
       patchItems(vars.listId, (items) => [...items, optimisticItem(vars, vars.listId, new Date().toISOString())]);
       return { name: vars.name };
     },
-    onError: (_e: unknown, { listId, id }: AddVars) => patchItems(listId, (items) => items.filter((i) => i.id !== id)),
+    onError: (_e, { listId, id }) => patchItems(listId, (items) => items.filter((i) => i.id !== id)),
     // The row already has its real id; take what the server owns now, not at the next refetch. The rest stays as tapped.
-    onSuccess: (data: unknown, { listId, id }: AddVars) => {
-      const item = data as Item;
-      patchItem(listId, id, (i) => ({ ...i, soldBy: item.soldBy, createdAt: item.createdAt, updatedAt: item.updatedAt }));
-    },
-    onSettled: (_d: unknown, _e: unknown, { listId }: AddVars) => settled(listId),
+    onSuccess: (item, { listId, id }) => patchItem(listId, id, (i) => ({ ...i, soldBy: item.soldBy, createdAt: item.createdAt, updatedAt: item.updatedAt })),
+    onSettled: (_d, _e, { listId }) => settled(listId),
   });
 
-  qc.setMutationDefaults(itemKeys.update, {
+  qc.setMutationDefaults<Item, Error, UpdateVars, { before?: Item; name?: string }>(itemKeys.update, {
     ...retryPolicy,
-    mutationFn: ({ listId, id, ...patch }: UpdateVars) => send<Item>(`api/lists/${listId}/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
-    onMutate: ({ listId, id, ...patch }: UpdateVars) => {
+    mutationFn: ({ listId, id, ...patch }) => send<Item>(`api/lists/${listId}/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    onMutate: ({ listId, id, ...patch }) => {
       start(listId);
       const before = qc.getQueryData<ListDetail>(listKeys.detail(listId))?.items.find((i) => i.id === id);
       patchItem(listId, id, (i) => ({ ...i, ...patch }));
       return { before, name: before?.name ?? patch.name };
     },
     // Put back the fields this edit changed, unless a later edit has changed them since. A gone item is not put back: the refetch drops it.
-    onError: (e: unknown, { listId, id, ...patch }: UpdateVars, ctx?: { before?: Item }) =>
-      failureOf(e) !== "gone" &&
-      ctx?.before &&
+    onError: (e, { listId, id, ...patch }, ctx) => {
+      const before = ctx?.before;
+      if (failureOf(e) === "gone" || !before) return;
       patchItem(listId, id, (cur) => {
         const undone: Record<string, unknown> = { ...cur };
-        for (const k of Object.keys(patch) as (keyof ItemPatch)[]) if (cur[k] === patch[k]) undone[k] = ctx.before![k];
+        for (const k of Object.keys(patch) as (keyof ItemPatch)[]) if (cur[k] === patch[k]) undone[k] = before[k];
         return undone as Item;
-      }),
-    onSuccess: (data: unknown, { listId, id, quantity, ...patch }: UpdateVars) => {
+      });
+    },
+    onSuccess: (item, { listId, id, quantity, ...patch }) => {
       // The server owns soldBy, and resets the quantity on a re-match unless a later queued edit sets it.
-      const item = data as Item;
       const rematch = quantity === undefined && ("productCode" in patch || "groupRef" in patch);
       const laterQuantity =
         qc.isMutating({
@@ -247,26 +241,28 @@ export function registerItemEdits(qc: QueryClient) {
       patchItem(listId, id, (i) => ({ ...i, soldBy: item.soldBy, ...(rematch && !laterQuantity && { quantity: item.quantity }) }));
       if (patch.missing === true) track(Events.listItemAdded, { existing: true });
     },
-    onSettled: (_d: unknown, _e: unknown, { listId }: UpdateVars) => settled(listId),
+    onSettled: (_d, _e, { listId }) => settled(listId),
   });
 
-  qc.setMutationDefaults(itemKeys.remove, {
+  qc.setMutationDefaults<void, Error, RemoveVars, { item?: Item; index: number; name?: string }>(itemKeys.remove, {
     ...retryPolicy,
     // Already deleted (the spouse got there first) is what the User asked for.
-    mutationFn: ({ listId, id }: RemoveVars) =>
+    mutationFn: ({ listId, id }) =>
       send<void>(`api/lists/${listId}/items/${id}`, { method: "DELETE" }).catch((e: unknown) => {
         if (failureOf(e) !== "gone") throw e;
       }),
-    onMutate: ({ listId, id }: RemoveVars) => {
+    onMutate: ({ listId, id }) => {
       start(listId);
       const items = qc.getQueryData<ListDetail>(listKeys.detail(listId))?.items ?? [];
       patchItems(listId, (all) => all.filter((i) => i.id !== id));
       const item = items.find((i) => i.id === id);
       return { item, index: items.findIndex((i) => i.id === id), name: item?.name };
     },
-    onError: (_e: unknown, { listId }: RemoveVars, ctx?: { item?: Item; index: number }) =>
-      ctx?.item && patchItems(listId, (items) => (items.some((i) => i.id === ctx.item!.id) ? items : items.toSpliced(ctx.index, 0, ctx.item!))),
-    onSettled: (_d: unknown, _e: unknown, { listId }: RemoveVars) => settled(listId),
+    onError: (_e, { listId }, ctx) => {
+      const item = ctx?.item;
+      if (item) patchItems(listId, (items) => (items.some((i) => i.id === item.id) ? items : items.toSpliced(ctx.index, 0, item)));
+    },
+    onSettled: (_d, _e, { listId }) => settled(listId),
   });
 }
 

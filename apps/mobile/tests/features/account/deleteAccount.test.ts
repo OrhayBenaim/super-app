@@ -5,7 +5,7 @@ const m = vi.hoisted(() => ({ deleteUser: vi.fn(), disable: vi.fn(), wipe: vi.fn
 
 vi.mock("@/lib/auth-client", () => ({ authClient: { deleteUser: m.deleteUser } }));
 vi.mock("@/features/geofence/useNearbyAlerts", () => ({ disableNearbyAlerts: m.disable }));
-vi.mock("@/lib/saved", () => ({ wipeDevice: m.wipe }));
+vi.mock("@/features/lists/saved", () => ({ wipeDevice: m.wipe }));
 
 import { deleteAccount } from "@/features/account/deleteAccount";
 

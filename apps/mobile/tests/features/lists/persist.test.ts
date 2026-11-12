@@ -8,7 +8,7 @@ vi.mock("expo-secure-store", () => ({ getItem: () => null, setItemAsync: vi.fn()
 
 import { api } from "@/lib/api";
 import { itemEdit, listKeys, registerItemEdits, useRestoring, type Item, type ListDetail } from "@/features/lists/api";
-import { createSavedCopy, keepSaved } from "@/lib/persist";
+import { createSavedCopy, keepSaved } from "@/features/lists/persist";
 
 // The saved-copy seam: real QueryClients with the item-edit defaults, a fake in-memory storage, the api held by hand.
 const item = (id: string): Item => ({

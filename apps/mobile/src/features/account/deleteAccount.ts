@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { disableNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
 import { authClient } from "@/lib/auth-client";
-import { wipeDevice } from "@/lib/saved";
+import { wipeDevice } from "@/features/lists/saved";
 
 /** Account deletion. Clears the device only once the server has deleted the User. */
 export async function deleteAccount(queryClient: QueryClient): Promise<"deleted" | "reauth" | "failed"> {

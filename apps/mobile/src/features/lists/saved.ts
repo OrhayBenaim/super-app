@@ -1,7 +1,7 @@
 // The saved List copy on this phone, in expo-sqlite's kv-store. The only file that imports it (tests inject a fake storage into persist.ts).
 import Storage from "expo-sqlite/kv-store";
 import type { QueryClient } from "@tanstack/react-query";
-import { createSavedCopy, keepSaved } from "@/lib/persist";
+import { createSavedCopy, keepSaved } from "./persist";
 
 const copy = createSavedCopy(Storage);
 

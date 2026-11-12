@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({ signOut: vi.fn(), wipe: vi.fn() }));
 
 vi.mock("@/lib/auth-client", () => ({ authClient: { signOut: m.signOut } }));
-vi.mock("@/lib/saved", () => ({ wipeDevice: m.wipe }));
+vi.mock("@/features/lists/saved", () => ({ wipeDevice: m.wipe }));
 
 import { signOut } from "@/features/account/signOut";
 

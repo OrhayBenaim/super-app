@@ -1,13 +1,13 @@
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Alert } from "react-native";
-import { invalidateLists, listKeys, selectList, type List, type ListDetail } from "@/features/lists/api";
+import { listKeys, selectList, type List, type ListDetail } from "@/features/lists/api";
 import { Events, track } from "@/lib/analytics";
 import { api } from "@/lib/api";
 import { t } from "@/lib/strings";
 
 export function useShareMutations(listId: string | null) {
   const qc = useQueryClient();
-  const refresh = () => invalidateLists(qc);
+  const refresh = () => qc.invalidateQueries({ queryKey: listKeys.all });
 
   const invite = useMutation({
     mutationFn: () => api<{ code: string; url: string }>(`api/lists/${listId}/invite`, { method: "POST" }),
@@ -55,6 +55,6 @@ export function renameList(qc: QueryClient, listId: string | null) {
       if (previous?.detail) qc.setQueryData(detailKey, previous.detail);
       Alert.alert(t("common.error"));
     },
-    onSettled: () => invalidateLists(qc),
+    onSettled: () => qc.invalidateQueries({ queryKey: listKeys.all }),
   };
 }

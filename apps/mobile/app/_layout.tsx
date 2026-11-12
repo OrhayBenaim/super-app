@@ -14,7 +14,7 @@ import { usePendingInvite } from "@/features/share/usePendingInvite";
 import { useAnalytics } from "@/lib/useAnalytics";
 import { authClient } from "@/lib/auth-client";
 import { connectQueryManagers } from "@/lib/online";
-import { keepSavedCopy } from "@/lib/saved";
+import { keepSavedCopy } from "@/features/lists/saved";
 import { useTheme } from "@/theme";
 
 const queryClient = new QueryClient();
