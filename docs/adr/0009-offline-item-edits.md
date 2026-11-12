@@ -19,9 +19,12 @@ in tap order. Spec #215.
   field a later queued edit changed. Reads of that List (poll, focus, invalidation) wait until the queue is empty.
 - **Saved on the phone.** The QueryClient is saved to expo-sqlite's `kv-store`: only the lists query, the List detail
   queries and their categories, plus pending and paused item edits. The copy lasts 30 days, with no age limit on queued
-  edits inside it, and belongs to the signed-in `user.id`: a copy for another User is thrown away on restore. Restored
-  edits are sent once the phone is online, however many days later. Signing out, Account deletion and Data deletion clear
-  the cache, the queue and the saved copy.
+  edits inside it (past 30 days the queries are dropped, the queued edits still restore), and belongs to the signed-in
+  `user.id`: a copy for another User is thrown away on restore, and a different User signing in with no Sign out first
+  starts from an empty cache and queue. List reads wait until the restore is done. Restored edits are sent once the phone
+  is online, however many days later. Signing out and Account deletion clear the cache, the queue and the saved copy. Data
+  deletion is the web `/account` page, so the phone has nothing to wipe until the next sign-in, which throws the copy away
+  if the User changed.
 - **Last write wins.** Two Members changing the same item settle on whatever the server received last. No conflict
   resolution beyond that.
 - **One failure rule.** A network error or timeout waits for the network and is sent again without limit; a 5xx is retried
@@ -45,6 +48,6 @@ in tap order. Spec #215.
 - No backward compatibility: there are no users yet, so an old build that sends no item id is not supported.
 - Compare, Home, Promotions and browse queries are not saved; they refetch as before.
 - An edit sent only after an app restart fires no success analytics event for its original tap.
-- A saved copy older than 30 days is dropped with any edits still in it.
+- A saved copy older than 30 days loses its queries but still sends its queued edits.
 - New native dependencies (`@react-native-community/netinfo`, `expo-sqlite`) need a new native build.
 - CONTEXT.md does not change.
