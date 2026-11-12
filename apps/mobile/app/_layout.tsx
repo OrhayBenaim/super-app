@@ -13,10 +13,12 @@ import { ItemSaveToast } from "@/features/lists/ItemSaveToast";
 import { usePendingInvite } from "@/features/share/usePendingInvite";
 import { useAnalytics } from "@/lib/useAnalytics";
 import { authClient } from "@/lib/auth-client";
+import { connectQueryManagers } from "@/lib/online";
 import { useTheme } from "@/theme";
 
 const queryClient = new QueryClient();
 registerItemEdits(queryClient);
+connectQueryManagers();
 
 // Keep the native splash (logo) up until the session is read, instead of a blank first frame.
 SplashScreen.preventAutoHideAsync();
