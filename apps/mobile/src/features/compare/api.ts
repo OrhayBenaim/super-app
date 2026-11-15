@@ -7,6 +7,8 @@ import type { Coords } from "@/lib/location";
 import type { CompareResponse, Sort } from "./sort";
 
 export const RADII = [5, 10, 20] as const;
+/** The most stores Compare returns (the API's cap): asking for all of them lets a client sort see every store. */
+export const COMPARE_LIMIT = 100;
 
 /** Search radius, shared by Compare and the List's "cheapest now" row so both read the same query. */
 export const useRadius = create<{ km: number; set: (km: number) => void }>((set) => ({ km: 10, set: (km) => set({ km }) }));
@@ -18,7 +20,7 @@ export async function fetchCompare(body: Coords & Basket & { radiusKm: number; s
 
 // Sort is applied client-side (see sortStores), so it is not part of the key: re-sorting never refetches.
 // Quantities are: changing one refetches.
-// We fetch the max page (100) so the client sort sees every store a server sort would.
+// We fetch the max page (COMPARE_LIMIT) so the client sort sees every store a server sort would.
 export function useCompare(coords: Coords | null, radiusKm: number, { items, groups }: Basket) {
   // ~100 m rounding keeps GPS jitter from refetching.
   const lat = coords && Math.round(coords.lat * 1000) / 1000;
@@ -30,7 +32,7 @@ export function useCompare(coords: Coords | null, radiusKm: number, { items, gro
   const enabled = lat != null && lng != null && items.length + groups.length > 0;
   return useQuery({
     queryKey: ["compare", lat, lng, radiusKm, basket],
-    queryFn: () => fetchCompare({ lat: lat!, lng: lng!, radiusKm, ...basket, sort: "price", limit: 100 }),
+    queryFn: () => fetchCompare({ lat: lat!, lng: lng!, radiusKm, ...basket, sort: "price", limit: COMPARE_LIMIT }),
     enabled,
     // When the List's items change, the previous result stays until the new one lands; with no items it shows nothing.
     placeholderData: enabled ? keepPreviousData : undefined,

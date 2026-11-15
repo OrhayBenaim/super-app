@@ -7,7 +7,7 @@ import { t } from "@/lib/strings";
 import { openWaze } from "@/lib/waze";
 import { useTheme } from "@/theme";
 import { Button, Group, Row, Tap, Text } from "@/ui";
-import { fmt, formatDistance, shekels } from "./format";
+import { fmt, formatDistance, navigateLabel, shekels } from "./format";
 import type { StoreResult } from "./sort";
 
 type Props = {
@@ -69,7 +69,7 @@ export function BestStore({ store, basketSize, missing, saving, listText, onShow
         </View>
         <Row title={coverage} titleColor={missing ? "warning" : "tint"} chevron accessibilityHint={t("compare.breakdown.hint")} analyticsName={Taps.compareBreakdown} onPress={onShowBreakdown} />
         <View style={{ gap: space[2], padding: space[5], paddingTop: space[2] }}>
-          <Button title={t("compare.navigate")} analyticsName={Taps.compareNavigate} accessibilityLabel={fmt(t("compare.navigateTo"), { store: `${store.chainName} ${store.storeName}` })} haptic onPress={() => {
+          <Button title={t("compare.navigate")} analyticsName={Taps.compareNavigate} accessibilityLabel={navigateLabel(store, t)} haptic onPress={() => {
             selected("navigate");
             void openWaze(store.lat, store.lng);
           }} />
