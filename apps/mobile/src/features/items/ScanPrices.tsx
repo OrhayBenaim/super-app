@@ -1,13 +1,45 @@
 import { Navigation, Tag } from "lucide-react-native";
-import { View } from "react-native";
+import { useEffect, useState } from "react";
+import { AccessibilityInfo, ActivityIndicator, ScrollView, View } from "react-native";
+import { useRadius } from "@/features/compare/api";
 import { formatDistance, shekels } from "@/features/compare/format";
 import { ShelfPrice } from "@/features/compare/ShelfPrice";
 import { Taps } from "@/lib/analytics";
+import { currentLocation, lastKnownLocation, type Coords } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { openWaze } from "@/lib/waze";
 import { useTheme } from "@/theme";
-import { Group, Tap, Text } from "@/ui";
-import { shownPrice, storeLabel, type ScanPrices, type ScanStore } from "./scan";
+import { Group, SectionHeader, Tap, Text } from "@/ui";
+import { pricesNearby, shownPrice, storeLabel, type ScannedProduct, type ScanPrices, type ScanStore } from "./scan";
+
+/** The found Product's prices, `undefined` until the first Compare answers. `settling` while they come from the last known position (maybe stale); a fresh fix then prices them again. */
+type Nearby = { prices?: ScanPrices; settling: boolean };
+
+function useNearbyPrices({ code, soldBy }: ScannedProduct): Nearby {
+  const [nearby, setNearby] = useState<Nearby>({ settling: true });
+  useEffect(() => {
+    let live = true;
+    const radiusKm = useRadius.getState().km;
+    const priceAt = (at: Coords | null) => pricesNearby(code, soldBy, at && { ...at, radiusKm });
+    (async () => {
+      const last = await lastKnownLocation();
+      if (last) {
+        const prices = await priceAt(last);
+        if (live) setNearby({ prices, settling: true });
+      }
+      const fresh = await currentLocation();
+      // No fresh fix keeps the last known prices; with neither, location is off.
+      const prices = fresh || !last ? await priceAt(fresh) : undefined;
+      if (!live) return;
+      setNearby((n) => ({ prices: prices ?? n.prices, settling: false }));
+      if (prices?.kind === "stores") AccessibilityInfo.announceForAccessibility(`${prices.headline.chainName}, ${shekels(shownPrice(prices.headline))}`);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [code, soldBy]);
+  return nearby;
+}
 
 /** "branch · distance" as a link line (Tint, then the navigation icon at its end); its row or group opens Waze. */
 function BranchLine({ store }: { store: ScanStore }) {
@@ -30,14 +62,14 @@ const navigateTap = (store: ScanStore) => ({
   scaleTo: 1 as const,
 });
 
-/** The cheapest store: Chain, where, then the price in Price Hero (Saving green over the struck Shelf price and the Promotion text when promoted). */
-function Headline({ store }: { store: ScanStore }) {
+/** The cheapest store: Chain, where (a spinner while the fix settles), then the price in Price Hero (Saving green over the struck Shelf price and the Promotion text when promoted). */
+function Headline({ store, settling }: { store: ScanStore; settling: boolean }) {
   const { colors, space, radius, size } = useTheme();
   const { promo } = store;
   return (
     <Tap {...navigateTap(store)} style={{ backgroundColor: colors.surface, borderRadius: radius.group, padding: space[5], gap: space[1], minHeight: size.row }}>
       <Text variant="title3" numberOfLines={1}>{store.chainName}</Text>
-      <BranchLine store={store} />
+      {settling ? <ActivityIndicator size="small" color={colors.labelSecondary} accessibilityLabel={t("items.scan.locating")} style={{ alignSelf: "flex-start" }} /> : <BranchLine store={store} />}
       <View style={{ flexDirection: "row", alignItems: "baseline", gap: space[2], marginTop: space[2] }}>
         <Text variant="priceHero" tabular color={promo ? "saving" : "label"}>{shekels(shownPrice(store))}</Text>
         {promo && <ShelfPrice price={store.price} variant="subhead" />}
@@ -52,13 +84,13 @@ function Headline({ store }: { store: ScanStore }) {
   );
 }
 
-function OtherBranchRow({ store }: { store: ScanStore }) {
+function OtherBranchRow({ store, settling }: { store: ScanStore; settling: boolean }) {
   const { space, size } = useTheme();
   return (
     <Tap {...navigateTap(store)} style={{ flexDirection: "row", alignItems: "center", gap: space[3], minHeight: size.row, paddingHorizontal: space[5], paddingVertical: space[3] }}>
       <View style={{ flex: 1, gap: space[1] }}>
         <Text numberOfLines={1}>{store.chainName}</Text>
-        <BranchLine store={store} />
+        {!settling && <BranchLine store={store} />}
       </View>
       <View style={{ alignItems: "flex-end" }}>
         <Text variant="priceRow" tabular color={store.promo ? "saving" : "label"}>{shekels(shownPrice(store))}</Text>
@@ -70,19 +102,29 @@ function OtherBranchRow({ store }: { store: ScanStore }) {
 
 const NO_PRICES = { noLocation: "items.scan.noLocation", failed: "items.scan.pricesFailed", none: "items.scan.noStore" } as const;
 
-/** The prices part of the found view: the headline and the others (a Group that scrolls past 4 rows, so the pinned button stays on screen), or one secondary line saying why there are none. */
-export function ScanPricesView({ prices }: { prices: ScanPrices }) {
-  const { space } = useTheme();
+/**
+ * The prices part of the found view: a spinner until the first Compare answers, then the headline and the others, or one
+ * secondary line saying why there are none. Only the others shrink and scroll, so the view's pinned button stays on screen.
+ */
+export function ScanPricesView({ product }: { product: ScannedProduct }) {
+  const { colors, space, radius } = useTheme();
+  const { prices, settling } = useNearbyPrices(product);
+  if (!prices) return <ActivityIndicator color={colors.labelSecondary} accessibilityLabel={t("items.scan.locating")} style={{ paddingVertical: space[5] }} />;
   if (prices.kind !== "stores") return <Text variant="subhead" color="labelSecondary" style={{ textAlign: "center" }}>{t(NO_PRICES[prices.kind])}</Text>;
   return (
-    <View style={{ gap: space[4] }}>
-      <Headline store={prices.headline} />
+    <View style={{ flexShrink: 1, gap: space[4] }}>
+      <Headline store={prices.headline} settling={settling} />
       {prices.others.length > 0 && (
-        <Group title={t("compare.others")} count={prices.others.length} maxRows={4}>
-          {prices.others.map((s, i) => (
-            <OtherBranchRow key={i} store={s} />
-          ))}
-        </Group>
+        <View style={{ flexShrink: 1 }}>
+          <SectionHeader title={t("compare.others")} count={prices.others.length} />
+          <ScrollView style={{ flexShrink: 1, borderRadius: radius.group }} nestedScrollEnabled>
+            <Group>
+              {prices.others.map((s, i) => (
+                <OtherBranchRow key={i} store={s} settling={settling} />
+              ))}
+            </Group>
+          </ScrollView>
+        </View>
       )}
     </View>
   );

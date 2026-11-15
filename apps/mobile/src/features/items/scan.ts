@@ -30,11 +30,11 @@ export type ScanWhere = (Coords & { radiusKm: number }) | null;
 /** What one scanned Barcode does to the add box. */
 export type ScanOutcome =
   /** Grocer knows the Product. Nothing is added until the User taps Add; `action` says what Add does. */
-  | { kind: "found"; product: ScannedProduct; action: "add"; prices: ScanPrices }
+  | { kind: "found"; product: ScannedProduct; action: "add" }
   /** An Item matched to the Product is checked off or off the List: Add puts it back with its Quantity. */
-  | { kind: "found"; product: ScannedProduct; action: "return"; item: Item; prices: ScanPrices }
+  | { kind: "found"; product: ScannedProduct; action: "return"; item: Item }
   /** An Item matched to the Product is on the List and not checked off: the button only closes the sheet. */
-  | { kind: "found"; product: ScannedProduct; action: "onList"; item: Item; prices: ScanPrices }
+  | { kind: "found"; product: ScannedProduct; action: "onList"; item: Item }
   /** Grocer doesn't know the Barcode; Open Food Facts gave this Hebrew name for the add box. */
   | { kind: "named"; name: string }
   | { kind: "unknown" };
@@ -42,23 +42,22 @@ export type ScanOutcome =
 /**
  * Resolves a Barcode the camera read against Grocer's Product search and the Items the add box sees. Leading 0s are
  * dropped: stored Barcodes never start with 0, and iOS reads a UPC-A as 13 digits. Found only on an exact code match a
- * store prices, never its Product group. A found Product also carries its prices (Compare on a basket of just this
- * Product); a failed Compare is `failed`, never a throw. Throws when the search fails.
+ * store prices, never its Product group. Throws when the search fails. Its prices come after, from `pricesNearby`.
  */
-export async function resolveScan(read: string, items: Item[], where: ScanWhere = null): Promise<ScanOutcome> {
+export async function resolveScan(read: string, items: Item[]): Promise<ScanOutcome> {
   const code = read.replace(/^0+/, "");
   if (!code) return { kind: "unknown" };
   const results = await api<SearchResult[]>(`api/products/search?q=${encodeURIComponent(code)}`);
   const match = results.find((r): r is Product => r.kind === "product" && r.code === code);
   if (!match) return named(read);
   const product: ScannedProduct = { code, name: match.name, measure: match.measure, size: match.size, soldBy: match.soldBy };
-  const prices = await pricesNearby(code, match.soldBy, where);
   const item = items.find((i) => i.productCode === code);
-  if (!item) return { kind: "found", product, action: "add", prices };
-  return { kind: "found", product, action: item.missing ? "onList" : "return", item, prices };
+  if (!item) return { kind: "found", product, action: "add" };
+  return { kind: "found", product, action: item.missing ? "onList" : "return", item };
 }
 
-async function pricesNearby(code: string, soldBy: Product["soldBy"], where: ScanWhere): Promise<ScanPrices> {
+/** A found Product's prices: Compare on a basket of just it (Quantity 1) around `where`. A failed Compare is `failed`, never a throw. */
+export async function pricesNearby(code: string, soldBy: Product["soldBy"], where: ScanWhere): Promise<ScanPrices> {
   if (!where) return { kind: "noLocation" };
   try {
     const { stores } = await fetchCompare({ lat: where.lat, lng: where.lng, radiusKm: where.radiusKm, items: [{ code, quantity: 1 }], groups: [], sort: "price", limit: COMPARE_LIMIT });

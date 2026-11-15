@@ -54,11 +54,29 @@ export function useLocation() {
   return { ...state, coords: state.status === "ready" ? state.coords : null, request, refresh: locate };
 }
 
-/** The User's position without ever asking: null when foreground permission isn't granted or no fix comes. For one-off reads such as the scan. */
-export async function peekLocation(): Promise<Coords | null> {
+const granted = async () => (await Location.getForegroundPermissionsAsync()).granted;
+
+/** The last known position without ever asking: instant but maybe stale; null without foreground permission or a fix. */
+export async function lastKnownLocation(): Promise<Coords | null> {
   try {
-    if (!(await Location.getForegroundPermissionsAsync()).granted) return null;
-    return toCoords((await Location.getLastKnownPositionAsync()) ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })));
+    if (!(await granted())) return null;
+    const last = await Location.getLastKnownPositionAsync();
+    return last && toCoords(last);
+  } catch {
+    return null;
+  }
+}
+
+// A fresh fix can take this long indoors; past it the caller keeps what it has.
+const FIX_TIMEOUT_MS = 10_000;
+
+/** A fresh fix without ever asking; null without foreground permission, on failure, or after FIX_TIMEOUT_MS. */
+export async function currentLocation(): Promise<Coords | null> {
+  try {
+    if (!(await granted())) return null;
+    const late = new Promise<null>((resolve) => setTimeout(() => resolve(null), FIX_TIMEOUT_MS));
+    const fix = await Promise.race([Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), late]);
+    return fix && toCoords(fix);
   } catch {
     return null;
   }

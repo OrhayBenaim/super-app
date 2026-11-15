@@ -3,13 +3,11 @@ import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { CameraOff } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Alert, AppState, Linking, View, type TextStyle, type ViewStyle } from "react-native";
+import { AccessibilityInfo, Alert, AppState, Linking, useWindowDimensions, View, type TextStyle, type ViewStyle } from "react-native";
 import Animated, { Easing, FadeIn, ReduceMotion } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useList } from "@/features/lists/api";
 import { Events, Taps, track } from "@/lib/analytics";
-import { peekLocation } from "@/lib/location";
-import { useRadius } from "@/features/compare/api";
-import { shekels } from "@/features/compare/format";
 import { useDelayed, useMinDuration } from "@/lib/loaderTiming";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
@@ -18,7 +16,7 @@ import { sizeLabel } from "./labels";
 import { ProductImage } from "./ProductImage";
 import { useProductImage } from "./products";
 import { ScanPricesView } from "./ScanPrices";
-import { handScan, resolveScan, shownPrice, type ScanOutcome } from "./scan";
+import { handScan, resolveScan, type ScanOutcome } from "./scan";
 
 type Found = Extract<ScanOutcome, { kind: "found" }>;
 
@@ -71,20 +69,12 @@ export function ScanSheet() {
       setLookingUp(false);
       setShowResult(() => show);
     };
-    peekLocation()
-      .then((at) => resolveScan(data, items, at && { ...at, radiusKm: useRadius.getState().km }))
-      .then(
+    resolveScan(data, items).then(
       (outcome) => {
         // Counted when the lookup ends, not when the mascot's cycle lets the result show.
         track(Events.itemScanned, { result: outcome.kind, from });
         finishLookup(() => {
-          if (outcome.kind === "found") {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            const headline = outcome.prices.kind === "stores" ? outcome.prices.headline : null;
-            AccessibilityInfo.announceForAccessibility(headline ? `${outcome.product.name}, ${shekels(shownPrice(headline))}` : outcome.product.name);
-            setFound(outcome);
-            return;
-          }
+          if (outcome.kind === "found") return setFound(outcome);
           if (outcome.kind === "named") {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             handScan(outcome);
@@ -173,21 +163,34 @@ export function ScanSheet() {
   );
 }
 
-/** The found Product: image (when it has one), name, pack size, then the button. Fades in over 200ms, opacity only, also under reduced motion. */
-function ProductView({ found: { product, action, prices }, onAdd }: { found: Found; onAdd: () => void }) {
-  const { space, motion } = useTheme();
+/**
+ * The found Product: image (when it has one), name, pack size, its prices, then the button, pinned: the view never grows
+ * past the screen, and only the prices' list shrinks. Fades in over 200ms, opacity only, also under reduced motion.
+ */
+function ProductView({ found: { product, action }, onAdd }: { found: Found; onAdd: () => void }) {
+  const { space, motion, size } = useTheme();
   const [x1, y1, x2, y2] = motion.easing.out;
   const image = useProductImage(product.code);
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  // On the frame the view is on screen, not when the lookup ends.
+  useEffect(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    AccessibilityInfo.announceForAccessibility(product.name);
+  }, [product.name]);
   const pack = product.soldBy === "weight" ? t("items.product.byWeight") : product.measure && product.size ? sizeLabel(product.measure, product.size, t) : null;
   const onList = action === "onList";
   return (
-    <Animated.View entering={FadeIn.duration(motion.duration.base).easing(Easing.bezier(x1, y1, x2, y2)).reduceMotion(ReduceMotion.Never)} style={{ gap: space[4] }}>
+    <Animated.View entering={FadeIn.duration(motion.duration.base).easing(Easing.bezier(x1, y1, x2, y2)).reduceMotion(ReduceMotion.Never)}
+      // shortcut: the sheet's top gap and header are estimated as 3 touch targets; measure them if Add still clips on a device.
+      style={{ gap: space[4], maxHeight: height - insets.top - insets.bottom - size.target * 3 - space[5] * 2 }}
+    >
       <View style={{ alignItems: "center", gap: space[2], paddingVertical: space[4] }}>
         <ProductImage url={image} style={{ width: 96, height: 96, marginBottom: space[2] }} />
         <Text variant="title3" style={centered}>{product.name}</Text>
         {pack && <Text variant="footnote" color="labelSecondary" style={centered}>{pack}</Text>}
       </View>
-      <ScanPricesView prices={prices} />
+      <ScanPricesView product={product} />
       <Button
         title={t(onList ? "items.scan.onList" : "items.scan.add")}
         variant={onList ? "tinted" : "filled"}
