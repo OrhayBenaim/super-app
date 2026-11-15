@@ -203,9 +203,9 @@ describe("resolveScan", () => {
 describe("storeLabel", () => {
   const store = { chainName: "Shufersal", storeName: "Dizengoff", distanceKm: 1, lat: 0, lng: 0, price: 10 };
   it("reads the Waze action with the price", () => {
-    expect(storeLabel(store)).toBe("Navigate to Shufersal Dizengoff in Waze, ₪10.00");
+    expect(storeLabel(store)).toBe("ניווט לShufersal Dizengoff ב-Waze, ₪10.00");
   });
   it("reads the Promotion price, then the struck Shelf price as 'instead of'", () => {
-    expect(storeLabel({ ...store, promo: { price: 8, text: "2 for 8" } })).toBe("Navigate to Shufersal Dizengoff in Waze, ₪8.00, instead of ₪10.00");
+    expect(storeLabel({ ...store, promo: { price: 8, text: "2 for 8" } })).toBe("ניווט לShufersal Dizengoff ב-Waze, ₪8.00, במקום ₪10.00");
   });
 });
