@@ -1,9 +1,9 @@
 import { fetchOrNull, hasImageSource, USER_AGENT } from "@grocer/shared/product-image";
 import type { Item } from "@/features/lists/api";
-import { fetchCompare } from "@/features/compare/api";
-import { fmt, shekels } from "@/features/compare/format";
+import { COMPARE_LIMIT, fetchCompare } from "@/features/compare/api";
+import { fmt, navigateLabel, shekels } from "@/features/compare/format";
 import { promotionText } from "@/features/compare/promotion";
-import { sortStores } from "@/features/compare/sort";
+import { sortStores, type StoreResult } from "@/features/compare/sort";
 import { api } from "@/lib/api";
 import type { Coords } from "@/lib/location";
 import { t } from "@/lib/strings";
@@ -13,10 +13,13 @@ import type { Product, SearchResult } from "./products";
 export type ScannedProduct = Pick<Product, "code" | "name" | "measure" | "size" | "soldBy"> & { hasImage: boolean };
 
 /** One store pricing the scanned Product. `price` is the Shelf price (per kilo when Sold by weight); `promo` is set only when a Promotion lowers the price of one. */
-export type ScanStore = {
-  chainName: string; storeName: string; distanceKm: number; lat: number; lng: number; price: number;
+export type ScanStore = Pick<StoreResult, "chainName" | "storeName" | "distanceKm" | "lat" | "lng"> & {
+  price: number;
   promo?: { price: number; text: string };
 };
+
+/** What a store charges for the scanned Product: the Promotion price when there is one, else the Shelf price. */
+export const shownPrice = (s: ScanStore) => s.promo?.price ?? s.price;
 
 /** What the scan shows under the Product: the cheapest store (ties: the nearer) and the others in price order, or why there are no prices. */
 export type ScanPrices = { kind: "stores"; headline: ScanStore; others: ScanStore[] } | { kind: "none" } | { kind: "noLocation" } | { kind: "failed" };
@@ -58,7 +61,7 @@ export async function resolveScan(read: string, items: Item[], where: ScanWhere 
 async function scanPrices(code: string, soldBy: Product["soldBy"], where: ScanWhere): Promise<ScanPrices> {
   if (!where) return { kind: "noLocation" };
   try {
-    const { stores } = await fetchCompare({ lat: where.lat, lng: where.lng, radiusKm: where.radiusKm, items: [{ code, quantity: 1 }], groups: [], sort: "price", limit: 100 });
+    const { stores } = await fetchCompare({ lat: where.lat, lng: where.lng, radiusKm: where.radiusKm, items: [{ code, quantity: 1 }], groups: [], sort: "price", limit: COMPARE_LIMIT });
     // Compare orders by total, which is the Promotion price here, so price order and the nearer-first tie-break hold.
     const priced = sortStores(stores, "price").flatMap((s): ScanStore[] => {
       const line = s.items.find((l) => l.code === code);
@@ -108,7 +111,7 @@ export function takeScan(): ScanFound | null {
 /** What a screen reader says for a store's tap target: the Waze action, the price, and the struck Shelf price when promoted. */
 export const storeLabel = (s: ScanStore) =>
   [
-    fmt(t("compare.navigateTo"), { store: `${s.chainName} ${s.storeName}` }),
-    shekels(s.promo?.price ?? s.price),
+    navigateLabel(s, t),
+    shekels(shownPrice(s)),
     s.promo && fmt(t("compare.promo.insteadOf"), { price: shekels(s.price) }),
   ].filter(Boolean).join(", ");

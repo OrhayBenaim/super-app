@@ -18,7 +18,7 @@ import { sizeLabel } from "./labels";
 import { ProductImage } from "./ProductImage";
 import { useProductImage } from "./products";
 import { ScanPricesView } from "./ScanPrices";
-import { handScan, resolveScan, type ScanOutcome } from "./scan";
+import { handScan, resolveScan, shownPrice, type ScanOutcome } from "./scan";
 
 type Found = Extract<ScanOutcome, { kind: "found" }>;
 
@@ -74,17 +74,19 @@ export function ScanSheet() {
     peekLocation()
       .then((at) => resolveScan(data, items, at && { ...at, radiusKm: useRadius.getState().km }))
       .then(
-      (outcome) =>
+      (outcome) => {
+        // Counted when the lookup ends, not when the mascot's cycle lets the result show.
+        track(Events.itemScanned, { result: outcome.kind, from });
         finishLookup(() => {
-          track(Events.itemScanned, { result: outcome.kind, from });
           if (outcome.kind === "found") {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             const headline = outcome.prices.kind === "stores" ? outcome.prices.headline : null;
-            AccessibilityInfo.announceForAccessibility(headline ? `${outcome.product.name}, ${shekels(headline.promo?.price ?? headline.price)}` : outcome.product.name);
+            AccessibilityInfo.announceForAccessibility(headline ? `${outcome.product.name}, ${shekels(shownPrice(headline))}` : outcome.product.name);
             setFound(outcome);
             return;
           }
           if (outcome.kind === "named") {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             handScan(outcome);
             router.back();
             return;
@@ -94,7 +96,8 @@ export function ScanSheet() {
           lastUnknown.current = data;
           setUnknown(true);
           reading.current = true;
-        }),
+        });
+      },
       () =>
         finishLookup(() => {
           router.back();
@@ -173,7 +176,9 @@ export function ScanSheet() {
 /** The found Product: image (when it has one), name, pack size, then the button. Fades in over 200ms, opacity only, also under reduced motion. */
 function ProductView({ found: { product, action, prices }, onAdd }: { found: Found; onAdd: () => void }) {
   const { space } = useTheme();
-  const image = useProductImage(product.hasImage ? product.code : null);
+  // No image source means no image, and no skeleton while the uploaded list is still being read.
+  const looked = useProductImage(product.hasImage ? product.code : null);
+  const image = product.hasImage ? looked : null;
   const pack = product.soldBy === "weight" ? t("items.product.byWeight") : product.measure && product.size ? sizeLabel(product.measure, product.size, t) : null;
   const onList = action === "onList";
   return (

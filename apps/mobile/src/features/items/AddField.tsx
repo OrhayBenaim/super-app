@@ -69,19 +69,23 @@ export function AddField({ listId, items, from, onClose }: Props) {
   };
   useFocusEffect(
     useCallback(() => {
-      const found = takeScan();
-      const showToast = (name: string) => setToast({ message: fmt(t("items.scan.added"), { name }), at: Date.now() });
-      if (found?.kind === "named") {
+      const scanned = takeScan();
+      if (!scanned) return;
+      if (scanned.kind === "named") {
         // Open Food Facts' name becomes the query, so the User picks from the usual results (the API rejects longer ones).
-        return setQuery(found.name.slice(0, SEARCH.maxLength));
+        setQuery(scanned.name.slice(0, SEARCH.maxLength));
+        return;
       }
-      if (found?.action === "add") {
-        createItem(found.product.name, { productCode: found.product.code });
-        showToast(found.product.name);
-      } else if (found?.action === "return") {
-        toggle(found.item, true);
-        showToast(found.item.name);
-      }
+      // The sheet hands over only an add or a return (an Item already on the List just closes it).
+      let name: string;
+      if (scanned.action === "add") {
+        createItem(scanned.product.name, { productCode: scanned.product.code });
+        name = scanned.product.name;
+      } else if (scanned.action === "return") {
+        toggle(scanned.item, true);
+        name = scanned.item.name;
+      } else return;
+      setToast({ message: fmt(t("items.scan.added"), { name }), at: Date.now() });
       // createItem and toggle only call stable mutate functions and setters, so a re-render can't leave them stale.
     }, [listId, from]),
   );

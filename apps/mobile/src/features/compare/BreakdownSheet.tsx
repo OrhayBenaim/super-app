@@ -12,6 +12,7 @@ import { useCompareStores } from "./useBestStore";
 import { breakdown } from "./breakdown";
 import { fmt, shekels } from "./format";
 import { basketText, promotionRows } from "./promotion";
+import { ShelfPrice } from "./ShelfPrice";
 
 /**
  * A Promotion under a breakdown line: a decorative icon on the start side, then its text (wraps). The applied one is in `saving`
@@ -102,15 +103,7 @@ export function BreakdownSheet() {
                 promotion && lineTotal < shelfTotal ? (
                   <View style={{ alignItems: "flex-end" }}>
                     {price(lineTotal, "saving")}
-                    <Text
-                      variant="footnote"
-                      color="labelSecondary"
-                      tabular
-                      style={{ textDecorationLine: "line-through" }}
-                      accessibilityLabel={fmt(t("compare.promo.insteadOf"), { price: shekels(shelfTotal) })}
-                    >
-                      {shekels(shelfTotal)}
-                    </Text>
+                    <ShelfPrice price={shelfTotal} variant="footnote" />
                   </View>
                 ) : (
                   price(lineTotal)
