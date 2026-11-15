@@ -7,6 +7,8 @@ import { AccessibilityInfo, Alert, AppState, Linking, View, type TextStyle, type
 import Animated, { Easing, FadeIn, ReduceMotion } from "react-native-reanimated";
 import { useList } from "@/features/lists/api";
 import { Events, Taps, track } from "@/lib/analytics";
+import { peekLocation } from "@/lib/location";
+import { useRadius } from "@/features/compare/api";
 import { useDelayed, useMinDuration } from "@/lib/loaderTiming";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
@@ -14,6 +16,7 @@ import { Button, SEARCH_MS, SearchLoader, Sheet, SheetHeader, Text } from "@/ui"
 import { sizeLabel } from "./labels";
 import { ProductImage } from "./ProductImage";
 import { useProductImage } from "./products";
+import { ScanPricesView } from "./ScanPrices";
 import { handScan, resolveScan, type ScanOutcome } from "./scan";
 
 type Found = Extract<ScanOutcome, { kind: "found" }>;
@@ -67,7 +70,9 @@ export function ScanSheet() {
       setLookingUp(false);
       setShowResult(() => show);
     };
-    resolveScan(data, items).then(
+    peekLocation()
+      .then((at) => resolveScan(data, items, at && { ...at, radiusKm: useRadius.getState().km }))
+      .then(
       (outcome) =>
         finishLookup(() => {
           track(Events.itemScanned, { result: outcome.kind, from });
@@ -164,7 +169,7 @@ export function ScanSheet() {
 }
 
 /** The found Product: image (when it has one), name, pack size, then the button. Fades in over 200ms, opacity only, also under reduced motion. */
-function ProductView({ found: { product, action }, onAdd }: { found: Found; onAdd: () => void }) {
+function ProductView({ found: { product, action, prices }, onAdd }: { found: Found; onAdd: () => void }) {
   const { space } = useTheme();
   const image = useProductImage(product.hasImage ? product.code : null);
   const pack = product.soldBy === "weight" ? t("items.product.byWeight") : product.measure && product.size ? sizeLabel(product.measure, product.size, t) : null;
@@ -176,6 +181,7 @@ function ProductView({ found: { product, action }, onAdd }: { found: Found; onAd
         <Text variant="title3" style={centered}>{product.name}</Text>
         {pack && <Text variant="footnote" color="labelSecondary" style={centered}>{pack}</Text>}
       </View>
+      <ScanPricesView prices={prices} />
       <Button
         title={t(onList ? "items.scan.onList" : "items.scan.add")}
         variant={onList ? "tinted" : "filled"}

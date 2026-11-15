@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 
 const product = (code: string, name = `p${code}`) => ({ kind: "product", code, name, manufacturer: null, unitQty: null, measure: "l", size: 1.5, soldBy: "unit", storeCount: 2, minPrice: 5 });
 const item = (over: Partial<Item>): Item => ({ id: "i1", listId: "l1", name: "Milk", category: "Other", productCode: null, groupRef: null, missing: true, quantity: 2, soldBy: "unit", createdAt: "", updatedAt: "", ...over });
-const found = (code: string, name: string, action: string, item?: Item) => ({ kind: "found", product: { code, name, measure: "l", size: 1.5, soldBy: "unit", hasImage: true }, action, ...(item && { item }) });
+const found = (code: string, name: string, action: string, item?: Item, prices: unknown = { kind: "noLocation" }) => ({ kind: "found", product: { code, name, measure: "l", size: 1.5, soldBy: "unit", hasImage: true }, action, prices, ...(item && { item }) });
 const searchReturns = (results: unknown[]) => vi.mocked(api).mockResolvedValueOnce(results);
 
 const off = vi.fn<typeof fetch>();
@@ -131,5 +131,71 @@ describe("resolveScan", () => {
     searchReturns([product("7290011111111", "Cola")]);
     await resolveScan("7290011111111", []);
     expect(off).not.toHaveBeenCalled();
+  });
+
+  describe("prices", () => {
+    const CODE = "7290011111111";
+    const where = { lat: 32.08, lng: 34.78, radiusKm: 10 };
+    const store = (name: string, price: number, distanceKm: number, lineTotal = price, promotion?: object) => ({
+      storeId: name, chainId: "c", chainName: name, storeName: `${name} branch`, address: "", city: "", lat: 1, lng: 2, distanceKm,
+      total: lineTotal, matched: 1, missingCodes: [], orderUrl: null, fillsCart: false,
+      items: [{ code: CODE, price, quantity: 1, lineTotal, ...(promotion && { promotion }) }],
+    });
+    const compareReturns = (stores: unknown[]) => {
+      searchReturns([product(CODE, "Cola")]);
+      vi.mocked(api).mockResolvedValueOnce({ stores, unmatched: [] });
+    };
+    const pricesOf = async () => ((await resolveScan(CODE, [], where)) as { prices: any }).prices;
+    const names = (ss: { chainName: string }[]) => ss.map((s) => s.chainName);
+
+    it("asks Compare for this one Product at Quantity 1 with the location and radius", async () => {
+      compareReturns([]);
+      await pricesOf();
+      const [path, init] = vi.mocked(api).mock.calls[1]!;
+      expect(path).toBe("api/compare");
+      expect(JSON.parse(init!.body as string)).toMatchObject({ ...where, items: [{ code: CODE, quantity: 1 }], groups: [] });
+    });
+
+    it("heads with the cheapest store, keeps price order below it and does not repeat the headline", async () => {
+      compareReturns([store("C", 9, 1), store("A", 5, 3), store("B", 7, 2)]);
+      const p = await pricesOf();
+      expect(p.kind).toBe("stores");
+      expect(p.headline.chainName).toBe("A");
+      expect(names(p.others)).toEqual(["B", "C"]);
+    });
+
+    it("gives a price tie to the nearer store", async () => {
+      compareReturns([store("Far", 5, 4), store("Near", 5, 1)]);
+      const p = await pricesOf();
+      expect(p.headline.chainName).toBe("Near");
+      expect(names(p.others)).toEqual(["Far"]);
+    });
+
+    it("carries the Promotion price, its text and the Shelf price only when a Promotion applies", async () => {
+      const promotion = { id: "p", kind: "price", minQty: 1, amount: 4, audience: "all", text: "x" };
+      compareReturns([store("Promo", 6, 2, 4, promotion), store("Plain", 5.5, 1)]);
+      const p = await pricesOf();
+      expect(p.headline).toMatchObject({ chainName: "Promo", price: 6, promo: { price: 4 } });
+      expect(typeof p.headline.promo.text).toBe("string");
+      expect(p.others[0].promo).toBeUndefined();
+      expect(p.others[0].price).toBe(5.5);
+    });
+
+    it("is noLocation without calling Compare when location is off", async () => {
+      searchReturns([product(CODE, "Cola")]);
+      expect((await resolveScan(CODE, [], null)).kind).toBe("found");
+      expect(api).toHaveBeenCalledTimes(1);
+    });
+
+    it("is failed, with the Product still found, when Compare rejects", async () => {
+      searchReturns([product(CODE, "Cola")]);
+      vi.mocked(api).mockRejectedValueOnce(new Error("500"));
+      expect(await resolveScan(CODE, [], where)).toMatchObject({ kind: "found", prices: { kind: "failed" } });
+    });
+
+    it("has no headline when no store prices the Product", async () => {
+      compareReturns([]);
+      expect(await pricesOf()).toEqual({ kind: "none" });
+    });
   });
 });

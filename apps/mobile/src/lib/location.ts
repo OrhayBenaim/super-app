@@ -54,6 +54,16 @@ export function useLocation() {
   return { ...state, coords: state.status === "ready" ? state.coords : null, request, refresh: locate };
 }
 
+/** The User's position without ever asking: null when foreground permission isn't granted or no fix comes. For one-off reads such as the scan. */
+export async function peekLocation(): Promise<Coords | null> {
+  try {
+    if (!(await Location.getForegroundPermissionsAsync()).granted) return null;
+    return toCoords((await Location.getLastKnownPositionAsync()) ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })));
+  } catch {
+    return null;
+  }
+}
+
 /** Foreground first (Android requires it), then "Always". */
 export async function requestBackgroundPermission() {
   const fg = await Location.requestForegroundPermissionsAsync();
