@@ -70,19 +70,17 @@ export function AddField({ listId, items, from, onClose }: Props) {
   useFocusEffect(
     useCallback(() => {
       const found = takeScan();
-      const showToast = (key: "items.scan.added" | "items.scan.alreadyOnList", name: string) => setToast({ message: fmt(t(key), { name }), at: Date.now() });
-      switch (found?.kind) {
-        case "named":
-          // Open Food Facts' name becomes the query, so the User picks from the usual results (the API rejects longer ones).
-          return setQuery(found.name.slice(0, SEARCH.maxLength));
-        case "added":
-          createItem(found.product.name, { productCode: found.product.code });
-          return showToast("items.scan.added", found.product.name);
-        case "returned":
-          toggle(found.item, true);
-          return showToast("items.scan.added", found.item.name);
-        case "alreadyOnList":
-          return showToast("items.scan.alreadyOnList", found.item.name);
+      const showToast = (name: string) => setToast({ message: fmt(t("items.scan.added"), { name }), at: Date.now() });
+      if (found?.kind === "named") {
+        // Open Food Facts' name becomes the query, so the User picks from the usual results (the API rejects longer ones).
+        return setQuery(found.name.slice(0, SEARCH.maxLength));
+      }
+      if (found?.action === "add") {
+        createItem(found.product.name, { productCode: found.product.code });
+        showToast(found.product.name);
+      } else if (found?.action === "return") {
+        toggle(found.item, true);
+        showToast(found.item.name);
       }
       // createItem and toggle only call stable mutate functions and setters, so a re-render can't leave them stale.
     }, [listId, from]),

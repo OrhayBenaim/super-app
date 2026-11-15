@@ -4,13 +4,19 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { CameraOff } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Alert, AppState, Linking, View, type TextStyle, type ViewStyle } from "react-native";
+import Animated, { Easing, FadeIn, ReduceMotion } from "react-native-reanimated";
 import { useList } from "@/features/lists/api";
 import { Events, Taps, track } from "@/lib/analytics";
 import { useDelayed, useMinDuration } from "@/lib/loaderTiming";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Button, SEARCH_MS, SearchLoader, Sheet, SheetHeader, Text } from "@/ui";
-import { handScan, resolveScan } from "./scan";
+import { sizeLabel } from "./labels";
+import { ProductImage } from "./ProductImage";
+import { useProductImage } from "./products";
+import { handScan, resolveScan, type ScanOutcome } from "./scan";
+
+type Found = Extract<ScanOutcome, { kind: "found" }>;
 
 /** Retail product Barcodes only, so QR codes on shelf labels and packs are never read. */
 const BARCODES: BarcodeType[] = ["ean13", "ean8", "upc_a", "upc_e"];
@@ -20,8 +26,9 @@ const CAMERA_HEIGHT = 300;
 const centered: TextStyle = { textAlign: "center" };
 
 /**
- * The scan sheet route: a live camera that reads one Barcode per opening. A found Product or Item goes back to the add
- * box that opened it (params `from`, `listId`); an unknown Barcode keeps the sheet open and reads again.
+ * The scan sheet route: a live camera that reads one Barcode per opening. A found Product swaps the camera for its view;
+ * Add hands it back to the add box that opened the sheet (params `from`, `listId`). A Barcode Open Food Facts names goes
+ * back too; an unknown Barcode keeps the sheet open and reads again.
  */
 export function ScanSheet() {
   const { colors, radius, space } = useTheme();
@@ -36,6 +43,7 @@ export function ScanSheet() {
   }, [getPermission]);
   const [lookingUp, setLookingUp] = useState(false);
   const [unknown, setUnknown] = useState(false);
+  const [found, setFound] = useState<Found>();
   // The camera fires many events per second, faster than state updates, so the one-read lock is a ref.
   const reading = useRef(true);
   // An unknown pack stays in front of the camera; only a different Barcode is read again.
@@ -52,7 +60,6 @@ export function ScanSheet() {
   const read = ({ data }: BarcodeScanningResult) => {
     if (!reading.current || data === lastUnknown.current) return;
     reading.current = false;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setUnknown(false);
     setLookingUp(true);
     // Ends the lookup and queues `show`, which runs once the mascot (if it showed) has finished its cycle.
@@ -63,8 +70,14 @@ export function ScanSheet() {
     resolveScan(data, items).then(
       (outcome) =>
         finishLookup(() => {
-          track(Events.itemScanned, { result: outcome.kind === "returned" ? "added" : outcome.kind, from });
-          if (outcome.kind !== "unknown") {
+          track(Events.itemScanned, { result: outcome.kind, from });
+          if (outcome.kind === "found") {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            AccessibilityInfo.announceForAccessibility(outcome.product.name);
+            setFound(outcome);
+            return;
+          }
+          if (outcome.kind === "named") {
             handScan(outcome);
             router.back();
             return;
@@ -89,7 +102,18 @@ export function ScanSheet() {
   return (
     <Sheet>
       <SheetHeader title={t("items.scan")} start={{ title: t("common.cancel"), analyticsName: Taps.commonCancel, onPress: () => router.back() }} />
-      {denied ? (
+      {found ? (
+        <ProductView
+          found={found}
+          onAdd={() => {
+            if (found.action !== "onList") {
+              Haptics.selectionAsync();
+              handScan(found);
+            }
+            router.back();
+          }}
+        />
+      ) : denied ? (
         <>
           <View style={[card, { minHeight: CAMERA_HEIGHT, alignItems: "center", justifyContent: "center", gap: space[3], padding: space[5] }]}>
             <CameraOff size={40} color={colors.labelSecondary} strokeWidth={1.75} />
@@ -136,6 +160,29 @@ export function ScanSheet() {
         </>
       )}
     </Sheet>
+  );
+}
+
+/** The found Product: image (when it has one), name, pack size, then the button. Fades in over 200ms, opacity only, also under reduced motion. */
+function ProductView({ found: { product, action }, onAdd }: { found: Found; onAdd: () => void }) {
+  const { space } = useTheme();
+  const image = useProductImage(product.hasImage ? product.code : null);
+  const pack = product.soldBy === "weight" ? t("items.product.byWeight") : product.measure && product.size ? sizeLabel(product.measure, product.size, t) : null;
+  const onList = action === "onList";
+  return (
+    <Animated.View entering={FadeIn.duration(200).easing(Easing.bezier(0.23, 1, 0.32, 1)).reduceMotion(ReduceMotion.Never)} style={{ gap: space[4] }}>
+      <View style={{ alignItems: "center", gap: space[2], paddingVertical: space[4] }}>
+        <ProductImage url={image} style={{ width: 96, height: 96, marginBottom: space[2] }} />
+        <Text variant="title3" style={centered}>{product.name}</Text>
+        {pack && <Text variant="footnote" color="labelSecondary" style={centered}>{pack}</Text>}
+      </View>
+      <Button
+        title={t(onList ? "items.scan.onList" : "items.scan.add")}
+        variant={onList ? "tinted" : "filled"}
+        analyticsName={onList ? Taps.itemsScanOnList : Taps.itemsScanAdd}
+        onPress={onAdd}
+      />
+    </Animated.View>
   );
 }
 
