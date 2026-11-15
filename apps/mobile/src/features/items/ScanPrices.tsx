@@ -3,10 +3,12 @@ import { ScrollView, View } from "react-native";
 import { fmt, formatDistance, shekels } from "@/features/compare/format";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
-import { Divider, SectionHeader, Text } from "@/ui";
-import type { ScanPrices, ScanStore } from "./scan";
+import { Divider, SectionHeader, Tap, Text } from "@/ui";
+import { openWaze } from "@/lib/waze";
+import { Taps } from "@/lib/analytics";
+import { storeLabel, type ScanPrices, type ScanStore } from "./scan";
 
-/** "branch · distance" as a link line (Tint, navigation icon): the line #228 makes tappable with its row. */
+/** "branch · distance" as a link line (Tint, navigation icon); its row or group opens Waze. */
 function Where({ store }: { store: ScanStore }) {
   const { colors, space } = useTheme();
   return (
@@ -31,7 +33,13 @@ function Headline({ store }: { store: ScanStore }) {
   const { colors, space, radius } = useTheme();
   const { promo } = store;
   return (
-    <View style={{ backgroundColor: colors.surface, borderRadius: radius.group, padding: space[5], gap: space[1] }}>
+    <Tap
+      accessibilityLabel={storeLabel(store)}
+      analyticsName={Taps.itemsScanNavigate}
+      onPress={() => void openWaze(store.lat, store.lng)}
+      scaleTo={1}
+      style={{ backgroundColor: colors.surface, borderRadius: radius.group, padding: space[5], gap: space[1] }}
+    >
       <Text variant="title3" numberOfLines={1}>{store.chainName}</Text>
       <Where store={store} />
       <View style={{ flexDirection: "row", alignItems: "baseline", gap: space[2], marginTop: space[2] }}>
@@ -44,7 +52,7 @@ function Headline({ store }: { store: ScanStore }) {
           <Text variant="footnoteEmphasized" color="saving" style={{ flex: 1 }}>{promo.text}</Text>
         </View>
       )}
-    </View>
+    </Tap>
   );
 }
 
@@ -52,7 +60,13 @@ function StoreRow({ store }: { store: ScanStore }) {
   const { space, size } = useTheme();
   const { promo } = store;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: space[3], minHeight: size.row, paddingHorizontal: space[5], paddingVertical: space[3] }}>
+    <Tap
+      accessibilityLabel={storeLabel(store)}
+      analyticsName={Taps.itemsScanNavigate}
+      onPress={() => void openWaze(store.lat, store.lng)}
+      scaleTo={1}
+      style={{ flexDirection: "row", alignItems: "center", gap: space[3], minHeight: size.row, paddingHorizontal: space[5], paddingVertical: space[3] }}
+    >
       <View style={{ flex: 1, gap: space[1] }}>
         <Text numberOfLines={1}>{store.chainName}</Text>
         <Where store={store} />
@@ -61,7 +75,7 @@ function StoreRow({ store }: { store: ScanStore }) {
         <Text variant="priceRow" tabular color={promo ? "saving" : "label"}>{shekels(promo?.price ?? store.price)}</Text>
         {promo && <Shelf price={store.price} variant="footnote" />}
       </View>
-    </View>
+    </Tap>
   );
 }
 

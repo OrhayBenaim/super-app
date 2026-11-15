@@ -107,6 +107,7 @@ export const Taps = {
   itemsScanOpenSettings: "items.scan.openSettings",
   itemsScanAdd: "items.scan.add",
   itemsScanOnList: "items.scan.onList",
+  itemsScanNavigate: "items.scan.navigate",
   listCheapest: "list.cheapest",
   listCheck: "list.check",
   listItem: "list.item",

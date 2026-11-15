@@ -1,6 +1,7 @@
 import { fetchOrNull, hasImageSource, USER_AGENT } from "@grocer/shared/product-image";
 import type { Item } from "@/features/lists/api";
 import { fetchCompare } from "@/features/compare/api";
+import { fmt, shekels } from "@/features/compare/format";
 import { promotionText } from "@/features/compare/promotion";
 import { sortStores } from "@/features/compare/sort";
 import { api } from "@/lib/api";
@@ -103,3 +104,11 @@ export function takeScan(): ScanFound | null {
   pending = null;
   return found;
 }
+
+/** What a screen reader says for a store's tap target: the Waze action, the price, and the struck Shelf price when promoted. */
+export const storeLabel = (s: ScanStore) =>
+  [
+    fmt(t("compare.navigateTo"), { store: `${s.chainName} ${s.storeName}` }),
+    shekels(s.promo?.price ?? s.price),
+    s.promo && fmt(t("compare.promo.insteadOf"), { price: shekels(s.price) }),
+  ].filter(Boolean).join(", ");

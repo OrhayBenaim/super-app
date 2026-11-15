@@ -9,6 +9,7 @@ import { useList } from "@/features/lists/api";
 import { Events, Taps, track } from "@/lib/analytics";
 import { peekLocation } from "@/lib/location";
 import { useRadius } from "@/features/compare/api";
+import { shekels } from "@/features/compare/format";
 import { useDelayed, useMinDuration } from "@/lib/loaderTiming";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
@@ -78,7 +79,8 @@ export function ScanSheet() {
           track(Events.itemScanned, { result: outcome.kind, from });
           if (outcome.kind === "found") {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            AccessibilityInfo.announceForAccessibility(outcome.product.name);
+            const headline = outcome.prices.kind === "stores" ? outcome.prices.headline : null;
+            AccessibilityInfo.announceForAccessibility(headline ? `${outcome.product.name}, ${shekels(headline.promo?.price ?? headline.price)}` : outcome.product.name);
             setFound(outcome);
             return;
           }
