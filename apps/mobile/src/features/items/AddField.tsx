@@ -76,16 +76,9 @@ export function AddField({ listId, items, from, onClose }: Props) {
         setQuery(scanned.name.slice(0, SEARCH.maxLength));
         return;
       }
-      // The sheet hands over only an add or a return (an Item already on the List just closes it).
-      let name: string;
-      if (scanned.action === "add") {
-        createItem(scanned.product.name, { productCode: scanned.product.code });
-        name = scanned.product.name;
-      } else if (scanned.action === "return") {
-        toggle(scanned.item, true);
-        name = scanned.item.name;
-      } else return;
-      setToast({ message: fmt(t("items.scan.added"), { name }), at: Date.now() });
+      if (scanned.action === "add") createItem(scanned.product.name, { productCode: scanned.product.code });
+      else toggle(scanned.item, true);
+      setToast({ message: fmt(t("items.scan.added"), { name: scanned.action === "add" ? scanned.product.name : scanned.item.name }), at: Date.now() });
       // createItem and toggle only call stable mutate functions and setters, so a re-render can't leave them stale.
     }, [listId, from]),
   );

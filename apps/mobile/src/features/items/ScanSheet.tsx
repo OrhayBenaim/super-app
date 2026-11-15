@@ -175,14 +175,13 @@ export function ScanSheet() {
 
 /** The found Product: image (when it has one), name, pack size, then the button. Fades in over 200ms, opacity only, also under reduced motion. */
 function ProductView({ found: { product, action, prices }, onAdd }: { found: Found; onAdd: () => void }) {
-  const { space } = useTheme();
-  // No image source means no image, and no skeleton while the uploaded list is still being read.
-  const looked = useProductImage(product.hasImage ? product.code : null);
-  const image = product.hasImage ? looked : null;
+  const { space, motion } = useTheme();
+  const [x1, y1, x2, y2] = motion.easing.out;
+  const image = useProductImage(product.code);
   const pack = product.soldBy === "weight" ? t("items.product.byWeight") : product.measure && product.size ? sizeLabel(product.measure, product.size, t) : null;
   const onList = action === "onList";
   return (
-    <Animated.View entering={FadeIn.duration(200).easing(Easing.bezier(0.23, 1, 0.32, 1)).reduceMotion(ReduceMotion.Never)} style={{ gap: space[4] }}>
+    <Animated.View entering={FadeIn.duration(motion.duration.base).easing(Easing.bezier(x1, y1, x2, y2)).reduceMotion(ReduceMotion.Never)} style={{ gap: space[4] }}>
       <View style={{ alignItems: "center", gap: space[2], paddingVertical: space[4] }}>
         <ProductImage url={image} style={{ width: 96, height: 96, marginBottom: space[2] }} />
         <Text variant="title3" style={centered}>{product.name}</Text>

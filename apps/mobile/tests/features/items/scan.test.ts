@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 
 const product = (code: string, name = `p${code}`) => ({ kind: "product", code, name, manufacturer: null, unitQty: null, measure: "l", size: 1.5, soldBy: "unit", storeCount: 2, minPrice: 5 });
 const item = (over: Partial<Item>): Item => ({ id: "i1", listId: "l1", name: "Milk", category: "Other", productCode: null, groupRef: null, missing: true, quantity: 2, soldBy: "unit", createdAt: "", updatedAt: "", ...over });
-const found = (code: string, name: string, action: string, item?: Item, prices: unknown = { kind: "noLocation" }) => ({ kind: "found", product: { code, name, measure: "l", size: 1.5, soldBy: "unit", hasImage: true }, action, prices, ...(item && { item }) });
+const found = (code: string, name: string, action: string, item?: Item, prices: unknown = { kind: "noLocation" }) => ({ kind: "found", product: { code, name, measure: "l", size: 1.5, soldBy: "unit" }, action, prices, ...(item && { item }) });
 const searchReturns = (results: unknown[]) => vi.mocked(api).mockResolvedValueOnce(results);
 
 const off = vi.fn<typeof fetch>();

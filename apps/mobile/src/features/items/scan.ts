@@ -1,4 +1,4 @@
-import { fetchOrNull, hasImageSource, USER_AGENT } from "@grocer/shared/product-image";
+import { fetchOrNull, USER_AGENT } from "@grocer/shared/product-image";
 import type { Item } from "@/features/lists/api";
 import { COMPARE_LIMIT, fetchCompare } from "@/features/compare/api";
 import { fmt, navigateLabel, shekels } from "@/features/compare/format";
@@ -10,7 +10,7 @@ import { t } from "@/lib/strings";
 import type { Product, SearchResult } from "./products";
 
 /** The Product a Barcode found: what the scan sheet shows. */
-export type ScannedProduct = Pick<Product, "code" | "name" | "measure" | "size" | "soldBy"> & { hasImage: boolean };
+export type ScannedProduct = Pick<Product, "code" | "name" | "measure" | "size" | "soldBy">;
 
 /** One store pricing the scanned Product. `price` is the Shelf price (per kilo when Sold by weight); `promo` is set only when a Promotion lowers the price of one. */
 export type ScanStore = Pick<StoreResult, "chainName" | "storeName" | "distanceKm" | "lat" | "lng"> & {
@@ -51,14 +51,14 @@ export async function resolveScan(read: string, items: Item[], where: ScanWhere 
   const results = await api<SearchResult[]>(`api/products/search?q=${encodeURIComponent(code)}`);
   const match = results.find((r): r is Product => r.kind === "product" && r.code === code);
   if (!match) return named(read);
-  const product: ScannedProduct = { code, name: match.name, measure: match.measure, size: match.size, soldBy: match.soldBy, hasImage: hasImageSource(code) };
-  const prices = await scanPrices(code, match.soldBy, where);
+  const product: ScannedProduct = { code, name: match.name, measure: match.measure, size: match.size, soldBy: match.soldBy };
+  const prices = await pricesNearby(code, match.soldBy, where);
   const item = items.find((i) => i.productCode === code);
   if (!item) return { kind: "found", product, action: "add", prices };
   return { kind: "found", product, action: item.missing ? "onList" : "return", item, prices };
 }
 
-async function scanPrices(code: string, soldBy: Product["soldBy"], where: ScanWhere): Promise<ScanPrices> {
+async function pricesNearby(code: string, soldBy: Product["soldBy"], where: ScanWhere): Promise<ScanPrices> {
   if (!where) return { kind: "noLocation" };
   try {
     const { stores } = await fetchCompare({ lat: where.lat, lng: where.lng, radiusKm: where.radiusKm, items: [{ code, quantity: 1 }], groups: [], sort: "price", limit: COMPARE_LIMIT });
@@ -92,8 +92,8 @@ function hebrewName(product?: { product_name_he?: unknown; product_name?: unknow
   return he || (/[א-ת]/.test(fallback) ? fallback : null);
 }
 
-/** What the scan sheet hands back when it closes: a Product to add or put back, or a name for the add box. */
-export type ScanFound = Extract<ScanOutcome, { kind: "named" | "found" }>;
+/** What the scan sheet hands back when it closes: a Product to add or put back, or a name for the add box (an Item already on the List hands back nothing). */
+export type ScanFound = Exclude<Extract<ScanOutcome, { kind: "named" | "found" }>, { action: "onList" }>;
 
 // The scan sheet closes before a Toast could show, so it hands what it found to the add box it returns to.
 let pending: ScanFound | null = null;

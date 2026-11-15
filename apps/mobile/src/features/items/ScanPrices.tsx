@@ -68,12 +68,12 @@ function OtherBranchRow({ store }: { store: ScanStore }) {
   );
 }
 
-const LINES = { noLocation: "items.scan.noLocation", failed: "items.scan.pricesFailed", none: "items.scan.noStore" } as const;
+const NO_PRICES = { noLocation: "items.scan.noLocation", failed: "items.scan.pricesFailed", none: "items.scan.noStore" } as const;
 
 /** The prices part of the found view: the headline and the others (a Group that scrolls past 4 rows, so the pinned button stays on screen), or one secondary line saying why there are none. */
 export function ScanPricesView({ prices }: { prices: ScanPrices }) {
   const { space } = useTheme();
-  if (prices.kind !== "stores") return <Text variant="subhead" color="labelSecondary" style={{ textAlign: "center" }}>{t(LINES[prices.kind])}</Text>;
+  if (prices.kind !== "stores") return <Text variant="subhead" color="labelSecondary" style={{ textAlign: "center" }}>{t(NO_PRICES[prices.kind])}</Text>;
   return (
     <View style={{ gap: space[4] }}>
       <Headline store={prices.headline} />
