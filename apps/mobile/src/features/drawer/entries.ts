@@ -25,7 +25,10 @@ export const DRAWER_SECTIONS: DrawerSection[] = [
       { key: "items", label: "tabs.items", tap: Taps.drawerItems, href: "/items" },
     ],
   },
-  { key: "account", title: "drawer.account", entries: [
+  {
+    key: "account",
+    title: "drawer.account",
+    entries: [
       { key: "settings", label: "tabs.settings", tap: Taps.drawerSettings, href: "/settings" },
       { key: "contact", label: "drawer.contact", tap: Taps.drawerContact, href: "/contact" },
     ],

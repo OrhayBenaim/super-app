@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { ChevronDown } from "lucide-react-native";
 import { useState } from "react";
 import { Platform, View } from "react-native";
-import { Host as AndroidHost, DropdownMenu, DropdownMenuItem, RNHostView as AndroidRNHost, Text as AndroidText } from "@expo/ui/jetpack-compose";
+import { Host as AndroidHost, DropdownMenu, SelectableDropdownMenuItem, RNHostView as AndroidRNHost, Text as AndroidText } from "@expo/ui/jetpack-compose";
 import { Host, Menu, RNHostView, Toggle } from "@expo/ui/swift-ui";
 import { Taps, trackTap } from "@/lib/analytics";
 import { t, type StringKey } from "@/lib/strings";
@@ -27,9 +27,7 @@ export function TopicPicker({ value, onChange }: { value: Topic | null; onChange
   };
   const row = (
     <View
-      accessible
-      accessibilityRole="button"
-      accessibilityLabel={`${t("contact.topic")}: ${shown}`}
+      {...(Platform.OS === "ios" && { accessible: true, accessibilityRole: "button", accessibilityLabel: `${t("contact.topic")}: ${shown}` })} // on Android the wrapping Tap is the button
       style={{ flexDirection: "row", alignItems: "center", gap: space[4], minHeight: size.row, paddingHorizontal: space[5], backgroundColor: colors.surface, borderRadius: radius.group }}
     >
       <Text style={{ flex: 1 }}>{t("contact.topic")}</Text>
@@ -63,16 +61,11 @@ export function TopicPicker({ value, onChange }: { value: Topic | null; onChange
         </DropdownMenu.Trigger>
         <DropdownMenu.Items>
           {TOPICS.map((topic) => (
-            <DropdownMenuItem key={topic} onClick={() => pick(topic)}>
-              <DropdownMenuItem.Text>
+            <SelectableDropdownMenuItem key={topic} selected={topic === value} onClick={() => pick(topic)}>
+              <SelectableDropdownMenuItem.Text>
                 <AndroidText>{label(topic)}</AndroidText>
-              </DropdownMenuItem.Text>
-              {topic === value && (
-                <DropdownMenuItem.TrailingIcon>
-                  <AndroidText>✓</AndroidText>
-                </DropdownMenuItem.TrailingIcon>
-              )}
-            </DropdownMenuItem>
+              </SelectableDropdownMenuItem.Text>
+            </SelectableDropdownMenuItem>
           ))}
         </DropdownMenu.Items>
       </DropdownMenu>

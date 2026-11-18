@@ -68,11 +68,11 @@ export const Taps = {
   compareSortCoverage: "compare.sort.coverage",
   compareSortDistance: "compare.sort.distance",
   compareSortPrice: "compare.sort.price",
-  drawerClose: "drawer.close",
   contactSend: "contact.send",
   contactTopic: "contact.topic",
   /** `topic` is the Topic key picked. */
   contactTopicPick: "contact.topic.pick",
+  drawerClose: "drawer.close",
   drawerCompare: "drawer.compare",
   drawerContact: "drawer.contact",
   drawerHome: "drawer.home",
