@@ -109,7 +109,7 @@ A Product group the Grocer team made on the Internal dashboard: a name, a Produc
 _Avoid_: Custom group, manual group
 
 **Product type**:
-The broad kind a Product is: one of a fixed list we own (dairy and eggs, meat and fish, produce…, Other last), given to each Product from its name. A Product that fits none of them is of the Product type Other, and so is a Product not given a type yet. Users browse Home by Product type. An Item added from Home or Promotions takes its Product type's name as its category.
+The broad kind a Product is: one of a fixed list we own (dairy and eggs, meat and fish, produce…, Other last), given to each Product from its name. A Product that fits none of them is of the Product type Other, and so is a Product not given a type yet. The same classifier request also writes the Product name out in full (docs/adr/0010). Users browse Home by Product type. An Item added from Home or Promotions takes its Product type's name as its category.
 _Avoid_: Category (an Item's category is the household's own), department
 
 ### Account lifecycle
