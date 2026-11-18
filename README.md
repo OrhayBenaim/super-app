@@ -88,9 +88,9 @@ Each setting lives in one place: mobile app settings in EAS, server settings in 
 
 - The server is one production stack on a Coolify VPS, built from `docker-compose.yaml` (Docker Compose build pack) on every push to `main`.
 - `deploy-mobile.yml` builds Android only (iOS is not set up yet) on the GitHub runner with `eas build --local`, so it uses no EAS cloud
-  build quota: on `main`, profile `staging` (EAS environment `preview`, uploaded with `eas upload` for internal distribution);
+  build quota: on `main`, profile `staging` (EAS environment `preview`, kept only as the `android-staging` workflow artifact: install the APK from the run page or with `adb install`);
   on a published GitHub release, `production` (EAS environment `production`, submitted to Google Play with `eas submit`).
-  The built file is also kept as a workflow artifact. Run it by hand after changing EAS variables.
+  The built file is always kept as a workflow artifact. Run it by hand after changing EAS variables.
 
 **GitHub** (repo or both environments): secrets `EXPO_TOKEN`, an expo.dev access token (a robot user), and `SENTRY_AUTH_TOKEN`
 (the local build can't read EAS secret variables, and the Android build fails without it). Add required reviewers to `production`.
