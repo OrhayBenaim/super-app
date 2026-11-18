@@ -79,6 +79,7 @@ export function ItemSheet() {
     setNewCategory(null);
     setPage("form");
   };
+  const addCategory = () => newCategory?.trim() && pickCategory(newCategory.trim());
 
   return (
     <Sheet>
@@ -113,7 +114,11 @@ export function ItemSheet() {
 
       {page === "category" && (
         <>
-          <SheetHeader title={t("items.category")} start={back} />
+          <SheetHeader
+            title={t("items.category")}
+            start={back}
+            end={newCategory === null ? undefined : { title: t("common.save"), analyticsName: Taps.commonSave, onPress: addCategory, disabled: !newCategory.trim() }}
+          />
           <Group footer={t("items.category.why")}>
             {categories.map((c) => (
               <Row
@@ -134,7 +139,7 @@ export function ItemSheet() {
                 value={newCategory}
                 onChangeText={setNewCategory}
                 returnKeyType="done"
-                onSubmitEditing={() => newCategory.trim() && pickCategory(newCategory.trim())}
+                onSubmitEditing={addCategory}
               />
             )}
           </Group>
