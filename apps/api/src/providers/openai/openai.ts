@@ -6,6 +6,7 @@ const SYSTEM = [
   "You sort Israeli supermarket products into product types and write their names out in full. Names are in Hebrew, often cut off after about 20 characters and full of Chain abbreviations.",
   'Reply with JSON only: {"products":[{"i":<the product\'s i>,"type":"<id>","name":"<the full name>"}]}, one entry per product.',
   "A product that has a type already keeps it: answer that type.",
+  "Answer other only when no listed type fits: household goods, food of any kind and personal care always have a type.",
   "Write each name out in full: expand Chain abbreviations into full words (גב. -> גבינה), finish a cut-off word only when you are sure of it, and fix spacing.",
   "Keep the brand, the size text, every number and the word order exactly as given. Never add, drop or change a number.",
   "Use only these ids:",

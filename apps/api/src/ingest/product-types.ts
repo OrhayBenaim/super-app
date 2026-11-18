@@ -19,8 +19,9 @@ const numbers = (name: string) => (name.match(/\d+(?:[.,]\d+)?/g) ?? []).join(" 
  * a failed request or an answer outside the list leaves its Products as they were for the next sync, and a rate limit
  * stops the step, leaving the batches not sent for the next sync too. Null when skipped.
  *
- * `full` (the local cleanup script): every Product with a current price, no cap. A name whose Products have a type
- * other than Other is sent for its name only and keeps that type; Other and untyped Products get both.
+ * `full` (the local cleanup script): every Product with a current price, no cap. A name whose Products all have a type
+ * other than Other is sent for its name only and they keep their type; a name with any Other or untyped Product is sent
+ * for both, and only those Products take the answered type (the others keep theirs and get the name).
  */
 export async function typeProducts({ db, classifier, errorHandler }: Deps, signal?: AbortSignal, { full = false } = {}) {
   if (!classifier) {
@@ -47,10 +48,14 @@ export async function typeProducts({ db, classifier, errorHandler }: Deps, signa
     const save = sqlite.prepare("UPDATE products SET product_type = ?, name = COALESCE(?, name) WHERE code = ?");
     for (let i = 0; i < names.length && !signal?.aborted; i += BATCH) {
       const batch = names.slice(i, i + BATCH);
-      const kept = batch.map(([, same]) => same.find((p) => p.productType && p.productType !== "other")?.productType);
-      const products = batch.map(([name, [p]], j): ProductToClassify => {
-        const size = measureOf(p!);
-        return { name, manufacturer: p!.manufacturer || null, size: size && `${+size.size.toFixed(3)} ${size.measure}`, soldBy: soldByOf(p!), ...(kept[j] && { type: kept[j] }) };
+      const entries = batch.map(([sent, same]) => {
+        const needType = same.filter((p) => !p.productType || p.productType === "other");
+        return { sent, same, needType, typed: needType.length ? undefined : same[0]!.productType! };
+      });
+      const products = entries.map(({ sent, same, typed }): ProductToClassify => {
+        const p = same[0]!;
+        const size = measureOf(p);
+        return { name: sent, manufacturer: p.manufacturer || null, size: size && `${+size.size.toFixed(3)} ${size.measure}`, soldBy: soldByOf(p), ...(typed && { type: typed }) };
       });
       const answers = await classifier.classify(products, signal).catch((e: unknown) => {
         if (signal?.aborted) return null; // the sync was stopped, not a failed request; the loop ends below
@@ -63,15 +68,15 @@ export async function typeProducts({ db, classifier, errorHandler }: Deps, signa
       if (limited) break; // every further request would hit the limit too
       if (!answers) continue;
       sqlite.transaction(() => {
-        for (const [j, [sent, same]] of batch.entries()) {
-          const type = kept[j] ?? answers[j]?.type;
+        for (const [j, { sent, same, needType, typed }] of entries.entries()) {
+          const answer = answers[j];
+          const type = typed ?? answer?.type;
           if (!type) continue;
-          const name = answers[j]!.name;
-          const fullName = name && numbers(name) === numbers(sent) ? name : null;
-          for (const p of same) save.run(type, fullName, p.code);
-          if (kept[j]) continue;
-          counts.productsTyped += same.length;
-          if (type === "other") counts.productsOther += same.length;
+          const fullName = answer!.name && numbers(answer!.name) === numbers(sent) ? answer!.name : null;
+          for (const p of same) save.run(needType.includes(p) ? type : p.productType, fullName, p.code);
+          if (typed) continue;
+          counts.productsTyped += needType.length;
+          if (type === "other") counts.productsOther += needType.length;
         }
       })();
     }

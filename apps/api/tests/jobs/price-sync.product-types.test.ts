@@ -315,6 +315,23 @@ describe("priceSyncJob: Product types", () => {
       expect(names(deps)).toEqual({ [sku(MILK)]: names2[MILK.name], [sku(SOAP)]: names2[SOAP.name], [sku(ABBR)]: names2[ABBR.name] });
     });
 
+    it("a name shared by a typed and an untyped Product is sent without a type; only the untyped one takes the answer", async () => {
+      const a: Item = { code: "6101", name: "גב.גאודה 28%" };
+      const b: Item = { code: "6102", name: "גב.גאודה 28%" };
+      const deps = setup({ "001": [a, b] }, { classifier: fakeClassifier({ [a.name]: "dairy-eggs" }) });
+      await priceSyncJob(deps)({});
+      deps.db.$client.prepare("UPDATE products SET product_type = 'pets' WHERE code = ?").run(sku(a));
+      deps.db.$client.prepare("UPDATE products SET product_type = NULL WHERE code = ?").run(sku(b));
+
+      const classifier = fakeClassifier(() => "pantry", { [a.name]: "גבינה גאודה 28%" });
+      expect(await typeProducts({ ...deps, classifier }, undefined, { full: true })).toMatchObject({ productsTyped: 1 });
+
+      expect(classifier.calls.flat()).toHaveLength(1);
+      expect(classifier.calls.flat()[0]!.type).toBeUndefined();
+      expect(types(deps)).toEqual({ [sku(a)]: "pets", [sku(b)]: "pantry" });
+      expect(names(deps)).toEqual({ [sku(a)]: "גבינה גאודה 28%", [sku(b)]: "גבינה גאודה 28%" });
+    });
+
     it("is not capped", async () => {
       const items = Array.from({ length: MAX_NAMES + 1 }, (_, i): Item => ({ code: String(100000 + i), name: `מוצר ${i}` }));
       const deps = setup({ "001": items }, { classifier: fakeClassifier() });
