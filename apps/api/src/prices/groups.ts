@@ -29,6 +29,8 @@ const COUNT = new Set(["יח", "יחי", "יחידה", "יחידות"]);
 const EGG_SIZE = /^(s|m|l|xl)$/i;
 const isNumber = (w: string) => /^\d/.test(w);
 const isUnit = (w: string) => w in WEIGHT || w in VOLUME || COUNT.has(w);
+/** A number with a word after it that is not a unit: "10 פיתות" (a count), not "500 גרם" (a size). */
+const isLeadingCount = (num = "", next?: string) => next !== undefined && isNumber(num) && !isUnit(next);
 
 /** Letter runs and numbers: splits at spaces, punctuation, % and digit/letter boundaries ("קוטג%5מהדרין250גר"). */
 const rawWords = (s: string) =>
@@ -51,7 +53,7 @@ export function nameWords(name: string): Word[] {
       return { raw, norm: PACKED.has(raw) ? "ארוז" : (QUALIFIERS.find(([re]) => re.test(s))?.[1] ?? s) };
     });
   // A leading number is a count, never a group word ("10 פיתות"); one before a unit ("500 גרם") is a size, kept.
-  if (words.length > 1 && isNumber(words[0]!.raw) && !isUnit(words[1]!.norm)) words.shift();
+  if (isLeadingCount(words[0]?.raw, words[1]?.norm)) words.shift();
   return words.length > 1 && LEADING.has(words[0]!.norm) ? words.slice(1) : words;
 }
 
@@ -93,7 +95,7 @@ function sizeIn(words: string[]): Size | null {
 
 function countIn(words: string[]) {
   const lead = Number(words[0]);
-  if (isNumber(words[0] ?? "") && words.length > 1 && !isUnit(words[1]!) && Number.isInteger(lead) && lead > 0) return lead; // "10 פיתות"
+  if (isLeadingCount(words[0], words[1]) && Number.isInteger(lead) && lead > 0) return lead; // "10 פיתות"
   for (let i = 0; i < words.length; i++) {
     const n = Number(words[i]);
     if (!isNumber(words[i]!) || !Number.isInteger(n) || n < 1) continue;
