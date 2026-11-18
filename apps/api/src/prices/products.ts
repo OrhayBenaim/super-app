@@ -33,7 +33,7 @@ export function findProducts(db: Db, { q, type, page, pageSize }: { q?: string; 
   const types = new Map(
     (db.$client.prepare("SELECT code, product_type AS t FROM products WHERE code IN (SELECT value FROM json_each(?))").all(JSON.stringify(searched.map((p) => p.code))) as { code: string; t: string | null }[]).map((r) => [r.code, r.t]),
   );
-  const found = searched.map(({ kind: _, ...p }) => ({ ...p, productType: types.get(p.code) ?? null })).filter((p) => !type || p.productType === wanted);
+  const found = searched.map(({ kind: _, type: __, ...p }) => ({ ...p, productType: types.get(p.code) ?? null })).filter((p) => !type || p.productType === wanted);
   return { products: found.slice((page - 1) * pageSize, page * pageSize), hasMore: found.length > page * pageSize };
 }
 

@@ -5,8 +5,10 @@ import { Plus, ScanBarcode } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Keyboard, Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import type { ProductType } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
 import { fmt } from "@/features/compare/format";
+import { typeNameKey } from "@/features/home/card";
 import { useItemMutations, type Item } from "@/features/lists/api";
 import { Events, Taps, track, trackTap } from "@/lib/analytics";
 import { t } from "@/lib/strings";
@@ -48,11 +50,12 @@ export function AddField({ listId, items, from, onClose }: Props) {
 
   const toggle = (item: Item, missing: boolean) => update.mutate({ id: item.id, missing });
   // New items count here; re-adds count in useItemMutations (the Undo re-create must not count as an add).
-  const createItem = (name: string, match: { productCode: string } | { groupRef: string } | null = null) => {
+  // A matched product or group goes in its Product type's category; a typed or scanned name in Other.
+  const createItem = (name: string, match: { productCode: string } | { groupRef: string } | null = null, type: ProductType = "other") => {
     Haptics.selectionAsync();
     const matchedKind = match ? ("groupRef" in match ? "group" : "product") : null;
     add.mutate(
-      { name, category: t("items.category.other"), ...match, missing: from === "list" },
+      { name, category: t(typeNameKey(type)), ...match, missing: from === "list" },
       { onSuccess: () => from === "list" && track(Events.listItemAdded, { existing: false, matched: !!match, ...(matchedKind && { matchedKind }) }) },
     );
     setQuery("");
@@ -76,7 +79,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
         setQuery(scanned.name.slice(0, SEARCH.maxLength));
         return;
       }
-      if (scanned.action === "add") createItem(scanned.product.name, { productCode: scanned.product.code });
+      if (scanned.action === "add") createItem(scanned.product.name, { productCode: scanned.product.code }, scanned.product.type);
       else toggle(scanned.item, true);
       setToast({ message: fmt(t("items.scan.added"), { name: scanned.action === "add" ? scanned.product.name : scanned.item.name }), at: Date.now() });
       // createItem and toggle only call stable mutate functions and setters, so a re-render can't leave them stale.
@@ -102,11 +105,11 @@ export function AddField({ listId, items, from, onClose }: Props) {
       analyticsName={Taps.itemsAddProduct}
       leading={<ProductImage url={p.imageUrl} />}
       trailing={<AddBadge />}
-      onPress={() => createItem(p.name, { productCode: p.code })}
+      onPress={() => createItem(p.name, { productCode: p.code }, p.type)}
     />
   );
   const groupRow = (g: ProductGroup) => (
-    <GroupResult key={g.ref} group={g} trailing={<AddBadge />} onPress={() => createItem(groupTitle(g, t), { groupRef: g.ref })} onRefine={(word) => setQuery(`${query.trim()} ${word}`)} />
+    <GroupResult key={g.ref} group={g} trailing={<AddBadge />} onPress={() => createItem(groupTitle(g, t), { groupRef: g.ref }, g.type)} onRefine={(word) => setQuery(`${query.trim()} ${word}`)} />
   );
 
   return (

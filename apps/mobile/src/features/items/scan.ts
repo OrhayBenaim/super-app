@@ -10,7 +10,7 @@ import { t } from "@/lib/strings";
 import type { Product, SearchResult } from "./products";
 
 /** The Product a Barcode found: what the scan sheet shows. */
-export type ScannedProduct = Pick<Product, "code" | "name" | "measure" | "size" | "soldBy">;
+export type ScannedProduct = Pick<Product, "code" | "name" | "measure" | "size" | "soldBy" | "type">;
 
 /** One store pricing the scanned Product. `price` is the Shelf price (per kilo when Sold by weight); `promo` is set only when a Promotion lowers the price of one. */
 export type ScanStore = Pick<StoreResult, "chainName" | "storeName" | "distanceKm" | "lat" | "lng"> & {
@@ -50,7 +50,7 @@ export async function resolveScan(read: string, items: Item[]): Promise<ScanOutc
   const results = await api<SearchResult[]>(`api/products/search?q=${encodeURIComponent(code)}`);
   const match = results.find((r): r is Product => r.kind === "product" && r.code === code);
   if (!match) return named(read);
-  const product: ScannedProduct = { code, name: match.name, measure: match.measure, size: match.size, soldBy: match.soldBy };
+  const product: ScannedProduct = { code, name: match.name, measure: match.measure, size: match.size, soldBy: match.soldBy, type: match.type };
   const item = items.find((i) => i.productCode === code);
   if (!item) return { kind: "found", product, action: "add" };
   return { kind: "found", product, action: item.missing ? "onList" : "return", item };

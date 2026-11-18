@@ -56,7 +56,7 @@ describe("prices", () => {
     const res = await get(`/api/products/search?q=${encodeURIComponent("חל תנו")}`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([
-      { kind: "product", code: A, name: "חלב תנובה 3%", manufacturer: "תנובה", unitQty: "1 ליטר", storeCount: 3, minPrice: 4, measure: "l", size: 1, soldBy: "unit" },
+      { kind: "product", code: A, name: "חלב תנובה 3%", manufacturer: "תנובה", unitQty: "1 ליטר", storeCount: 3, minPrice: 4, measure: "l", size: 1, soldBy: "unit", type: "other" },
     ]);
   });
 

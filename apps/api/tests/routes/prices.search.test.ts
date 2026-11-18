@@ -60,6 +60,9 @@ beforeAll(async () => {
   const carrots = ["גזר במשקל", "גזר טרי", "גזר ישראלי", "גזר מובחר"].map((name, i): Item => [`2${i}`, name, 4]);
   ingestPrices(deps, "shufersal", pricesXml(SHUFERSAL, 1, [["11", "בננה", 7], ["12", "חציל", 5], ...carrots]));
   ingestPrices(deps, "rami-levy", pricesXml(RAMI, 1, [["5", "בננה במשקל", 6.5], ["6", "חציל", 5], ...carrots]));
+  // Two bananas are Produce and one is untyped, so the group is Produce; the chips are Snacks.
+  deps.db.$client.prepare("UPDATE products SET product_type = 'produce' WHERE name IN ('בננות', 'בננה')").run();
+  deps.db.$client.prepare("UPDATE products SET product_type = 'snacks-sweets' WHERE code = ?").run(chips);
   const res = await app.request("/api/auth/sign-up/email", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -130,14 +133,21 @@ describe("product groups in search", () => {
 
   it("returns a group's fields and a product's fields", async () => {
     const [group, product] = await search("בננה");
-    expect(Object.keys(group!).sort()).toEqual(["kind", "measure", "minPrice", "name", "productCount", "ref", "refinements", "size", "soldBy", "storeCount", "topCodes"]);
-    expect(Object.keys(product!).sort()).toEqual(["code", "kind", "manufacturer", "measure", "minPrice", "name", "size", "soldBy", "storeCount", "unitQty"]);
+    expect(Object.keys(group!).sort()).toEqual(["kind", "measure", "minPrice", "name", "productCount", "ref", "refinements", "size", "soldBy", "storeCount", "topCodes", "type"]);
+    expect(Object.keys(product!).sort()).toEqual(["code", "kind", "manufacturer", "measure", "minPrice", "name", "size", "soldBy", "storeCount", "type", "unitQty"]);
     expect(product).toMatchObject({ measure: expect.any(String), size: expect.any(Number) });
+  });
+
+  it("gives a group its members' commonest Product type and a product its own, Other when untyped", async () => {
+    const rows = await search("בננה");
+    expect(rows[0]).toMatchObject({ kind: "group", type: "produce" });
+    expect(rows.find((r) => r.code === chips)).toMatchObject({ type: "snacks-sweets" });
+    expect(rows.find((r) => r.name === "בננה במשקל")).toMatchObject({ type: "other" });
   });
 
   it("leaves barcode search as products only, the exact code", async () => {
     expect(await search(milk)).toEqual([
-      { kind: "product", code: milk, name: "חלב 3% 1 ליטר", manufacturer: null, unitQty: "1 יחידה", storeCount: 2, minPrice: 5, measure: "l", size: 1, soldBy: "unit" },
+      { kind: "product", code: milk, name: "חלב 3% 1 ליטר", manufacturer: null, unitQty: "1 יחידה", storeCount: 2, minPrice: 5, measure: "l", size: 1, soldBy: "unit", type: "other" },
     ]);
   });
 });
