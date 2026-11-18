@@ -6,7 +6,7 @@
   "choices": [
     {
       "index": 0,
-      "message": { "role": "assistant", "content": "{\"types\":[{\"i\":0,\"type\":\"dairy-eggs\"},{\"i\":1,\"ty" },
+      "message": { "role": "assistant", "content": "{\"products\":[{\"i\":0,\"type\":\"dairy-eggs\"},{\"i\":1,\"ty" },
       "finish_reason": "length"
     }
   ]
