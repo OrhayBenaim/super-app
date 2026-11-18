@@ -6,6 +6,7 @@ import { HTTPException } from "hono/http-exception";
 import type { Deps } from "#/deps.ts";
 import { rateLimit, type AppEnv } from "#/middleware.ts";
 import { browseRoutes } from "#/routes/browse.ts";
+import { contactRoutes } from "#/routes/contact.ts";
 import { deletionRoutes } from "#/routes/deletion.ts";
 import { listsRoutes } from "#/routes/lists.ts";
 import { pricesRoutes } from "#/routes/prices.ts";
@@ -32,6 +33,7 @@ export function createApp(deps: Deps) {
     .use("/api/auth/email-otp/*", rateLimit({ max: 5, windowMs: MINUTE }))
     .use("/deletion/code/*", rateLimit({ max: 5, windowMs: MINUTE }))
     .use("/api/lists/join", rateLimit({ max: 10, windowMs: MINUTE }))
+    .use("/api/contact", rateLimit({ max: 5, windowMs: 60 * MINUTE }))
     // Every JSON body is a few KB at most; without a cap, one unauthenticated sign-up could buffer gigabytes.
     .use(bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: "too_large" }, 413) }))
     // Native apps send no Origin header; CORS only matters for Expo web (dev: TRUSTED_ORIGINS=http://localhost:8081).
@@ -48,6 +50,7 @@ export function createApp(deps: Deps) {
     })
     .route("/api/lists", listsRoutes)
     .route("/api/browse", browseRoutes)
+    .route("/api/contact", contactRoutes)
     .route("/api/products", productImagesRoutes)
     .route("/api", pricesRoutes)
     // Public page for the store listings (Google Play requires a privacy policy URL).

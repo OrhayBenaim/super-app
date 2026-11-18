@@ -1,4 +1,4 @@
-export type Email = { to: string; subject: string; text: string; html?: string };
+export type Email = { to: string; subject: string; text: string; html?: string; replyTo?: string };
 
 /** What a mail vendor implements. Throws when the email can't be handed to the vendor. */
 export interface MailerProvider {

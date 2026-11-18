@@ -46,6 +46,7 @@ On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN IP, not lo
 | api | `INTERNAL_PORT`, `INTERNAL_HOST` | private app address, default `127.0.0.1:3001`; never expose it publicly (production binds `0.0.0.0` inside the container, unpublished) |
 | api | `RESEND_API_KEY` | required; Resend API key for sending email (Reset codes and Deletion codes) |
 | api | `EMAIL_FROM` | sender address, default `Grocer <no-reply@example.com>` |
+| api | `SUPPORT_EMAIL` | required; the inbox Contact messages from the app go to, with the User as Reply-To |
 | api | `NOMINATIM_URL` | optional geocoder base URL for `npm run geocode`, default `https://nominatim.openstreetmap.org` |
 | api | `SENTRY_DSN` | optional; the one Sentry project `grocer`, shared with mobile (events tagged `app:api`). Unset: errors are only logged |
 | api | `SENTRY_ENVIRONMENT` | default `development`; set `production` in deploys. Traces: 100% in development, 20% in production, the same rule as mobile (`packages/shared/src/sentry.ts`) |
@@ -109,10 +110,14 @@ Each setting lives in one place: mobile app settings in EAS, server settings in 
 
 **Coolify** (a Docker Compose resource on this repo, branch `main`, compose file `/docker-compose.yaml`):
 give the `api` service its domain as `https://api.example.com:3000` and set the API env vars listed above in the resource's
-Environment Variables. Required: `BETTER_AUTH_URL` (that domain), `BETTER_AUTH_SECRET`, `RESEND_API_KEY` (the worker needs it too,
+Environment Variables. Required: `BETTER_AUTH_URL` (that domain), `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `SUPPORT_EMAIL` (the worker needs them too,
 since config validation requires it). `SENTRY_ENVIRONMENT` defaults to `production`, `TRUST_PROXY` is always on, and `PORT` and
 `DATABASE_URL` (`/data/grocer.db`) have image defaults. `api` and `worker` share the `grocer-data` volume (one SQLite file); the
 api also keeps uploaded Product images there (`IMAGES_DIR=/data/images`).
+
+Contact messages reply to the User's account email, which for Sign in with Apple "Hide My Email" is a `privaterelay.appleid.com`
+address. Register the support address (`SUPPORT_EMAIL`) and the sending domain of `EMAIL_FROM` under Apple Developer →
+Certificates, Identifiers & Profiles → More → "Sign in with Apple for Email Communication", or replies to those Users are not delivered.
 
 The chains' portals block non-Israeli IPs, so the worker's HTTP goes through the `tailscale` container, which uses a machine in Israel
 as its Tailscale exit node. Price syncs fail while that machine is off or offline; prices stay at the last good sync. Set:

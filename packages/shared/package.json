@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./contact": "./src/contact.ts",
     "./groups": "./src/groups.ts",
     "./ids": "./src/ids.ts",
     "./otp": "./src/otp.ts",
