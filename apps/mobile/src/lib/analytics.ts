@@ -24,7 +24,7 @@ export const Events = {
   listJoined: "list_joined",
   /** `topic` only, never the text. */
   contactSent: "contact_sent",
-  /** One per scan: `result` added | alreadyOnList | named | unknown | denied, `from` list | items. Never the Barcode or a name. */
+  /** One per scan: `result` found | named | unknown | denied, `from` list | items. Never the Barcode or a name. */
   itemScanned: "item_scanned",
 } as const;
 export type Event = (typeof Events)[keyof typeof Events];
@@ -112,6 +112,9 @@ export const Taps = {
   itemsRemoveFromList: "items.removeFromList",
   itemsScan: "items.scan",
   itemsScanOpenSettings: "items.scan.openSettings",
+  itemsScanAdd: "items.scan.add",
+  itemsScanOnList: "items.scan.onList",
+  itemsScanNavigate: "items.scan.navigate",
   listCheapest: "list.cheapest",
   listCheck: "list.check",
   listItem: "list.item",
