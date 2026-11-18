@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { buildDeps } from "#/deps.ts";
-import { moveDeadGroupRefs } from "#/db/index.ts";
+import { moveDeadGroupRefs, openDb } from "#/db/index.ts";
 import { ingestPrices, ingestStores } from "#/ingest/ingest.ts";
 import { loadConfig } from "#/services/config.ts";
 
@@ -41,6 +44,20 @@ describe("startup migration: Items with a dead group ref", () => {
     const before = sqlite.prepare("SELECT id, group_ref FROM items ORDER BY id").all();
     moveDeadGroupRefs(deps.db);
     expect(sqlite.prepare("SELECT id, group_ref FROM items ORDER BY id").all()).toEqual(before);
+  });
+
+  it("runs at startup once per database, not on every open", () => {
+    const dir = mkdtempSync(join(tmpdir(), "grocer-dead-refs-"));
+    const path = join(dir, "test.db");
+    const first = openDb(path);
+    first.$client.exec(`INSERT INTO products (code, name) VALUES ('7290000000011', 'יין 750 מל');
+      INSERT INTO user (id, name, email) VALUES ('u1', 'U', 'u@x.test'); INSERT INTO lists (id, name, owner_id, invite_code) VALUES ('l1', 'L', 'u1', 'c1');
+      INSERT INTO items (id, list_id, name, category, group_ref) VALUES ('i1', 'l1', 'יין אדום', 'x', 'ין|l')`);
+    first.$client.close();
+    const second = openDb(path);
+    expect(second.$client.prepare("SELECT group_ref AS r FROM items WHERE id = 'i1'").get()).toEqual({ r: "ין|l" });
+    second.$client.close();
+    rmSync(dir, { recursive: true, force: true });
   });
 
   it("leaves every ref alone on an empty catalog", () => {

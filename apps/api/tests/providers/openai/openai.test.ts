@@ -70,6 +70,15 @@ describe("openaiClassifier", () => {
     ]);
   });
 
+  it("an answer with a name and no type (a Product sent with its type, for its name only) is not a failed request", async () => {
+    const content = JSON.stringify({ products: [{ i: 0, name: "חלב תנובה 3%" }, { i: 1, type: "produce", name: "עגבניה" }] });
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ choices: [{ message: { content } }] })));
+    expect(await classifier.classify(PRODUCTS.slice(0, 2))).toEqual([
+      { type: null, name: "חלב תנובה 3%" },
+      { type: "produce", name: "עגבניה" },
+    ]);
+  });
+
   it("malformed JSON fails the request", async () => {
     serve("malformed.json");
     await expect(classifier.classify(PRODUCTS)).rejects.toThrow(SyntaxError);

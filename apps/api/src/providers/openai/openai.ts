@@ -14,7 +14,7 @@ const SYSTEM = [
 ].join("\n");
 
 const reply = z.object({ choices: z.array(z.object({ message: z.object({ content: z.string() }) })).min(1) });
-const answer = z.object({ products: z.array(z.object({ i: z.number().int(), type: z.string(), name: z.string().optional() })) });
+const answer = z.object({ products: z.array(z.object({ i: z.number().int(), type: z.string().optional(), name: z.string().optional() })) });
 const productType = z.enum(PRODUCT_TYPES);
 
 /** Resolves after `ms`, or rejects at once when `signal` aborts. */

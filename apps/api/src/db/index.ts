@@ -27,7 +27,10 @@ export function openDb(path: string) {
   for (const [position, id] of PRODUCT_TYPES.entries())
     db.insert(schema.productTypes).values({ id, position }).onConflictDoUpdate({ target: schema.productTypes.id, set: { position } }).run();
   linkProduceItems(sqlite);
-  moveDeadGroupRefs(db);
+  if ((sqlite.pragma("user_version", { simple: true }) as number) < 2) {
+    moveDeadGroupRefs(db);
+    sqlite.pragma("user_version = 2");
+  }
   return db;
 }
 
@@ -55,9 +58,10 @@ export function linkProduceItems(sqlite: Database.Database) {
 }
 
 /**
- * Every startup: an Item matched to a word group no product is in any more (the group rules or Product names changed)
- * moves to the group its own name gives, keeping the measure and pack count. Valid refs, names that give no ref and
- * Made groups stay; a second run finds nothing dead to move.
+ * An Item matched to a word group no product is in any more (the group rules or Product names changed) moves to the
+ * group its own name gives, keeping the measure and pack count. Valid refs, names that give no ref and Made groups stay;
+ * a second run finds nothing dead to move. openDb runs it once per database (user_version 1 -> 2); call it again after
+ * renaming Products in bulk.
  */
 export function moveDeadGroupRefs(db: Db) {
   if (!db.$client.prepare("SELECT 1 FROM products LIMIT 1").get()) return; // an empty catalog makes every ref look dead
