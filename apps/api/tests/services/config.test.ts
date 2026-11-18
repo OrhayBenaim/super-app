@@ -58,6 +58,10 @@ describe("loadConfig", () => {
     expect(() => load({ RESEND_API_KEY: "re_test" })).toThrow();
   });
 
+  it("rejects a SUPPORT_EMAIL that is not an email address", () => {
+    expect(() => loadConfig({ SUPPORT_EMAIL: "not-an-email" })).toThrow();
+  });
+
   it("requires RESEND_API_KEY", () => {
     expect(() => load({ SUPPORT_EMAIL: "s@x.test" })).toThrow();
     expect(() => load({ RESEND_API_KEY: "", SUPPORT_EMAIL: "s@x.test" })).toThrow();
