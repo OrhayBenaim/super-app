@@ -60,6 +60,7 @@ export function linkProduceItems(sqlite: Database.Database) {
  * Made groups stay; a second run finds nothing dead to move.
  */
 export function moveDeadGroupRefs(db: Db) {
+  if (!db.$client.prepare("SELECT 1 FROM products LIMIT 1").get()) return; // an empty catalog makes every ref look dead
   const rows = db.$client.prepare("SELECT id, name, group_ref AS ref FROM items WHERE group_ref IS NOT NULL").all() as { id: string; name: string; ref: string }[];
   const move = db.$client.prepare("UPDATE items SET group_ref = ? WHERE id = ?");
   const alive = new Map<string, boolean>();

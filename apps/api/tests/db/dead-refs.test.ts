@@ -42,4 +42,12 @@ describe("startup migration: Items with a dead group ref", () => {
     moveDeadGroupRefs(deps.db);
     expect(sqlite.prepare("SELECT id, group_ref FROM items ORDER BY id").all()).toEqual(before);
   });
+
+  it("leaves every ref alone on an empty catalog", () => {
+    const { db } = buildDeps(loadConfig());
+    db.$client.exec(`INSERT INTO user (id, name, email) VALUES ('u1', 'U', 'u@x.test'); INSERT INTO lists (id, name, owner_id, invite_code) VALUES ('l1', 'L', 'u1', 'c1');
+      INSERT INTO items (id, list_id, name, category, group_ref) VALUES ('i1', 'l1', 'יין אדום', 'x', 'בורגול|kg')`);
+    moveDeadGroupRefs(db);
+    expect(db.$client.prepare("SELECT group_ref AS r FROM items WHERE id = 'i1'").get()).toEqual({ r: "בורגול|kg" });
+  });
 });
