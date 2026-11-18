@@ -1,7 +1,8 @@
 name: deploy-mobile
 
 # Builds Android only, iOS is not set up yet, on this runner (eas build --local), so it uses no EAS cloud build quota:
-# main -> staging profile, uploaded to EAS for internal distribution; a published release -> production profile, submitted to Google Play.
+# main -> staging profile, kept only as the android-staging workflow artifact (`eas upload` counts against the EAS plan's
+# monthly local-build quota and failed once it ran out); a published release -> production profile, submitted to Google Play.
 # App variables and secrets live in EAS, not GitHub: the staging profile reads the EAS "preview" environment,
 # production reads "production" (eas.json). Secret-visibility EAS variables only reach EAS cloud builders, so the Sentry
 # upload token comes from the GitHub secret SENTRY_AUTH_TOKEN instead. Run this by hand (Actions > deploy-mobile > Run workflow) after changing them.
@@ -71,9 +72,8 @@ jobs:
             eas submit --platform android --profile production --path app.aab --non-interactive
           else
             eas build --local --platform android --profile staging --non-interactive --output app.apk
-            eas upload --platform android --build-path app.apk --non-interactive
           fi
-      # Kept so a failed submit or upload can be finished by hand without a rebuild (production already bumped versionCode).
+      # Staging's only output; for production, kept so a failed submit can be finished by hand without a rebuild (versionCode is already bumped).
       - uses: actions/upload-artifact@v4
         if: always()
         with:
