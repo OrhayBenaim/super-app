@@ -12,6 +12,11 @@ const PRODUCTS: ProductToClassify[] = [
   { name: "עגבניה", manufacturer: null, size: "1 kg", soldBy: "weight" },
   { name: "סבון ידיים", manufacturer: "סנו", size: null, soldBy: "unit" },
 ];
+const GOOD = [
+  { type: "dairy-eggs", name: "חלב תנובה 3%" },
+  { type: "produce", name: "עגבניה" },
+  { type: "other", name: "סבון ידיים נוזלי" },
+];
 // A new one per test: each paces its own requests.
 let classifier: ReturnType<typeof openaiClassifier>;
 beforeEach(() => {
@@ -41,9 +46,9 @@ const sequence = (...replies: { status: number; retryAfter?: string }[]) => {
 };
 
 describe("openaiClassifier", () => {
-  it("posts the Products to <base>/chat/completions with the key and model, and reads one type per Product", async () => {
+  it("posts the Products to <base>/chat/completions with the key and model, and reads a type and a full name per Product", async () => {
     const fetch = serve("good.json");
-    expect(await classifier.classify(PRODUCTS)).toEqual(["dairy-eggs", "produce", "other"]);
+    expect(await classifier.classify(PRODUCTS)).toEqual(GOOD);
 
     const [url, init] = fetch.mock.calls[0]!;
     expect(url).toBe("https://llm.example/v1/chat/completions");
@@ -51,12 +56,18 @@ describe("openaiClassifier", () => {
     const body = JSON.parse(String(init.body));
     expect(body).toMatchObject({ model: "small-model", response_format: { type: "json_object" } });
     for (const id of PRODUCT_TYPES) expect(body.messages[0].content).toContain(id);
+    for (const rule of ["abbreviations", "cut-off", "spacing", "brand", "every number", "word order"]) expect(body.messages[0].content).toContain(rule);
+    expect(body.messages[0].content).toMatch(/candles.*cleaning-home|cleaning-home.*candles/s);
     expect(JSON.parse(body.messages[1].content)[1]).toEqual({ i: 1, ...PRODUCTS[1] });
   });
 
-  it("an id outside the fixed list, or a Product with no answer, is null; a ```json fence is fine", async () => {
+  it("an id outside the fixed list keeps its name; a Product with no answer is null for both; a ```json fence is fine", async () => {
     serve("outside-list.json");
-    expect(await classifier.classify(PRODUCTS)).toEqual(["dairy-eggs", null, null]);
+    expect(await classifier.classify(PRODUCTS)).toEqual([
+      { type: "dairy-eggs", name: "חלב תנובה 3%" },
+      { type: null, name: "עגבניה" },
+      { type: null, name: null },
+    ]);
   });
 
   it("malformed JSON fails the request", async () => {
@@ -88,7 +99,7 @@ describe("openaiClassifier", () => {
     await vi.advanceTimersByTimeAsync(6999);
     expect(sent).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(1);
-    expect(await answer).toEqual(["dairy-eggs", "produce", "other"]);
+    expect(await answer).toEqual(GOOD);
     expect(sent[1]! - sent[0]!).toBe(7000);
   });
 
@@ -120,7 +131,7 @@ describe("openaiClassifier", () => {
     await vi.advanceTimersByTimeAsync(59_999);
     expect(sent).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(1);
-    expect(await answer).toEqual(["dairy-eggs", "produce", "other"]);
+    expect(await answer).toEqual(GOOD);
   });
 
   it("a 429 whose Retry-After is over 120 s (a daily quota) throws a rate-limit error at once", async () => {
