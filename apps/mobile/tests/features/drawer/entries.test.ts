@@ -6,7 +6,7 @@ describe("drawer entries", () => {
     expect(DRAWER_SECTIONS.map((s) => [s.key, s.entries.map((e) => e.key)])).toEqual([
       ["shopping", ["home", "list", "promotions", "compare"]],
       ["lists", ["share", "recent", "items"]],
-      ["account", ["settings"]],
+      ["account", ["settings", "contact"]],
     ]);
   });
 
@@ -25,5 +25,6 @@ describe("drawer entries", () => {
   it("marks nothing on pages without an entry", () => {
     expect(currentEntry("/recent")).toBeNull();
     expect(currentEntry("/share")).toBeNull();
+    expect(currentEntry("/contact")).toBeNull();
   });
 });
