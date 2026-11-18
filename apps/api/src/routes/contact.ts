@@ -1,15 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { CONTACT_TEXT_MAX, TOPICS, type Topic } from "@grocer/shared/contact";
+import { CONTACT_TEXT_MAX, TOPICS } from "@grocer/shared/contact";
+import { contactEmail } from "#/emails/contact.ts";
 import { requireUser, type AppEnv } from "#/middleware.ts";
-
-const TOPIC_LABELS: Record<Topic, string> = {
-  general: "General",
-  bug: "Bug",
-  improvement: "Improvement",
-  missingSupermarket: "Missing supermarket",
-  missingProduct: "Missing product",
-};
 
 const body = z.object({
   topic: z.enum(TOPICS),
@@ -22,16 +15,9 @@ const body = z.object({
 export const contactRoutes = new Hono<AppEnv>().post("/", requireUser, async (c) => {
   const parsed = body.safeParse(await c.req.json().catch(() => undefined));
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "invalid body" }, 400);
-  const { topic, text, appVersion, os } = parsed.data;
   const { deps, user } = c.var;
-  const preview = text.replace(/\s+/g, " ").slice(0, 60);
   try {
-    await deps.mailer.send({
-      to: deps.config.SUPPORT_EMAIL,
-      replyTo: user.email,
-      subject: `[Grocer] ${TOPIC_LABELS[topic]}: ${preview}`,
-      text: `${text}\n\n--\n${user.email}\nApp version: ${appVersion}\nOS: ${os}`,
-    });
+    await deps.mailer.send(contactEmail(deps.config.SUPPORT_EMAIL, { ...parsed.data, email: user.email }));
   } catch (error) {
     deps.errorHandler.report(error);
     return c.json({ error: "mail_failed" }, 502);
