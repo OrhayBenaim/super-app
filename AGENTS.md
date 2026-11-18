@@ -33,7 +33,7 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/db/schema.ts        better-auth tables (generated) + re-export of appSchema.ts
   src/db/appSchema.ts     app tables (lists, items, stores, prices...)
   src/db/users.ts         queries about Users that no single route owns (hasPassword)
-  src/routes/*.ts         feature routers (lists.ts, prices.ts, browse.ts, privacy.ts, deletion.ts)
+  src/routes/*.ts         feature routers (lists.ts, prices.ts, browse.ts, privacy.ts, deletion.ts, contact.ts: Contact messages to SUPPORT_EMAIL)
   src/utils/clock.ts      Clock, systemClock, fakeClock
   tests/                  all API tests, mirroring src/; fixtures in tests/__fixtures__/
   drizzle/                generated SQL migrations (committed)
@@ -49,13 +49,13 @@ apps/mobile/              Expo SDK 58 + expo-router app
   app/                    file routes: (auth)/onboarding|sign-in, (drawer)/ (drawer navigator: (tabs)/ with
                           (home)/index|type/[id]|group/[ref], list, promotions/index|group/[ref] and compare; items,
                           settings as drawer screens), recent, share (modal), item/[id], quantity/[id], breakdown and
-                          lists (form sheets), join/[code]
+                          lists (form sheets), contact (pushed from the drawer), join/[code]
   src/lib/auth-client.ts  better-auth Expo client (SecureStore)
   src/lib/api.ts          api<T>(path, init): fetch wrapper with base URL + auth cookie
   src/lib/analytics.ts    the only PostHog import: track(event), screen, identity (useAnalytics.ts: root layout hook)
   src/lib/strings.ts      en + he strings; t("key") picks the device language (expo-localization)
   src/features/<feature>/ auth, onboarding, lists (data layer + shopping list), items, compare (+ format.ts: fmt,
-                          shekels, formatDistance), share, geofence (task.ts = background task, imported by _layout), tabs, drawer,
+                          shekels, formatDistance), share, contact (Topic pull-down, send), geofence (task.ts = background task, imported by _layout), tabs, drawer,
                           home (Product types, group cards, product pages; card.ts: what a card shows and sends), promotions
   src/ui/                 UI kit: Button, Text, TextField, Screen, Tap, Divider, IconButton, Group/SectionHeader, Row, ListRow,
                           LargeTitle, SearchField, EmptyState, SwipeRow, Toast, Sheet/SheetHeader/SheetField/SheetTextField
@@ -65,7 +65,7 @@ apps/mobile/              Expo SDK 58 + expo-router app
 packages/shared/          @grocer/shared: rules the apps share, as plain TS with no build (otp.ts: OTP,
                           codeStatus; quantity.ts; product-types.ts: PRODUCT_TYPES in display order; search.ts: SEARCH
                           query lengths; ids.ts: ID, the longest code or id a request may name; sync-history.ts:
-                          SYNC_HISTORY, how long Price syncs are kept). Import by subpath:
+                          SYNC_HISTORY, how long Price syncs are kept; contact.ts: TOPICS, CONTACT_TEXT_MAX). Import by subpath:
                           "@grocer/shared/otp", "@grocer/shared/product-types". Tests in packages/shared/tests/
 docs/                     research and design notes (docs/research/, docs/design/)
 ```

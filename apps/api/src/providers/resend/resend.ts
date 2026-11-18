@@ -9,11 +9,11 @@ export class ResendProvider implements MailerProvider {
     this.#from = from;
   }
 
-  async send({ to, subject, text, html }: Email): Promise<void> {
+  async send({ to, subject, text, html, replyTo }: Email): Promise<void> {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { authorization: `Bearer ${this.#apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ from: this.#from, to, subject, text, html }),
+      body: JSON.stringify({ from: this.#from, to, subject, text, html, reply_to: replyTo }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new Error(`resend: HTTP ${res.status} ${await res.text()}`);
