@@ -36,8 +36,8 @@ const rawWords = (s: string) =>
 
 /** Spelling and plural forms of one word: עגבנייה, עגבנית, עגבניות -> עגבניה; בננות -> בננה; מלפפונים -> מלפפון. */
 const stem = (w: string) => {
-  const s = w.replace(/יי/g, "י");
-  return s.length < 4 ? s : s.replace(/ות$/, "ה").replace(/ים$/, "").replace(/ית$/, "יה");
+  const s = w.slice(0, 1) + w.slice(1).replace(/יי/g, "י"); // a word that starts with יי keeps it: יין
+  return s.length < 5 ? s : s.replace(/ות$/, "ה").replace(/ים$/, "").replace(/ית$/, "יה");
 };
 
 type Word = { raw: string; norm: string };
@@ -50,6 +50,8 @@ export function nameWords(name: string): Word[] {
       const s = stem(raw.toLowerCase());
       return { raw, norm: PACKED.has(raw) ? "ארוז" : (QUALIFIERS.find(([re]) => re.test(s))?.[1] ?? s) };
     });
+  // A leading number is a count, never a group word ("10 פיתות"); one before a unit ("500 גרם") is a size, kept.
+  if (words.length > 1 && isNumber(words[0]!.raw) && !isUnit(words[1]!.norm)) words.shift();
   return words.length > 1 && LEADING.has(words[0]!.norm) ? words.slice(1) : words;
 }
 
@@ -57,10 +59,11 @@ export function nameWords(name: string): Word[] {
 export const withoutSizes = (words: string[]) =>
   words.filter((w, i) => !isUnit(w) && !(isNumber(w) && isUnit(words[i + 1] ?? "")));
 
-/** The spellings a stemmed word can have in a name: stem() folds "יי" to "י", so each of the first 3 "י" may be either. */
+/** The spellings a stemmed word can have in a name: stem() folds "יי" to "י" after the first letter, so each of the first 3 "י" there may be either. */
 function spellings(w: string) {
-  const [first = "", ...rest] = w.split("י");
-  return rest.reduce((forms, part, i) => forms.flatMap((f) => (i < 3 ? [`${f}י${part}`, `${f}יי${part}`] : [`${f}י${part}`])), [first]);
+  const head = w.startsWith("יי") ? 2 : 1; // stem() keeps a leading "יי"
+  const [first = "", ...rest] = w.slice(head).split("י");
+  return rest.reduce((forms, part, i) => forms.flatMap((f) => (i < 3 ? [`${f}י${part}`, `${f}יי${part}`] : [`${f}י${part}`])), [w.slice(0, head) + first]);
 }
 
 /** FTS5 prefix terms that find every product a group of these words can hold ("בננה" -> "בננ"* also finds בננות). */
@@ -89,6 +92,8 @@ function sizeIn(words: string[]): Size | null {
 }
 
 function countIn(words: string[]) {
+  const lead = Number(words[0]);
+  if (isNumber(words[0] ?? "") && words.length > 1 && !isUnit(words[1]!) && Number.isInteger(lead) && lead > 0) return lead; // "10 פיתות"
   for (let i = 0; i < words.length; i++) {
     const n = Number(words[i]);
     if (!isNumber(words[i]!) || !Number.isInteger(n) || n < 1) continue;
