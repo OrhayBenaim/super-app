@@ -73,7 +73,8 @@ function RootLayout() {
             {/* Snap points, not fitToContents: product search results loading in resized it off-screen on Android. */}
             <Stack.Screen name="item/[id]" options={{ ...sheet, sheetAllowedDetents: [0.4, 0.9] }} />
             <Stack.Screen name="quantity/[id]" options={sheet} />
-            <Stack.Screen name="scan" options={sheet} />
+            {/* One fixed height, not fitToContents: Android kept the camera's height when the found Product swapped in, clipping Add. */}
+            <Stack.Screen name="scan" options={{ ...sheet, sheetAllowedDetents: [0.9] }} />
             {/* Snap points: a long basket scrolls inside the sheet instead of running off-screen. */}
             <Stack.Screen name="breakdown" options={{ ...sheet, sheetAllowedDetents: [0.6, 0.95] }} />
             <Stack.Screen name="join/[code]" />
