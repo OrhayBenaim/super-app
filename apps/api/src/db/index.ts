@@ -6,7 +6,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { chainSeeds } from "#/ingest/chains.ts";
-import { ownGroupRef } from "#/prices/groups.ts";
+import { groupMembers, groupRef, nameWords, ownGroupRef, parseRef, withoutSizes } from "#/prices/groups.ts";
 import * as schema from "#/db/schema.ts";
 
 /** Opens the SQLite file (":memory:" in tests), applies migrations, upserts the chain seeds and Product types, and links old Produce-group items. */
@@ -27,6 +27,7 @@ export function openDb(path: string) {
   for (const [position, id] of PRODUCT_TYPES.entries())
     db.insert(schema.productTypes).values({ id, position }).onConflictDoUpdate({ target: schema.productTypes.id, set: { position } }).run();
   linkProduceItems(sqlite);
+  moveDeadGroupRefs(db);
   return db;
 }
 
@@ -50,6 +51,28 @@ export function linkProduceItems(sqlite: Database.Database) {
       if (ref) link.run(ref, r.id);
     }
     sqlite.pragma("user_version = 1");
+  })();
+}
+
+/**
+ * Every startup: an Item matched to a word group no product is in any more (the group rules or Product names changed)
+ * moves to the group its own name gives, keeping the measure and pack count. Valid refs, names that give no ref and
+ * Made groups stay; a second run finds nothing dead to move.
+ */
+export function moveDeadGroupRefs(db: Db) {
+  const rows = db.$client.prepare("SELECT id, name, group_ref AS ref FROM items WHERE group_ref IS NOT NULL").all() as { id: string; name: string; ref: string }[];
+  const move = db.$client.prepare("UPDATE items SET group_ref = ? WHERE id = ?");
+  const alive = new Map<string, boolean>();
+  db.$client.transaction(() => {
+    for (const { id, name, ref } of rows) {
+      const old = parseRef(ref); // null for a Made group
+      if (!old) continue;
+      if (!alive.has(ref)) alive.set(ref, groupMembers(db, ref).members.length > 0);
+      if (alive.get(ref)) continue;
+      const words = withoutSizes(nameWords(name).map((w) => w.norm));
+      const next = words.length ? groupRef(words, old.size) : null;
+      if (next && parseRef(next) && next !== ref) move.run(next, id);
+    }
   })();
 }
 
