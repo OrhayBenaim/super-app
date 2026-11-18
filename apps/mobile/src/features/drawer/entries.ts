@@ -1,8 +1,8 @@
 import { Taps, type TapName } from "@/lib/analytics";
 import type { StringKey } from "@/lib/strings";
 
-export type DrawerEntryKey = "home" | "list" | "promotions" | "compare" | "share" | "recent" | "items" | "settings";
-export type DrawerEntry = { key: DrawerEntryKey; label: StringKey; tap: TapName; href: "/" | "/list" | "/promotions" | "/compare" | "/share" | "/recent" | "/items" | "/settings" };
+export type DrawerEntryKey = "home" | "list" | "promotions" | "compare" | "share" | "recent" | "items" | "settings" | "contact";
+export type DrawerEntry = { key: DrawerEntryKey; label: StringKey; tap: TapName; href: "/" | "/list" | "/promotions" | "/compare" | "/share" | "/recent" | "/items" | "/settings" | "/contact" };
 export type DrawerSection = { key: "shopping" | "lists" | "account"; title: StringKey; entries: DrawerEntry[] };
 
 export const DRAWER_SECTIONS: DrawerSection[] = [
@@ -25,11 +25,15 @@ export const DRAWER_SECTIONS: DrawerSection[] = [
       { key: "items", label: "tabs.items", tap: Taps.drawerItems, href: "/items" },
     ],
   },
-  { key: "account", title: "drawer.account", entries: [{ key: "settings", label: "tabs.settings", tap: Taps.drawerSettings, href: "/settings" }] },
+  { key: "account", title: "drawer.account", entries: [
+      { key: "settings", label: "tabs.settings", tap: Taps.drawerSettings, href: "/settings" },
+      { key: "contact", label: "drawer.contact", tap: Taps.drawerContact, href: "/contact" },
+    ],
+  },
 ];
 
-/** Share list and Recently bought are pushed over the current page; tabs and drawer screens switch to theirs. */
-export const PUSHED: DrawerEntryKey[] = ["share", "recent"];
+/** Share list, Recently bought and Contact us are pushed over the current page; tabs and drawer screens switch to theirs. */
+export const PUSHED: DrawerEntryKey[] = ["share", "recent", "contact"];
 
 /** The entry whose page is showing; a PUSHED page sits on top of one, so none is current there. */
 export function currentEntry(pathname: string): DrawerEntryKey | null {

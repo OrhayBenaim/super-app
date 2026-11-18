@@ -9,9 +9,11 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "@/features/geofence/task"; // registers the background geofence task at startup
 import { useNearbyNotificationTap } from "@/features/geofence/useNearbyNotificationTap";
 import { registerItemEdits } from "@/features/lists/api";
+import { ContactSentToast } from "@/features/contact/ContactSentToast";
 import { ItemSaveToast } from "@/features/lists/ItemSaveToast";
 import { usePendingInvite } from "@/features/share/usePendingInvite";
 import { useAnalytics } from "@/lib/useAnalytics";
+import { t } from "@/lib/strings";
 import { authClient } from "@/lib/auth-client";
 import { connectQueryManagers } from "@/lib/online";
 import { keepSavedCopy } from "@/features/lists/saved";
@@ -68,6 +70,10 @@ function RootLayout() {
               name="recent"
               options={{ headerShown: true, title: "", headerTintColor: colors.tint, headerShadowVisible: false, headerStyle: { backgroundColor: colors.groupedBg } }}
             />
+            <Stack.Screen
+              name="contact"
+              options={{ headerShown: true, title: "", headerBackTitle: t("common.back"), headerTintColor: colors.tint, headerShadowVisible: false, headerStyle: { backgroundColor: colors.groupedBg } }}
+            />
             <Stack.Screen name="share" options={{ presentation: "modal" }} />
             <Stack.Screen name="lists" options={sheet} />
             {/* Snap points, not fitToContents: product search results loading in resized it off-screen on Android. */}
@@ -83,6 +89,7 @@ function RootLayout() {
           </Stack.Protected>
         </Stack>
         <ItemSaveToast />
+        <ContactSentToast />
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

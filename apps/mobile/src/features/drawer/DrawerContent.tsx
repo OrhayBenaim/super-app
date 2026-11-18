@@ -1,6 +1,6 @@
 import { router, usePathname } from "expo-router";
 import { useDrawerStatus } from "expo-router/drawer";
-import { ChartColumn, History, House, ListChecks, Settings, Share, ShoppingBasket, Tag, type LucideIcon } from "lucide-react-native";
+import { ChartColumn, History, Mail, House, ListChecks, Settings, Share, ShoppingBasket, Tag, type LucideIcon } from "lucide-react-native";
 import { useEffect, useRef } from "react";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,7 +11,7 @@ import { useTheme } from "@/theme";
 import { Tap, Text } from "@/ui";
 import { currentEntry, DRAWER_SECTIONS, PUSHED, type DrawerEntry, type DrawerEntryKey } from "./entries";
 
-const ICONS: Record<DrawerEntryKey, LucideIcon> = { home: House, list: ListChecks, promotions: Tag, compare: ChartColumn, share: Share, recent: History, items: ShoppingBasket, settings: Settings };
+const ICONS: Record<DrawerEntryKey, LucideIcon> = { home: House, list: ListChecks, promotions: Tag, compare: ChartColumn, share: Share, recent: History, items: ShoppingBasket, settings: Settings, contact: Mail };
 
 /**
  * Tracks closing the menu without picking an entry: the scrim (react-navigation's own "close the menu" button, which

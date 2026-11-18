@@ -22,6 +22,8 @@ export const Events = {
   itemQuantityChanged: "item_quantity_changed",
   listShared: "list_shared",
   listJoined: "list_joined",
+  /** `topic` only, never the text. */
+  contactSent: "contact_sent",
   /** One per scan: `result` added | alreadyOnList | named | unknown | denied, `from` list | items. Never the Barcode or a name. */
   itemScanned: "item_scanned",
 } as const;
@@ -67,7 +69,12 @@ export const Taps = {
   compareSortDistance: "compare.sort.distance",
   compareSortPrice: "compare.sort.price",
   drawerClose: "drawer.close",
+  contactSend: "contact.send",
+  contactTopic: "contact.topic",
+  /** `topic` is the Topic key picked. */
+  contactTopicPick: "contact.topic.pick",
   drawerCompare: "drawer.compare",
+  drawerContact: "drawer.contact",
   drawerHome: "drawer.home",
   drawerItems: "drawer.items",
   drawerList: "drawer.list",
@@ -158,7 +165,7 @@ export const flush = async () => posthog?.flush();
 export const track = (event: Event, properties?: Record<string, string | number | boolean>) => posthog?.capture(event, properties);
 
 /** `Tap` sends this for every press; a raw Pressable or Switch calls it itself. */
-export const trackTap = (name: TapName, properties?: Record<string, boolean>) => track(Events.tap, { name, ...properties });
+export const trackTap = (name: TapName, properties?: Record<string, string | boolean>) => track(Events.tap, { name, ...properties });
 
 /** identify() merges the anonymous pre-sign-in events into the user; reset() starts a new anonymous id. */
 export function syncIdentity(previousId: string | null, userId: string | null) {
