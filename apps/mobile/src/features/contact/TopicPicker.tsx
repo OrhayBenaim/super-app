@@ -6,13 +6,13 @@ import { Platform, View } from "react-native";
 import { Host as AndroidHost, DropdownMenu, SelectableDropdownMenuItem, RNHostView as AndroidRNHost, Text as AndroidText } from "@expo/ui/jetpack-compose";
 import { Host, Menu, RNHostView, Toggle } from "@expo/ui/swift-ui";
 import { Taps, trackTap } from "@/lib/analytics";
-import { t, type StringKey } from "@/lib/strings";
+import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Tap, Text } from "@/ui";
 
 // SF Symbols for the iOS menu: the Lucide icons can't be drawn natively there. Android's menu has no icons (it needs XML vectors).
 const SYMBOLS = { general: "bubble.left", bug: "ladybug", improvement: "lightbulb", missingSupermarket: "storefront", missingProduct: "shippingbox" } as const;
-const label = (topic: Topic) => t(`contact.topic.${topic}` as StringKey);
+const label = (topic: Topic) => t(`contact.topic.${topic}`);
 
 /** The Topic pull-down row: "נושא" at the start; the value (or "בחירה") and a chevron at the end. Opens a native menu. */
 export function TopicPicker({ value, onChange }: { value: Topic | null; onChange: (topic: Topic) => void }) {

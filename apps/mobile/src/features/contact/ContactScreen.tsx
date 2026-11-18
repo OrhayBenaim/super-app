@@ -20,10 +20,11 @@ export function ContactScreen() {
   const [text, setText] = useState("");
   const send = useMutation({
     mutationFn: ({ topic, text }: { topic: Topic; text: string }) => sendContact(topic, text),
+    // Offline, fail at once and show the red line instead of pausing until the network returns.
+    networkMode: "always",
     onSuccess: (_d, { topic }) => {
       track(Events.contactSent, { topic });
       showContactSent();
-      router.back();
     },
   });
 
@@ -62,7 +63,8 @@ export function ContactScreen() {
         analyticsName={Taps.contactSend}
         disabled={!canSend(topic, text)}
         loading={send.isPending}
-        onPress={() => topic && send.mutate({ topic, text })}
+        // Per-call onSuccess skips once the page is gone, so a late reply never closes another page.
+        onPress={() => topic && send.mutate({ topic, text }, { onSuccess: () => router.back() })}
         style={{ marginTop: space[6] }}
       />
       {send.isError && (
