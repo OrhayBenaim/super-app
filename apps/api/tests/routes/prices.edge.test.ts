@@ -330,7 +330,7 @@ describe("products search", () => {
 
   it("reports storeCount and the minimum price", async () => {
     const rows = (await (await search("חלב תנובה")).json()) as any[];
-    expect(rows).toEqual([{ kind: "product", code: S1, name: "חלב תנובה 3%", manufacturer: null, unitQty: null, storeCount: 2, minPrice: 5, measure: null, size: null, soldBy: "unit" }]);
+    expect(rows).toEqual([{ kind: "product", code: S1, name: "חלב תנובה 3%", manufacturer: null, unitQty: null, storeCount: 2, minPrice: 5, measure: null, size: null, soldBy: "unit", type: "other" }]);
   });
 
   it("FTS-special characters never cause a 500", async () => {

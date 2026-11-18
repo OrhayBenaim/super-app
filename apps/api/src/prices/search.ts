@@ -1,5 +1,6 @@
 // Product search (GET /api/products/search, and the Internal dashboard's Products and Product groups): Product groups
 // by their words, then Products, from products_fts and the prices index.
+import type { ProductType } from "@grocer/shared/product-types";
 import type { Db } from "#/db/index.ts";
 import { commonest, ftsMatch, groupEdits, groupMembers, madeGroups, measureOf, nameWords, searchGroups, soldByOf, withoutSizes } from "#/prices/groups.ts";
 import { round2 } from "#/prices/promotions.ts";
@@ -9,8 +10,9 @@ const TOP_CODES = 5;
 export const SEARCH_CANDIDATES = 3000;
 
 // minPrice is the lowest price anywhere, or with @store that store's price (null when it does not price the product).
-type Found = { code: string; name: string; manufacturer: string | null; unitQty: string | null; isWeighted: number; storeCount: number; minPrice: number | null };
-const productCols = `p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.is_weighted AS isWeighted`;
+// type is its Product type, Other while untyped.
+type Found = { code: string; name: string; manufacturer: string | null; unitQty: string | null; isWeighted: number; type: ProductType; storeCount: number; minPrice: number | null };
+const productCols = `p.code, p.name, p.manufacturer, p.unit_qty AS unitQty, p.is_weighted AS isWeighted, coalesce(p.product_type, 'other') AS type`;
 // The product named exactly the first word comes first, then products named after the word ("חלב 3%" before "שוקולד
 // חלב", both before "חלבה"), then the most widely priced. LIKE matches ASCII case-insensitively, as the FTS tokenizer does.
 // Store count and min price are per-product lookups in the covering prices index: a JOIN + GROUP BY over every price
@@ -41,12 +43,17 @@ const productResult = (p: Found & { minPrice: number }) => ({ kind: "product" as
 
 const startsWords = (words: string[], start: string[]) => start.every((w, i) => words[i] === w);
 const STORE_COUNT = "SELECT count(DISTINCT store_id) AS n FROM prices WHERE code IN (SELECT value FROM json_each(?))";
+const COMMONEST_TYPE = `SELECT coalesce(product_type, 'other') AS type FROM products WHERE code IN (SELECT value FROM json_each(?))
+   GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`;
+/** A group's Product type: its members' commonest (Other when untyped). */
+const groupType = (db: Db, codes: string[]) =>
+  ((db.$client.prepare(COMMONEST_TYPE).get(JSON.stringify(codes)) as { type: ProductType } | undefined)?.type ?? "other");
 
 /**
  * A search result for a group the team edited or made, from its members (groupMembers): its name (the team's, when
  * renamed) and only the members priced anywhere; with @store, priced by that store. Nothing when none is priced there.
  */
-function editedGroup(db: Db, g: { ref: string; name: string; refinements: string[] }, store: string | null) {
+function editedGroup(db: Db, g: { ref: string; name: string; refinements: string[]; type?: ProductType }, store: string | null) {
   const sqlite = db.$client;
   const { members, soldBy, size } = groupMembers(db, g.ref);
   if (!size) return [];
@@ -60,7 +67,7 @@ function editedGroup(db: Db, g: { ref: string; name: string; refinements: string
   const codes = priced.map((m) => m.code);
   const { n } = sqlite.prepare(STORE_COUNT).get(JSON.stringify(codes)) as { n: number };
   return [{
-    kind: "group" as const, ref: g.ref, name: groupEdits(db, [g.ref]).get(g.ref)?.name ?? g.name, measure: size.measure, soldBy,
+    kind: "group" as const, ref: g.ref, name: groupEdits(db, [g.ref]).get(g.ref)?.name ?? g.name, measure: size.measure, soldBy, type: g.type ?? groupType(db, codes),
     size: size.measure === "unit" ? size.size : commonest(priced.map((m) => m.size))!, refinements: g.refinements,
     minPrice: round2(Math.min(...each)), productCount: codes.length, storeCount: n, topCodes: codes.slice(0, TOP_CODES),
   }];
@@ -92,7 +99,7 @@ export function searchProducts(db: Db, q: string, limit: number, storeId?: strin
   const groups = candidateGroups.filter((g) => g.minPrice !== Infinity && !edits.has(g.ref)).map(({ codes, minPrice, ...g }) => {
     const { n } = sqlite.prepare(STORE_COUNT).get(JSON.stringify(codes)) as { n: number };
     // topCodes: the best-matching members first (search order), for the app to show the first one with an image.
-    return { kind: "group" as const, ...g, minPrice: round2(minPrice), productCount: codes.length, storeCount: n, topCodes: codes.slice(0, TOP_CODES) };
+    return { kind: "group" as const, ...g, type: groupType(db, codes), minPrice: round2(minPrice), productCount: codes.length, storeCount: n, topCodes: codes.slice(0, TOP_CODES) };
   });
   groups.push(...edited);
   groups.sort((a, b) => b.storeCount - a.storeCount);

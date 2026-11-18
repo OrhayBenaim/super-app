@@ -6,9 +6,9 @@ import { pricesNearby, resolveScan, storeLabel } from "@/features/items/scan";
 import type { Item } from "@/features/lists/api";
 import { api } from "@/lib/api";
 
-const product = (code: string, name = `p${code}`) => ({ kind: "product", code, name, manufacturer: null, unitQty: null, measure: "l", size: 1.5, soldBy: "unit", storeCount: 2, minPrice: 5 });
+const product = (code: string, name = `p${code}`) => ({ kind: "product", code, name, manufacturer: null, unitQty: null, measure: "l", size: 1.5, soldBy: "unit", type: "drinks", storeCount: 2, minPrice: 5 });
 const item = (over: Partial<Item>): Item => ({ id: "i1", listId: "l1", name: "Milk", category: "Other", productCode: null, groupRef: null, missing: true, quantity: 2, soldBy: "unit", createdAt: "", updatedAt: "", ...over });
-const found = (code: string, name: string, action: string, item?: Item) => ({ kind: "found", product: { code, name, measure: "l", size: 1.5, soldBy: "unit" }, action, ...(item && { item }) });
+const found = (code: string, name: string, action: string, item?: Item) => ({ kind: "found", product: { code, name, measure: "l", size: 1.5, soldBy: "unit", type: "drinks" }, action, ...(item && { item }) });
 const searchReturns = (results: unknown[]) => vi.mocked(api).mockResolvedValueOnce(results);
 
 const off = vi.fn<typeof fetch>();

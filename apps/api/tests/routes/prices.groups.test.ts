@@ -255,7 +255,7 @@ describe("product groups: search", () => {
 
   it("leaves barcode search as the exact product, never a group", async () => {
     expect(await search(milk3)).toEqual([
-      { kind: "product", code: milk3, name: "חלב 3% 1 ליטר", manufacturer: null, unitQty: "1 ליטר", storeCount: 2, minPrice: 5.5, measure: "l", size: 1, soldBy: "unit" },
+      { kind: "product", code: milk3, name: "חלב 3% 1 ליטר", manufacturer: null, unitQty: "1 ליטר", storeCount: 2, minPrice: 5.5, measure: "l", size: 1, soldBy: "unit", type: "other" },
     ]);
   });
 

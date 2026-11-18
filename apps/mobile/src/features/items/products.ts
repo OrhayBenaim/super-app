@@ -2,6 +2,7 @@ import { useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstac
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import { hasImageSource, lookupProductImage, uploadedVersion, type UploadedImages } from "@grocer/shared/product-image";
+import type { ProductType } from "@grocer/shared/product-types";
 import type { SoldBy } from "@grocer/shared/quantity";
 import { SEARCH } from "@grocer/shared/search";
 import { api, BASE_URL } from "@/lib/api";
@@ -10,7 +11,7 @@ export type Measure = "kg" | "l" | "unit";
 /** One product. `size` is in kilos or liters, or a pack count; null when it can't be read. */
 export type Product = {
   kind: "product"; code: string; name: string; manufacturer: string | null; unitQty: string | null;
-  measure: Measure | null; size: number | null; storeCount: number;
+  measure: Measure | null; size: number | null; storeCount: number; type: ProductType;
   /** Per kilo when sold by weight. */
   minPrice: number; soldBy: SoldBy;
   /** undefined while looking up (skeleton), a URL when found, null when there is none. */
@@ -21,7 +22,7 @@ export type Product = {
  * pack (kilos or liters) or its pack count. `refinements` are next words that narrow it.
  */
 export type ProductGroup = {
-  kind: "group"; ref: string; name: string; measure: Measure; size: number; soldBy: SoldBy;
+  kind: "group"; ref: string; name: string; measure: Measure; size: number; soldBy: SoldBy; type: ProductType;
   productCount: number; storeCount: number; minPrice: number; refinements: string[];
   /** The best-matching products first; the group shows the first one's image that has one. */
   topCodes: string[];
