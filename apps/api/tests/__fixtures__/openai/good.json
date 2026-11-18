@@ -6,7 +6,7 @@
   "choices": [
     {
       "index": 0,
-      "message": { "role": "assistant", "content": "{\"types\":[{\"i\":0,\"type\":\"dairy-eggs\"},{\"i\":1,\"type\":\"produce\"},{\"i\":2,\"type\":\"other\"}]}", "refusal": null },
+      "message": { "role": "assistant", "content": "{\"products\":[{\"i\":0,\"type\":\"dairy-eggs\",\"name\":\"חלב תנובה 3%\"},{\"i\":1,\"type\":\"produce\",\"name\":\"עגבניה\"},{\"i\":2,\"type\":\"other\",\"name\":\"סבון ידיים נוזלי\"}]}", "refusal": null },
       "finish_reason": "stop"
     }
   ],
