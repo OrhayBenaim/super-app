@@ -4,7 +4,7 @@ import type { Deps } from "#/deps.ts";
 import { measureOf, soldByOf } from "#/prices/groups.ts";
 import { RateLimitError, type ProductToClassify } from "#/services/classifier.ts";
 
-const BATCH = 100;
+const BATCH = 25; // each answer writes a full name: 100 per request ran past the 120 s timeout
 /** Distinct names classified per Price sync; the rest wait for the next. */
 export const MAX_NAMES = 5000;
 

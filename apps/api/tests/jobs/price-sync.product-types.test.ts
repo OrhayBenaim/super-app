@@ -180,23 +180,23 @@ describe("priceSyncJob: Product types", () => {
   });
 
   it("a rate limit stops the step for this sync: typed Products keep their type, the rest stay untyped for the next", async () => {
-    const items = Array.from({ length: 250 }, (_, i): Item => ({ code: String(1000 + i), name: `מוצר ${i}` }));
+    const items = Array.from({ length: 60 }, (_, i): Item => ({ code: String(1000 + i), name: `מוצר ${i}` }));
     let limited = true;
     const classifier = fakeClassifier((p) => {
-      if (limited && Number(p.name.split(" ")[1]) >= 100) throw new RateLimitError("llm: HTTP 429");
+      if (limited && Number(p.name.split(" ")[1]) >= 25) throw new RateLimitError("llm: HTTP 429");
       return "pantry";
     });
     const errorHandler = fakeErrorHandler();
     const deps = setup({ "001": items }, { classifier, errorHandler });
     const id = await priceSyncJob(deps)({});
 
-    expect(classifier.calls.map((c) => c.length)).toEqual([100, 100]);
-    expect(run(deps, id)).toEqual({ status: "finished", products_typed: 100, products_other: 0, type_requests_failed: 1 });
+    expect(classifier.calls.map((c) => c.length)).toEqual([25, 25]);
+    expect(run(deps, id)).toEqual({ status: "finished", products_typed: 25, products_other: 0, type_requests_failed: 1 });
     const typed = Object.values(types(deps));
-    expect(typed.filter((t) => t === "pantry")).toHaveLength(100);
-    expect(typed.filter((t) => t === null)).toHaveLength(150);
+    expect(typed.filter((t) => t === "pantry")).toHaveLength(25);
+    expect(typed.filter((t) => t === null)).toHaveLength(35);
     expect(errorHandler.warnings).toEqual([
-      { message: "product types: 1 classifier requests failed", details: { productsTyped: 100, productsOther: 0, typeRequestsFailed: 1, error: "llm: HTTP 429" } },
+      { message: "product types: 1 classifier requests failed", details: { productsTyped: 25, productsOther: 0, typeRequestsFailed: 1, error: "llm: HTTP 429" } },
     ]);
 
     limited = false;
@@ -205,7 +205,7 @@ describe("priceSyncJob: Product types", () => {
   });
 
   it("stopping the sync mid-request hands the classifier the signal and isn't counted as a failed request", async () => {
-    const items = Array.from({ length: 250 }, (_, i): Item => ({ code: String(1000 + i), name: `מוצר ${i}` }));
+    const items = Array.from({ length: 60 }, (_, i): Item => ({ code: String(1000 + i), name: `מוצר ${i}` }));
     const stop = new AbortController();
     const signals: (AbortSignal | undefined)[] = [];
     const fake = fakeClassifier(() => "pantry");
@@ -225,16 +225,16 @@ describe("priceSyncJob: Product types", () => {
     const id = await priceSyncJob(deps)({}, stop.signal);
 
     expect(signals).toEqual([stop.signal, stop.signal]);
-    expect(run(deps, id)).toEqual({ status: "interrupted", products_typed: 100, products_other: 0, type_requests_failed: 0 });
+    expect(run(deps, id)).toEqual({ status: "interrupted", products_typed: 25, products_other: 0, type_requests_failed: 0 });
     expect(errorHandler.warnings).toEqual([]);
   });
 
   it("other failed requests don't stop the step, and the warning names the first failure's error", async () => {
-    const items = Array.from({ length: 250 }, (_, i): Item => ({ code: String(1000 + i), name: `מוצר ${i}` }));
+    const items = Array.from({ length: 60 }, (_, i): Item => ({ code: String(1000 + i), name: `מוצר ${i}` }));
     const classifier = fakeClassifier((p) => {
       const n = Number(p.name.split(" ")[1]);
-      if (n < 100) throw new Error("llm: HTTP 503");
-      if (n < 200) throw new Error("llm: HTTP 500");
+      if (n < 25) throw new Error("llm: HTTP 503");
+      if (n < 50) throw new Error("llm: HTTP 500");
       return "pantry";
     });
     const errorHandler = fakeErrorHandler();
@@ -243,15 +243,15 @@ describe("priceSyncJob: Product types", () => {
 
     expect(classifier.calls).toHaveLength(3);
     expect(errorHandler.warnings).toEqual([
-      { message: "product types: 2 classifier requests failed", details: { productsTyped: 50, productsOther: 0, typeRequestsFailed: 2, error: "llm: HTTP 503" } },
+      { message: "product types: 2 classifier requests failed", details: { productsTyped: 10, productsOther: 0, typeRequestsFailed: 2, error: "llm: HTTP 503" } },
     ]);
   });
 
-  it("classifies in batches of 100", async () => {
-    const items = Array.from({ length: 150 }, (_, i): Item => ({ code: String(1000 + i), name: `מוצר ${i}` }));
+  it("classifies in batches of 25", async () => {
+    const items = Array.from({ length: 60 }, (_, i): Item => ({ code: String(1000 + i), name: `מוצר ${i}` }));
     const classifier = fakeClassifier();
     await priceSyncJob(setup({ "001": items }, { classifier }))({});
-    expect(classifier.calls.map((c) => c.length)).toEqual([100, 50]);
+    expect(classifier.calls.map((c) => c.length)).toEqual([25, 25, 10]);
   });
 
   it(`stops at ${MAX_NAMES} names, and the next sync continues`, async () => {

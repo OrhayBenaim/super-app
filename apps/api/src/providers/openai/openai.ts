@@ -16,6 +16,30 @@ const SYSTEM = [
 const reply = z.object({ choices: z.array(z.object({ message: z.object({ content: z.string() }) })).min(1) });
 const answer = z.object({ products: z.array(z.object({ i: z.number().int(), type: z.string().optional(), name: z.string().optional() })) });
 const productType = z.enum(PRODUCT_TYPES);
+// Structured outputs: the provider must answer every Product with an id from the list (OpenAI's strict mode needs every key required).
+const RESPONSE_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "products",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        products: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { i: { type: "integer" }, type: { type: "string", enum: PRODUCT_TYPES }, name: { type: "string" } },
+            required: ["i", "type", "name"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["products"],
+      additionalProperties: false,
+    },
+  },
+};
 
 /** Resolves after `ms`, or rejects at once when `signal` aborts. */
 const wait = (ms: number, signal?: AbortSignal) =>
@@ -52,7 +76,7 @@ export function openaiClassifier({ baseUrl, apiKey, model }: { baseUrl: string; 
       const body = JSON.stringify({
         model,
         temperature: 0,
-        response_format: { type: "json_object" },
+        response_format: RESPONSE_FORMAT,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: JSON.stringify(products.map((p, i) => ({ i, ...p }))) },
@@ -68,8 +92,7 @@ export function openaiClassifier({ baseUrl, apiKey, model }: { baseUrl: string; 
         if (res.status === 429) throw new RateLimitError("llm: HTTP 429");
       }
       if (!res.ok) throw new Error(`llm: HTTP ${res.status}`);
-      // Some models wrap the JSON in a ```json fence even when asked for JSON only.
-      const content = reply.parse(await res.json()).choices[0]!.message.content.replace(/^\s*```(?:json)?|```\s*$/g, "");
+      const content = reply.parse(await res.json()).choices[0]!.message.content;
       const byIndex = new Map(answer.parse(JSON.parse(content)).products.map((t) => [t.i, t]));
       return products.map((_, i): Classified => {
         const a = byIndex.get(i);

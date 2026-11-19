@@ -54,14 +54,15 @@ describe("openaiClassifier", () => {
     expect(url).toBe("https://llm.example/v1/chat/completions");
     expect(new Headers(init.headers).get("authorization")).toBe("Bearer sk-test");
     const body = JSON.parse(String(init.body));
-    expect(body).toMatchObject({ model: "small-model", response_format: { type: "json_object" } });
+    expect(body).toMatchObject({ model: "small-model", response_format: { type: "json_schema", json_schema: { strict: true } } });
+    expect(body.response_format.json_schema.schema.properties.products.items.properties.type.enum).toEqual([...PRODUCT_TYPES]);
     for (const id of PRODUCT_TYPES) expect(body.messages[0].content).toContain(id);
     for (const rule of ["abbreviations", "cut-off", "spacing", "brand", "every number", "word order"]) expect(body.messages[0].content).toContain(rule);
     expect(body.messages[0].content).toMatch(/candles.*cleaning-home|cleaning-home.*candles/s);
     expect(JSON.parse(body.messages[1].content)[1]).toEqual({ i: 1, ...PRODUCTS[1] });
   });
 
-  it("an id outside the fixed list keeps its name; a Product with no answer is null for both; a ```json fence is fine", async () => {
+  it("an id outside the fixed list keeps its name; a Product with no answer is null for both", async () => {
     serve("outside-list.json");
     expect(await classifier.classify(PRODUCTS)).toEqual([
       { type: "dairy-eggs", name: "חלב תנובה 3%" },
