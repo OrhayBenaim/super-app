@@ -1,3 +1,4 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -6,15 +7,15 @@ import { useState } from "react";
 import { ActivityIndicator, Alert, Platform, Share, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { fmt } from "@/features/compare/format";
-import { useCurrentListId, useList } from "@/features/lists/api";
+import { joinedLists, useCurrentListId, useList, useLists, type List } from "@/features/lists/api";
 import { Avatar } from "@/features/lists/Avatars";
 import { Taps } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
-import { Button, Group, IconButton, Row, Screen, SheetField, SheetHeader, Text } from "@/ui";
+import { Button, EmptyState, Group, IconButton, Row, Screen, SheetField, SheetHeader, Tap, Text } from "@/ui";
 import { Join } from "./Join";
-import { useShareMutations } from "./api";
+import { leaveList, useShareMutations } from "./api";
 
 const CODE_IN = FadeIn.duration(200);
 
@@ -22,7 +23,7 @@ const CODE_IN = FadeIn.duration(200);
 export function ShareScreen() {
   const router = useRouter();
   const { space } = useTheme();
-  const [view, setView] = useState<"main" | "rename" | "join">("main");
+  const [view, setView] = useState<"main" | "rename" | "join" | "joined">("main");
   // Held here, not in Members: Rename unmounts Members, and asking for a code again would rotate the one already sent.
   const share = useShareMutations(useCurrentListId());
   const close = () => (router.canGoBack() ? router.back() : router.replace("/list"));
@@ -33,19 +34,22 @@ export function ShareScreen() {
         <Rename onDone={() => setView("main")} />
       ) : view === "join" ? (
         <Join onBack={() => setView("main")} onJoined={close} />
+      ) : view === "joined" ? (
+        <Joined onBack={() => setView("main")} onJoin={() => setView("join")} onLeftCurrent={close} />
       ) : (
-        <Members share={share} onDone={close} onRename={() => setView("rename")} onJoin={() => setView("join")} />
+        <Members share={share} onDone={close} onRename={() => setView("rename")} onJoin={() => setView("join")} onJoined={() => setView("joined")} />
       )}
     </Screen>
   );
 }
 
-function Members({ share, onDone, onRename, onJoin }: { share: ReturnType<typeof useShareMutations>; onDone: () => void; onRename: () => void; onJoin: () => void }) {
+function Members({ share, onDone, onRename, onJoin, onJoined }: { share: ReturnType<typeof useShareMutations>; onDone: () => void; onRename: () => void; onJoin: () => void; onJoined: () => void }) {
   const { colors, space } = useTheme();
   const me = authClient.useSession().data?.user.id;
   const listId = useCurrentListId();
   const { data } = useList(listId);
-  const { invite, removeMember } = share;
+  const { invite, leave } = share;
+  const joinedCount = joinedLists(useLists().data ?? []).length;
   const [copied, setCopied] = useState(false);
   const isOwner = data?.list.role === "owner";
   const fail = () => Alert.alert(t("common.error"));
@@ -56,7 +60,7 @@ function Members({ share, onDone, onRename, onJoin }: { share: ReturnType<typeof
       {
         text: t(self ? "share.leave" : "common.remove"),
         style: "destructive",
-        onPress: () => removeMember.mutate(userId, { onSuccess: () => self && onDone(), onError: fail }),
+        onPress: () => (self ? leave.mutate(userId, { onSuccess: onDone }) : share.removeMember.mutate(userId, { onError: fail })),
       },
     ]);
 
@@ -126,6 +130,7 @@ function Members({ share, onDone, onRename, onJoin }: { share: ReturnType<typeof
       {data && (
         <Group style={{ marginTop: space[6] }}>
           <Row title={t("share.join")} analyticsName={Taps.shareJoin} chevron onPress={onJoin} />
+          <Row title={t("share.joined")} analyticsName={Taps.shareJoined} value={joinedCount ? String(joinedCount) : undefined} chevron onPress={onJoined} />
         </Group>
       )}
     </>
@@ -164,5 +169,58 @@ function Rename({ onDone }: { onDone: () => void }) {
         style={{ minHeight: 64, paddingHorizontal: space[5] }}
       />
     </View>
+  );
+}
+
+/** "Lists you joined", pushed inside the sheet: every List the User is a Member of, each with a Leave that asks first. */
+function Joined({ onBack, onJoin, onLeftCurrent }: { onBack: () => void; onJoin: () => void; onLeftCurrent: () => void }) {
+  const { space } = useTheme();
+  const lists = joinedLists(useLists().data ?? []);
+  return (
+    <View style={{ gap: space[4] }}>
+      <SheetHeader title={t("share.joined")} start={{ title: t("common.back"), analyticsName: Taps.commonBack, onPress: onBack }} />
+      {lists.length === 0 ? (
+        <EmptyState title={t("share.joined.emptyTitle")} body={t("share.joined.emptyBody")} action={{ title: t("share.join"), analyticsName: Taps.shareJoin, onPress: onJoin }} />
+      ) : (
+        <>
+          <Group>
+            {lists.map((l) => (
+              <JoinedRow key={l.id} list={l} onLeftCurrent={onLeftCurrent} />
+            ))}
+          </Group>
+          <Text variant="footnote" color="labelSecondary" style={{ paddingHorizontal: space[5] }}>
+            {t("share.joined.footnote")}
+          </Text>
+        </>
+      )}
+    </View>
+  );
+}
+
+function JoinedRow({ list, onLeftCurrent }: { list: List; onLeftCurrent: () => void }) {
+  const me = authClient.useSession().data?.user.id;
+  const current = useCurrentListId();
+  const leave = useMutation(leaveList(useQueryClient(), list.id));
+  // The options own the failure alert. The promise (not mutate's callback) still resolves after the cache drops this row.
+  const confirm = () =>
+    Alert.alert(fmt(t("share.joined.confirm"), { name: list.name }), t("share.joined.confirmBody"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("share.joined.leave"), style: "destructive", onPress: () => me && leave.mutateAsync(me).then(() => list.id === current && onLeftCurrent(), () => {}) },
+    ]);
+  return (
+    <Row
+      title={list.name}
+      detail={fmt(t("share.joined.members"), { count: list.memberCount })}
+      trailing={
+        <Tap
+          accessibilityLabel={fmt(t("share.joined.leaveNamed"), { name: list.name })}
+          analyticsName={Taps.shareJoinedLeave}
+          onPress={confirm}
+          style={{ minHeight: 44, minWidth: 44, justifyContent: "center", alignItems: "center" }}
+        >
+          <Text color="danger">{t("share.joined.leave")}</Text>
+        </Tap>
+      }
+    />
   );
 }

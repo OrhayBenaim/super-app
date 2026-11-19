@@ -26,6 +26,9 @@ export const listKeys = {
   categories: (id: string) => ["lists", id, "categories"] as const,
 };
 
+/** The Lists the User joined (never one they own), in the order the server sends them (oldest first). */
+export const joinedLists = (lists: List[]) => lists.filter((l) => l.role === "member");
+
 export const useLists = () => useQuery({ queryKey: listKeys.all, queryFn: () => api<List[]>("api/lists") });
 
 // Selected list, kept across app restarts; defaults to the first list the server returns (it auto-creates one, oldest first).
