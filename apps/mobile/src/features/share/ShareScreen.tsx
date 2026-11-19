@@ -174,7 +174,7 @@ function Joined({ onBack, onJoin, onLeftCurrent }: { onBack: () => void; onJoin:
     <View style={{ gap: space[4] }}>
       <SheetHeader title={t("share.joined")} start={{ title: t("common.back"), analyticsName: Taps.commonBack, onPress: onBack }} />
       {lists.length === 0 ? (
-        <EmptyState title={t("share.joined.emptyTitle")} body={t("share.joined.emptyBody")} action={{ title: t("share.join"), analyticsName: Taps.shareJoin, onPress: onJoin }} />
+        <EmptyState title={t("share.joined.emptyTitle")} body={t("share.joined.emptyBody")} action={{ title: t("share.join"), analyticsName: Taps.shareJoinedEmptyJoin, onPress: onJoin }} />
       ) : (
         <>
           <Group>
@@ -192,23 +192,28 @@ function Joined({ onBack, onJoin, onLeftCurrent }: { onBack: () => void; onJoin:
 }
 
 /**
- * Leaving listId as the signed-in User: onLeft runs only on success. leaveList owns the failure alert, and the promise
- * (not mutate's callback) still resolves after the cache drops the row that asked.
+ * Leaving listId as the signed-in User: with no session the error shows at once, before ask's confirm; onLeft runs only on
+ * success. leaveList owns the failure alert, and the promise (not mutate's callback) still resolves after the cache drops the row that asked.
  */
 function useLeave(listId: string) {
   const me = authClient.useSession().data?.user.id;
   const leave = useMutation(leaveList(useQueryClient(), listId));
-  return (onLeft: () => void) => (me ? leave.mutateAsync(me).then(onLeft, () => {}) : Alert.alert(t("common.error")));
+  return (ask: (go: () => void) => void, onLeft: () => void) =>
+    me ? ask(() => leave.mutateAsync(me).then(onLeft, () => {})) : Alert.alert(t("common.error"));
 }
 
 /** The Member's "Leave list" row for the List the sheet shows. */
 function LeaveRow({ listId, onLeft }: { listId: string; onLeft: () => void }) {
   const leave = useLeave(listId);
   const confirm = () =>
-    Alert.alert(t("share.leave.confirm"), undefined, [
-      { text: t("common.cancel"), style: "cancel" },
-      { text: t("share.leave"), style: "destructive", onPress: () => leave(onLeft) },
-    ]);
+    leave(
+      (go) =>
+        Alert.alert(t("share.leave.confirm"), undefined, [
+          { text: t("common.cancel"), style: "cancel" },
+          { text: t("share.leave"), style: "destructive", onPress: go },
+        ]),
+      onLeft,
+    );
   return <Row title={t("share.leave")} analyticsName={Taps.shareLeave} titleColor="danger" onPress={confirm} />;
 }
 
@@ -217,14 +222,18 @@ function JoinedRow({ list, onLeftCurrent }: { list: List; onLeftCurrent: () => v
   const current = useCurrentListId();
   const leave = useLeave(list.id);
   const confirm = () =>
-    Alert.alert(fmt(t("share.joined.confirm"), { name: list.name }), t("share.joined.confirmBody"), [
-      { text: t("common.cancel"), style: "cancel" },
-      { text: t("share.joined.leave"), style: "destructive", onPress: () => leave(() => list.id === current && onLeftCurrent()) },
-    ]);
+    leave(
+      (go) =>
+        Alert.alert(fmt(t("share.joined.confirm"), { name: list.name }), t("share.joined.confirmBody"), [
+          { text: t("common.cancel"), style: "cancel" },
+          { text: t("share.joined.leave"), style: "destructive", onPress: go },
+        ]),
+      () => list.id === current && onLeftCurrent(),
+    );
   return (
     <Row
       title={list.name}
-      detail={fmt(t("lists.members"), { n: list.memberCount })}
+      detail={fmt(t("share.joined.members"), { count: list.memberCount })}
       trailing={
         <Tap
           accessibilityLabel={fmt(t("share.joined.leaveNamed"), { name: list.name })}

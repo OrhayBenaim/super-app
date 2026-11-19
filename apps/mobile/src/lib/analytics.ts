@@ -154,6 +154,7 @@ export const Taps = {
   shareLeave: "share.leave",
   shareJoined: "share.joined",
   shareJoinedLeave: "share.joined.leave",
+  shareJoinedEmptyJoin: "share.joined.empty.join",
   shareRemoveMember: "share.removeMember",
   shareRename: "share.rename",
   shareRenameSave: "share.rename.save",
