@@ -13,9 +13,9 @@ import { GEOFENCE_TASK, MAX_REGIONS, MOVE_TASK, NEARBY_RADIUS_KM, toRegions } fr
 
 export const ENABLED_KEY = "nearbyAlertsEnabled";
 /** The current List's basket (what Compare prices), refreshed whenever the List loads; read in the background. */
-export const BASKET_KEY = "nearbyBasket";
+const BASKET_KEY = "nearbyBasket";
 /** The local day of the last Nearby alert shown, across all stores. */
-export const LAST_ALERT_KEY = "nearbyLastAlert";
+const LAST_ALERT_KEY = "nearbyLastAlert";
 const MAX_SPEED_KMH = 95;
 /** How far around the position the 20 nearest stores are looked for. */
 const FENCE_SEARCH_KM = 20;
@@ -30,16 +30,18 @@ async function stopTask(started: () => Promise<boolean>, stopIt: () => Promise<v
   if (await started().catch(() => false)) await stopIt();
 }
 
-/** Stops the fences and the location updates; both are tried, the first failure is reported. */
-async function stop() {
-  const failed = (
-    await Promise.allSettled([
-      stopTask(() => Location.hasStartedGeofencingAsync(GEOFENCE_TASK), () => Location.stopGeofencingAsync(GEOFENCE_TASK)),
-      stopTask(() => Location.hasStartedLocationUpdatesAsync(MOVE_TASK), () => Location.stopLocationUpdatesAsync(MOVE_TASK)),
-    ])
-  ).find((r) => r.status === "rejected");
+/** Runs every step even if another fails; the first failure is then reported. */
+async function allOrFirstError(steps: Promise<unknown>[]) {
+  const failed = (await Promise.allSettled(steps)).find((r) => r.status === "rejected");
   if (failed) throw failed.reason;
 }
+
+/** Stops the fences and the location updates; both are tried, the first failure is reported. */
+const stop = () =>
+  allOrFirstError([
+    stopTask(() => Location.hasStartedGeofencingAsync(GEOFENCE_TASK), () => Location.stopGeofencingAsync(GEOFENCE_TASK)),
+    stopTask(() => Location.hasStartedLocationUpdatesAsync(MOVE_TASK), () => Location.stopLocationUpdatesAsync(MOVE_TASK)),
+  ]);
 
 async function startMoveUpdates() {
   if (await Location.hasStartedLocationUpdatesAsync(MOVE_TASK).catch(() => false)) return; // restarting would fire an update at once: a loop
@@ -47,8 +49,6 @@ async function startMoveUpdates() {
     accuracy: Location.Accuracy.Balanced,
     distanceInterval: MOVE_KM * 1000,
     deferredUpdatesDistance: MOVE_KM * 1000,
-    pausesUpdatesAutomatically: true,
-    activityType: Location.ActivityType.Other,
   });
 }
 
@@ -63,7 +63,9 @@ async function readBasket(): Promise<Basket> {
 
 /** Keeps the phone's copy of the basket current. Does nothing while alerts are off, so nothing is left behind. */
 export async function saveBasket(basket: Basket) {
-  if (isEnabled()) await SecureStore.setItemAsync(BASKET_KEY, JSON.stringify(basket));
+  if (!isEnabled()) return;
+  await SecureStore.setItemAsync(BASKET_KEY, JSON.stringify(basket));
+  if (!basketSize(basket)) await stop();
 }
 
 /** Fences the 20 nearest stores around the current position at 2 km each (replacing the old set); stops everything for an empty basket. */
@@ -72,10 +74,11 @@ export async function armNearbyAlerts() {
   const basket = await readBasket();
   if (!basketSize(basket)) return stop();
   const here = await currentLocation();
-  if (!here) return; // no fix: keep the fences we have
-  const { stores } = await fetchCompare({ ...here, radiusKm: FENCE_SEARCH_KM, ...basket, sort: "distance", limit: MAX_REGIONS });
-  if (!stores.length) return stop();
-  await Location.startGeofencingAsync(GEOFENCE_TASK, toRegions(stores));
+  if (here) {
+    const { stores } = await fetchCompare({ ...here, radiusKm: FENCE_SEARCH_KM, ...basket, sort: "distance", limit: MAX_REGIONS });
+    if (!stores.length) return stop();
+    await Location.startGeofencingAsync(GEOFENCE_TASK, toRegions(stores));
+  } // no fix: keep the fences we have, but the updates still start so the next move re-arms
   if (isEnabled()) await startMoveUpdates();
   if (!isEnabled()) await disableNearbyAlerts(); // turned off while this ran: undo it
 }
@@ -120,9 +123,5 @@ export async function onFenceEntered() {
 /** Turns nearby alerts off and leaves nothing of them on the phone. Safe when geofencing never started. */
 export async function disableNearbyAlerts() {
   useEnabled.setState({ enabled: false }); // first, so an arm still in flight sees it and undoes its work
-  // Every step runs even if another fails; the first failure is reported.
-  const failed = (await Promise.allSettled([stop(), SecureStore.deleteItemAsync(BASKET_KEY), SecureStore.deleteItemAsync(LAST_ALERT_KEY), SecureStore.setItemAsync(ENABLED_KEY, "0")])).find(
-    (r) => r.status === "rejected",
-  );
-  if (failed) throw failed.reason;
+  await allOrFirstError([stop(), SecureStore.deleteItemAsync(BASKET_KEY), SecureStore.deleteItemAsync(LAST_ALERT_KEY), SecureStore.setItemAsync(ENABLED_KEY, "0")]);
 }

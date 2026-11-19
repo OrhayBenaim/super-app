@@ -84,6 +84,14 @@ describe("saveBasket", () => {
     expect(m.setItem).toHaveBeenCalledWith("nearbyBasket", JSON.stringify(basket));
   });
 
+  it("an empty basket stops the fences and the updates", async () => {
+    m.hasMoves.mockResolvedValue(true);
+    const { saveBasket } = await load();
+    await saveBasket({ items: [], groups: [] });
+    expect(m.stop).toHaveBeenCalledWith("grocer-geofence");
+    expect(m.stopMoves).toHaveBeenCalledWith("grocer-nearby-move");
+  });
+
   it("stores nothing while alerts are off", async () => {
     const { saveBasket } = await load("0");
     await saveBasket(basket);
@@ -120,12 +128,13 @@ describe("armNearbyAlerts", () => {
     expect(m.fetchCompare).not.toHaveBeenCalled();
   });
 
-  it("keeps the old fences without a fix", async () => {
+  it("keeps the old fences without a fix, but still starts the updates so the next move re-arms", async () => {
     m.currentLocation.mockResolvedValue(null);
     const { armNearbyAlerts } = await load();
     await armNearbyAlerts();
     expect(m.start).not.toHaveBeenCalled();
     expect(m.stop).not.toHaveBeenCalled();
+    expect(m.startMoves).toHaveBeenCalled();
   });
 
   it("stops fencing when no store is in range", async () => {
@@ -156,6 +165,13 @@ describe("background re-arm", () => {
     await armNearbyAlerts();
     expect(m.startMoves).toHaveBeenCalledWith("grocer-nearby-move", expect.objectContaining({ accuracy: 3, distanceInterval: 5000 }));
     expect(m.startMoves.mock.calls[0][1].deferredUpdatesDistance).toBe(5000);
+  });
+
+  it("starts only Android-spec options", async () => {
+    const { armNearbyAlerts } = await load();
+    await armNearbyAlerts();
+    expect(m.startMoves.mock.calls[0][1]).not.toHaveProperty("activityType");
+    expect(m.startMoves.mock.calls[0][1]).not.toHaveProperty("pausesUpdatesAutomatically");
   });
 
   it("does not restart updates already running", async () => {

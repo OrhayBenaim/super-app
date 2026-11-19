@@ -20,9 +20,13 @@ export function useNearbyAlertsSync() {
       return;
     }
     if (!list.data) return;
-    saveBasket(missingBasket(list.data))
-      .then(() => (armed.current ? undefined : ((armed.current = true), armNearbyAlerts())))
-      .catch(() => {});
+    const sync = async () => {
+      await saveBasket(missingBasket(list.data));
+      if (armed.current) return;
+      await armNearbyAlerts();
+      armed.current = true; // only after a successful arm: a failed one is retried on the next List load
+    };
+    sync().catch(() => {});
   }, [enabled, list.data]);
 }
 
