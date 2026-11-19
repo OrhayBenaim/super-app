@@ -21,7 +21,7 @@ export function useShareMutations(listId: string | null) {
       selectList(list.id);
     },
   });
-  // Removing yourself = leaving; useCurrentListId then falls back to the first remaining list.
+  // The Owner removes another Member; leaving yourself is leaveList.
   const removeMember = useMutation({
     mutationFn: (userId: string) => api<void>(`api/lists/${listId}/members/${userId}`, { method: "DELETE" }),
     onSuccess: () => refresh(),

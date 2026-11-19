@@ -67,8 +67,8 @@ function NewList({ onBack, onCreated }: { onBack: () => void; onCreated: () => v
         end={{ title: t("lists.new.create"), analyticsName: Taps.listsCreate, onPress: save, disabled: !name.trim() || create.isPending }}
       />
       <SheetField
-        accessibilityLabel={t("lists.new.field")}
-        placeholder={t("lists.new.field")}
+        accessibilityLabel={t("share.rename.field")}
+        placeholder={t("share.rename.field")}
         value={name}
         onChangeText={setName}
         returnKeyType="done"

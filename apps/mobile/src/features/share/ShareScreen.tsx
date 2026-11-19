@@ -19,11 +19,13 @@ import { leaveList, useShareMutations } from "./api";
 
 const CODE_IN = FadeIn.duration(200);
 
+type Pane = "main" | "rename" | "join" | "joined";
+
 /** Share sheet (modal route): the List's members, the invite, and one action: Leave (Member) or Rename, pushed inside (Owner). */
 export function ShareScreen() {
   const router = useRouter();
   const { space } = useTheme();
-  const [view, setView] = useState<"main" | "rename" | "join" | "joined">("main");
+  const [view, setView] = useState<Pane>("main");
   // Held here, not in Members: Rename unmounts Members, and asking for a code again would rotate the one already sent.
   const share = useShareMutations(useCurrentListId());
   const close = () => (router.canGoBack() ? router.back() : router.replace("/list"));
@@ -31,7 +33,7 @@ export function ShareScreen() {
     if (view === "rename") return <Rename onDone={() => setView("main")} />;
     if (view === "join") return <Join onBack={() => setView("main")} onJoined={close} />;
     if (view === "joined") return <Joined onBack={() => setView("main")} onJoin={() => setView("join")} onLeftCurrent={close} />;
-    return <Members share={share} onDone={close} onRename={() => setView("rename")} onJoin={() => setView("join")} onShowJoined={() => setView("joined")} />;
+    return <Members share={share} onDone={close} go={setView} />;
   };
   // The modal is full screen on Android, so it needs the top safe-area inset; on iOS it is a page sheet already below the status bar.
   return (
@@ -41,30 +43,21 @@ export function ShareScreen() {
   );
 }
 
-function Members({ share, onDone, onRename, onJoin, onShowJoined }: { share: ReturnType<typeof useShareMutations>; onDone: () => void; onRename: () => void; onJoin: () => void; onShowJoined: () => void }) {
+function Members({ share, onDone, go }: { share: ReturnType<typeof useShareMutations>; onDone: () => void; go: (pane: Pane) => void }) {
   const { colors, space } = useTheme();
   const me = authClient.useSession().data?.user.id;
   const listId = useCurrentListId();
   const { data } = useList(listId);
   const { invite } = share;
-  // The Leave row renders only once the List has loaded, so listId is set by then.
-  const leave = useMutation(leaveList(useQueryClient(), listId ?? ""));
   const joinedCount = joinedLists(useLists().data ?? []).length;
   const [copied, setCopied] = useState(false);
   const isOwner = data?.list.role === "owner";
   const fail = () => Alert.alert(t("common.error"));
 
-  const confirmRemove = (userId: string, name: string, self: boolean) =>
-    Alert.alert(self ? t("share.leave.confirm") : fmt(t("share.remove.confirm"), { name }), undefined, [
+  const confirmRemove = (userId: string, name: string) =>
+    Alert.alert(fmt(t("share.remove.confirm"), { name }), undefined, [
       { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t(self ? "share.leave" : "common.remove"),
-        style: "destructive",
-        onPress: () =>
-          self
-            ? leave.mutateAsync(userId).then(onDone, () => {})
-            : share.removeMember.mutate(userId, { onError: fail }),
-      },
+      { text: t("common.remove"), style: "destructive", onPress: () => share.removeMember.mutate(userId, { onError: fail }) },
     ]);
 
   // A new code replaces the old one on the server, so only make one when the user acts.
@@ -96,7 +89,7 @@ function Members({ share, onDone, onRename, onJoin, onShowJoined }: { share: Ret
               value={m.role === "owner" ? t("share.owner") : undefined}
               trailing={
                 isOwner && m.userId !== me ? (
-                  <IconButton icon={UserMinus} color="danger" accessibilityLabel={`${t("common.remove")} ${m.name}`} analyticsName={Taps.shareRemoveMember} onPress={() => confirmRemove(m.userId, m.name, false)} />
+                  <IconButton icon={UserMinus} color="danger" accessibilityLabel={`${t("common.remove")} ${m.name}`} analyticsName={Taps.shareRemoveMember} onPress={() => confirmRemove(m.userId, m.name)} />
                 ) : undefined
               }
             />
@@ -124,15 +117,15 @@ function Members({ share, onDone, onRename, onJoin, onShowJoined }: { share: Ret
       {data && (
         <Group style={{ marginTop: space[6] }}>
           {isOwner ? (
-            <Row title={t("share.rename")} analyticsName={Taps.shareRename} chevron onPress={onRename} />
+            <Row title={t("share.rename")} analyticsName={Taps.shareRename} chevron onPress={() => go("rename")} />
           ) : (
-            <Row title={t("share.leave")} analyticsName={Taps.shareLeave} titleColor="danger" onPress={() => (me ? confirmRemove(me, "", true) : fail())} />
+            <LeaveRow listId={data.list.id} onLeft={onDone} />
           )}
         </Group>
       )}
       <Group style={{ marginTop: space[6] }}>
-        <Row title={t("share.join")} analyticsName={Taps.shareJoin} chevron onPress={onJoin} />
-        <Row title={t("share.joined")} analyticsName={Taps.shareJoined} value={joinedCount ? String(joinedCount) : undefined} chevron onPress={onShowJoined} />
+        <Row title={t("share.join")} analyticsName={Taps.shareJoin} chevron onPress={() => go("join")} />
+        <Row title={t("share.joined")} analyticsName={Taps.shareJoined} value={joinedCount ? String(joinedCount) : undefined} chevron onPress={() => go("joined")} />
       </Group>
     </>
   );
@@ -198,26 +191,46 @@ function Joined({ onBack, onJoin, onLeftCurrent }: { onBack: () => void; onJoin:
   );
 }
 
-function JoinedRow({ list, onLeftCurrent }: { list: List; onLeftCurrent: () => void }) {
+/**
+ * Leaving listId as the signed-in User: onLeft runs only on success. leaveList owns the failure alert, and the promise
+ * (not mutate's callback) still resolves after the cache drops the row that asked.
+ */
+function useLeave(listId: string) {
   const me = authClient.useSession().data?.user.id;
+  const leave = useMutation(leaveList(useQueryClient(), listId));
+  return (onLeft: () => void) => (me ? leave.mutateAsync(me).then(onLeft, () => {}) : Alert.alert(t("common.error")));
+}
+
+/** The Member's "Leave list" row for the List the sheet shows. */
+function LeaveRow({ listId, onLeft }: { listId: string; onLeft: () => void }) {
+  const leave = useLeave(listId);
+  const confirm = () =>
+    Alert.alert(t("share.leave.confirm"), undefined, [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("share.leave"), style: "destructive", onPress: () => leave(onLeft) },
+    ]);
+  return <Row title={t("share.leave")} analyticsName={Taps.shareLeave} titleColor="danger" onPress={confirm} />;
+}
+
+function JoinedRow({ list, onLeftCurrent }: { list: List; onLeftCurrent: () => void }) {
+  const { size } = useTheme();
   const current = useCurrentListId();
-  const leave = useMutation(leaveList(useQueryClient(), list.id));
-  // The options own the failure alert. The promise (not mutate's callback) still resolves after the cache drops this row.
+  const leave = useLeave(list.id);
   const confirm = () =>
     Alert.alert(fmt(t("share.joined.confirm"), { name: list.name }), t("share.joined.confirmBody"), [
       { text: t("common.cancel"), style: "cancel" },
-      { text: t("share.joined.leave"), style: "destructive", onPress: () => (me ? leave.mutateAsync(me).then(() => list.id === current && onLeftCurrent(), () => {}) : Alert.alert(t("common.error"))) },
+      { text: t("share.joined.leave"), style: "destructive", onPress: () => leave(() => list.id === current && onLeftCurrent()) },
     ]);
   return (
     <Row
       title={list.name}
-      detail={fmt(t("share.joined.members"), { count: list.memberCount })}
+      detail={fmt(t("lists.members"), { n: list.memberCount })}
       trailing={
         <Tap
           accessibilityLabel={fmt(t("share.joined.leaveNamed"), { name: list.name })}
           analyticsName={Taps.shareJoinedLeave}
           onPress={confirm}
-          style={{ minHeight: 44, minWidth: 44, justifyContent: "center", alignItems: "center" }}
+          style={{ minHeight: size.target, minWidth: size.target, justifyContent: "center", alignItems: "center" }}
         >
           <Text color="danger">{t("share.joined.leave")}</Text>
         </Tap>
