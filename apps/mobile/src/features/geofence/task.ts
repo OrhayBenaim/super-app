@@ -2,8 +2,8 @@
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
-import { onFenceEntered } from "./nearbyAlert";
-import { GEOFENCE_TASK } from "./regions";
+import { armNearbyAlerts, onFenceEntered } from "./nearbyAlert";
+import { GEOFENCE_TASK, MOVE_TASK } from "./regions";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldPlaySound: false, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true }),
@@ -11,4 +11,8 @@ Notifications.setNotificationHandler({
 
 TaskManager.defineTask<{ eventType: Location.GeofencingEventType }>(GEOFENCE_TASK, async ({ data, error }) => {
   if (!error && data.eventType === Location.GeofencingEventType.Enter) await onFenceEntered();
+});
+
+TaskManager.defineTask<{ locations: Location.LocationObject[] }>(MOVE_TASK, async ({ error }) => {
+  if (!error) await armNearbyAlerts().catch(() => {}); // a failed re-arm keeps the old fences; the next 5 km tries again
 });
