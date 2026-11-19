@@ -11,7 +11,7 @@ import { currentFix, currentLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { GEOFENCE_TASK, MAX_REGIONS, MOVE_TASK, NEARBY_RADIUS_KM, toRegions } from "./regions";
 
-export const ENABLED_KEY = "nearbyAlertsEnabled";
+const ENABLED_KEY = "nearbyAlertsEnabled";
 /** The current List's basket (what Compare prices), refreshed whenever the List loads; read in the background. */
 const BASKET_KEY = "nearbyBasket";
 /** The local day of the last Nearby alert shown, across all stores. */
@@ -36,10 +36,12 @@ async function allOrFirstError(steps: Promise<unknown>[]) {
   if (failed) throw failed.reason;
 }
 
+const stopFences = () => stopTask(() => Location.hasStartedGeofencingAsync(GEOFENCE_TASK), () => Location.stopGeofencingAsync(GEOFENCE_TASK));
+
 /** Stops the fences and the location updates; both are tried, the first failure is reported. */
 const stop = () =>
   allOrFirstError([
-    stopTask(() => Location.hasStartedGeofencingAsync(GEOFENCE_TASK), () => Location.stopGeofencingAsync(GEOFENCE_TASK)),
+    stopFences(),
     stopTask(() => Location.hasStartedLocationUpdatesAsync(MOVE_TASK), () => Location.stopLocationUpdatesAsync(MOVE_TASK)),
   ]);
 
@@ -77,7 +79,7 @@ export async function armNearbyAlerts() {
   if (here) {
     const { stores } = await fetchCompare({ ...here, radiusKm: FENCE_SEARCH_KM, ...basket, sort: "distance", limit: MAX_REGIONS });
     // no store in range: drop the old fences, but keep the updates so the next move re-arms
-    if (!stores.length) await stopTask(() => Location.hasStartedGeofencingAsync(GEOFENCE_TASK), () => Location.stopGeofencingAsync(GEOFENCE_TASK));
+    if (!stores.length) await stopFences();
     else await Location.startGeofencingAsync(GEOFENCE_TASK, toRegions(stores));
   } // no fix: keep the fences we have, but the updates still start so the next move re-arms
   if (isEnabled()) await startMoveUpdates();
@@ -119,6 +121,12 @@ export async function onFenceEntered() {
   await SecureStore.setItemAsync(LAST_ALERT_KEY, dayOf(now));
   track(Events.geofenceTriggered, { storeId: store.storeId });
   await flush().catch(() => {}); // the OS may suspend the app as soon as the task returns
+}
+
+/** Turns nearby alerts on; the caller has the permissions. Arming follows from the sync hook. */
+export async function enableNearbyAlerts() {
+  await SecureStore.setItemAsync(ENABLED_KEY, "1");
+  useEnabled.setState({ enabled: true });
 }
 
 /** Turns nearby alerts off and leaves nothing of them on the phone. Safe when geofencing never started. */

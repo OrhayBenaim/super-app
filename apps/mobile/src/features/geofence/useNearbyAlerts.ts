@@ -1,10 +1,9 @@
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
-import * as SecureStore from "expo-secure-store";
 import { useEffect, useRef } from "react";
 import { missingBasket, useCurrentListId, useList } from "@/features/lists/api";
 import { requestBackgroundPermission } from "@/lib/location";
-import { armNearbyAlerts, disableNearbyAlerts, ENABLED_KEY, saveBasket, useEnabled } from "./nearbyAlert";
+import { armNearbyAlerts, disableNearbyAlerts, enableNearbyAlerts, saveBasket, useEnabled } from "./nearbyAlert";
 
 /** Background location is unavailable in Expo Go. */
 export const nearbyAlertsSupported = Constants.appOwnership !== "expo";
@@ -41,8 +40,7 @@ export function useNearbyAlerts() {
     }
     if (!(await requestBackgroundPermission())) return false;
     if (!(await Notifications.requestPermissionsAsync()).granted) return false;
-    await SecureStore.setItemAsync(ENABLED_KEY, "1");
-    useEnabled.setState({ enabled: true });
+    await enableNearbyAlerts();
     return true;
   };
 

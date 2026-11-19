@@ -78,12 +78,8 @@ async function freshFix() {
 
 /** A fresh fix without ever asking; null without foreground permission, on failure, or after FIX_TIMEOUT_MS. */
 export async function currentLocation(): Promise<Coords | null> {
-  try {
-    const fix = await freshFix();
-    return fix && toCoords(fix);
-  } catch {
-    return null;
-  }
+  const fix = await currentFix();
+  return fix && { lat: fix.lat, lng: fix.lng };
 }
 
 /** currentLocation plus the speed in km/h (null when the device reports none). */
