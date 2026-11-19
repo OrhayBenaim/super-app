@@ -11,6 +11,7 @@ const names = [
   ["4", "פדים 14 יח"], ["5", "פדים עבים 14 יח"],
   ["6", "10 פיתות"], ["7", "פיתות 10 יח"],
   ["8", "עגבנייה 1 קג"], ["9", "עגבניה 1 קג"],
+  ["10", "100% מיץ רימונים"], ["11", "100% מיץ רימונים סחוט"], ["12", "מיץ רימונים 4 יח"], ["13", "מיץ רימונים סחוט 4 יח"],
 ];
 const pricesXml = `<Root><ChainID>${OSHER}</ChainID><SubChainID>1</SubChainID><StoreID>1</StoreID><Items>${names
   .map(([code, name]) => `<Item><ItemCode>${code}</ItemCode><ItemName>${name}</ItemName><ManufacturerName></ManufacturerName><UnitQty>יחידות</UnitQty><Quantity>1</Quantity><bIsWeighted>0</bIsWeighted><ItemPrice>10</ItemPrice><UnitOfMeasurePrice>10</UnitOfMeasurePrice></Item>`)
@@ -55,5 +56,9 @@ describe("group word spelling", () => {
     expect(g.map((r) => r.ref)).toEqual(["פיתה|unit|10"]);
     expect(g[0]!.productCount).toBe(2);
     expect(await groups("10 פיתות")).toEqual(g);
+  });
+
+  it("never reads a leading percent as a pack count: 100% juice is one unit, not a 100-pack", async () => {
+    expect((await groups("מיץ רימונים")).map((r) => r.ref).sort()).toEqual(["מיץ רימונ|unit|1", "מיץ רימונ|unit|4"]);
   });
 });

@@ -96,9 +96,13 @@ function sizeIn(words: string[]): Size | null {
   return null;
 }
 
-function countIn(words: string[]) {
+/** A name that opens with a percent ("100% מיץ"): its leading number is a share, not a pack count. */
+const opensWithPercent = (name: string) => /^[^\p{L}\d]*\d+(?:\.\d+)?\s*%/u.test(name);
+
+/** The pack count in a name's words ("10 פיתות", "12 יח", "M12"), or null. */
+function countIn(words: string[], name: string) {
   const lead = Number(words[0]);
-  if (isLeadingCount(words[0], words[1]) && Number.isInteger(lead) && lead > 0) return lead; // "10 פיתות"
+  if (isLeadingCount(words[0], words[1]) && !opensWithPercent(name) && Number.isInteger(lead) && lead > 0) return lead; // "10 פיתות"
   for (let i = 0; i < words.length; i++) {
     const n = Number(words[i]);
     if (!isNumber(words[i]!) || !Number.isInteger(n) || n < 1) continue;
@@ -121,7 +125,7 @@ export function measureOf(p: Sized): Size | null {
   const size = sizeIn(qty) ?? sizeIn(name);
   if (size) return size;
   const n = Number(qty[0]);
-  const count = countIn(name) ?? (COUNT.has(qty[1] ?? "") && Number.isInteger(n) && n >= 1 ? n : null);
+  const count = countIn(name, p.name) ?? (COUNT.has(qty[1] ?? "") && Number.isInteger(n) && n >= 1 ? n : null);
   return count ? { measure: "unit", size: count } : null;
 }
 
