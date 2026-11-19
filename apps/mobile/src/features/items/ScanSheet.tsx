@@ -3,9 +3,8 @@ import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { CameraOff } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Alert, AppState, Linking, useWindowDimensions, View, type TextStyle, type ViewStyle } from "react-native";
+import { AccessibilityInfo, Alert, AppState, Linking, View, type TextStyle, type ViewStyle } from "react-native";
 import Animated, { Easing, FadeIn, ReduceMotion } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useList } from "@/features/lists/api";
 import { Events, Taps, track } from "@/lib/analytics";
 import { useDelayed, useMinDuration } from "@/lib/loaderTiming";
@@ -98,12 +97,9 @@ export function ScanSheet() {
 
   const card: ViewStyle = { borderRadius: radius.group, overflow: "hidden", backgroundColor: colors.surface };
   const denied = permission && !permission.granted;
-  // The tallest a sheet gets is the screen under the status bar; space[5] spares iOS's gap above its largest sheet.
-  const { height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
 
   return (
-    <Sheet maxHeight={height - insets.top - space[5]}>
+    <Sheet>
       <SheetHeader title={t("items.scan")} start={{ title: t("common.cancel"), analyticsName: Taps.commonCancel, onPress: () => router.back() }} />
       {found ? (
         <ProductView

@@ -1,5 +1,5 @@
 import type { ReactNode, Ref } from "react";
-import { I18nManager, TextInput, View, type TextInputInstance, type TextInputProps } from "react-native";
+import { I18nManager, TextInput, useWindowDimensions, View, type TextInputInstance, type TextInputProps } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { TapName } from "@/lib/analytics";
 import { text, useTheme } from "@/theme";
@@ -8,12 +8,14 @@ import { Text } from "./Text";
 
 /**
  * Body of a sheet route (a Stack screen with `presentation: "formSheet"`, see app/_layout): gutters and the bottom inset.
- * `maxHeight` caps a content-sized sheet so a child with `flexShrink` shrinks instead of running off-screen.
+ * Never taller than the screen under the status bar, so a child with `flexShrink` shrinks instead of running off-screen;
+ * space[5] spares iOS's gap above its largest sheet.
  */
-export function Sheet({ children, maxHeight }: { children: ReactNode; maxHeight?: number }) {
+export function Sheet({ children }: { children: ReactNode }) {
   const { space } = useTheme();
   const insets = useSafeAreaInsets();
-  return <View style={{ maxHeight, paddingTop: space[3], paddingHorizontal: space[5], paddingBottom: insets.bottom + space[5], gap: space[4] }}>{children}</View>;
+  const { height } = useWindowDimensions();
+  return <View style={{ maxHeight: height - insets.top - space[5], paddingTop: space[3], paddingHorizontal: space[5], paddingBottom: insets.bottom + space[5], gap: space[4] }}>{children}</View>;
 }
 
 type NavAction = { title: string; analyticsName: TapName; onPress: () => void; disabled?: boolean };
