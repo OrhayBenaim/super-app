@@ -9,8 +9,8 @@ vi.mock("expo-secure-store", () => ({ getItem: () => null, setItemAsync: vi.fn()
 import { api } from "@/lib/api";
 import { ApiError, NetworkError } from "@/lib/api-error";
 import {
-  basketSize, currentListId, failureOf, itemEdit, itemEditsPending, listDetailOptions, refreshList, listKeys, matchKey, missingBasket, onItemSaveFailed, optimisticItem, reAdd, registerItemEdits,
-  type Item, type ListDetail,
+  basketSize, currentListId, failureOf, itemEdit, itemEditsPending, listDetailOptions, refreshList, listKeys, joinedLists, matchKey, missingBasket, onItemSaveFailed, optimisticItem, reAdd, registerItemEdits,
+  type Item, type List, type ListDetail,
 } from "@/features/lists/api";
 
 const item = (id: string, over: Partial<Item> = {}): Item => ({
@@ -61,6 +61,16 @@ describe("basketSize", () => {
     expect(basketSize({ items: [], groups: [] })).toBe(0);
     expect(basketSize({ items: [one("1"), one("2")], groups: [{ ref: "g|kg", quantity: 2 }] })).toBe(3);
     expect(basketSize({ items: [], groups: [{ ref: "g|kg", quantity: 1 }] })).toBe(1);
+  });
+});
+
+describe("joinedLists", () => {
+  const l = (id: string, role: "owner" | "member") => ({ id, role }) as List;
+  it("keeps only the Lists the User is a Member of, in the server's order", () => {
+    expect(joinedLists([l("a", "member"), l("b", "owner"), l("c", "member")]).map((x) => x.id)).toEqual(["a", "c"]);
+  });
+  it("is empty for no Lists", () => {
+    expect(joinedLists([])).toEqual([]);
   });
 });
 

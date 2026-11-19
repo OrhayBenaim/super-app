@@ -27,8 +27,9 @@ export function useShareMutations(listId: string | null) {
     onSuccess: () => refresh(),
   });
 
+  const leave = useMutation(leaveList(qc, listId ?? ""));
   const rename = useMutation(renameList(qc, listId));
-  return { invite, join, removeMember, rename };
+  return { invite, join, removeMember, rename, leave };
 }
 
 /**
@@ -67,6 +68,23 @@ export function createList(qc: QueryClient) {
       qc.setQueryData<List[]>(listKeys.all, (ls) => (ls ? [...ls, list] : [list]));
       selectList(list.id);
       track(Events.listCreated, { listId: list.id });
+    },
+    onError: () => Alert.alert(t("common.error")),
+    onSettled: () => qc.invalidateQueries({ queryKey: listKeys.all }),
+  };
+}
+
+/**
+ * Leaving a List, as mutation options: the caller deletes their own membership (the variable is their user id). Works on any
+ * List, not only the current one. Success drops it from the cache (useCurrentListId then falls back to the first remaining List);
+ * a failure alerts from here and keeps it.
+ */
+export function leaveList(qc: QueryClient, listId: string) {
+  return {
+    mutationFn: (userId: string) => api<void>(`api/lists/${listId}/members/${userId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.setQueryData<List[]>(listKeys.all, (ls) => ls?.filter((l) => l.id !== listId));
+      track(Events.listLeft, { listId });
     },
     onError: () => Alert.alert(t("common.error")),
     onSettled: () => qc.invalidateQueries({ queryKey: listKeys.all }),

@@ -10,7 +10,7 @@ vi.mock("@/lib/analytics", () => ({ Events: { listCreated: "list_created" }, tra
 vi.mock("expo-secure-store", () => ({ getItem: () => null, setItemAsync: () => Promise.resolve() }));
 
 import { listKeys, useSelectedList, type List, type ListDetail } from "@/features/lists/api";
-import { createList, renameList } from "@/features/share/api";
+import { createList, leaveList, renameList } from "@/features/share/api";
 
 const list = (id: string, name: string): List => ({ id, name, ownerId: "u", role: "owner", memberCount: 1, updatedAt: "" });
 
@@ -72,5 +72,25 @@ describe("createList", () => {
     expect(useSelectedList.getState().id).toBe("a");
     expect(m.alert).toHaveBeenCalledWith("common.error");
     expect(m.track).not.toHaveBeenCalled();
+  });
+});
+
+describe("leaveList", () => {
+  const leave = (id: string) => new MutationObserver(qc, leaveList(qc, id)).mutate("me").catch(() => {});
+
+  it("DELETEs the caller's membership and removes a List that isn't the current one from the cache, with no alert", async () => {
+    useSelectedList.setState({ id: "a" });
+    m.api.mockResolvedValue(undefined);
+    await leave("b");
+    expect(m.api).toHaveBeenCalledWith("api/lists/b/members/me", { method: "DELETE" });
+    expect(qc.getQueryData<List[]>(listKeys.all)?.map((l) => l.id)).toEqual(["a"]);
+    expect(m.alert).not.toHaveBeenCalled();
+  });
+
+  it("leaves the cache alone and shows the error alert when it fails", async () => {
+    m.api.mockRejectedValue(new Error("500"));
+    await leave("b");
+    expect(qc.getQueryData<List[]>(listKeys.all)?.map((l) => l.id)).toEqual(["a", "b"]);
+    expect(m.alert).toHaveBeenCalledWith("common.error");
   });
 });

@@ -122,6 +122,17 @@ describe("lists", () => {
     expect((await call(dana, "DELETE", `/${listId}/members/${eliId}`)).status).toBe(204);
     expect((await call(eli, "GET", `/${listId}`)).status).toBe(404);
   });
+
+  it("a member leaves by deleting their own membership: 204, the List leaves their lists, then 404", async () => {
+    const { code } = await (await call(dana, "POST", `/${listId}/invite`)).json();
+    await call(eli, "POST", "/join", { code });
+    const { members } = await (await call(dana, "GET", `/${listId}`)).json();
+    const eliId = members.find((m: { role: string }) => m.role === "member").userId;
+    expect((await call(eli, "DELETE", `/${listId}/members/${eliId}`)).status).toBe(204);
+    const mine = await (await call(eli, "GET", "")).json();
+    expect(mine.map((l: { id: string }) => l.id)).not.toContain(listId);
+    expect((await call(eli, "GET", `/${listId}`)).status).toBe(404);
+  });
 });
 
 describe("item ids are made by the phone", () => {

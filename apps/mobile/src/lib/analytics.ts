@@ -22,6 +22,8 @@ export const Events = {
   itemQuantityChanged: "item_quantity_changed",
   listShared: "list_shared",
   listJoined: "list_joined",
+  /** `listId` only. */
+  listLeft: "list_left",
   /** `listId` only, never the name. */
   listCreated: "list_created",
   /** `topic` only, never the text. */
@@ -152,6 +154,8 @@ export const Taps = {
   shareJoinButton: "share.join.button",
   shareJoin: "share.join",
   shareLeave: "share.leave",
+  shareJoined: "share.joined",
+  shareJoinedLeave: "share.joined.leave",
   shareRemoveMember: "share.removeMember",
   shareRename: "share.rename",
   shareRenameSave: "share.rename.save",
