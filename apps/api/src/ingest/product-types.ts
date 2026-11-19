@@ -76,7 +76,7 @@ export async function typeProducts({ db, classifier, errorHandler }: Deps, signa
         }
       })();
     }
-    console.log(`product types: ${byName.size} untyped names, ${names.length} sent`, counts);
+    console.log(`product types: ${byName.size} names, ${names.length} sent`, counts);
   } catch (e) {
     console.error("product types: step failed", e);
     errorHandler.report(e);

@@ -61,6 +61,9 @@ export function nameWords(name: string): Word[] {
 export const withoutSizes = (words: string[]) =>
   words.filter((w, i) => !isUnit(w) && !(isNumber(w) && isUnit(words[i + 1] ?? "")));
 
+/** The words of the group a name gives: its normalized words without sizes. */
+export const groupWords = (name: string) => withoutSizes(nameWords(name).map((w) => w.norm));
+
 /** The spellings a stemmed word can have in a name: stem() folds "יי" to "י" after the first letter, so each of the first 3 "י" there may be either. */
 function spellings(w: string) {
   const head = w.startsWith("יי") ? 2 : 1; // stem() keeps a leading "יי"
@@ -233,7 +236,7 @@ export function claims(t: TeamEdits, products: Map<string, Sized>) {
 
 /** The group named by a product's own normalized name, sizes dropped: where a former Produce-group item moves to. */
 export function ownGroupRef(p: Sized) {
-  const words = withoutSizes(nameWords(p.name).map((w) => w.norm));
+  const words = groupWords(p.name);
   const size = measureOf(p);
   return words.length && size ? groupRef(words, size) : null;
 }

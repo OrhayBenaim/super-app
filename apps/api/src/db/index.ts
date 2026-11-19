@@ -6,7 +6,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { chainSeeds } from "#/ingest/chains.ts";
-import { groupMembers, groupRef, nameWords, ownGroupRef, parseRef, withoutSizes } from "#/prices/groups.ts";
+import { groupMembers, groupRef, groupWords, ownGroupRef, parseRef } from "#/prices/groups.ts";
 import * as schema from "#/db/schema.ts";
 
 /** Opens the SQLite file (":memory:" in tests), applies migrations, upserts the chain seeds and Product types, and links old Produce-group items. */
@@ -74,7 +74,7 @@ export function moveDeadGroupRefs(db: Db) {
       if (!old) continue;
       if (!alive.has(ref)) alive.set(ref, groupMembers(db, ref).members.length > 0);
       if (alive.get(ref)) continue;
-      const words = withoutSizes(nameWords(name).map((w) => w.norm));
+      const words = groupWords(name);
       const next = words.length ? groupRef(words, old.size) : null;
       if (next && parseRef(next) && next !== ref) move.run(next, id);
     }

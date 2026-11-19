@@ -21,7 +21,7 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, openai, price-portals, resend, sentry)
   src/jobs/               fetch-prices, ingest-prices, geocode-stores, price-sync (one Price sync), sync-worker (once-a-minute check)
   src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts),
-                          the Price sync's Product type step (product-types.ts)
+                          the Price sync's Product type step, which also writes Product names out in full (product-types.ts)
   src/prices/             query-time price rules: Product groups (groups.ts), stores within a radius (nearby.ts),
                           Promotions (promotions.ts), Product search (search.ts), Home and Promotions cards and product
                           pages (browse.ts), the Internal dashboard's Product reads (products.ts)
