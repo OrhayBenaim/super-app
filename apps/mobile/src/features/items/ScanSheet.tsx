@@ -23,6 +23,7 @@ type Found = Extract<ScanOutcome, { kind: "found" }>;
 const BARCODES: BarcodeType[] = ["ean13", "ean8", "upc_a", "upc_e"];
 // A lookup slower than this shows the searching mascot; a faster one shows its result at once.
 const SLOW_LOOKUP_MS = 400;
+const CAMERA_HEIGHT = 300;
 const centered: TextStyle = { textAlign: "center" };
 
 /**
@@ -98,7 +99,7 @@ export function ScanSheet() {
   const denied = permission && !permission.granted;
 
   return (
-    <Sheet fill>
+    <Sheet>
       <SheetHeader title={t("items.scan")} start={{ title: t("common.cancel"), analyticsName: Taps.commonCancel, onPress: () => router.back() }} />
       {found ? (
         <ProductView
@@ -113,7 +114,7 @@ export function ScanSheet() {
         />
       ) : denied ? (
         <>
-          <View style={[card, { flex: 1, alignItems: "center", justifyContent: "center", gap: space[3], padding: space[5] }]}>
+          <View style={[card, { minHeight: CAMERA_HEIGHT, alignItems: "center", justifyContent: "center", gap: space[3], padding: space[5] }]}>
             <CameraOff size={40} color={colors.labelSecondary} strokeWidth={1.75} />
             <Text variant="title3" accessibilityRole="header" style={centered}>
               {t("items.scan.denied.title")}
@@ -128,11 +129,11 @@ export function ScanSheet() {
         <>
           {searching ? (
             // No card behind the mascot: it stands on the sheet itself.
-            <View style={{ flex: 1, justifyContent: "center" }}>
+            <View style={{ height: CAMERA_HEIGHT, justifyContent: "center" }}>
               <SearchLoader label={t("items.scan.searching")} />
             </View>
           ) : (
-            <View style={[card, { flex: 1 }]}>
+            <View style={[card, { height: CAMERA_HEIGHT }]}>
               {permission?.granted && (
                 <CameraView
                   style={{ flex: 1 }}
@@ -162,8 +163,8 @@ export function ScanSheet() {
 }
 
 /**
- * The found Product: image (when it has one), name, pack size, its prices, then the button, pinned to the sheet's bottom:
- * only the prices' list shrinks. Fades in over 200ms, opacity only, also under reduced motion.
+ * The found Product: image (when it has one), name, pack size, its prices, then the button. Past the sheet's cap only the
+ * prices' list shrinks, so the button stays on screen. Fades in over 200ms, opacity only, also under reduced motion.
  */
 function ProductView({ found: { product, action }, onAdd }: { found: Found; onAdd: () => void }) {
   const { space, motion } = useTheme();
@@ -178,7 +179,7 @@ function ProductView({ found: { product, action }, onAdd }: { found: Found; onAd
   const onList = action === "onList";
   return (
     <Animated.View entering={FadeIn.duration(motion.duration.base).easing(Easing.bezier(x1, y1, x2, y2)).reduceMotion(ReduceMotion.Never)}
-      style={{ flex: 1, gap: space[4] }}
+      style={{ flexShrink: 1, gap: space[4] }}
     >
       <View style={{ alignItems: "center", gap: space[2], paddingVertical: space[4] }}>
         <ProductImage url={image} style={{ width: 96, height: 96, marginBottom: space[2] }} />
@@ -191,7 +192,6 @@ function ProductView({ found: { product, action }, onAdd }: { found: Found; onAd
         variant={onList ? "tinted" : "filled"}
         analyticsName={onList ? Taps.itemsScanOnList : Taps.itemsScanAdd}
         onPress={onAdd}
-        style={{ marginTop: "auto" }}
       />
     </Animated.View>
   );
