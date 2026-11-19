@@ -19,9 +19,10 @@ const numbers = (name: string) => (name.match(/\d+(?:[.,]\d+)?/g) ?? []).join(" 
  * a failed request or an answer outside the list leaves its Products as they were for the next sync, and a rate limit
  * stops the step, leaving the batches not sent for the next sync too. Null when skipped.
  *
- * `full` (the local cleanup script): every Product with a current price, no cap. A name whose Products all have a type
- * other than Other is sent for its name only and they keep their type; a name with any Other or untyped Product is sent
- * for both, and only those Products take the answered type (the others keep theirs and get the name).
+ * `full` (the local cleanup script): every Product with a current price whose name has no answer yet (`name_written`),
+ * or that is untyped, with no cap, so running it again carries on where the last run stopped. A name whose Products all
+ * have a type other than Other is sent for its name only and they keep their type; a name with any Other or untyped
+ * Product is sent for both, and only those Products take the answered type (the others keep theirs and get the name).
  */
 export async function typeProducts({ db, classifier, errorHandler }: Deps, signal?: AbortSignal, { full = false } = {}) {
   if (!classifier) {
@@ -36,7 +37,7 @@ export async function typeProducts({ db, classifier, errorHandler }: Deps, signa
     const rows = sqlite
       .prepare(
         `SELECT code, name, manufacturer, unit_qty AS unitQty, is_weighted AS isWeighted, product_type AS productType FROM products p
-         WHERE ${full ? "1" : "product_type IS NULL"} AND EXISTS (SELECT 1 FROM prices WHERE prices.code = p.code)`,
+         WHERE ${full ? "(product_type IS NULL OR NOT name_written)" : "product_type IS NULL"} AND EXISTS (SELECT 1 FROM prices WHERE prices.code = p.code)`,
       )
       .all() as Priced[];
     const byName = new Map<string, Priced[]>();
@@ -47,6 +48,7 @@ export async function typeProducts({ db, classifier, errorHandler }: Deps, signa
     const names = [...byName.entries()].slice(0, full ? undefined : MAX_NAMES);
     const rename = sqlite.prepare("UPDATE products SET name = ? WHERE code = ?");
     const retype = sqlite.prepare("UPDATE products SET product_type = ? WHERE code = ?");
+    const written = sqlite.prepare("UPDATE products SET name_written = 1 WHERE code = ?"); // apart from rename: an unchanged name skips the FTS trigger
     for (let i = 0; i < names.length && !signal?.aborted; i += BATCH) {
       const batch = names.slice(i, i + BATCH);
       const entries = batch.map(([name, same]) => ({ name, same, needType: same.filter((p) => !p.productType || p.productType === "other") }));
@@ -71,6 +73,7 @@ export async function typeProducts({ db, classifier, errorHandler }: Deps, signa
           if (!answer || (needType.length && !answer.type)) continue; // a rejected type keeps the old name too
           if (answer.name && numbers(answer.name) === numbers(name)) for (const p of same) rename.run(answer.name, p.code);
           for (const p of needType) retype.run(answer.type, p.code);
+          if (answer.name) for (const p of same) written.run(p.code); // a rejected name too: asking again pays for the same answer
           counts.productsTyped += needType.length;
           if (answer.type === "other") counts.productsOther += needType.length;
         }

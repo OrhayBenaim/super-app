@@ -300,11 +300,14 @@ describe("priceSyncJob: Product types", () => {
   describe("full mode", () => {
     const ABBR: Item = { code: "6001", name: "גב.גאודה 28%" };
     const names2 = { [ABBR.name]: "גבינה גאודה 28%", [SOAP.name]: "סבון ידיים נוזלי", [MILK.name]: "חלב טרי תנובה 3%" };
+    /** As if the sync had typed them before names were written out (the catalog this mode cleans). */
+    const typedBefore = (deps: Deps) => deps.db.$client.exec("UPDATE products SET name_written = 0");
 
     it("sends typed Products for their name only and keeps their type; Other and untyped get both", async () => {
       const deps = setup({ "001": [MILK, SOAP, ABBR] }, { classifier: fakeClassifier({ [MILK.name]: "dairy-eggs", [ABBR.name]: null }) });
       await priceSyncJob(deps)({});
       expect(types(deps)).toEqual({ [sku(MILK)]: "dairy-eggs", [sku(SOAP)]: "other", [sku(ABBR)]: null });
+      typedBefore(deps);
 
       const classifier = fakeClassifier((p) => (p.type ? "pets" : p.name === SOAP.name ? "cleaning-home" : "pantry"), names2);
       expect(await typeProducts({ ...deps, classifier }, undefined, { full: true })).toMatchObject({ productsTyped: 2, typeRequestsFailed: 0 });
@@ -322,6 +325,7 @@ describe("priceSyncJob: Product types", () => {
       await priceSyncJob(deps)({});
       deps.db.$client.prepare("UPDATE products SET product_type = 'pets' WHERE code = ?").run(sku(a));
       deps.db.$client.prepare("UPDATE products SET product_type = NULL WHERE code = ?").run(sku(b));
+      typedBefore(deps);
 
       const classifier = fakeClassifier(() => "pantry", { [a.name]: "גבינה גאודה 28%" });
       expect(await typeProducts({ ...deps, classifier }, undefined, { full: true })).toMatchObject({ productsTyped: 1 });
@@ -336,6 +340,7 @@ describe("priceSyncJob: Product types", () => {
       const items = Array.from({ length: MAX_NAMES + 1 }, (_, i): Item => ({ code: String(100000 + i), name: `מוצר ${i}` }));
       const deps = setup({ "001": items }, { classifier: fakeClassifier() });
       await priceSyncJob(deps)({});
+      typedBefore(deps);
       const classifier = fakeClassifier();
       await typeProducts({ ...deps, classifier }, undefined, { full: true });
       expect(classifier.calls.flat()).toHaveLength(MAX_NAMES + 1);
@@ -344,9 +349,23 @@ describe("priceSyncJob: Product types", () => {
     it("a rate limit leaves Products as they were", async () => {
       const deps = setup({ "001": [MILK] }, { classifier: fakeClassifier() });
       await priceSyncJob(deps)({});
+      typedBefore(deps);
       const classifier = fakeClassifier(() => { throw new RateLimitError("llm: HTTP 429"); });
       expect(await typeProducts({ ...deps, classifier }, undefined, { full: true })).toMatchObject({ productsTyped: 0, typeRequestsFailed: 1 });
       expect(names(deps)).toEqual({ [sku(MILK)]: MILK.name });
+    });
+
+    it("running it again carries on: only names with no answer yet, and untyped Products, are sent again", async () => {
+      const deps = setup({ "001": [MILK, SOAP, ABBR] }, { classifier: fakeClassifier({ [MILK.name]: "dairy-eggs" }) });
+      await priceSyncJob(deps)({});
+      typedBefore(deps);
+      await typeProducts({ ...deps, classifier: fakeClassifier({ [ABBR.name]: null }, names2) }, undefined, { full: true });
+      expect(names(deps)).toEqual({ [sku(MILK)]: names2[MILK.name], [sku(SOAP)]: names2[SOAP.name], [sku(ABBR)]: ABBR.name }); // ABBR's type was rejected
+
+      const again = fakeClassifier({}, names2);
+      await typeProducts({ ...deps, classifier: again }, undefined, { full: true });
+      expect(again.calls.flat().map((p) => p.name)).toEqual([ABBR.name]);
+      expect(names(deps)).toEqual({ [sku(MILK)]: names2[MILK.name], [sku(SOAP)]: names2[SOAP.name], [sku(ABBR)]: names2[ABBR.name] });
     });
   });
 

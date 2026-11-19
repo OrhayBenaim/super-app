@@ -141,6 +141,13 @@
       "when": 1793919945079,
       "tag": "0019_lucky_stone_men",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1795089234651,
+      "tag": "0020_happy_steel_serpent",
+      "breakpoints": true
     }
   ]
 }
