@@ -95,6 +95,15 @@ describe("lists", () => {
     expect(b.members).toHaveLength(2);
   });
 
+  it("creates a List the caller owns; blank name is 400; no session is 401", async () => {
+    const made = await (await call(eli, "POST", "", { name: "Second home" })).json();
+    expect(made).toMatchObject({ name: "Second home", role: "owner" });
+    const mine = await (await call(eli, "GET", "")).json();
+    expect(mine.map((l: { id: string }) => l.id)).toContain(made.id);
+    expect((await call(eli, "POST", "", { name: "   " })).status).toBe(400);
+    expect((await app.request("/api/lists", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "x" }) })).status).toBe(401);
+  });
+
   it("member cannot rename (403), owner can", async () => {
     expect((await call(eli, "PATCH", `/${listId}`, { name: "Mine now" })).status).toBe(403);
     const res = await call(dana, "PATCH", `/${listId}`, { name: "Family" });
@@ -111,6 +120,17 @@ describe("lists", () => {
     const { members } = await (await call(dana, "GET", `/${listId}`)).json();
     const eliId = members.find((m: { role: string }) => m.role === "member").userId;
     expect((await call(dana, "DELETE", `/${listId}/members/${eliId}`)).status).toBe(204);
+    expect((await call(eli, "GET", `/${listId}`)).status).toBe(404);
+  });
+
+  it("a member leaves by deleting their own membership: 204, the List leaves their lists, then 404", async () => {
+    const { code } = await (await call(dana, "POST", `/${listId}/invite`)).json();
+    await call(eli, "POST", "/join", { code });
+    const { members } = await (await call(dana, "GET", `/${listId}`)).json();
+    const eliId = members.find((m: { role: string }) => m.role === "member").userId;
+    expect((await call(eli, "DELETE", `/${listId}/members/${eliId}`)).status).toBe(204);
+    const mine = await (await call(eli, "GET", "")).json();
+    expect(mine.map((l: { id: string }) => l.id)).not.toContain(listId);
     expect((await call(eli, "GET", `/${listId}`)).status).toBe(404);
   });
 });

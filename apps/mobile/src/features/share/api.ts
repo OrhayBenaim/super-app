@@ -21,7 +21,7 @@ export function useShareMutations(listId: string | null) {
       selectList(list.id);
     },
   });
-  // Removing yourself = leaving; useCurrentListId then falls back to the first remaining list.
+  // The Owner removes another Member; leaving yourself is leaveList.
   const removeMember = useMutation({
     mutationFn: (userId: string) => api<void>(`api/lists/${listId}/members/${userId}`, { method: "DELETE" }),
     onSuccess: () => refresh(),
@@ -55,6 +55,36 @@ export function renameList(qc: QueryClient, listId: string | null) {
       if (previous?.detail) qc.setQueryData(detailKey, previous.detail);
       Alert.alert(t("common.error"));
     },
+    onSettled: () => qc.invalidateQueries({ queryKey: listKeys.all }),
+  };
+}
+
+/** Creating a List, as mutation options: not optimistic. On success the new List joins the cache and becomes the current one; a failure alerts and changes nothing. */
+export function createList(qc: QueryClient) {
+  return {
+    mutationFn: (name: string) => api<List>("api/lists", { method: "POST", body: JSON.stringify({ name: name.trim() }) }),
+    onSuccess: (list: List) => {
+      qc.setQueryData<List[]>(listKeys.all, (ls) => (ls ? [...ls, list] : [list]));
+      selectList(list.id);
+      track(Events.listCreated, { listId: list.id });
+    },
+    onError: () => Alert.alert(t("common.error")),
+    onSettled: () => qc.invalidateQueries({ queryKey: listKeys.all }),
+  };
+}
+
+/**
+ * Leaving a List, as mutation options: the caller deletes their own membership (the variable is their user id). Works on any
+ * List, not only the current one. Success drops it from the cache (useCurrentListId then falls back to the first remaining List);
+ * a failure alerts from here and keeps it.
+ */
+export function leaveList(qc: QueryClient, listId: string) {
+  return {
+    mutationFn: (userId: string) => api<void>(`api/lists/${listId}/members/${userId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.setQueryData<List[]>(listKeys.all, (ls) => ls?.filter((l) => l.id !== listId));
+    },
+    onError: () => Alert.alert(t("common.error")),
     onSettled: () => qc.invalidateQueries({ queryKey: listKeys.all }),
   };
 }
