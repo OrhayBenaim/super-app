@@ -335,6 +335,12 @@ describe("onFenceEntered limits", () => {
     expect(await entered()).toBe(n);
   });
 
+  it("fences entered at the same time alert once", async () => {
+    const { onFenceEntered } = await load();
+    await Promise.all([onFenceEntered(), onFenceEntered(), onFenceEntered()]);
+    expect(m.schedule).toHaveBeenCalledTimes(1);
+  });
+
   it("skips when the night starts while the fix is taken", async () => {
     at(2026, 11, 18, 21, 59);
     m.currentFix.mockImplementation(async () => (at(2026, 11, 18, 22, 0), fix()));

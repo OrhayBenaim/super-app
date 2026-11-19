@@ -111,9 +111,14 @@ function quietTime(d: Date) {
   return h >= 22 || h < 7 || (day === 5 && h >= 15) || day === 6 || (day === 0 && h < 9);
 }
 
+let entering: Promise<void> | undefined;
+
 /** A fence was entered: alert for the cheapest store within 2 km of a fresh fix, once a day, not at night, on Shabbat or above 95 km/h.
- *  Any stop (limit, no basket, fix, network, price) is silent and leaves the day's alert unused. */
-export async function onFenceEntered() {
+ *  Any stop (limit, no basket, fix, network, price) is silent and leaves the day's alert unused.
+ *  Android sends one entry per fence the User is inside, all at once; they share one run so the daily check can't be raced. */
+export const onFenceEntered = () => (entering ??= enter().finally(() => (entering = undefined)));
+
+async function enter() {
   if (!isEnabled()) return;
   const now = new Date();
   if (quietTime(now) || (await SecureStore.getItemAsync(LAST_ALERT_KEY)) === dayOf(now)) return;
