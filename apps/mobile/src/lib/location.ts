@@ -70,13 +70,28 @@ export async function lastKnownLocation(): Promise<Coords | null> {
 // A fresh fix can take this long indoors; past it the caller keeps what it has.
 const FIX_TIMEOUT_MS = 10_000;
 
+async function freshFix() {
+  if (!(await granted())) return null;
+  const late = new Promise<null>((resolve) => setTimeout(() => resolve(null), FIX_TIMEOUT_MS));
+  return Promise.race([Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), late]);
+}
+
 /** A fresh fix without ever asking; null without foreground permission, on failure, or after FIX_TIMEOUT_MS. */
 export async function currentLocation(): Promise<Coords | null> {
   try {
-    if (!(await granted())) return null;
-    const late = new Promise<null>((resolve) => setTimeout(() => resolve(null), FIX_TIMEOUT_MS));
-    const fix = await Promise.race([Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), late]);
+    const fix = await freshFix();
     return fix && toCoords(fix);
+  } catch {
+    return null;
+  }
+}
+
+/** currentLocation plus the speed in km/h (null when the device reports none). */
+export async function currentFix(): Promise<(Coords & { speedKmh: number | null }) | null> {
+  try {
+    const fix = await freshFix();
+    const speed = fix?.coords.speed;
+    return fix && { ...toCoords(fix), speedKmh: speed == null || speed < 0 ? null : speed * 3.6 };
   } catch {
     return null;
   }

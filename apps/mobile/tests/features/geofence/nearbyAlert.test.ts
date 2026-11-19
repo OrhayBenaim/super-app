@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   fetchCompare: vi.fn(),
   currentLocation: vi.fn(),
+  currentFix: vi.fn(),
   hasStarted: vi.fn(),
   stop: vi.fn(),
   start: vi.fn(),
@@ -19,7 +20,7 @@ const m = vi.hoisted(() => ({
 }));
 
 vi.mock("@/features/compare/api", () => ({ fetchCompare: m.fetchCompare }));
-vi.mock("@/lib/location", () => ({ currentLocation: m.currentLocation }));
+vi.mock("@/lib/location", () => ({ currentLocation: m.currentLocation, currentFix: m.currentFix }));
 vi.mock("@/lib/api", () => ({ api: vi.fn() })); // the lists data layer (basketSize) imports it
 vi.mock("@/lib/analytics", () => ({ Events: { geofenceTriggered: "geofence_triggered" }, track: m.track, flush: m.flush }));
 vi.mock("@/lib/strings", () => ({
@@ -47,6 +48,8 @@ vi.mock("expo-location", () => ({
 const basket = { items: [{ code: "111", quantity: 2 }], groups: [{ ref: "g|kg", quantity: 1 }] };
 const empty = JSON.stringify({ items: [], groups: [] });
 const here = { lat: 32.08, lng: 34.78 };
+const fix = (speedKmh: number | null = null) => ({ ...here, speedKmh });
+const at = (y: number, mo: number, d: number, h = 12, mi = 0) => vi.setSystemTime(new Date(y, mo - 1, d, h, mi));
 const store = (id: string, o: object = {}) => ({ storeId: id, chainName: "Chain", storeName: id, total: 10.5, matched: 2, distanceKm: 0.35, lat: 32, lng: 34, ...o });
 
 async function load(enabled: string | null = "1") {
@@ -55,15 +58,24 @@ async function load(enabled: string | null = "1") {
   return import("@/features/geofence/nearbyAlert");
 }
 
+const kv = new Map<string, string>();
+
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.useFakeTimers({ toFake: ["Date"] });
+  at(2026, 11, 18); // a Wednesday noon
+  kv.clear();
+  m.setItem.mockImplementation(async (k: string, v: string) => void kv.set(k, v));
   m.flush.mockResolvedValue(undefined);
   m.hasStarted.mockResolvedValue(true);
   m.hasMoves.mockResolvedValue(false);
-  m.getItem.mockResolvedValue(JSON.stringify(basket));
+  m.getItem.mockImplementation(async (k: string) => (k === "nearbyBasket" ? JSON.stringify(basket) : (kv.get(k) ?? null)));
   m.currentLocation.mockResolvedValue(here);
+  m.currentFix.mockResolvedValue(fix());
   m.fetchCompare.mockResolvedValue({ stores: [store("s1")], unmatched: [] });
 });
+
+afterEach(() => vi.useRealTimers());
 
 describe("saveBasket", () => {
   it("keeps a copy of the basket", async () => {
@@ -205,7 +217,7 @@ describe("onFenceEntered", () => {
   it.each([
     ["alerts are off", () => load("0")],
     ["the basket is empty", () => (m.getItem.mockResolvedValue(empty), load())],
-    ["there is no fix", () => (m.currentLocation.mockResolvedValue(null), load())],
+    ["there is no fix", () => (m.currentFix.mockResolvedValue(null), load())],
     ["offline", () => (m.fetchCompare.mockRejectedValue(new Error("offline")), load())],
     ["no store is in range", () => (m.fetchCompare.mockResolvedValue({ stores: [], unmatched: [] }), load())],
     ["nothing is priced", () => (m.fetchCompare.mockResolvedValue({ stores: [store("s1", { matched: 0 })], unmatched: [] }), load())],
@@ -217,12 +229,93 @@ describe("onFenceEntered", () => {
   });
 });
 
+describe("onFenceEntered limits", () => {
+  const entered = async () => {
+    const { onFenceEntered } = await load();
+    await onFenceEntered();
+    return m.schedule.mock.calls.length;
+  };
+
+  it("alerts once per local day, then again the next day", async () => {
+    const { onFenceEntered } = await load();
+    await onFenceEntered();
+    at(2026, 11, 18, 18);
+    await onFenceEntered();
+    expect(m.schedule).toHaveBeenCalledTimes(1);
+    at(2026, 11, 19, 9);
+    await onFenceEntered();
+    expect(m.schedule).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["06:59", 6, 59, 0],
+    ["07:00", 7, 0, 1],
+    ["21:59", 21, 59, 1],
+    ["22:00", 22, 0, 0],
+  ])("night window: %s", async (_, h, mi, n) => {
+    at(2026, 11, 18, h, mi);
+    expect(await entered()).toBe(n);
+  });
+
+  it.each([
+    ["Friday 14:59", 20, 14, 59, 1],
+    ["Friday 15:00", 20, 15, 0, 0],
+    ["Saturday noon", 21, 12, 0, 0],
+    ["Sunday 08:59", 22, 8, 59, 0],
+    ["Sunday 09:00", 22, 9, 0, 1],
+  ])("Shabbat window: %s", async (_, d, h, mi, n) => {
+    at(2026, 11, d, h, mi);
+    expect(await entered()).toBe(n);
+  });
+
+  it.each([
+    ["95 km/h", 95, 1],
+    ["above 95 km/h", 95.1, 0],
+    ["an unknown speed", null, 1],
+  ])("speed: %s", async (_, speed, n) => {
+    m.currentFix.mockResolvedValue(fix(speed));
+    expect(await entered()).toBe(n);
+  });
+
+  it("does not fetch a fix on a skipped day or time", async () => {
+    at(2026, 11, 18, 23);
+    await entered();
+    expect(m.currentFix).not.toHaveBeenCalled();
+  });
+
+  it("a skip, no fix, offline or nothing priced leaves the day's alert unused", async () => {
+    const { onFenceEntered } = await load();
+    at(2026, 11, 18, 23);
+    await onFenceEntered();
+    at(2026, 11, 18, 12);
+    m.currentFix.mockResolvedValueOnce(fix(120));
+    await onFenceEntered();
+    m.currentFix.mockResolvedValueOnce(null);
+    await onFenceEntered();
+    m.fetchCompare.mockRejectedValueOnce(new Error("offline"));
+    await onFenceEntered();
+    m.fetchCompare.mockResolvedValueOnce({ stores: [store("s1", { matched: 0 })], unmatched: [] });
+    await onFenceEntered();
+    expect(m.schedule).not.toHaveBeenCalled();
+    await onFenceEntered();
+    expect(m.schedule).toHaveBeenCalledTimes(1);
+  });
+
+  it("records the day only once the notification is scheduled", async () => {
+    m.schedule.mockRejectedValue(new Error("os"));
+    const { onFenceEntered } = await load();
+    await expect(onFenceEntered()).rejects.toThrow("os");
+    expect(kv.size).toBe(0);
+  });
+});
+
 describe("disableNearbyAlerts", () => {
   it("stops fences and deletes the basket copy and the setting", async () => {
     const { disableNearbyAlerts } = await load();
     await disableNearbyAlerts();
     expect(m.stop).toHaveBeenCalledWith("grocer-geofence");
     expect(m.deleteItem).toHaveBeenCalledWith("nearbyBasket");
+    expect(m.deleteItem).toHaveBeenCalledWith("nearbyLastAlert");
     expect(m.setItem).toHaveBeenCalledWith("nearbyAlertsEnabled", "0");
   });
 
