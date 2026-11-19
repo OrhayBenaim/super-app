@@ -29,7 +29,8 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/auth/               one auth feature per file as better-auth plugins (password-reset.ts: Reset codes from the OtpService)
   src/deletion/           web page for Account deletion and Data deletion (/account; /delete-account, /delete-data lead there): logic + htmx steps
   src/emails/             one file per email (reset-code.ts, deletion-code.ts) + layout.ts (Hebrew-first bilingual text and HTML)
-  src/db/index.ts         openDb(path): better-sqlite3 + Drizzle; WAL; runs migrations, seeds chains
+  src/db/index.ts         openDb(path): better-sqlite3 + Drizzle; WAL; runs migrations, seeds chains; once each by
+                          PRAGMA user_version: linkProduceItems, moveDeadGroupRefs (Items and group edits off dead group refs)
   src/db/schema.ts        better-auth tables (generated) + re-export of appSchema.ts
   src/db/appSchema.ts     app tables (lists, items, stores, prices...)
   src/db/users.ts         queries about Users that no single route owns (hasPassword)

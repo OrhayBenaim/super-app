@@ -26,5 +26,6 @@ differ from the name it was sent is rejected and the name is left as it was.
 - **The Chain's own short name is not kept.** A re-clean starts from the full name. A wrong name is fixed by clearing
   the Product's name and type: the next Price sync's ingest fills the Chain's name again and the classifier rewrites it.
 - **Writing a name out can move a Product to another Product group**, as any rule change does (docs/adr/0001). Items
-  whose group ref no longer names a group are moved to the ref their own name gives.
+  whose group ref no longer names a group are moved to the live group their own name gives, and the team's edits of
+  such a group to the one their display name gives.
 - **A Product not typed yet still has the Chain's name**, until a Price sync reaches it.
