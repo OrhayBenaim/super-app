@@ -30,7 +30,7 @@ export const useLists = () => useQuery({ queryKey: listKeys.all, queryFn: () => 
 
 // Selected list, kept across app restarts; defaults to the first list the server returns (it auto-creates one, oldest first).
 const SELECTED_KEY = "selectedListId";
-const useSelectedList = create<{ id: string | null }>(() => ({ id: SecureStore.getItem(SELECTED_KEY) }));
+export const useSelectedList = create<{ id: string | null }>(() => ({ id: SecureStore.getItem(SELECTED_KEY) }));
 /** The stored pick while it is still one of the user's lists (not left or removed), else the first list. */
 export const currentListId = (selected: string | null, lists?: Pick<List, "id">[]) =>
   !lists ? selected : lists.some((l) => l.id === selected) ? selected : (lists[0]?.id ?? null);
