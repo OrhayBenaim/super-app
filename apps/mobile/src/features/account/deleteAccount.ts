@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { disableNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
+import { disableNearbyAlerts } from "@/features/geofence/nearbyAlert";
 import { authClient } from "@/lib/auth-client";
 import { wipeDevice } from "@/features/lists/saved";
 

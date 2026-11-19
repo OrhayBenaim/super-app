@@ -5,7 +5,7 @@ const mk = (n: number) => Array.from({ length: n }, (_, i) => ({ storeId: `s${i}
 
 describe("toRegions", () => {
   it("constants", () => {
-    expect([MAX_REGIONS, REGION_RADIUS_M, GEOFENCE_TASK]).toEqual([20, 250, "grocer-geofence"]);
+    expect([MAX_REGIONS, REGION_RADIUS_M, GEOFENCE_TASK]).toEqual([20, 2000, "grocer-geofence"]);
   });
   it("exact boundary: 19, 20, 21 stores", () => {
     expect(toRegions(mk(19))).toHaveLength(19);
@@ -18,9 +18,9 @@ describe("toRegions", () => {
     const stores = mk(100).reverse();
     expect(toRegions(stores).map((r) => r.identifier)).toEqual(stores.slice(0, 20).map((s) => s.storeId));
   });
-  it("every region is 250 m, enter-only, and carries the store's coordinates unmodified", () => {
+  it("every region is 2 km, enter-only, and carries the store's coordinates unmodified", () => {
     for (const [i, r] of toRegions(mk(30)).entries()) {
-      expect(r.radius).toBe(250);
+      expect(r.radius).toBe(2000);
       expect(r.notifyOnEnter).toBe(true);
       expect(r.notifyOnExit).toBe(false);
       expect(r.latitude).toBe(32 + i / 1000);

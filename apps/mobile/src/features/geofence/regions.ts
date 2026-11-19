@@ -4,7 +4,9 @@ import type { StoreResult } from "@/features/compare/sort";
 
 export const GEOFENCE_TASK = "grocer-geofence";
 export const MAX_REGIONS = 20; // iOS monitors at most 20 regions per app
-export const REGION_RADIUS_M = 250;
+/** A Nearby alert is about stores within this distance, so store pins being off by a few hundred metres no longer matters. */
+export const NEARBY_RADIUS_KM = 2;
+export const REGION_RADIUS_M = NEARBY_RADIUS_KM * 1000;
 
 export const toRegions = (stores: Pick<StoreResult, "storeId" | "lat" | "lng">[]): LocationRegion[] =>
   stores

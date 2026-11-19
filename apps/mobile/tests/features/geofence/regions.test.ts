@@ -9,9 +9,9 @@ it("keeps the first 20 stores (iOS region limit) in order", () => {
   expect(regions.map((r) => r.identifier)).toEqual(stores.slice(0, 20).map((s) => s.storeId));
 });
 
-it("builds 250 m enter-only regions keyed by storeId", () => {
+it("builds 2 km enter-only regions keyed by storeId", () => {
   expect(toRegions(stores.slice(0, 1))).toEqual([
-    { identifier: "s0", latitude: 32, longitude: 34.8, radius: 250, notifyOnEnter: true, notifyOnExit: false },
+    { identifier: "s0", latitude: 32, longitude: 34.8, radius: 2000, notifyOnEnter: true, notifyOnExit: false },
   ]);
 });
 

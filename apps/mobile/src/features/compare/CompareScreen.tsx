@@ -6,7 +6,6 @@ import { RefreshControl, ScrollView } from "react-native";
 import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
 import { useDeleteWithUndo } from "@/features/items/useDeleteWithUndo";
 import { basketSize, missingBasket, missingItems, refreshList, useCurrentListId, useList } from "@/features/lists/api";
-import { syncGeofences, useNearbyAlerts } from "@/features/geofence/useNearbyAlerts";
 import { Events, Taps, track } from "@/lib/analytics";
 import { useLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
@@ -47,7 +46,6 @@ export function CompareScreen() {
   // Radius and sort only mean something once location is (or will be) available.
   const showControls = location.status !== "checking" && location.status !== "denied";
   const compare = useCompare(location.coords, radiusKm, basket);
-  const { enabled: alertsOn } = useNearbyAlerts();
   // Owns the Undo toast for a delete made in the item sheet opened from the breakdown sheet.
   const { toast } = useDeleteWithUndo(listId);
 
@@ -58,12 +56,6 @@ export function CompareScreen() {
   // With rows above the card, the rows below are no longer "the others", so they lose the header.
   const headed = above.length === 0;
   const listText = items.map((i) => i.name).join("\n");
-
-  // Deps are only the fetch stamp and the flag: re-sync per fetch, not per render.
-  // Fresh results: re-arm nearby alerts on the same basket. Best-effort; a failure just keeps the old geofences.
-  useEffect(() => {
-    if (alertsOn && location.coords && compare.dataUpdatedAt) syncGeofences(location.coords, basket).catch(() => {});
-  }, [compare.dataUpdatedAt, alertsOn]);
 
   // Once per visit with results (tabs stay mounted, so focus marks a visit); the $screen event counts every visit.
   const focused = useIsFocused();
