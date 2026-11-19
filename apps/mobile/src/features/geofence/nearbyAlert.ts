@@ -7,13 +7,16 @@ import { fetchCompare } from "@/features/compare/api";
 import { fmt, formatDistance } from "@/features/compare/format";
 import { basketSize, type Basket } from "@/features/lists/api";
 import { Events, flush, track } from "@/lib/analytics";
-import { currentLocation } from "@/lib/location";
+import { currentFix, currentLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
 import { GEOFENCE_TASK, MAX_REGIONS, NEARBY_RADIUS_KM, toRegions } from "./regions";
 
 export const ENABLED_KEY = "nearbyAlertsEnabled";
 /** The current List's basket (what Compare prices), refreshed whenever the List loads; read in the background. */
 export const BASKET_KEY = "nearbyBasket";
+/** The local day of the last Nearby alert shown, across all stores. */
+export const LAST_ALERT_KEY = "nearbyLastAlert";
+const MAX_SPEED_KMH = 95;
 /** How far around the position the 20 nearest stores are looked for. */
 const FENCE_SEARCH_KM = 20;
 
@@ -51,13 +54,26 @@ export async function armNearbyAlerts() {
   if (!isEnabled()) await disableNearbyAlerts(); // turned off while this ran: undo it
 }
 
-/** A fence was entered: alert for the cheapest store within 2 km of a fresh fix. Any stop (no basket, fix, network, price) is silent. */
+const dayOf = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+
+/** Local night (22:00-07:00) or Shabbat (Friday 15:00 to Sunday 09:00). */
+function quietTime(d: Date) {
+  const h = d.getHours();
+  const day = d.getDay();
+  return h >= 22 || h < 7 || (day === 5 && h >= 15) || day === 6 || (day === 0 && h < 9);
+}
+
+/** A fence was entered: alert for the cheapest store within 2 km of a fresh fix, once a day, not at night, on Shabbat or above 95 km/h.
+ *  Any stop (limit, no basket, fix, network, price) is silent and leaves the day's alert unused. */
 export async function onFenceEntered() {
   if (!isEnabled()) return;
+  const now = new Date();
+  if (quietTime(now) || (await SecureStore.getItemAsync(LAST_ALERT_KEY)) === dayOf(now)) return;
   const basket = await readBasket();
   if (!basketSize(basket)) return;
-  const here = await currentLocation();
-  if (!here) return;
+  const fix = await currentFix();
+  if (!fix || (fix.speedKmh ?? 0) > MAX_SPEED_KMH) return;
+  const here = { lat: fix.lat, lng: fix.lng };
   const res = await fetchCompare({ ...here, radiusKm: NEARBY_RADIUS_KM, ...basket, sort: "price", limit: 1 }).catch(() => null);
   const store = res?.stores[0];
   if (!store || !store.matched) return;
@@ -70,6 +86,7 @@ export async function onFenceEntered() {
     },
     trigger: null,
   });
+  await SecureStore.setItemAsync(LAST_ALERT_KEY, dayOf(now));
   track(Events.geofenceTriggered, { storeId: store.storeId });
   await flush().catch(() => {}); // the OS may suspend the app as soon as the task returns
 }
@@ -78,7 +95,7 @@ export async function onFenceEntered() {
 export async function disableNearbyAlerts() {
   useEnabled.setState({ enabled: false }); // first, so an arm still in flight sees it and undoes its work
   // Every step runs even if another fails; the first failure is reported.
-  const failed = (await Promise.allSettled([stop(), SecureStore.deleteItemAsync(BASKET_KEY), SecureStore.setItemAsync(ENABLED_KEY, "0")])).find(
+  const failed = (await Promise.allSettled([stop(), SecureStore.deleteItemAsync(BASKET_KEY), SecureStore.deleteItemAsync(LAST_ALERT_KEY), SecureStore.setItemAsync(ENABLED_KEY, "0")])).find(
     (r) => r.status === "rejected",
   );
   if (failed) throw failed.reason;
