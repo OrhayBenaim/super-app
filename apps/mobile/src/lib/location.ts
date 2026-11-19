@@ -91,7 +91,7 @@ export async function currentFix(): Promise<(Coords & { speedKmh: number | null 
   try {
     const fix = await freshFix();
     const speed = fix?.coords.speed;
-    return fix && { ...toCoords(fix), speedKmh: speed == null || speed < 0 ? null : speed * 3.6 };
+    return fix && { ...toCoords(fix), speedKmh: speed == null || speed < 0 ? null : Math.round(speed * 36) / 10 };
   } catch {
     return null;
   }

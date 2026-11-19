@@ -13,6 +13,6 @@ TaskManager.defineTask<{ eventType: Location.GeofencingEventType }>(GEOFENCE_TAS
   if (!error && data.eventType === Location.GeofencingEventType.Enter) await onFenceEntered();
 });
 
-TaskManager.defineTask<{ locations: Location.LocationObject[] }>(MOVE_TASK, async ({ error }) => {
+TaskManager.defineTask(MOVE_TASK, async ({ error }) => {
   if (!error) await armNearbyAlerts().catch(() => {}); // a failed re-arm keeps the old fences; the next 5 km tries again
 });
