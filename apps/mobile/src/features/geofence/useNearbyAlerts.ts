@@ -1,31 +1,19 @@
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { missingBasket, useCurrentListId, useList } from "@/features/lists/api";
 import { requestBackgroundPermission } from "@/lib/location";
-import { armNearbyAlerts, disableNearbyAlerts, enableNearbyAlerts, saveBasket, useEnabled } from "./nearbyAlert";
+import { disableNearbyAlerts, enableNearbyAlerts, listLoaded, useEnabled } from "./nearbyAlert";
 
 /** Background location is unavailable in Expo Go. */
 export const nearbyAlertsSupported = Constants.appOwnership !== "expo";
 
-/** Signed-in, always mounted: keeps the basket copy current and arms once per start or switch-on. Best-effort. */
+/** Signed-in, always mounted: hands every List load (and a switch-on) to the Nearby alert. Best-effort. */
 export function useNearbyAlertsSync() {
   const enabled = useEnabled((s) => s.enabled);
   const list = useList(useCurrentListId(), { poll: false });
-  const armed = useRef(false);
   useEffect(() => {
-    if (!enabled) {
-      armed.current = false;
-      return;
-    }
-    if (!list.data) return;
-    const sync = async () => {
-      await saveBasket(missingBasket(list.data));
-      if (armed.current) return;
-      await armNearbyAlerts();
-      armed.current = true; // only after a successful arm: a failed one is retried on the next List load
-    };
-    sync().catch(() => {});
+    if (enabled && list.data) listLoaded(missingBasket(list.data)).catch(() => {});
   }, [enabled, list.data]);
 }
 

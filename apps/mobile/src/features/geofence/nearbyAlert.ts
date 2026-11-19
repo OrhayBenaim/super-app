@@ -1,4 +1,4 @@
-// The Nearby alert: entry points armNearbyAlerts, onFenceEntered, disableNearbyAlerts (+ saveBasket). Everything else is internal.
+// The Nearby alert: entry points listLoaded, armNearbyAlerts, onFenceEntered, enableNearbyAlerts, disableNearbyAlerts. Everything else is internal.
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
@@ -63,11 +63,21 @@ async function readBasket(): Promise<Basket> {
   }
 }
 
-/** Keeps the phone's copy of the basket current. Does nothing while alerts are off, so nothing is left behind. */
-export async function saveBasket(basket: Basket) {
+/** Armed since this app start or switch-on; cleared by an empty basket or switching off, so the next List load arms again. */
+let armed = false;
+
+/** The List loaded: keeps the phone's copy of the basket current and arms once (again after a failed arm).
+ *  Does nothing while alerts are off, so nothing is left behind. */
+export async function listLoaded(basket: Basket) {
   if (!isEnabled()) return;
   await SecureStore.setItemAsync(BASKET_KEY, JSON.stringify(basket));
-  if (!basketSize(basket)) await stop();
+  if (!basketSize(basket)) {
+    armed = false;
+    return stop();
+  }
+  if (armed) return;
+  await armNearbyAlerts();
+  armed = true;
 }
 
 /** Fences the 20 nearest stores around the current position at 2 km each (replacing the old set); stops everything for an empty basket. */
@@ -76,14 +86,20 @@ export async function armNearbyAlerts() {
   const basket = await readBasket();
   if (!basketSize(basket)) return stop();
   const here = await currentLocation();
+  let failure: unknown;
   if (here) {
-    const { stores } = await fetchCompare({ ...here, radiusKm: FENCE_SEARCH_KM, ...basket, sort: "distance", limit: MAX_REGIONS });
-    // no store in range: drop the old fences, but keep the updates so the next move re-arms
-    if (!stores.length) await stopFences();
-    else await Location.startGeofencingAsync(GEOFENCE_TASK, toRegions(stores));
+    try {
+      const { stores } = await fetchCompare({ ...here, radiusKm: FENCE_SEARCH_KM, ...basket, sort: "distance", limit: MAX_REGIONS });
+      // no store in range: drop the old fences, but keep the updates so the next move re-arms
+      if (!stores.length) await stopFences();
+      else await Location.startGeofencingAsync(GEOFENCE_TASK, toRegions(stores));
+    } catch (e) {
+      failure = e; // offline: keep the fences we have; reported after the updates start
+    }
   } // no fix: keep the fences we have, but the updates still start so the next move re-arms
   if (isEnabled()) await startMoveUpdates();
   if (!isEnabled()) await disableNearbyAlerts(); // turned off while this ran: undo it
+  if (failure) throw failure;
 }
 
 const dayOf = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
@@ -109,6 +125,8 @@ export async function onFenceEntered() {
   const res = await fetchCompare({ ...here, radiusKm: NEARBY_RADIUS_KM, ...basket, sort: "price", limit: 1 }).catch(() => null);
   const store = res?.stores[0];
   if (!store || !store.matched) return;
+  const sent = new Date(); // the fix can take 10 s: night or Shabbat may have started meanwhile
+  if (quietTime(sent)) return;
   await Notifications.scheduleNotificationAsync({
     content: {
       title: fmt(t("nearby.title"), { store: `${store.chainName} ${store.storeName}` }),
@@ -118,12 +136,12 @@ export async function onFenceEntered() {
     },
     trigger: null,
   });
-  await SecureStore.setItemAsync(LAST_ALERT_KEY, dayOf(now));
+  await SecureStore.setItemAsync(LAST_ALERT_KEY, dayOf(sent));
   track(Events.geofenceTriggered, { storeId: store.storeId });
   await flush().catch(() => {}); // the OS may suspend the app as soon as the task returns
 }
 
-/** Turns nearby alerts on; the caller has the permissions. Arming follows from the sync hook. */
+/** Turns nearby alerts on; the caller has the permissions. Arming follows on the next List load. */
 export async function enableNearbyAlerts() {
   await SecureStore.setItemAsync(ENABLED_KEY, "1");
   useEnabled.setState({ enabled: true });
@@ -132,5 +150,6 @@ export async function enableNearbyAlerts() {
 /** Turns nearby alerts off and leaves nothing of them on the phone. Safe when geofencing never started. */
 export async function disableNearbyAlerts() {
   useEnabled.setState({ enabled: false }); // first, so an arm still in flight sees it and undoes its work
+  armed = false;
   await allOrFirstError([stop(), SecureStore.deleteItemAsync(BASKET_KEY), SecureStore.deleteItemAsync(LAST_ALERT_KEY), SecureStore.setItemAsync(ENABLED_KEY, "0")]);
 }

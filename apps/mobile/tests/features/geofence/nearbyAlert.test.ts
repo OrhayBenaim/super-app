@@ -77,25 +77,57 @@ beforeEach(() => {
 
 afterEach(() => vi.useRealTimers());
 
-describe("saveBasket", () => {
+describe("listLoaded", () => {
   it("keeps a copy of the basket", async () => {
-    const { saveBasket } = await load();
-    await saveBasket(basket);
+    const { listLoaded } = await load();
+    await listLoaded(basket);
     expect(m.setItem).toHaveBeenCalledWith("nearbyBasket", JSON.stringify(basket));
   });
 
   it("an empty basket stops the fences and the updates", async () => {
     m.hasMoves.mockResolvedValue(true);
-    const { saveBasket } = await load();
-    await saveBasket({ items: [], groups: [] });
+    const { listLoaded } = await load();
+    await listLoaded({ items: [], groups: [] });
     expect(m.stop).toHaveBeenCalledWith("grocer-geofence");
     expect(m.stopMoves).toHaveBeenCalledWith("grocer-nearby-move");
   });
 
   it("stores nothing while alerts are off", async () => {
-    const { saveBasket } = await load("0");
-    await saveBasket(basket);
+    const { listLoaded } = await load("0");
+    await listLoaded(basket);
     expect(m.setItem).not.toHaveBeenCalled();
+  });
+
+  it("arms on the first load only", async () => {
+    const { listLoaded } = await load();
+    await listLoaded(basket);
+    await listLoaded(basket);
+    expect(m.start).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a failed arm on the next load", async () => {
+    m.fetchCompare.mockRejectedValueOnce(new Error("offline"));
+    const { listLoaded } = await load();
+    await expect(listLoaded(basket)).rejects.toThrow("offline");
+    await listLoaded(basket);
+    expect(m.start).toHaveBeenCalledTimes(1);
+  });
+
+  it("arms again once an emptied List has items again", async () => {
+    const { listLoaded } = await load();
+    await listLoaded(basket);
+    await listLoaded({ items: [], groups: [] });
+    await listLoaded(basket);
+    expect(m.start).toHaveBeenCalledTimes(2);
+  });
+
+  it("arms again after alerts are switched off and on", async () => {
+    const { listLoaded, disableNearbyAlerts, enableNearbyAlerts } = await load();
+    await listLoaded(basket);
+    await disableNearbyAlerts();
+    await enableNearbyAlerts();
+    await listLoaded(basket);
+    expect(m.start).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -132,6 +164,15 @@ describe("armNearbyAlerts", () => {
     m.currentLocation.mockResolvedValue(null);
     const { armNearbyAlerts } = await load();
     await armNearbyAlerts();
+    expect(m.start).not.toHaveBeenCalled();
+    expect(m.stop).not.toHaveBeenCalled();
+    expect(m.startMoves).toHaveBeenCalled();
+  });
+
+  it("offline keeps the old fences, still starts the updates, and reports the failure", async () => {
+    m.fetchCompare.mockRejectedValue(new Error("offline"));
+    const { armNearbyAlerts } = await load();
+    await expect(armNearbyAlerts()).rejects.toThrow("offline");
     expect(m.start).not.toHaveBeenCalled();
     expect(m.stop).not.toHaveBeenCalled();
     expect(m.startMoves).toHaveBeenCalled();
@@ -292,6 +333,12 @@ describe("onFenceEntered limits", () => {
   ])("speed: %s", async (_, speed, n) => {
     m.currentFix.mockResolvedValue(fix(speed));
     expect(await entered()).toBe(n);
+  });
+
+  it("skips when the night starts while the fix is taken", async () => {
+    at(2026, 11, 18, 21, 59);
+    m.currentFix.mockImplementation(async () => (at(2026, 11, 18, 22, 0), fix()));
+    expect(await entered()).toBe(0);
   });
 
   it("does not fetch a fix on a skipped day or time", async () => {
