@@ -22,6 +22,8 @@ export const Events = {
   itemQuantityChanged: "item_quantity_changed",
   listShared: "list_shared",
   listJoined: "list_joined",
+  /** `listId` only, never the name. */
+  listCreated: "list_created",
   /** `topic` only, never the text. */
   contactSent: "contact_sent",
   /** One per scan: `result` found | named | unknown | denied, `from` list | items. Never the Barcode or a name. */
@@ -126,6 +128,8 @@ export const Taps = {
   listToList: "list.toList",
   listsJoin: "lists.join",
   listsPick: "lists.pick",
+  listsNew: "lists.new",
+  listsCreate: "lists.create",
   promotionsChain: "promotions.chain",
   promotionsChainClose: "promotions.chain.close",
   promotionsChainPick: "promotions.chain.pick",

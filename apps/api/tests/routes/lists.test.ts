@@ -95,6 +95,15 @@ describe("lists", () => {
     expect(b.members).toHaveLength(2);
   });
 
+  it("creates a List the caller owns; blank name is 400; no session is 401", async () => {
+    const made = await (await call(eli, "POST", "", { name: "Second home" })).json();
+    expect(made).toMatchObject({ name: "Second home", role: "owner" });
+    const mine = await (await call(eli, "GET", "")).json();
+    expect(mine.map((l: { id: string }) => l.id)).toContain(made.id);
+    expect((await call(eli, "POST", "", { name: "   " })).status).toBe(400);
+    expect((await app.request("/api/lists", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "x" }) })).status).toBe(401);
+  });
+
   it("member cannot rename (403), owner can", async () => {
     expect((await call(eli, "PATCH", `/${listId}`, { name: "Mine now" })).status).toBe(403);
     const res = await call(dana, "PATCH", `/${listId}`, { name: "Family" });

@@ -58,3 +58,17 @@ export function renameList(qc: QueryClient, listId: string | null) {
     onSettled: () => qc.invalidateQueries({ queryKey: listKeys.all }),
   };
 }
+
+/** Creating a List, as mutation options: not optimistic. On success the new List joins the cache and becomes the current one; a failure alerts and changes nothing. */
+export function createList(qc: QueryClient) {
+  return {
+    mutationFn: (name: string) => api<List>("api/lists", { method: "POST", body: JSON.stringify({ name: name.trim() }) }),
+    onSuccess: (list: List) => {
+      qc.setQueryData<List[]>(listKeys.all, (ls) => (ls ? [...ls, list] : [list]));
+      selectList(list.id);
+      track(Events.listCreated, { listId: list.id });
+    },
+    onError: () => Alert.alert(t("common.error")),
+    onSettled: () => qc.invalidateQueries({ queryKey: listKeys.all }),
+  };
+}
