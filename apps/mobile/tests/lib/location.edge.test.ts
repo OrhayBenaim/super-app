@@ -4,12 +4,14 @@ const loc = vi.hoisted(() => ({
   getForegroundPermissionsAsync: vi.fn(),
   requestForegroundPermissionsAsync: vi.fn(),
   requestBackgroundPermissionsAsync: vi.fn(),
+  getCurrentPositionAsync: vi.fn(),
+  Accuracy: { Balanced: 3 },
   PermissionStatus: { UNDETERMINED: "undetermined" },
 }));
 vi.mock("expo-location", () => loc);
 vi.mock("react-native", () => ({ Linking: { openSettings: vi.fn() } }));
 
-import { foregroundPermission, requestBackgroundPermission } from "@/lib/location";
+import { currentFix, foregroundPermission, requestBackgroundPermission } from "@/lib/location";
 
 beforeEach(() => vi.resetAllMocks());
 
@@ -49,5 +51,13 @@ describe("foregroundPermission", () => {
     loc.getForegroundPermissionsAsync.mockResolvedValue({ status: "denied", granted: false, canAskAgain: true });
     expect((await foregroundPermission()).status).toBe("denied");
     expect(loc.requestForegroundPermissionsAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe("currentFix", () => {
+  it("reports a 95 km/h reading as 95, not 95.00000000004", async () => {
+    loc.getForegroundPermissionsAsync.mockResolvedValue({ granted: true });
+    loc.getCurrentPositionAsync.mockResolvedValue({ coords: { latitude: 1, longitude: 2, speed: 26.38888889 } });
+    expect((await currentFix())?.speedKmh).toBe(95);
   });
 });
