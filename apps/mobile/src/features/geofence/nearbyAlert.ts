@@ -76,8 +76,9 @@ export async function armNearbyAlerts() {
   const here = await currentLocation();
   if (here) {
     const { stores } = await fetchCompare({ ...here, radiusKm: FENCE_SEARCH_KM, ...basket, sort: "distance", limit: MAX_REGIONS });
-    if (!stores.length) return stop();
-    await Location.startGeofencingAsync(GEOFENCE_TASK, toRegions(stores));
+    // no store in range: drop the old fences, but keep the updates so the next move re-arms
+    if (!stores.length) await stopTask(() => Location.hasStartedGeofencingAsync(GEOFENCE_TASK), () => Location.stopGeofencingAsync(GEOFENCE_TASK));
+    else await Location.startGeofencingAsync(GEOFENCE_TASK, toRegions(stores));
   } // no fix: keep the fences we have, but the updates still start so the next move re-arms
   if (isEnabled()) await startMoveUpdates();
   if (!isEnabled()) await disableNearbyAlerts(); // turned off while this ran: undo it

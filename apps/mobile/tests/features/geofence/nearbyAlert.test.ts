@@ -137,12 +137,13 @@ describe("armNearbyAlerts", () => {
     expect(m.startMoves).toHaveBeenCalled();
   });
 
-  it("stops fencing when no store is in range", async () => {
+  it("stops fencing but keeps following the User when no store is in range", async () => {
     m.fetchCompare.mockResolvedValue({ stores: [], unmatched: [] });
     const { armNearbyAlerts } = await load();
     await armNearbyAlerts();
     expect(m.stop).toHaveBeenCalled();
     expect(m.start).not.toHaveBeenCalled();
+    expect(m.startMoves).toHaveBeenCalled();
   });
 
   it("an arm still running when alerts are turned off undoes itself", async () => {
