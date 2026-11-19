@@ -6,6 +6,9 @@ const m = vi.hoisted(() => ({
   hasStarted: vi.fn(),
   stop: vi.fn(),
   start: vi.fn(),
+  hasMoves: vi.fn(),
+  stopMoves: vi.fn(),
+  startMoves: vi.fn(),
   setItem: vi.fn(),
   deleteItem: vi.fn(),
   getItem: vi.fn(),
@@ -34,6 +37,11 @@ vi.mock("expo-location", () => ({
   hasStartedGeofencingAsync: m.hasStarted,
   stopGeofencingAsync: m.stop,
   startGeofencingAsync: m.start,
+  hasStartedLocationUpdatesAsync: m.hasMoves,
+  stopLocationUpdatesAsync: m.stopMoves,
+  startLocationUpdatesAsync: m.startMoves,
+  Accuracy: { Balanced: 3 },
+  ActivityType: { Other: 1 },
 }));
 
 const basket = { items: [{ code: "111", quantity: 2 }], groups: [{ ref: "g|kg", quantity: 1 }] };
@@ -51,6 +59,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   m.flush.mockResolvedValue(undefined);
   m.hasStarted.mockResolvedValue(true);
+  m.hasMoves.mockResolvedValue(false);
   m.getItem.mockResolvedValue(JSON.stringify(basket));
   m.currentLocation.mockResolvedValue(here);
   m.fetchCompare.mockResolvedValue({ stores: [store("s1")], unmatched: [] });
@@ -126,6 +135,53 @@ describe("armNearbyAlerts", () => {
     await arm;
     expect(Math.max(...m.stop.mock.invocationCallOrder)).toBeGreaterThan(Math.max(...m.start.mock.invocationCallOrder));
     expect(m.setItem).toHaveBeenLastCalledWith("nearbyAlertsEnabled", "0");
+  });
+});
+
+describe("background re-arm", () => {
+  it("starts low-power location updates every 5 km once fences are set", async () => {
+    const { armNearbyAlerts } = await load();
+    await armNearbyAlerts();
+    expect(m.startMoves).toHaveBeenCalledWith("grocer-nearby-move", expect.objectContaining({ accuracy: 3, distanceInterval: 5000 }));
+    expect(m.startMoves.mock.calls[0][1].deferredUpdatesDistance).toBe(5000);
+  });
+
+  it("does not restart updates already running", async () => {
+    m.hasMoves.mockResolvedValue(true);
+    const { armNearbyAlerts } = await load();
+    await armNearbyAlerts();
+    expect(m.startMoves).not.toHaveBeenCalled();
+  });
+
+  it("stops updates and fences for an empty basket", async () => {
+    m.hasMoves.mockResolvedValue(true);
+    m.getItem.mockResolvedValue(empty);
+    const { armNearbyAlerts } = await load();
+    await armNearbyAlerts();
+    expect(m.stopMoves).toHaveBeenCalledWith("grocer-nearby-move");
+    expect(m.stop).toHaveBeenCalled();
+  });
+
+  it("an arm still running when alerts are turned off leaves no updates", async () => {
+    m.hasMoves.mockResolvedValue(true);
+    let respond!: (v: unknown) => void;
+    m.fetchCompare.mockReturnValue(new Promise((r) => (respond = r)));
+    const { armNearbyAlerts, disableNearbyAlerts } = await load();
+    const arm = armNearbyAlerts();
+    await vi.waitFor(() => expect(m.fetchCompare).toHaveBeenCalled());
+    await disableNearbyAlerts();
+    respond({ stores: [store("s1")], unmatched: [] });
+    await arm;
+    expect(m.stopMoves).toHaveBeenCalledWith("grocer-nearby-move");
+    expect(m.startMoves).not.toHaveBeenCalled();
+  });
+
+  it("disabling stops the updates even when stopping the fences fails", async () => {
+    m.hasMoves.mockResolvedValue(true);
+    m.stop.mockRejectedValue(new Error("os refused"));
+    const { disableNearbyAlerts } = await load();
+    await expect(disableNearbyAlerts()).rejects.toThrow("os refused");
+    expect(m.stopMoves).toHaveBeenCalledWith("grocer-nearby-move");
   });
 });
 

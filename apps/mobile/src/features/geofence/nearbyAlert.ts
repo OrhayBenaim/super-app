@@ -9,7 +9,7 @@ import { basketSize, type Basket } from "@/features/lists/api";
 import { Events, flush, track } from "@/lib/analytics";
 import { currentLocation } from "@/lib/location";
 import { t } from "@/lib/strings";
-import { GEOFENCE_TASK, MAX_REGIONS, NEARBY_RADIUS_KM, toRegions } from "./regions";
+import { GEOFENCE_TASK, MAX_REGIONS, MOVE_TASK, NEARBY_RADIUS_KM, toRegions } from "./regions";
 
 export const ENABLED_KEY = "nearbyAlertsEnabled";
 /** The current List's basket (what Compare prices), refreshed whenever the List loads; read in the background. */
@@ -20,8 +20,33 @@ const FENCE_SEARCH_KM = 20;
 export const useEnabled = create<{ enabled: boolean }>(() => ({ enabled: SecureStore.getItem(ENABLED_KEY) === "1" }));
 const isEnabled = () => useEnabled.getState().enabled;
 
+/** Moving 5 km re-arms the fences; low-power, deferred batches, never continuous GPS. */
+const MOVE_KM = 5;
+
+async function stopTask(started: () => Promise<boolean>, stopIt: () => Promise<void>) {
+  if (await started().catch(() => false)) await stopIt();
+}
+
+/** Stops the fences and the location updates; both are tried, the first failure is reported. */
 async function stop() {
-  if (await Location.hasStartedGeofencingAsync(GEOFENCE_TASK).catch(() => false)) await Location.stopGeofencingAsync(GEOFENCE_TASK);
+  const failed = (
+    await Promise.allSettled([
+      stopTask(() => Location.hasStartedGeofencingAsync(GEOFENCE_TASK), () => Location.stopGeofencingAsync(GEOFENCE_TASK)),
+      stopTask(() => Location.hasStartedLocationUpdatesAsync(MOVE_TASK), () => Location.stopLocationUpdatesAsync(MOVE_TASK)),
+    ])
+  ).find((r) => r.status === "rejected");
+  if (failed) throw failed.reason;
+}
+
+async function startMoveUpdates() {
+  if (await Location.hasStartedLocationUpdatesAsync(MOVE_TASK).catch(() => false)) return; // restarting would fire an update at once: a loop
+  await Location.startLocationUpdatesAsync(MOVE_TASK, {
+    accuracy: Location.Accuracy.Balanced,
+    distanceInterval: MOVE_KM * 1000,
+    deferredUpdatesDistance: MOVE_KM * 1000,
+    pausesUpdatesAutomatically: true,
+    activityType: Location.ActivityType.Other,
+  });
 }
 
 async function readBasket(): Promise<Basket> {
@@ -48,6 +73,7 @@ export async function armNearbyAlerts() {
   const { stores } = await fetchCompare({ ...here, radiusKm: FENCE_SEARCH_KM, ...basket, sort: "distance", limit: MAX_REGIONS });
   if (!stores.length) return stop();
   await Location.startGeofencingAsync(GEOFENCE_TASK, toRegions(stores));
+  if (isEnabled()) await startMoveUpdates();
   if (!isEnabled()) await disableNearbyAlerts(); // turned off while this ran: undo it
 }
 
