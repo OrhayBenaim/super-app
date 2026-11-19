@@ -104,6 +104,8 @@ export const products = sqliteTable("products", {
   isWeighted: integer("is_weighted", { mode: "boolean" }).notNull().default(false),
   // Null until a Price sync classifies it (an untyped Product counts as Other); clearing it sends it again.
   productType: text("product_type").references(() => productTypes.id),
+  // Set once the classifier has answered for its name (docs/adr/0010), so a full run carries on where the last stopped.
+  nameWritten: integer("name_written", { mode: "boolean" }).notNull().default(false),
   // How many stores price it, as the last Price sync counted them (browse-groups.ts), for the Internal dashboard's list.
   storeCount: integer("store_count").notNull().default(0),
 }, (t) => [

@@ -1,0 +1,1 @@
+ALTER TABLE `products` ADD `name_written` integer DEFAULT false NOT NULL;

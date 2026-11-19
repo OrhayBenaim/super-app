@@ -21,7 +21,7 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/providers/<vendor>/ each service's implementation + fake.ts (nominatim, openai, price-portals, resend, sentry)
   src/jobs/               fetch-prices, ingest-prices, geocode-stores, price-sync (one Price sync), sync-worker (once-a-minute check)
   src/ingest/             price-file rules: chain seeds (chains.ts), file names (files.ts), parser (parse.ts), DB writes (ingest.ts),
-                          the Price sync's Product type step (product-types.ts)
+                          the Price sync's Product type step, which also writes Product names out in full (product-types.ts)
   src/prices/             query-time price rules: Product groups (groups.ts), stores within a radius (nearby.ts),
                           Promotions (promotions.ts), Product search (search.ts), Home and Promotions cards and product
                           pages (browse.ts), the Internal dashboard's Product reads (products.ts)
@@ -29,7 +29,8 @@ apps/api/                 Node 24.14+ running TypeScript natively (strict, ESM, 
   src/auth/               one auth feature per file as better-auth plugins (password-reset.ts: Reset codes from the OtpService)
   src/deletion/           web page for Account deletion and Data deletion (/account; /delete-account, /delete-data lead there): logic + htmx steps
   src/emails/             one file per email (reset-code.ts, deletion-code.ts) + layout.ts (Hebrew-first bilingual text and HTML)
-  src/db/index.ts         openDb(path): better-sqlite3 + Drizzle; WAL; runs migrations, seeds chains
+  src/db/index.ts         openDb(path): better-sqlite3 + Drizzle; WAL; runs migrations, seeds chains; once each by
+                          PRAGMA user_version: linkProduceItems, moveDeadGroupRefs (Items and group edits off dead group refs)
   src/db/schema.ts        better-auth tables (generated) + re-export of appSchema.ts
   src/db/appSchema.ts     app tables (lists, items, stores, prices...)
   src/db/users.ts         queries about Users that no single route owns (hasPassword)

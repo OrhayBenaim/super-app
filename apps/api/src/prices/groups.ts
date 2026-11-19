@@ -29,6 +29,8 @@ const COUNT = new Set(["יח", "יחי", "יחידה", "יחידות"]);
 const EGG_SIZE = /^(s|m|l|xl)$/i;
 const isNumber = (w: string) => /^\d/.test(w);
 const isUnit = (w: string) => w in WEIGHT || w in VOLUME || COUNT.has(w);
+/** A number with a word after it that is not a unit: "10 פיתות" (a count), not "500 גרם" (a size). */
+const isLeadingCount = (num = "", next?: string) => next !== undefined && isNumber(num) && !isUnit(next);
 
 /** Letter runs and numbers: splits at spaces, punctuation, % and digit/letter boundaries ("קוטג%5מהדרין250גר"). */
 const rawWords = (s: string) =>
@@ -36,8 +38,8 @@ const rawWords = (s: string) =>
 
 /** Spelling and plural forms of one word: עגבנייה, עגבנית, עגבניות -> עגבניה; בננות -> בננה; מלפפונים -> מלפפון. */
 const stem = (w: string) => {
-  const s = w.replace(/יי/g, "י");
-  return s.length < 4 ? s : s.replace(/ות$/, "ה").replace(/ים$/, "").replace(/ית$/, "יה");
+  const s = w.slice(0, 1) + w.slice(1).replace(/יי/g, "י"); // a word that starts with יי keeps it: יין
+  return s.length < 5 ? s : s.replace(/ות$/, "ה").replace(/ים$/, "").replace(/ית$/, "יה");
 };
 
 type Word = { raw: string; norm: string };
@@ -50,6 +52,8 @@ export function nameWords(name: string): Word[] {
       const s = stem(raw.toLowerCase());
       return { raw, norm: PACKED.has(raw) ? "ארוז" : (QUALIFIERS.find(([re]) => re.test(s))?.[1] ?? s) };
     });
+  // A leading number is a count, never a group word ("10 פיתות"); one before a unit ("500 גרם") is a size, kept.
+  if (isLeadingCount(words[0]?.raw, words[1]?.norm)) words.shift();
   return words.length > 1 && LEADING.has(words[0]!.norm) ? words.slice(1) : words;
 }
 
@@ -57,10 +61,14 @@ export function nameWords(name: string): Word[] {
 export const withoutSizes = (words: string[]) =>
   words.filter((w, i) => !isUnit(w) && !(isNumber(w) && isUnit(words[i + 1] ?? "")));
 
-/** The spellings a stemmed word can have in a name: stem() folds "יי" to "י", so each of the first 3 "י" may be either. */
+/** The words of the group a name gives: its normalized words without sizes. */
+export const groupWords = (name: string) => withoutSizes(nameWords(name).map((w) => w.norm));
+
+/** The spellings a stemmed word can have in a name: stem() folds "יי" to "י" after the first letter, so each of the first 3 "י" there may be either. */
 function spellings(w: string) {
-  const [first = "", ...rest] = w.split("י");
-  return rest.reduce((forms, part, i) => forms.flatMap((f) => (i < 3 ? [`${f}י${part}`, `${f}יי${part}`] : [`${f}י${part}`])), [first]);
+  const head = w.startsWith("יי") ? 2 : 1; // stem() keeps a leading "יי"
+  const [first = "", ...rest] = w.slice(head).split("י");
+  return rest.reduce((forms, part, i) => forms.flatMap((f) => (i < 3 ? [`${f}י${part}`, `${f}יי${part}`] : [`${f}י${part}`])), [w.slice(0, head) + first]);
 }
 
 /** FTS5 prefix terms that find every product a group of these words can hold ("בננה" -> "בננ"* also finds בננות). */
@@ -88,7 +96,13 @@ function sizeIn(words: string[]): Size | null {
   return null;
 }
 
-function countIn(words: string[]) {
+/** A name that opens with a percent ("100% מיץ"): its leading number is a share, not a pack count. */
+const opensWithPercent = (name: string) => /^[^\p{L}\d]*\d+(?:\.\d+)?\s*%/u.test(name);
+
+/** The pack count in a name's words ("10 פיתות", "12 יח", "M12"), or null. */
+function countIn(words: string[], name: string) {
+  const lead = Number(words[0]);
+  if (isLeadingCount(words[0], words[1]) && !opensWithPercent(name) && Number.isInteger(lead) && lead > 0) return lead; // "10 פיתות"
   for (let i = 0; i < words.length; i++) {
     const n = Number(words[i]);
     if (!isNumber(words[i]!) || !Number.isInteger(n) || n < 1) continue;
@@ -111,7 +125,7 @@ export function measureOf(p: Sized): Size | null {
   const size = sizeIn(qty) ?? sizeIn(name);
   if (size) return size;
   const n = Number(qty[0]);
-  const count = countIn(name) ?? (COUNT.has(qty[1] ?? "") && Number.isInteger(n) && n >= 1 ? n : null);
+  const count = countIn(name, p.name) ?? (COUNT.has(qty[1] ?? "") && Number.isInteger(n) && n >= 1 ? n : null);
   return count ? { measure: "unit", size: count } : null;
 }
 
@@ -226,7 +240,7 @@ export function claims(t: TeamEdits, products: Map<string, Sized>) {
 
 /** The group named by a product's own normalized name, sizes dropped: where a former Produce-group item moves to. */
 export function ownGroupRef(p: Sized) {
-  const words = withoutSizes(nameWords(p.name).map((w) => w.norm));
+  const words = groupWords(p.name);
   const size = measureOf(p);
   return words.length && size ? groupRef(words, size) : null;
 }

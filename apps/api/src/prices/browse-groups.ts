@@ -6,7 +6,7 @@ import type { SoldBy } from "@grocer/shared/quantity";
 import type { Db } from "#/db/index.ts";
 import { f64, i32, pack, packMissingStores, prunePromotions, writeCatalog } from "#/prices/browse-data.ts";
 import {
-  claims, commonest, editedSize, groupEdits, groupSoldBy, groupsFrom, madeId, measureOf, nameWords, parseRef, soldByOf, teamEdits, withoutSizes,
+  claims, commonest, editedSize, groupEdits, groupSoldBy, groupsFrom, groupWords, madeId, measureOf, nameWords, parseRef, soldByOf, teamEdits, withoutSizes,
   type Measure, type TeamEdits,
 } from "#/prices/groups.ts";
 
@@ -18,8 +18,6 @@ function firstWord(name: string) {
   const first = withoutSizes(words)[0];
   return first !== undefined && first === words[0] ? [first] : [];
 }
-
-const ownWords = (name: string) => withoutSizes(nameWords(name).map((w) => w.norm));
 
 export const BROWSE = { minProducts: 1, everyMeasure: true };
 
@@ -138,7 +136,7 @@ export function groupsOf(products: Product[]) {
   const grouped = groupsBy(products, firstWord);
   const held = new Set(grouped.flatMap((g) => g.codes));
   const refs = new Set(grouped.map((g) => `${g.type}|${g.ref}`));
-  const own = groupsBy(products.filter((p) => !held.has(p.code)), ownWords).filter((g) => !refs.has(`${g.type}|${g.ref}`));
+  const own = groupsBy(products.filter((p) => !held.has(p.code)), groupWords).filter((g) => !refs.has(`${g.type}|${g.ref}`));
   for (const code of own.flatMap((g) => g.codes)) held.add(code);
   return [...grouped, ...own, ...products.filter((p) => !held.has(p.code)).map(loneCard)];
 }

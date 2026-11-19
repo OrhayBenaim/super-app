@@ -50,6 +50,10 @@ _Avoid_: Receipt, what's missing, cart
 An item on the List that a store's Compare total leaves out: the store does not price what it is matched to, or it has no match. An item that is missing at one store can be priced at another. Re-matching a Missing item changes its match for every store, not only the one where it was missing.
 _Avoid_: Unavailable item, out of stock (Grocer only knows what a store prices, not what is on its shelf)
 
+**Nearby alert**:
+A notification that the store where the User's List costs least, of the stores within 2 km of where they are now, is close by, with a shortcut to drive there. "Least" is the same order Compare shows when sorted by price. A User gets at most one Nearby alert a day, none while moving faster than 95 km/h, none between 22:00 and 07:00, and none from Friday 15:00 to Sunday 09:00. A List with nothing priced gets none. A User turns Nearby alerts on in Settings; they work without opening the app.
+_Avoid_: Geofence, cheap store nearby (the Settings label), push, arrival alert
+
 ### Prices
 
 **Price sync**:
@@ -85,8 +89,16 @@ A store whose price file or Promotion file could not be downloaded or loaded dur
 _Avoid_: File failure, store error
 
 **Product image**:
-A picture of a Product: the one the Grocer team uploaded on the Internal dashboard when there is one, otherwise the one found by its barcode in outside sources (a Chain's online shop first, Open Food Facts second). Users cannot set or change it. A Product with no uploaded image and no barcode, or one no source knows, has no Product image, and nothing is shown in its place. It is shown when picking a Product for an item and when editing an item.
+A picture of a Product: the one the Grocer team uploaded on the Internal dashboard when there is one, otherwise the one found by its barcode in outside sources (a Chain's online shop first, Open Food Facts second). Users cannot set or change it. A Product with no uploaded image and no barcode, or one no source knows, has no Product image, and nothing is shown in its place. It is shown when picking a Product for an item, when editing an item, and when a scanned Barcode finds the Product.
 _Avoid_: Photo, thumbnail, picture (as separate terms)
+
+**Barcode**:
+The code printed on a Product's pack that identifies it at every Chain. A Product has one only when the Chain's price files give it one; a Product known only by a code its Chain made up has no Barcode, so it cannot be scanned or found by its Barcode, and has no Product image unless the team uploaded one. A User can find a Product by typing or scanning its Barcode.
+_Avoid_: Code, item code, EAN (as domain terms)
+
+**Product name**:
+A Product's name as everyone sees it, in full words: "גבינה גאודה חצי קשה 28%", never the Chain's "גב.גאודה חצי קשה28%". It starts as the name the first Chain to sell the Product gives it and is written out in full when the Product gets its Product type: abbreviations expanded, spacing fixed, the brand, the size, every number and the word order kept. No Price sync changes it after that. The Chain's own short form is not kept.
+_Avoid_: Display name, raw name, clean name (as separate terms)
 
 **Product group**:
 Products that are the same thing to a shopper, whatever their brand, pack size or Chain label: סוגת's, מיה's and Rami Levy's own bulgur are all the Product group "בורגול". More words make a narrower Product group: a word that changes what the product is (a variety, organic, fat percent, lactose-free) narrows it ("בורגול דק", "בורגול אורגני"), while brand, size and Chain label never split one. A dish made from the product is not in its group ("בורגול עם גרגירי חומוס" is not bulgur). Produce follows the same rules: names match once origin, grade, "by weight" and "loose" words, spellings and plurals are evened out ("בננות ישראל" and "בננה מובחרת" are both "בננה"), and packed and loose are different groups ("גזר ארוז" vs "גזר"). A product is in a group only when its name starts with the group's words ("שוקולד חלב" is not milk). A product made "with" something, or a substitute for the real thing, is only in a group whose words say so: "קוטג עם זיתים" is not in "קוטג", and neither is "קוטג' טבעוני". Every product in a group is measured the same way: by kilo, by liter or by the unit. Produce is always by kilo. Sweetened condensed milk is sold by weight, so it is not in "חלב". Things counted by the unit are a different product for each pack count: a carton of 12 eggs and a carton of 30 are not one group. A User matches an Item to a Product group by picking it, the same way they pick a single product; nothing is matched for them. For a group measured by kilo or liter, Compare picks each store's cheapest product by price per kilo or liter, so a 1 ק"ג bag at ₪6.80 beats a 500 גרם bag at ₪3.70, and the Item's Quantity is kilos when the group is Sold by weight (produce), or else a number of the group's commonest pack size. For a group counted by the unit, every product is the same pack (a carton of 12 eggs). Compare picks the cheapest pack, and the Item's Quantity is a number of packs. Compare names the product each store's price comes from.
@@ -97,7 +109,7 @@ A Product group the Grocer team made on the Internal dashboard: a name, a Produc
 _Avoid_: Custom group, manual group
 
 **Product type**:
-The broad kind a Product is: one of a fixed list we own (dairy and eggs, meat and fish, produce…, Other last), given to each Product from its name. A Product that fits none of them is of the Product type Other, and so is a Product not given a type yet. Users browse Home by Product type. An Item added from Home or Promotions takes its Product type's name as its category.
+The broad kind a Product is: one of a fixed list we own (dairy and eggs, meat and fish, produce…, Other last), given to each Product from its name. A Product that fits none of them is of the Product type Other, and so is a Product not given a type yet. The same classifier request also writes the Product name out in full (docs/adr/0010). Users browse Home by Product type. An Item added from Home or Promotions takes its Product type's name as its category.
 _Avoid_: Category (an Item's category is the household's own), department
 
 ### Account lifecycle

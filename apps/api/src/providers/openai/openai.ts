@@ -1,17 +1,45 @@
 import { z } from "zod";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
-import { PRODUCT_TYPE_GUIDE, RateLimitError, type Classifier, type ProductToClassify } from "#/services/classifier.ts";
+import { PRODUCT_TYPE_GUIDE, RateLimitError, type Classified, type Classifier, type ProductToClassify } from "#/services/classifier.ts";
 
 const SYSTEM = [
-  "You sort Israeli supermarket products into product types. Names are in Hebrew and often cut off after about 20 characters.",
-  'Reply with JSON only: {"types":[{"i":<the product\'s i>,"type":"<id>"}]}, one entry per product.',
+  "You sort Israeli supermarket products into product types and write their names out in full. Names are in Hebrew, often cut off after about 20 characters and full of Chain abbreviations.",
+  'Reply with JSON only: {"products":[{"i":<the product\'s i>,"type":"<id>","name":"<the full name>"}]}, one entry per product.',
+  "A product that has a type already keeps it: answer that type.",
+  "Answer other only when no listed type fits: household goods, food of any kind and personal care always have a type.",
+  "Write each name out in full: expand Chain abbreviations into full words (גב. -> גבינה), finish a cut-off word only when you are sure of it, and fix spacing.",
+  "Keep the brand, the size text, every number and the word order exactly as given. Never add, drop or change a number.",
   "Use only these ids:",
   ...PRODUCT_TYPES.map((id) => `- ${id}: ${PRODUCT_TYPE_GUIDE[id]}`),
 ].join("\n");
 
 const reply = z.object({ choices: z.array(z.object({ message: z.object({ content: z.string() }) })).min(1) });
-const answer = z.object({ types: z.array(z.object({ i: z.number().int(), type: z.string() })) });
+const answer = z.object({ products: z.array(z.object({ i: z.number().int(), type: z.string().optional(), name: z.string().optional() })) });
 const productType = z.enum(PRODUCT_TYPES);
+// Structured outputs: the provider must answer every Product with an id from the list (OpenAI's strict mode needs every key required).
+const RESPONSE_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "products",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        products: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { i: { type: "integer" }, type: { type: "string", enum: PRODUCT_TYPES }, name: { type: "string" } },
+            required: ["i", "type", "name"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["products"],
+      additionalProperties: false,
+    },
+  },
+};
 
 /** Resolves after `ms`, or rejects at once when `signal` aborts. */
 const wait = (ms: number, signal?: AbortSignal) =>
@@ -48,7 +76,7 @@ export function openaiClassifier({ baseUrl, apiKey, model }: { baseUrl: string; 
       const body = JSON.stringify({
         model,
         temperature: 0,
-        response_format: { type: "json_object" },
+        response_format: RESPONSE_FORMAT,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: JSON.stringify(products.map((p, i) => ({ i, ...p }))) },
@@ -64,10 +92,12 @@ export function openaiClassifier({ baseUrl, apiKey, model }: { baseUrl: string; 
         if (res.status === 429) throw new RateLimitError("llm: HTTP 429");
       }
       if (!res.ok) throw new Error(`llm: HTTP ${res.status}`);
-      // Some models wrap the JSON in a ```json fence even when asked for JSON only.
-      const content = reply.parse(await res.json()).choices[0]!.message.content.replace(/^\s*```(?:json)?|```\s*$/g, "");
-      const byIndex = new Map(answer.parse(JSON.parse(content)).types.map((t) => [t.i, productType.safeParse(t.type).data ?? null]));
-      return products.map((_, i) => byIndex.get(i) ?? null);
+      const content = reply.parse(await res.json()).choices[0]!.message.content;
+      const byIndex = new Map(answer.parse(JSON.parse(content)).products.map((t) => [t.i, t]));
+      return products.map((_, i): Classified => {
+        const a = byIndex.get(i);
+        return { type: productType.safeParse(a?.type).data ?? null, name: a?.name?.trim() || null };
+      });
     },
   };
 }
