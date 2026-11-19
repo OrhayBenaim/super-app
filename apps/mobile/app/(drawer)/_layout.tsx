@@ -1,5 +1,6 @@
 import { Drawer } from "expo-router/drawer";
 import { DrawerContent } from "@/features/drawer/DrawerContent";
+import { useNearbyAlertsSync } from "@/features/geofence/useNearbyAlerts";
 import { useCurrentListId, useList } from "@/features/lists/api";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
@@ -9,6 +10,7 @@ export default function DrawerLayout() {
   const { colors, radius } = useTheme();
   // Load the List while Home shows, so My list and My items open with it instead of a spinner.
   useList(useCurrentListId(), { poll: false });
+  useNearbyAlertsSync();
   return (
     <Drawer
       drawerContent={(props) => <DrawerContent {...props} />}
