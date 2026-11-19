@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { MutationObserver, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -27,28 +27,27 @@ export function ShareScreen() {
   // Held here, not in Members: Rename unmounts Members, and asking for a code again would rotate the one already sent.
   const share = useShareMutations(useCurrentListId());
   const close = () => (router.canGoBack() ? router.back() : router.replace("/list"));
+  const body = () => {
+    if (view === "rename") return <Rename onDone={() => setView("main")} />;
+    if (view === "join") return <Join onBack={() => setView("main")} onJoined={close} />;
+    if (view === "joined") return <Joined onBack={() => setView("main")} onJoin={() => setView("join")} onLeftCurrent={close} />;
+    return <Members share={share} onDone={close} onRename={() => setView("rename")} onJoin={() => setView("join")} onShowJoined={() => setView("joined")} />;
+  };
   // The modal is full screen on Android, so it needs the top safe-area inset; on iOS it is a page sheet already below the status bar.
   return (
     <Screen scroll edges={Platform.OS === "ios" ? ["bottom"] : ["top", "bottom"]} style={{ paddingTop: space[3], paddingBottom: space[9] }}>
-      {view === "rename" ? (
-        <Rename onDone={() => setView("main")} />
-      ) : view === "join" ? (
-        <Join onBack={() => setView("main")} onJoined={close} />
-      ) : view === "joined" ? (
-        <Joined onBack={() => setView("main")} onJoin={() => setView("join")} onLeftCurrent={close} />
-      ) : (
-        <Members share={share} onDone={close} onRename={() => setView("rename")} onJoin={() => setView("join")} onJoined={() => setView("joined")} />
-      )}
+      {body()}
     </Screen>
   );
 }
 
-function Members({ share, onDone, onRename, onJoin, onJoined }: { share: ReturnType<typeof useShareMutations>; onDone: () => void; onRename: () => void; onJoin: () => void; onJoined: () => void }) {
+function Members({ share, onDone, onRename, onJoin, onShowJoined }: { share: ReturnType<typeof useShareMutations>; onDone: () => void; onRename: () => void; onJoin: () => void; onShowJoined: () => void }) {
   const { colors, space } = useTheme();
   const me = authClient.useSession().data?.user.id;
   const listId = useCurrentListId();
   const { data } = useList(listId);
-  const { invite, leave } = share;
+  const { invite } = share;
+  const qc = useQueryClient();
   const joinedCount = joinedLists(useLists().data ?? []).length;
   const [copied, setCopied] = useState(false);
   const isOwner = data?.list.role === "owner";
@@ -60,7 +59,10 @@ function Members({ share, onDone, onRename, onJoin, onJoined }: { share: ReturnT
       {
         text: t(self ? "share.leave" : "common.remove"),
         style: "destructive",
-        onPress: () => (self ? leave.mutate(userId, { onSuccess: onDone }) : share.removeMember.mutate(userId, { onError: fail })),
+        onPress: () =>
+          self
+            ? new MutationObserver(qc, leaveList(qc, listId ?? "")).mutate(userId).then(onDone, () => {})
+            : share.removeMember.mutate(userId, { onError: fail }),
       },
     ]);
 
@@ -123,16 +125,14 @@ function Members({ share, onDone, onRename, onJoin, onJoined }: { share: ReturnT
           {isOwner ? (
             <Row title={t("share.rename")} analyticsName={Taps.shareRename} chevron onPress={onRename} />
           ) : (
-            <Row title={t("share.leave")} analyticsName={Taps.shareLeave} titleColor="danger" onPress={() => me && confirmRemove(me, "", true)} />
+            <Row title={t("share.leave")} analyticsName={Taps.shareLeave} titleColor="danger" onPress={() => (me ? confirmRemove(me, "", true) : fail())} />
           )}
         </Group>
       )}
-      {data && (
-        <Group style={{ marginTop: space[6] }}>
-          <Row title={t("share.join")} analyticsName={Taps.shareJoin} chevron onPress={onJoin} />
-          <Row title={t("share.joined")} analyticsName={Taps.shareJoined} value={joinedCount ? String(joinedCount) : undefined} chevron onPress={onJoined} />
-        </Group>
-      )}
+      <Group style={{ marginTop: space[6] }}>
+        <Row title={t("share.join")} analyticsName={Taps.shareJoin} chevron onPress={onJoin} />
+        <Row title={t("share.joined")} analyticsName={Taps.shareJoined} value={joinedCount ? String(joinedCount) : undefined} chevron onPress={onShowJoined} />
+      </Group>
     </>
   );
 }
@@ -205,7 +205,7 @@ function JoinedRow({ list, onLeftCurrent }: { list: List; onLeftCurrent: () => v
   const confirm = () =>
     Alert.alert(fmt(t("share.joined.confirm"), { name: list.name }), t("share.joined.confirmBody"), [
       { text: t("common.cancel"), style: "cancel" },
-      { text: t("share.joined.leave"), style: "destructive", onPress: () => me && leave.mutateAsync(me).then(() => list.id === current && onLeftCurrent(), () => {}) },
+      { text: t("share.joined.leave"), style: "destructive", onPress: () => (me ? leave.mutateAsync(me).then(() => list.id === current && onLeftCurrent(), () => {}) : Alert.alert(t("common.error"))) },
     ]);
   return (
     <Row

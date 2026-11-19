@@ -27,9 +27,8 @@ export function useShareMutations(listId: string | null) {
     onSuccess: () => refresh(),
   });
 
-  const leave = useMutation(leaveList(qc, listId ?? ""));
   const rename = useMutation(renameList(qc, listId));
-  return { invite, join, removeMember, rename, leave };
+  return { invite, join, removeMember, rename };
 }
 
 /**
@@ -84,7 +83,6 @@ export function leaveList(qc: QueryClient, listId: string) {
     mutationFn: (userId: string) => api<void>(`api/lists/${listId}/members/${userId}`, { method: "DELETE" }),
     onSuccess: () => {
       qc.setQueryData<List[]>(listKeys.all, (ls) => ls?.filter((l) => l.id !== listId));
-      track(Events.listLeft, { listId });
     },
     onError: () => Alert.alert(t("common.error")),
     onSettled: () => qc.invalidateQueries({ queryKey: listKeys.all }),

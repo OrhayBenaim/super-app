@@ -69,6 +69,9 @@ describe("joinedLists", () => {
   it("keeps only the Lists the User is a Member of, in the server's order", () => {
     expect(joinedLists([l("a", "member"), l("b", "owner"), l("c", "member")]).map((x) => x.id)).toEqual(["a", "c"]);
   });
+  it("is empty when the User only owns Lists", () => {
+    expect(joinedLists([l("a", "owner"), l("b", "owner")])).toEqual([]);
+  });
   it("is empty for no Lists", () => {
     expect(joinedLists([])).toEqual([]);
   });

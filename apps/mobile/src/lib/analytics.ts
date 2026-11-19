@@ -22,8 +22,6 @@ export const Events = {
   itemQuantityChanged: "item_quantity_changed",
   listShared: "list_shared",
   listJoined: "list_joined",
-  /** `listId` only. */
-  listLeft: "list_left",
   /** `listId` only, never the name. */
   listCreated: "list_created",
   /** `topic` only, never the text. */
