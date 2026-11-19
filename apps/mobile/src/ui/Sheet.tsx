@@ -8,12 +8,12 @@ import { Text } from "./Text";
 
 /**
  * Body of a sheet route (a Stack screen with `presentation: "formSheet"`, see app/_layout): gutters and the bottom inset.
- * `fill` stretches it to a fixed-detent sheet's height, so its children can flex.
+ * `maxHeight` caps a content-sized sheet so a child with `flexShrink` shrinks instead of running off-screen.
  */
-export function Sheet({ children, fill }: { children: ReactNode; fill?: boolean }) {
+export function Sheet({ children, maxHeight }: { children: ReactNode; maxHeight?: number }) {
   const { space } = useTheme();
   const insets = useSafeAreaInsets();
-  return <View style={{ flex: fill ? 1 : undefined, paddingTop: space[3], paddingHorizontal: space[5], paddingBottom: insets.bottom + space[5], gap: space[4] }}>{children}</View>;
+  return <View style={{ maxHeight, paddingTop: space[3], paddingHorizontal: space[5], paddingBottom: insets.bottom + space[5], gap: space[4] }}>{children}</View>;
 }
 
 type NavAction = { title: string; analyticsName: TapName; onPress: () => void; disabled?: boolean };
