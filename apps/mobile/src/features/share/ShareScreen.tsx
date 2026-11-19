@@ -13,6 +13,7 @@ import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Button, Group, IconButton, Row, Screen, SheetField, SheetHeader, Text } from "@/ui";
+import { Join } from "./Join";
 import { useShareMutations } from "./api";
 
 const CODE_IN = FadeIn.duration(200);
@@ -21,19 +22,25 @@ const CODE_IN = FadeIn.duration(200);
 export function ShareScreen() {
   const router = useRouter();
   const { space } = useTheme();
-  const [renaming, setRenaming] = useState(false);
+  const [view, setView] = useState<"main" | "rename" | "join">("main");
   // Held here, not in Members: Rename unmounts Members, and asking for a code again would rotate the one already sent.
   const share = useShareMutations(useCurrentListId());
   const close = () => (router.canGoBack() ? router.back() : router.replace("/list"));
   // The modal is full screen on Android, so it needs the top safe-area inset; on iOS it is a page sheet already below the status bar.
   return (
     <Screen scroll edges={Platform.OS === "ios" ? ["bottom"] : ["top", "bottom"]} style={{ paddingTop: space[3], paddingBottom: space[9] }}>
-      {renaming ? <Rename onDone={() => setRenaming(false)} /> : <Members share={share} onDone={close} onRename={() => setRenaming(true)} />}
+      {view === "rename" ? (
+        <Rename onDone={() => setView("main")} />
+      ) : view === "join" ? (
+        <Join onBack={() => setView("main")} onJoined={close} />
+      ) : (
+        <Members share={share} onDone={close} onRename={() => setView("rename")} onJoin={() => setView("join")} />
+      )}
     </Screen>
   );
 }
 
-function Members({ share, onDone, onRename }: { share: ReturnType<typeof useShareMutations>; onDone: () => void; onRename: () => void }) {
+function Members({ share, onDone, onRename, onJoin }: { share: ReturnType<typeof useShareMutations>; onDone: () => void; onRename: () => void; onJoin: () => void }) {
   const { colors, space } = useTheme();
   const me = authClient.useSession().data?.user.id;
   const listId = useCurrentListId();
@@ -114,6 +121,11 @@ function Members({ share, onDone, onRename }: { share: ReturnType<typeof useShar
           ) : (
             <Row title={t("share.leave")} analyticsName={Taps.shareLeave} titleColor="danger" onPress={() => me && confirmRemove(me, "", true)} />
           )}
+        </Group>
+      )}
+      {data && (
+        <Group style={{ marginTop: space[6] }}>
+          <Row title={t("share.join")} analyticsName={Taps.shareJoin} chevron onPress={onJoin} />
         </Group>
       )}
     </>
