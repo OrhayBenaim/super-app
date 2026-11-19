@@ -1,4 +1,4 @@
-import { MutationObserver, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -47,7 +47,8 @@ function Members({ share, onDone, onRename, onJoin, onShowJoined }: { share: Ret
   const listId = useCurrentListId();
   const { data } = useList(listId);
   const { invite } = share;
-  const qc = useQueryClient();
+  // The Leave row renders only once the List has loaded, so listId is set by then.
+  const leave = useMutation(leaveList(useQueryClient(), listId ?? ""));
   const joinedCount = joinedLists(useLists().data ?? []).length;
   const [copied, setCopied] = useState(false);
   const isOwner = data?.list.role === "owner";
@@ -61,7 +62,7 @@ function Members({ share, onDone, onRename, onJoin, onShowJoined }: { share: Ret
         style: "destructive",
         onPress: () =>
           self
-            ? new MutationObserver(qc, leaveList(qc, listId ?? "")).mutate(userId).then(onDone, () => {})
+            ? leave.mutateAsync(userId).then(onDone, () => {})
             : share.removeMember.mutate(userId, { onError: fail }),
       },
     ]);
