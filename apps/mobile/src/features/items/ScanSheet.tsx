@@ -34,7 +34,7 @@ const centered: TextStyle = { textAlign: "center" };
 export function ScanSheet() {
   const { colors, radius, space } = useTheme();
   const router = useRouter();
-  const { from, listId } = useLocalSearchParams<{ from: "list" | "items"; listId?: string }>();
+  const { from, listId } = useLocalSearchParams<{ from: "list" | "items" | "home"; listId?: string }>();
   const items = useList(listId || null, { poll: false }).data?.items ?? [];
   const [permission, , getPermission] = useCameraPermissions();
   // The hook reads the permission once, so read it again when the User comes back from Settings.
@@ -73,6 +73,13 @@ export function ScanSheet() {
         // Counted when the lookup ends, not when the mascot's cycle lets the result show.
         track(Events.itemScanned, { result: outcome.kind, from });
         finishLookup(() => {
+          // Home has no List, so a found Product is always "add"; it goes back to Home, which opens its Product page.
+          if (outcome.kind === "found" && from === "home" && outcome.action === "add") {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            handScan(outcome);
+            router.back();
+            return;
+          }
           if (outcome.kind === "found") return setFound(outcome);
           if (outcome.kind === "named") {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

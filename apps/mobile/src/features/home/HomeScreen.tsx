@@ -1,15 +1,17 @@
 import type { ProductType } from "@grocer/shared/product-types";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
-import { SearchX, TriangleAlert } from "lucide-react-native";
-import { useRef, useState } from "react";
-import { View, type TextInputInstance } from "react-native";
+import { Camera } from "expo-camera";
+import { useFocusEffect, useRouter } from "expo-router";
+import { ScanBarcode, SearchX, TriangleAlert } from "lucide-react-native";
+import { useCallback, useRef, useState } from "react";
+import { Keyboard, View, type TextInputInstance } from "react-native";
 import { MenuButton } from "@/features/drawer/MenuButton";
 import { fmt } from "@/features/compare/format";
 import { RADII, useRadius } from "@/features/compare/api";
 import { SearchingRow, suggestionRows } from "@/features/items/SuggestionRows";
 import { useProductSearch } from "@/features/items/products";
-import { Taps } from "@/lib/analytics";
+import { takeScan } from "@/features/items/scan";
+import { Events, Taps, track } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { EmptyState, Group, LargeTitle, Screen, SearchField, Skeleton, Tap, Text } from "@/ui";
@@ -17,7 +19,7 @@ import { useProductTypes, type TypeCount } from "./api";
 import { CardGrid } from "./CardGrid";
 import { typeNameKey } from "./card";
 import { LocationBanner, useBrowseLocation } from "./LocationBanner";
-import { homeSuggestions, suggestionTarget } from "./search";
+import { homeScan, homeSuggestions, suggestionTarget } from "./search";
 
 // Brand page "Illustration/Product type/*", exported at @2x and @3x.
 const ILLUSTRATIONS: Record<ProductType, number> = {
@@ -65,7 +67,7 @@ function TypeCard({ type, cardCount, onPress }: TypeCount & { onPress: () => voi
 /** Home (the opening route): a card per Product type sold within Compare's radius, in the fixed order with Other last. */
 export function HomeScreen() {
   const router = useRouter();
-  const { space } = useTheme();
+  const { space, colors } = useTheme();
   const { location, coords, radiusKm, off, known } = useBrowseLocation();
   const setRadiusKm = useRadius((s) => s.set);
   const types = useProductTypes(coords, radiusKm, known);
@@ -110,6 +112,21 @@ export function HomeScreen() {
     onRefine: (word) => setQuery(`${query.trim()} ${word}`),
   });
   const suggesting = query !== "";
+  // Scanning: ask for the camera on the first tap; the sheet explains a refusal. A found Product opens its page, a name fills the field.
+  const scan = async () => {
+    Keyboard.dismiss();
+    const { granted } = await Camera.requestCameraPermissionsAsync();
+    if (!granted) track(Events.itemScanned, { result: "denied", from: "home" });
+    router.push({ pathname: "/scan", params: { from: "home" } });
+  };
+  useFocusEffect(
+    useCallback(() => {
+      const scanned = takeScan();
+      const step = scanned && homeScan(scanned);
+      if (step?.go === "push") router.push(step.target);
+      else if (step?.go === "fill") setQuery(step.query);
+    }, [router]),
+  );
   const cancel = () => {
     setQuery("");
     field.current?.blur();
@@ -133,6 +150,13 @@ export function HomeScreen() {
                 onBlur={() => setFocused(false)}
                 returnKeyType="search"
                 containerStyle={{ flex: 1 }}
+                trailing={
+                  !query && (
+                    <Tap accessibilityLabel={t("items.scan")} analyticsName={Taps.homeScan} onPress={scan} hitSlop={8} style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
+                      <ScanBarcode size={22} color={colors.tint} strokeWidth={1.75} />
+                    </Tap>
+                  )
+                }
               />
               {(focused || suggesting) && (
                 <Tap accessibilityLabel={t("common.cancel")} analyticsName={Taps.homeSearchCancel} onPress={cancel} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>

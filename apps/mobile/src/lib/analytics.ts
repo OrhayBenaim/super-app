@@ -26,7 +26,7 @@ export const Events = {
   listCreated: "list_created",
   /** `topic` only, never the text. */
   contactSent: "contact_sent",
-  /** One per scan: `result` found | named | unknown | denied, `from` list | items. Never the Barcode or a name. */
+  /** One per scan: `result` found | named | unknown | denied, `from` list | items | home. Never the Barcode or a name. */
   itemScanned: "item_scanned",
 } as const;
 export type Event = (typeof Events)[keyof typeof Events];
@@ -94,6 +94,7 @@ export const Taps = {
   homeProductNavigate: "home.product.navigate",
   homeRetry: "home.retry",
   homeSearchCancel: "home.search.cancel",
+  homeScan: "home.scan",
   homeSuggestGroup: "home.suggest.group",
   homeSuggestProduct: "home.suggest.product",
   homeSwitch: "home.switch",

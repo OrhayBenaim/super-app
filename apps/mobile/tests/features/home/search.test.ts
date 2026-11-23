@@ -4,7 +4,7 @@ vi.mock("@/lib/api", () => ({ api: vi.fn(), BASE_URL: "https://api.grocer.test" 
 vi.mock("expo-image", () => ({ Image: { prefetch: vi.fn() } }));
 
 import { SEARCH } from "@grocer/shared/search";
-import { homeSuggestions, suggestionTarget } from "@/features/home/search";
+import { homeScan, homeSuggestions, suggestionTarget } from "@/features/home/search";
 import { splitResults, type Product, type ProductGroup, type SearchResult } from "@/features/items/products";
 
 const group: ProductGroup = {
@@ -37,5 +37,25 @@ describe("suggestionTarget", () => {
   it("opens a group's Group page and a Product's Product page", () => {
     expect(suggestionTarget(group)).toEqual({ pathname: "/group/[ref]", params: { ref: "חלב|l", type: "dairy-eggs" } });
     expect(suggestionTarget(product)).toEqual({ pathname: "/product/[code]", params: { code: "777", type: "dairy-eggs" } });
+  });
+});
+
+describe("homeScan", () => {
+  const scanned = { code: "777", name: "חלב תנובה", measure: "l", size: 1, soldBy: "unit", type: "dairy-eggs" } as const;
+
+  it("opens the Product page of a found Barcode", () => {
+    expect(homeScan({ kind: "found", product: scanned, action: "add" })).toEqual({
+      go: "push",
+      target: { pathname: "/product/[code]", params: { code: "777", type: "dairy-eggs" } },
+    });
+  });
+
+  it("fills the field with a name only Open Food Facts knows, cut to the search limit", () => {
+    expect(homeScan({ kind: "named", name: "במבה" })).toEqual({ go: "fill", query: "במבה" });
+    expect(homeScan({ kind: "named", name: "ח".repeat(SEARCH.maxLength + 5) })).toEqual({ go: "fill", query: "ח".repeat(SEARCH.maxLength) });
+  });
+
+  it("keeps reading on an unknown Barcode", () => {
+    expect(homeScan({ kind: "unknown" })).toEqual({ go: "read" });
   });
 });
