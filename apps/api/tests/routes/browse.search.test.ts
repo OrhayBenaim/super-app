@@ -58,7 +58,7 @@ beforeAll(async () => {
 
 const near = `lat=${here.lat}&lng=${here.lng}&radiusKm=10`;
 const get = (path: string, auth = true) => app.request(path, { headers: auth ? { cookie } : {} });
-type Card = { ref: string | null; name: string; code: string; minPrice: number | null; storeCount: number; codes: string[] };
+type Card = { type: string; ref: string | null; name: string; code: string; minPrice: number | null; storeCount: number; codes: string[] };
 const search = async (q: string, query = "") => {
   const res = await get(`/api/browse/search?q=${encodeURIComponent(q)}&${query}`);
   expect(res.status).toBe(200);
@@ -92,7 +92,7 @@ describe("GET /api/browse/search", () => {
   it("returns a Product in no group as a card without a group ref", async () => {
     const cards = await search("חלבון", near);
     expect(cards).toHaveLength(1);
-    expect(cards[0]).toMatchObject({ ref: null, code: sku(SOLO.code), name: SOLO.name, storeCount: 2, minPrice: 47.5 });
+    expect(cards[0]).toMatchObject({ ref: null, type: "dairy-eggs", code: sku(SOLO.code), name: SOLO.name, storeCount: 2, minPrice: 47.5 });
   });
 
   it("returns at most 100 cards", async () => {

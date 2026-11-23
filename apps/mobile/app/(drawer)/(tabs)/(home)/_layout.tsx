@@ -11,6 +11,7 @@ export default function HomeLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="type/[id]" options={{ ...pushed, headerBackTitle: t("tabs.home") }} />
+      <Stack.Screen name="search" options={{ ...pushed, headerBackTitle: t("tabs.home") }} />
       {/* The page sets its back title (its Product type's name). */}
       <Stack.Screen name="group/[ref]" options={pushed} />
       <Stack.Screen name="product/[code]" options={pushed} />

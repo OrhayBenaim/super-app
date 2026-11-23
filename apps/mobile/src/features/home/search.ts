@@ -6,6 +6,12 @@ import { splitResults, type Product, type ProductGroup, type SearchResult } from
 export const homeSuggestions = (query: string, results: SearchResult[] | undefined) =>
   splitResults(query.trim().length >= SEARCH.minLength ? results : []);
 
+/** The search row that takes the List's "create" row's place: the query to search for, or null while it is too short. */
+export const searchRow = (query: string) => (query.trim().length >= SEARCH.minLength ? query.trim() : null);
+
+/** The row and Return both open Search results with the query. */
+export const resultsTarget = (query: string) => ({ pathname: "/search", params: { q: query.trim() } }) as const;
+
 /** A suggestion opens its page and adds nothing to the List: a group its Group page, a Product its Product page. */
 export const suggestionTarget = (row: ProductGroup | Product) =>
   row.kind === "group"

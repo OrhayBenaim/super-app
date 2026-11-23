@@ -7,17 +7,16 @@ import { View, type TextInputInstance } from "react-native";
 import { MenuButton } from "@/features/drawer/MenuButton";
 import { fmt } from "@/features/compare/format";
 import { RADII, useRadius } from "@/features/compare/api";
-import { SearchingRow, suggestionRows } from "@/features/items/SuggestionRows";
-import { useProductSearch } from "@/features/items/products";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
-import { EmptyState, Group, LargeTitle, Screen, SearchField, Skeleton, Tap, Text } from "@/ui";
+import { EmptyState, LargeTitle, Screen, SearchField, Skeleton, Tap, Text } from "@/ui";
 import { useProductTypes, type TypeCount } from "./api";
 import { CardGrid } from "./CardGrid";
 import { typeNameKey } from "./card";
 import { LocationBanner, useBrowseLocation } from "./LocationBanner";
-import { homeSuggestions, suggestionTarget } from "./search";
+import { resultsTarget } from "./search";
+import { useSearchPanel } from "./useSearchPanel";
 
 // Brand page "Illustration/Product type/*", exported at @2x and @3x.
 const ILLUSTRATIONS: Record<ProductType, number> = {
@@ -96,19 +95,7 @@ export function HomeScreen() {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const field = useRef<TextInputInstance>(null);
-  const search = useProductSearch(query);
-  const { groups, products } = homeSuggestions(query, search.data);
-  const open = (row: Parameters<typeof suggestionTarget>[0]) => router.push(suggestionTarget(row));
-  const rows = suggestionRows({
-    groups,
-    products,
-    productLabel: "home.suggest.open",
-    groupAnalyticsName: Taps.homeSuggestGroup,
-    productAnalyticsName: Taps.homeSuggestProduct,
-    onGroup: open,
-    onProduct: open,
-    onRefine: (word) => setQuery(`${query.trim()} ${word}`),
-  });
+  const { panel, submitQuery } = useSearchPanel(query, setQuery, "home", (q) => router.push(resultsTarget(q)));
   const suggesting = query !== "";
   const cancel = () => {
     setQuery("");
@@ -132,6 +119,7 @@ export function HomeScreen() {
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
                 returnKeyType="search"
+                onSubmitEditing={submitQuery}
                 containerStyle={{ flex: 1 }}
               />
               {(focused || suggesting) && (
@@ -143,7 +131,7 @@ export function HomeScreen() {
             {off && <LocationBanner location={location} />}
           </>
         }
-        empty={!suggesting ? empty : groups.length + products.length > 0 ? <Group>{rows}</Group> : search.isFetching ? <SearchingRow /> : null}
+        empty={suggesting ? panel : empty}
         render={(item) => <TypeCard {...item} onPress={() => router.push({ pathname: "/type/[id]", params: { id: item.type } })} />}
       />
     </Screen>

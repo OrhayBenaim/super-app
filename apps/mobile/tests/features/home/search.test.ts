@@ -4,7 +4,7 @@ vi.mock("@/lib/api", () => ({ api: vi.fn(), BASE_URL: "https://api.grocer.test" 
 vi.mock("expo-image", () => ({ Image: { prefetch: vi.fn() } }));
 
 import { SEARCH } from "@grocer/shared/search";
-import { homeSuggestions, suggestionTarget } from "@/features/home/search";
+import { homeSuggestions, resultsTarget, searchRow, suggestionTarget } from "@/features/home/search";
 import { splitResults, type Product, type ProductGroup, type SearchResult } from "@/features/items/products";
 
 const group: ProductGroup = {
@@ -30,6 +30,20 @@ describe("homeSuggestions", () => {
 
   it("is empty while the search has no data", () => {
     expect(homeSuggestions(long, undefined)).toEqual({ groups: [], products: [] });
+  });
+});
+
+describe("searchRow", () => {
+  it("is the trimmed query once it is as long as the shared rule needs, in place of the List's create row", () => {
+    expect(searchRow(`  ${long} `)).toBe(long);
+    expect(searchRow("ח".repeat(SEARCH.minLength - 1))).toBeNull();
+    expect(searchRow("   ")).toBeNull();
+  });
+});
+
+describe("resultsTarget", () => {
+  it("opens Search results with the trimmed query, for the row and for Return alike", () => {
+    expect(resultsTarget(` ${long} `)).toEqual({ pathname: "/search", params: { q: long } });
   });
 });
 

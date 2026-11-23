@@ -37,6 +37,15 @@ export const useProductTypes = (coords: Coords | null, radiusKm: number, enabled
 export const useTypeCards = (type: ProductType, coords: Coords | null, radiusKm: number, enabled: boolean) =>
   useBrowse<Card[]>(`types/${type}`, coords, radiusKm, enabled);
 
+/** A Search results card: a group card or a lone Product's (`ref` null), with its Product type (a search spans them). */
+export type SearchCard = Card & { type: ProductType };
+
+/** Search results for `q`: groups first, then single Products, most nearby stores first (at most 100; unpriced without a location). */
+export const useSearchCards = (q: string, coords: Coords | null, radiusKm: number, enabled: boolean) => {
+  const near = nearQuery(coords, radiusKm);
+  return useBrowse<SearchCard[]>("search", coords, radiusKm, enabled, `?q=${encodeURIComponent(q)}${near && `&${near.slice(1)}`}`);
+};
+
 /** A Product on a product page: pack size (null when unreadable), cheapest price nearby (per kilo by weight; null without a location). */
 export type GroupProduct = {
   code: string; name: string; measure: Measure | null; size: number | null; soldBy: SoldBy; minPrice: number | null; storeCount: number;

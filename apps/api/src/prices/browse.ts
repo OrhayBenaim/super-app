@@ -199,6 +199,9 @@ export function typeCards(db: Db, storeIds: string[] | null, type: ProductType):
   return cardsOf(nr, (k) => nr.cat.groupTypes[nr.cat.groups[k]!] === t).map(withoutIds);
 }
 
+/** A search card also names its Product type (a search spans them). */
+export type SearchCard = Card & { type: ProductType };
+
 /** The most cards one search shows. */
 export const SEARCH_CARDS = 100;
 
@@ -206,22 +209,22 @@ export const SEARCH_CARDS = 100;
  * Search results as browse cards: the Product groups the query names first, then single Products (no group ref), each
  * most nearby stores first, at most SEARCH_CARDS. With stores: only what is sold there, priced there. Without: every match, unpriced.
  */
-export function searchCards(db: Db, storeIds: string[] | null, q: string): Card[] {
+export function searchCards(db: Db, storeIds: string[] | null, q: string): SearchCard[] {
   const nr = near(db, storeIds);
   const found = searchProducts(db, q, SEARCH_CARDS);
   const groups = found.flatMap((r) => {
     if (r.kind !== "group") return [];
     const card = refCard(nr, r.ref, refIds(nr, r.type, r.ref));
-    return card ? [withoutIds(card)] : [];
+    return card ? [{ ...withoutIds(card), type: r.type }] : [];
   });
   const idOf = db.$client.prepare("SELECT id FROM browse_products WHERE code = ?").pluck();
-  const products = found.flatMap((r): Card[] => {
+  const products = found.flatMap((r): SearchCard[] => {
     if (r.kind !== "product") return [];
     const k = idOf.get(r.code) as number | undefined;
     if (k === undefined || k >= nr.count.length || !nr.count[k]) return [];
     const size = r.measure && r.size ? { measure: r.measure, size: r.size } : { measure: "unit" as const, size: 1 };
     return [{
-      ref: null, name: r.name, ...size, soldBy: r.soldBy, code: r.code, codes: [r.code], storeCount: nr.count[k]!,
+      ref: null, type: r.type, name: r.name, ...size, soldBy: r.soldBy, code: r.code, codes: [r.code], storeCount: nr.count[k]!,
       minPrice: nr.min ? round2(nr.min[k]! / nr.cat.perUnit[k]!) : null,
     }];
   });
