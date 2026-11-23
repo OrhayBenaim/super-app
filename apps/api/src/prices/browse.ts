@@ -217,10 +217,10 @@ export function searchCards(db: Db, storeIds: string[] | null, q: string): Searc
     const card = refCard(nr, r.ref, refIds(nr, r.type, r.ref));
     return card ? [{ ...withoutIds(card), type: r.type }] : [];
   });
-  const idOf = db.$client.prepare("SELECT id FROM browse_products WHERE code = ?").pluck();
+  const idByCode = db.$client.prepare("SELECT id FROM browse_products WHERE code = ?").pluck();
   const products = found.flatMap((r): SearchCard[] => {
     if (r.kind !== "product") return [];
-    const k = idOf.get(r.code) as number | undefined;
+    const k = idByCode.get(r.code) as number | undefined;
     if (k === undefined || k >= nr.count.length || !nr.count[k]) return [];
     const size = r.measure && r.size ? { measure: r.measure, size: r.size } : { measure: "unit" as const, size: 1 };
     return [{

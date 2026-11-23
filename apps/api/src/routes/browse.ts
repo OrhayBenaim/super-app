@@ -5,7 +5,7 @@ import { ID } from "@grocer/shared/ids";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
 import { requireUser, type AppEnv } from "#/middleware.ts";
-import { groupPage, promotionCards, searchCards, promotionPage, typeCards, typeCounts } from "#/prices/browse.ts";
+import { groupPage, promotionCards, promotionPage, searchCards, typeCards, typeCounts } from "#/prices/browse.ts";
 import { groupRefSchema } from "#/prices/groups.ts";
 import { nearbyStoreIds } from "#/prices/nearby.ts";
 import { productPage } from "#/prices/product-page.ts";
@@ -19,7 +19,7 @@ const nearQuery = z
   })
   .refine((q) => (q.lat === undefined) === (q.lng === undefined), "lat and lng go together");
 const searchParam = z.string().trim().min(SEARCH.minLength).max(SEARCH.maxLength);
-const typeParam =z.enum(PRODUCT_TYPES);
+const typeParam = z.enum(PRODUCT_TYPES);
 /** Promotions' filters: a Product type and a Chain (its id, as GET /api/chains lists it), and the page (from 1). */
 const promotionsQuery = z.object({
   type: typeParam.optional(),

@@ -8,12 +8,13 @@ import { useCurrentListId, useList } from "@/features/lists/api";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
-import { EmptyState, LargeTitle, Screen, SearchField, Skeleton, Tap, Text } from "@/ui";
+import { EmptyState, LargeTitle, Screen, Skeleton } from "@/ui";
 import { useSearchCards } from "./api";
 import { CardGrid } from "./CardGrid";
 import { GroupCard } from "./GroupCard";
-import { LocationBanner, useBrowseLocation } from "./LocationBanner";
+import { useBrowseLocation } from "./LocationBanner";
 import { resultsKey } from "./search";
+import { SearchHeader } from "./SearchHeader";
 import { useSearchPanel } from "./useSearchPanel";
 
 /**
@@ -23,7 +24,7 @@ import { useSearchPanel } from "./useSearchPanel";
 export function SearchScreen() {
   const { q = "" } = useLocalSearchParams<{ q: string }>();
   const { space } = useTheme();
-  const { location, coords, radiusKm, off, known } = useBrowseLocation();
+  const { coords, radiusKm, off, known } = useBrowseLocation();
   const setRadiusKm = useRadius((s) => s.set);
   const cards = useSearchCards(q, coords, radiusKm, known);
   const listId = useCurrentListId();
@@ -72,25 +73,7 @@ export function SearchScreen() {
         header={
           <>
             <LargeTitle title={t("home.search.title")} subtitle={subtitle} />
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space[4], paddingBottom: space[3] }}>
-              <SearchField
-                ref={field}
-                label={t("home.search.placeholder")}
-                value={query}
-                onChangeText={setQuery}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                returnKeyType="search"
-                onSubmitEditing={submitQuery}
-                containerStyle={{ flex: 1 }}
-              />
-              {focused && (
-                <Tap accessibilityLabel={t("common.cancel")} analyticsName={Taps.homeSearchCancel} onPress={cancel} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>
-                  <Text color="tint">{t("common.cancel")}</Text>
-                </Tap>
-              )}
-            </View>
-            {off && <LocationBanner location={location} />}
+            <SearchHeader query={query} setQuery={setQuery} field={field} setFocused={setFocused} onSubmit={submitQuery} onCancel={cancel} cancellable={focused} />
           </>
         }
         empty={suggesting ? panel : empty}
