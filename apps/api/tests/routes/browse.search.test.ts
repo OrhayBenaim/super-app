@@ -95,6 +95,12 @@ describe("GET /api/browse/search", () => {
     expect(cards[0]).toMatchObject({ ref: null, type: "dairy-eggs", code: sku(SOLO.code), name: SOLO.name, storeCount: 2, minPrice: 47.5 });
   });
 
+  it("without a location returns a Product in no group too, unpriced", async () => {
+    const cards = await search("חלבון");
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({ ref: null, code: sku(SOLO.code), storeCount: 2, minPrice: null });
+  });
+
   it("returns at most 100 cards", async () => {
     expect(await search("זנגביל", near)).toHaveLength(100);
   });
