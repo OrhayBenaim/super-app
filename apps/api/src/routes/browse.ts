@@ -1,11 +1,13 @@
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { ID } from "@grocer/shared/ids";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
 import { requireUser, type AppEnv } from "#/middleware.ts";
 import { groupPage, promotionCards, promotionPage, typeCards, typeCounts } from "#/prices/browse.ts";
 import { groupRefSchema } from "#/prices/groups.ts";
 import { nearbyStoreIds } from "#/prices/nearby.ts";
+import { productPage } from "#/prices/product-page.ts";
 
 /** Where the User is, as Compare takes it, or nothing (location off). Both lat and lng, or neither. */
 const nearQuery = z
@@ -50,6 +52,14 @@ export const browseRoutes = new Hono<AppEnv>()
     const type = parse(typeParam, c.req.param("type"));
     const ref = parse(groupRefSchema, c.req.param("ref"));
     const page = groupPage(c.var.deps.db, storesFor(c), type, ref);
+    return page ? c.json(page) : c.json({ error: "not found" }, 404);
+  })
+  // A Product page: one Product and its price at each store (nearby ones with a location, every one without).
+  .get("/products/:code", (c) => {
+    const code = parse(z.string().trim().min(1).max(ID.maxLength), c.req.param("code"));
+    const q = parse(nearQuery, c.req.query());
+    const near = q.lat === undefined || q.lng === undefined ? null : { lat: q.lat, lng: q.lng, radiusKm: q.radiusKm };
+    const page = productPage(c.var.deps.db, code, near, c.var.deps.clock.now());
     return page ? c.json(page) : c.json({ error: "not found" }, 404);
   })
   // Promotions: a page of group cards of the Products on a Promotion running nearby; nothing without a location.
