@@ -3,8 +3,9 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { ID } from "@grocer/shared/ids";
 import { PRODUCT_TYPES } from "@grocer/shared/product-types";
+import { SEARCH } from "@grocer/shared/search";
 import { requireUser, type AppEnv } from "#/middleware.ts";
-import { groupPage, promotionCards, promotionPage, typeCards, typeCounts } from "#/prices/browse.ts";
+import { groupPage, promotionCards, searchCards, promotionPage, typeCards, typeCounts } from "#/prices/browse.ts";
 import { groupRefSchema } from "#/prices/groups.ts";
 import { nearbyStoreIds } from "#/prices/nearby.ts";
 import { productPage } from "#/prices/product-page.ts";
@@ -17,7 +18,8 @@ const nearQuery = z
     radiusKm: z.coerce.number().min(1).max(50).default(10),
   })
   .refine((q) => (q.lat === undefined) === (q.lng === undefined), "lat and lng go together");
-const typeParam = z.enum(PRODUCT_TYPES);
+const searchParam = z.string().trim().min(SEARCH.minLength).max(SEARCH.maxLength);
+const typeParam =z.enum(PRODUCT_TYPES);
 /** Promotions' filters: a Product type and a Chain (its id, as GET /api/chains lists it), and the page (from 1). */
 const promotionsQuery = z.object({
   type: typeParam.optional(),
@@ -42,6 +44,8 @@ export const browseRoutes = new Hono<AppEnv>()
   .use(requireUser)
   // Home: the Product types sold nearby, each with its count of group cards.
   .get("/types", (c) => c.json(typeCounts(c.var.deps.db, storesFor(c))))
+  // Search results: group cards, then single-Product cards, sold nearby (every match, unpriced without a location).
+  .get("/search", (c) => c.json(searchCards(c.var.deps.db, storesFor(c), parse(searchParam, c.req.query("q")))))
   // One Product type's group cards.
   .get("/types/:type", (c) => {
     const type = parse(typeParam, c.req.param("type"));
