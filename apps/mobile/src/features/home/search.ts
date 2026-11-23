@@ -26,3 +26,6 @@ export const suggestionTarget = (row: ProductGroup | Product) =>
   row.kind === "group"
     ? ({ pathname: "/group/[ref]", params: { ref: row.ref, type: row.type } } as const)
     : ({ pathname: "/product/[code]", params: { code: row.code, type: row.type } } as const);
+
+/** Names a set of Search results so the grid replays its enter motion when they change; null while there are none. */
+export const resultsKey = (keys: string[]) => (keys.length ? keys.join("|") : null);
