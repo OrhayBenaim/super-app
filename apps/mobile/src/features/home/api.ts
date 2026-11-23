@@ -43,6 +43,20 @@ export type GroupProduct = {
 };
 export type GroupPage = { card: Card; products: GroupProduct[] };
 
+/** A store on a Product page: `distanceKm` only with a location; `lat`/`lng` null for a store with no location yet; prices per kilo by weight. */
+export type ProductStore = {
+  chainName: string; storeName: string; distanceKm?: number; lat: number | null; lng: number | null;
+  price: number; promoPrice: number | null; promoText: string | null;
+};
+export type ProductPage = {
+  product: { code: string; name: string; measure: Measure | null; size: number | null; soldBy: SoldBy; type: ProductType };
+  stores: ProductStore[];
+};
+
+/** One Product's price at each store: nearby ones with a location, every one that prices it without. */
+export const useProductPage = (code: string, coords: Coords | null, radiusKm: number, enabled: boolean) =>
+  useBrowse<ProductPage>(`products/${encodeURIComponent(code)}`, coords, radiusKm, enabled);
+
 /** A group card's product page: the card and its Products sold nearby. */
 export const useGroupPage = (type: ProductType, ref: string, coords: Coords | null, radiusKm: number, enabled: boolean) =>
   useBrowse<GroupPage>(`types/${type}/groups/${encodeURIComponent(ref)}`, coords, radiusKm, enabled);

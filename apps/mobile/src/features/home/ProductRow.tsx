@@ -15,7 +15,7 @@ import { useCard, type CardScreen } from "./useCard";
 /** The Product image on a product page row, in pt (Chain lines under it indent past it). */
 export const ROW_IMAGE = 48;
 
-export const packSize = (p: GroupProduct) =>
+export const packSize = (p: Pick<GroupProduct, "soldBy" | "measure" | "size">) =>
   p.soldBy === "weight" ? t("items.product.byWeight") : p.measure && p.size ? sizeLabel(p.measure, p.size, t) : null;
 
 /**

@@ -91,6 +91,7 @@ export const Taps = {
   homeLocationRetry: "home.location.retry",
   homeLocationSettings: "home.location.settings",
   homeOpen: "home.open",
+  homeProductNavigate: "home.product.navigate",
   homeRetry: "home.retry",
   homeSwitch: "home.switch",
   homeType: "home.type",
