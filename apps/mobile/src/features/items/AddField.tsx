@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Plus, ScanBarcode } from "lucide-react-native";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Keyboard, Pressable, ScrollView, View } from "react-native";
+import { Keyboard, Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import type { ProductType } from "@grocer/shared/product-types";
 import { SEARCH } from "@grocer/shared/search";
@@ -15,12 +15,11 @@ import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Group, Row, SearchField, Tap, Text, Toast } from "@/ui";
 import { suggestItems } from "./autocomplete";
-import { GroupResult } from "./GroupResult";
 import { AddBadge, ItemRow } from "./ItemRow";
-import { groupTitle, productDetail } from "./labels";
-import { ProductImage } from "./ProductImage";
-import { splitResults, useProductSearch, type Product, type ProductGroup } from "./products";
+import { groupTitle } from "./labels";
+import { splitResults, useProductSearch } from "./products";
 import { takeScan } from "./scan";
+import { SearchingRow, suggestionRows } from "./SuggestionRows";
 
 type Props = {
   listId: string | null;
@@ -96,21 +95,16 @@ export function AddField({ listId, items, from, onClose }: Props) {
     } else if (create) createItem(create);
   };
 
-  const productRow = (p: Product) => (
-    <Row
-      key={p.code}
-      title={p.name}
-      detail={productDetail(p, t)}
-      accessibilityLabel={fmt(t(from === "list" ? "items.addToList" : "items.add.createInItems"), { name: p.name })}
-      analyticsName={Taps.itemsAddProduct}
-      leading={<ProductImage url={p.imageUrl} />}
-      trailing={<AddBadge />}
-      onPress={() => createItem(p.name, { productCode: p.code }, p.type)}
-    />
-  );
-  const groupRow = (g: ProductGroup) => (
-    <GroupResult key={g.ref} group={g} trailing={<AddBadge />} onPress={() => createItem(groupTitle(g, t), { groupRef: g.ref }, g.type)} onRefine={(word) => setQuery(`${query.trim()} ${word}`)} />
-  );
+  const suggestions = suggestionRows({
+    groups,
+    products,
+    productLabel: from === "list" ? "items.addToList" : "items.add.createInItems",
+    productAnalyticsName: Taps.itemsAddProduct,
+    trailing: <AddBadge />,
+    onGroup: (g) => createItem(groupTitle(g, t), { groupRef: g.ref }, g.type),
+    onProduct: (p) => createItem(p.name, { productCode: p.code }, p.type),
+    onRefine: (word) => setQuery(`${query.trim()} ${word}`),
+  });
 
   return (
     <Animated.View
@@ -148,21 +142,7 @@ export function AddField({ listId, items, from, onClose }: Props) {
             {matches.map((item) => (
               <ItemRow key={item.id} item={item} onToggle={(missing) => toggle(item, missing)} />
             ))}
-            {searching ? (
-              <View accessible accessibilityRole="progressbar" accessibilityLabel={t("items.add.searching")} style={{ flexDirection: "row", alignItems: "center", gap: space[3], minHeight: 44, paddingHorizontal: space[5] }}>
-                <ActivityIndicator color={colors.labelSecondary} />
-                <Text color="labelSecondary">{t("items.add.searching")}</Text>
-              </View>
-            ) : (
-              [
-                ...groups.map(groupRow),
-                products.length > 0 && (
-                  <Group key="products" title={groups.length ? t("items.product.specific") : undefined} maxRows={3}>
-                    {products.map(productRow)}
-                  </Group>
-                ),
-              ]
-            )}
+            {searching ? <SearchingRow /> : suggestions}
             {create && (
               <Row
                 title={fmt(t(from === "list" ? "items.add.create" : "items.add.createInItems"), { name: create })}

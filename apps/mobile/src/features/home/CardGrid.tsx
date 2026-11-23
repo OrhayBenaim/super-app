@@ -31,6 +31,7 @@ export function CardGrid<T>({ data, keyOf, render, header, empty, onEndReached, 
       initialNumToRender={4}
       maxToRenderPerBatch={4}
       windowSize={5}
+      keyboardShouldPersistTaps="handled"
       onEndReached={onEndReached}
       onEndReachedThreshold={2}
       columnWrapperStyle={{ gap: space[4] }}
