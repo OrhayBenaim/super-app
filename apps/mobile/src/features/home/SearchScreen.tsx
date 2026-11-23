@@ -13,6 +13,7 @@ import { useSearchCards } from "./api";
 import { CardGrid } from "./CardGrid";
 import { GroupCard } from "./GroupCard";
 import { LocationBanner, useBrowseLocation } from "./LocationBanner";
+import { resultsKey } from "./search";
 import { useSearchPanel } from "./useSearchPanel";
 
 /**
@@ -66,6 +67,7 @@ export function SearchScreen() {
     <Screen edges={[]} style={{ paddingHorizontal: 0 }}>
       <CardGrid
         data={suggesting ? [] : data}
+        enterKey={suggesting ? null : resultsKey(data.map((c) => c.ref ?? c.code))}
         keyOf={(c) => c.ref ?? c.code}
         header={
           <>

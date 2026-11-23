@@ -4,7 +4,7 @@ vi.mock("@/lib/api", () => ({ api: vi.fn(), BASE_URL: "https://api.grocer.test" 
 vi.mock("expo-image", () => ({ Image: { prefetch: vi.fn() } }));
 
 import { SEARCH } from "@grocer/shared/search";
-import { homeScan, homeSuggestions, resultsTarget, searchRow, suggestionTarget } from "@/features/home/search";
+import { homeScan, homeSuggestions, resultsKey, resultsTarget, searchRow, suggestionTarget } from "@/features/home/search";
 import { splitResults, type Product, type ProductGroup, type SearchResult } from "@/features/items/products";
 
 const group: ProductGroup = {
@@ -71,5 +71,16 @@ describe("homeScan", () => {
 
   it("keeps reading on an unknown Barcode", () => {
     expect(homeScan({ kind: "unknown" })).toEqual({ go: "read" });
+  });
+});
+
+describe("resultsKey", () => {
+  it("is null while there is nothing to show, so loading and suggestions never replay", () => {
+    expect(resultsKey([])).toBeNull();
+  });
+  it("changes with the results and their order, and only then", () => {
+    expect(resultsKey(["a", "b"])).toBe(resultsKey(["a", "b"]));
+    expect(resultsKey(["a", "b"])).not.toBe(resultsKey(["a", "c"]));
+    expect(resultsKey(["a", "b"])).not.toBe(resultsKey(["b", "a"]));
   });
 });
