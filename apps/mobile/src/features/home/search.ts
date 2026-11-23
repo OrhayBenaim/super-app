@@ -7,6 +7,12 @@ import type { ScanOutcome } from "@/features/items/scan";
 export const homeSuggestions = (query: string, results: SearchResult[] | undefined) =>
   splitResults(query.trim().length >= SEARCH.minLength ? results : []);
 
+/** The search row that takes the List's "create" row's place: the query to search for, or null while it is too short. */
+export const searchRow = (query: string) => (query.trim().length >= SEARCH.minLength ? query.trim() : null);
+
+/** The row and Return both open Search results with the query. */
+export const resultsTarget = (query: string) => ({ pathname: "/search", params: { q: query.trim() } }) as const;
+
 /** What a scan from Home does with each outcome: a found Barcode opens its Product page, a name fills the field, an unknown Barcode keeps the camera reading. */
 export const homeScan = (outcome: ScanOutcome) =>
   outcome.kind === "found"

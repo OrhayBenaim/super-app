@@ -28,6 +28,8 @@ export const Events = {
   contactSent: "contact_sent",
   /** One per scan: `result` found | named | unknown | denied, `from` list | items | home. Never the Barcode or a name. */
   itemScanned: "item_scanned",
+  /** One per search submitted: `from` home | results. Never the query. */
+  searchSubmitted: "search_submitted",
 } as const;
 export type Event = (typeof Events)[keyof typeof Events];
 
@@ -94,6 +96,7 @@ export const Taps = {
   homeProductNavigate: "home.product.navigate",
   homeRetry: "home.retry",
   homeSearchCancel: "home.search.cancel",
+  homeSearchRow: "home.search.row",
   homeScan: "home.scan",
   homeSuggestGroup: "home.suggest.group",
   homeSuggestProduct: "home.suggest.product",
