@@ -112,6 +112,14 @@ _Avoid_: Custom group, manual group
 The broad kind a Product is: one of a fixed list we own (dairy and eggs, meat and fish, produce…, Other last), given to each Product from its name. A Product that fits none of them is of the Product type Other, and so is a Product not given a type yet. The same classifier request also writes the Product name out in full (docs/adr/0010). Users browse Home by Product type. An Item added from Home or Promotions takes its Product type's name as its category.
 _Avoid_: Category (an Item's category is the household's own), department
 
+**Group page**:
+A Product group's page: the group with its own Add, then every Product of the group sold nearby, each with its cheapest price nearby and its own Add.
+_Avoid_: Product page (that is one Product's page), category page
+
+**Product page**:
+One Product's page: its Product image, Product name and pack size with its own Add, then its price at each nearby store, or at every store that prices it when the User's location is unknown. A User reaches it from a Product found by Home's search, a Product with no Product group on Home, or a scanned Barcode on Home.
+_Avoid_: Group page (that is a Product group's page), item page (an Item is on a List)
+
 ### Account lifecycle
 
 **Account deletion**:
