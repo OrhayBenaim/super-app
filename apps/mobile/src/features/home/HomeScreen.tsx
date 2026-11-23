@@ -2,18 +2,22 @@ import type { ProductType } from "@grocer/shared/product-types";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { SearchX, TriangleAlert } from "lucide-react-native";
-import { View } from "react-native";
+import { useRef, useState } from "react";
+import { View, type TextInputInstance } from "react-native";
 import { MenuButton } from "@/features/drawer/MenuButton";
 import { fmt } from "@/features/compare/format";
 import { RADII, useRadius } from "@/features/compare/api";
+import { SearchingRow, suggestionRows } from "@/features/items/SuggestionRows";
+import { useProductSearch } from "@/features/items/products";
 import { Taps } from "@/lib/analytics";
 import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
-import { EmptyState, LargeTitle, Screen, Skeleton, Tap, Text } from "@/ui";
+import { EmptyState, Group, LargeTitle, Screen, SearchField, Skeleton, Tap, Text } from "@/ui";
 import { useProductTypes, type TypeCount } from "./api";
 import { CardGrid } from "./CardGrid";
 import { typeNameKey } from "./card";
 import { LocationBanner, useBrowseLocation } from "./LocationBanner";
+import { homeSuggestions, suggestionTarget } from "./search";
 
 // Brand page "Illustration/Product type/*", exported at @2x and @3x.
 const ILLUSTRATIONS: Record<ProductType, number> = {
@@ -88,18 +92,58 @@ export function HomeScreen() {
     />
   );
 
+  // While the field has text the suggestions take the grid's place; the field stays in the list header so it keeps focus.
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+  const field = useRef<TextInputInstance>(null);
+  const search = useProductSearch(query);
+  const { groups, products } = homeSuggestions(query, search.data);
+  const open = (row: Parameters<typeof suggestionTarget>[0]) => router.push(suggestionTarget(row));
+  const rows = suggestionRows({
+    groups,
+    products,
+    productLabel: "home.suggest.open",
+    groupAnalyticsName: Taps.homeSuggestGroup,
+    productAnalyticsName: Taps.homeSuggestProduct,
+    onGroup: open,
+    onProduct: open,
+    onRefine: (word) => setQuery(`${query.trim()} ${word}`),
+  });
+  const suggesting = query !== "";
+  const cancel = () => {
+    setQuery("");
+    field.current?.blur();
+  };
+
   return (
     <Screen edges={["top"]} style={{ paddingHorizontal: 0 }}>
       <CardGrid
-        data={data}
+        data={suggesting ? [] : data}
         keyOf={(c) => c.type}
         header={
           <>
             <LargeTitle start={<MenuButton />} title={t("tabs.home")} subtitle={subtitle} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space[4], paddingBottom: space[3] }}>
+              <SearchField
+                ref={field}
+                label={t("home.search.placeholder")}
+                value={query}
+                onChangeText={setQuery}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                returnKeyType="search"
+                containerStyle={{ flex: 1 }}
+              />
+              {(focused || suggesting) && (
+                <Tap accessibilityLabel={t("common.cancel")} analyticsName={Taps.homeSearchCancel} onPress={cancel} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>
+                  <Text color="tint">{t("common.cancel")}</Text>
+                </Tap>
+              )}
+            </View>
             {off && <LocationBanner location={location} />}
           </>
         }
-        empty={empty}
+        empty={!suggesting ? empty : groups.length + products.length > 0 ? <Group>{rows}</Group> : search.isFetching ? <SearchingRow /> : null}
         render={(item) => <TypeCard {...item} onPress={() => router.push({ pathname: "/type/[id]", params: { id: item.type } })} />}
       />
     </Screen>
