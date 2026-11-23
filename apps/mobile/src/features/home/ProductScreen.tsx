@@ -15,7 +15,7 @@ import { EmptyState, Screen, SectionHeader, Skeleton, Tap, Text } from "@/ui";
 import { useProductPage, type ProductPage, type ProductStore } from "./api";
 import { productTypeOf, typeNameKey, type CardTarget } from "./card";
 import { CardControls } from "./CardControls";
-import { LocationBanner, useBrowseLocation } from "./LocationBanner";
+import { useBrowseLocation } from "./LocationBanner";
 import { packSize } from "./ProductRow";
 import { storeRow } from "./product-page";
 import { useCard } from "./useCard";
@@ -104,7 +104,7 @@ function ProductTop({ data }: { data: ProductPage }) {
 export function ProductScreen() {
   const params = useLocalSearchParams<{ code: string; type?: string }>();
   const { space } = useTheme();
-  const { coords, radiusKm, off, location, known } = useBrowseLocation();
+  const { coords, radiusKm, known } = useBrowseLocation();
   const page = useProductPage(params.code, coords, radiusKm, known);
   const data = page.data;
   const type = productTypeOf(params.type);
@@ -136,7 +136,6 @@ export function ProductScreen() {
           <View style={{ gap: space[3] }}>
             {data && (
               <>
-                {off && <LocationBanner location={location} />}
                 <ProductTop data={data} />
                 {stores.length > 0 && <SectionHeader title={t("home.product.stores")} count={stores.length} />}
               </>
