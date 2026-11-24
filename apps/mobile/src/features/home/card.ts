@@ -113,6 +113,15 @@ export const typeNameKey = (type: ProductType): StringKey => TYPE_NAMES[type];
 /** The Product type a route param names, Other when it names none. */
 export const productTypeOf = (param: string | undefined): ProductType => PRODUCT_TYPES.find((p) => p === param) ?? "other";
 
+/** The route of a Group page (by ref) or a Product page (by code), the one builder every opener uses. */
+export const pageTarget = (type: ProductType, page: { ref: string } | { code: string }) =>
+  "ref" in page
+    ? ({ pathname: "/group/[ref]", params: { ref: page.ref, type } } as const)
+    : ({ pathname: "/product/[code]", params: { code: page.code, type } } as const);
+
+/** What a card opens: its Group page when it has a group ref, else its Product page. */
+export const openTarget = (card: Card, type: ProductType) => pageTarget(type, card.ref === null ? { code: card.code } : { ref: card.ref });
+
 /**
  * What Add puts on the List for a browse card: the group, named as search names it, in its Product type's category; a
  * lone Product with no group ref by its code, under its own name.

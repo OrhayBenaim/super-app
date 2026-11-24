@@ -11,7 +11,7 @@ import { t } from "@/lib/strings";
 import { useTheme } from "@/theme";
 import { Tap, Text } from "@/ui";
 import type { Card } from "./api";
-import { groupTarget } from "./card";
+import { groupTarget, openTarget } from "./card";
 import { CardControls } from "./CardControls";
 import { useCard } from "./useCard";
 
@@ -46,7 +46,7 @@ export function GroupCard({ card, type, listId, items }: { card: Card; type: Pro
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: radius.group, padding: space[4] }}>
       <CardBody
-        open={card.ref === null ? null : () => router.push({ pathname: "/group/[ref]", params: { ref: card.ref!, type } })}
+        open={() => router.push(openTarget(card, type))}
         label={[target.name, price].filter(Boolean).join(", ")}
         hint={t("home.open.hint")}
         analyticsName={Taps.homeOpen}
